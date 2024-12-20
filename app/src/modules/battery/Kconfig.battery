@@ -1,0 +1,27 @@
+#
+# Copyright (c) 2023 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menu "Sampler"
+
+config APP_BATTERY_THREAD_STACK_SIZE
+	int "Thread stack size"
+	default 1536
+
+config APP_BATTERY_WATCHDOG_TIMEOUT_SECONDS
+	int "Watchdog timeout seconds"
+	default 120
+
+config APP_BATTERY_EXEC_TIME_SECONDS_MAX
+	int "Maximum execution time seconds"
+	default 3
+	help
+	  Maximum time allowed for a single execution of the module thread loop.
+
+module = APP_BATTERY
+module-str = Battery
+source "subsys/logging/Kconfig.template.log_config"
+
+endmenu # Sampler

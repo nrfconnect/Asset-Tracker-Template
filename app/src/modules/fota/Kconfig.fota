@@ -1,0 +1,39 @@
+#
+# Copyright (c) 2024 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menuconfig APP_FOTA
+	bool "FOTA"
+	select FOTA
+	default y if !BOARD_NATIVE_POSIX
+
+config APP_FOTA_THREAD_STACK_SIZE
+	int "Thread stack size"
+	default 2500
+
+config APP_FOTA_WATCHDOG_TIMEOUT_SECONDS
+	int "Watchdog timeout seconds"
+	default 210
+
+config APP_FOTA_EXEC_TIME_SECONDS_MAX
+	int "Maximum execution time seconds"
+	default 180
+	help
+	  Watchdog timeout in seconds for a state machine run.
+
+config APP_FOTA_REBOOT_DELAY_SECONDS
+	int "Reboot delay seconds"
+	default 10
+	help
+	  Delay in seconds before rebooting after a FOTA_STATUS_REBOOT_PENDING event has been
+	  sent.
+
+if APP_FOTA
+
+module = APP_FOTA
+module-str = FOTA
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # APP_FOTA

@@ -1,0 +1,42 @@
+#
+# Copyright (c) 2024 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menuconfig APP_SHELL
+	bool "Zbus Shell"
+	depends on SHELL
+	depends on !AT_HOST_LIRBARY
+	imply AT_SHELL
+	default y
+	help
+	  Adds a zbus shell. The shell command is called
+	  "zbus" and will interpret arguments as zbus commands, and print back the
+	  response.
+
+if APP_SHELL
+
+config APP_SHELL_THREAD_STACK_SIZE
+	int "Thread stack size"
+	default 1024
+
+config APP_SHELL_WATCHDOG_TIMEOUT_SECONDS
+	int "Watchdog timeout seconds"
+	default 120
+
+config APP_SHELL_EXEC_TIME_SECONDS_MAX
+	int "Maximum execution time seconds"
+	default 3
+	help
+	  Maximum time allowed for a single execution of the module thread loop.
+
+config APP_SHELL_UART_PM_ENABLE
+	bool "Enable UART power management feature"
+	default y
+
+module = APP_SHELL
+module-str = SHELL
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # APP_SHELL

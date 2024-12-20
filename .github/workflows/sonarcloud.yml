@@ -1,0 +1,98 @@
+name: SonarCloud
+on:
+  push:
+    branches:
+      - main
+  pull_request_target:
+    paths:
+      - '**/*.c'
+      - '**/*.h'
+      - west.yml
+      - '**/CMakelists.txt'
+      - '**/Kconfig*'
+      - '**/prj.conf'
+jobs:
+  build:
+    name: Build and analyze
+    runs-on: ubuntu-latest
+    container: ghcr.io/zephyrproject-rtos/ci:v0.27.4
+    env:
+      BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory # Directory where build-wrapper output will be placed
+      CMAKE_PREFIX_PATH: /opt/toolchains
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request_target'
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          path: thingy91x-oob
+
+      - uses: actions/checkout@v4
+        if: github.event_name != 'pull_request_target'
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          path: thingy91x-oob
+
+      - name: Initialize
+        working-directory: thingy91x-oob
+        run: |
+            west init -l .
+            west config manifest.group-filter +bsec
+            west config build.sysbuild True
+            west update -o=--depth=1 -n
+            west blobs fetch hal_nordic
+
+      - name: Install dependencies
+        run: |
+            pip install -r nrf/scripts/requirements-build.txt
+            apt-get update
+            apt install -y curl ruby-full
+
+      - name: Install sonar-scanner and build-wrapper
+        uses: SonarSource/sonarcloud-github-c-cpp@v3
+
+      - name: Build and test
+        working-directory: thingy91x-oob
+        run: |
+          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} west twister -T . -C --coverage-platform=native_sim -v --inline-logs --integration
+
+      - name: Extract coverage into sonarqube xml format
+        working-directory: thingy91x-oob
+        run: |
+          gcovr twister-out -v --merge-mode-functions=separate --exclude='twister-out|drivers' --sonarqube coverage.xml
+
+      - name: Run sonar-scanner on main
+        working-directory: thingy91x-oob
+        if: github.event_name != 'pull_request_target'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          sonar-scanner \
+            --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}" \
+            --define project.settings=sonar-project.properties \
+            --define sonar.coverageReportPaths=coverage.xml \
+            --define sonar.inclusions=**/*.c,**/*.h \
+            --define sonar.exclusions=tests/,drivers/sensor/*_dummy/
+
+      - name: Run sonar-scanner on PR
+        working-directory: thingy91x-oob
+        if: github.event_name == 'pull_request_target'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          sonar-scanner \
+            --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}" \
+            --define project.settings=sonar-project.properties \
+            --define sonar.coverageReportPaths=coverage.xml \
+            --define sonar.inclusions=**/*.c,**/*.h \
+            --define sonar.exclusions=tests/,drivers/sensor/*_dummy/ \
+            --define sonar.scm.revision=${{ env.HEAD_SHA }} \
+            --define sonar.pullrequest.key=${{ env.PR_NUMBER }} \
+            --define sonar.pullrequest.branch=${{ env.PR_BRANCH }} \
+            --define sonar.pullrequest.base=${{ env.BASE_REF }}

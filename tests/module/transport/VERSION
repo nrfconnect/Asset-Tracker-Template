@@ -1,0 +1,6 @@
+# Do not modify, will be overwritten by release workflow.
+VERSION_MAJOR = 0
+VERSION_MINOR = 0
+PATCHLEVEL = 0
+VERSION_TWEAK = 0
+EXTRAVERSION = dev

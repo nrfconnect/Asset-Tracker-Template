@@ -1,0 +1,12 @@
+/*
+ * Copyright (c) 2024 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+/* Application-specific trace reasons can be defined here.
+ * Please refer to https://docs.memfault.com/docs/embedded/trace-events for more details.
+ */
+
+MEMFAULT_TRACE_REASON_DEFINE(cbor_decode_app_object)
+MEMFAULT_TRACE_REASON_DEFINE(nrf_cloud_coap_shadow_get)

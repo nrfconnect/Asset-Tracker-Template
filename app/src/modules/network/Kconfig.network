@@ -1,0 +1,31 @@
+#
+# Copyright (c) 2023 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menu "Network"
+	depends on NRF_MODEM_LIB_NET_IF || (WIFI_NRF700X && WIFI_MGMT_EXT) || BOARD_NATIVE_POSIX
+
+config APP_NETWORK_THREAD_STACK_SIZE
+	int "Thread stack size"
+	default 2048
+
+config APP_NETWORK_WATCHDOG_TIMEOUT_SECONDS
+	int "Watchdog timeout seconds"
+	default 600
+
+config APP_NETWORK_EXEC_TIME_SECONDS_MAX
+	int "Maximum execution time seconds"
+	default 570
+	help
+	  Maximum time allowed for a single execution of the module's thread loop.
+
+config APP_NETWORK_SAMPLE_NETWORK_QUALITY
+	bool "Sample network quality"
+
+module = APP_NETWORK
+module-str = Network
+source "subsys/logging/Kconfig.template.log_config"
+
+endmenu # Network

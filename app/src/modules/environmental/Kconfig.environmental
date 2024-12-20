@@ -1,0 +1,32 @@
+#
+# Copyright (c) 2024 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menuconfig APP_ENVIRONMENTAL
+	bool "Environmental module"
+	depends on BME68X_IAQ
+	default y
+
+if APP_ENVIRONMENTAL
+
+config APP_ENVIRONMENTAL_THREAD_STACK_SIZE
+	int "Thread stack size"
+	default 1280
+
+config APP_ENVIRONMENTAL_WATCHDOG_TIMEOUT_SECONDS
+	int "Watchdog timeout seconds"
+	default 120
+
+config APP_ENVIRONMENTAL_EXEC_TIME_SECONDS_MAX
+	int "Maximum execution time seconds"
+	default 3
+	help
+	  Maximum time allowed for a single execution of the module's thread loop.
+
+module = APP_ENVIRONMENTAL
+module-str = ENVIRONMENTAL
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # APP_ENVIRONMENTAL

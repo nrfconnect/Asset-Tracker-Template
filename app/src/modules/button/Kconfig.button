@@ -1,0 +1,13 @@
+#
+# Copyright (c) 2024 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menu "Button"
+
+module = APP_BUTTON
+module-str = Button
+source "subsys/logging/Kconfig.template.log_config"
+
+endmenu # Button

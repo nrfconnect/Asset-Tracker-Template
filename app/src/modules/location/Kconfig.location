@@ -1,0 +1,26 @@
+# Copyright (c) 2024 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menu "Location"
+	depends on LOCATION
+	depends on LOCATION_DATA_DETAILS
+
+config APP_LOCATION_THREAD_STACK_SIZE
+	int "Thread stack size"
+	default 2048
+
+config APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS
+	int "Watchdog timeout seconds"
+	default 120
+
+config APP_LOCATION_ZBUS_TIMEOUT_SECONDS
+	int "Wait for zbus timeout seconds"
+	default 60
+
+module = APP_LOCATION
+module-str = Location
+source "subsys/logging/Kconfig.template.log_config"
+
+endmenu # Network

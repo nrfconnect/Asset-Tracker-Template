@@ -1,0 +1,25 @@
+# Copyright (c) 2024 Nordic Semiconductor ASA
+# SPDX-License-Identifier: Apache-2.0
+
+config GAS_SENSOR_DUMMY
+	bool "Gas sensor dummy device driver"
+	default y
+	depends on DT_HAS_ZEPHYR_GAS_SENSOR_DUMMY_ENABLED
+	depends on SENSOR
+	help
+	  Enable this option to use the Gas sensor dummy driver. This
+	  driver is used for testing purposes.
+
+if GAS_SENSOR_DUMMY
+
+config GAS_SENSOR_DUMMY_INIT_PRIORITY
+	int "Gas sensor dummy device drivers init priority"
+	default KERNEL_INIT_PRIORITY_DEVICE
+	help
+	  Gas sensor dummy device drivers init priority.
+
+module = GAS_SENSOR_DUMMY
+module-str = gas_sensor_dummy
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # GAS_SENSOR_DUMMY

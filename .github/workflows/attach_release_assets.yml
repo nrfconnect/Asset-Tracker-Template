@@ -1,0 +1,58 @@
+# Workflow that attaches additional assets to github release.
+name: Attach Release Assets
+
+permissions:
+  contents: write
+  actions: write
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    with:
+      build_bl_update: true
+      build_debug: true
+      memfault_sw_type: "hello.nrfcloud.com"
+
+  attach-assets:
+    runs-on: ubuntu-24.04
+    needs: [build]
+    steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+
+        - name: Download artifact
+          uses: actions/download-artifact@v4
+          with:
+           pattern: firmware-*
+           merge-multiple: true
+
+        - name: Deploy release to github
+          uses: softprops/action-gh-release@v2
+          with:
+            fail_on_unmatched_files: true
+            files: |
+              hello.nrfcloud.com-*.*
+              connectivity-bridge*.*
+              nrf91-bl-*.hex
+              nrf53-bl-*.hex
+
+        - name: Trigger workflow that publishes firmware bundles to nRF Cloud
+          working-directory: .github/workflows
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          run: |
+            gh workflow run publish-firmware-bundles.yml \
+              -F version=${{ github.event.release.tag_name }}
+
+        - name: Trigger workflow that publishes symbol files to Memfault
+          working-directory: .github/workflows
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          run: |
+            gh workflow run publish-symbol-files-to-memfault.yml \
+              -F version=${{ github.event.release.tag_name }}

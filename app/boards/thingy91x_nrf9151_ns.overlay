@@ -1,0 +1,32 @@
+/*
+ * Copyright (c) 2024 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+#include <thingy91x_wifi.dtsi>
+
+&bme680 {
+	status = "okay";
+};
+
+/ {
+	aliases {
+		gas-sensor = &bme680;
+	};
+
+	chosen {
+		nordic,modem-trace-uart = &uart1;
+		zephyr,wifi = &nordic_wlan0;
+	};
+};
+
+&uart1 {
+	status = "okay";
+};
+
+
+/* Switch to nrf7000 emulation so that scan-only mode is used. */
+&nrf70 {
+	compatible = "nordic,nrf7000-spi";
+};
