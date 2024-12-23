@@ -107,13 +107,7 @@ jobs:
       - name: Rename artifacts
         working-directory: asset-tracker-template/app/build
         run: |
-          cp ../../../nrf91-bl-*.hex .
-          # Overwrite the bootloader part with the frozen version
-          python3 ../../../zephyr/scripts/build/mergehex.py -o \
-            asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.hex \
-            merged.hex \
-            nrf91-bl-*.hex \
-            --overlap replace
+          cp merged.hex asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.hex
           cp app/zephyr/.config asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.config
           cp app/zephyr/zephyr.signed.bin asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91-update-signed.bin
           cp app/zephyr/zephyr.signed.hex asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91-update-signed.hex
@@ -135,8 +129,6 @@ jobs:
           if-no-files-found: error
           path: |
             asset-tracker-template/app/build/asset-tracker-template-*.*
-            asset-tracker-template/app/build/nrf91-bl-*.hex
-            asset-tracker-template/app/build/pmr-nrf91-*.txt
 
       # Asset Tracker Template debug firmware build
 
@@ -156,13 +148,7 @@ jobs:
         if: ${{ inputs.build_debug }}
         working-directory: asset-tracker-template/app/build
         run: |
-          cp ../../../nrf91-bl-*.hex .
-          # Overwrite the bootloader part with the frozen version
-          python3 ../../../zephyr/scripts/build/mergehex.py -o \
-            asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91.hex \
-            merged.hex \
-            nrf91-bl-*.hex \
-            --overlap replace
+          cp merged.hex asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.hex
           cp app/zephyr/.config asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91.config
           cp app/zephyr/zephyr.signed.bin asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91-update-signed.bin
           cp app/zephyr/zephyr.signed.hex asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91-update-signed.hex
