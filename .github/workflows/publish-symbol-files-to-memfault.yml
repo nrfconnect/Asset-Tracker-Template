@@ -32,7 +32,7 @@ jobs:
 
       - run: node .github/workflows/fetch-release-assets.mjs ${{ inputs.version }}
 
-      - name: Publish oob symbol files
+      - name: Publish symbol files
         run: |
           source venv/bin/activate
           memfault \
@@ -44,7 +44,7 @@ jobs:
               --software-version ${{ inputs.version }} \
               asset-tracker-template-${{ inputs.version }}-thingy91x-nrf91.elf
 
-      - name: Publish oob-debug symbol files
+      - name: Publish debug symbol files
         run: |
           source venv/bin/activate
           memfault \

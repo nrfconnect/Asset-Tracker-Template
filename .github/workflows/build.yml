@@ -157,7 +157,7 @@ jobs:
 
       - name: Create partition manager report for nRF91 debug firmware
         if: ${{ inputs.build_debug }}
-        working-directory: thingy91x-att/app/build
+        working-directory: asset-tracker-template/app/build
         run: |
           ninja partition_manager_report
           ninja partition_manager_report > pmr-nrf91-debug-${{ env.VERSION }}.txt
@@ -171,8 +171,8 @@ jobs:
           name: firmware-att-debug
           if-no-files-found: error
           path: |
-            thingy91x-att/app/build/asset-tracker-template-*.*
-            thingy91x-att/app/build/pmr-nrf91-*.txt
+            asset-tracker-template/app/build/asset-tracker-template-*.*
+            asset-tracker-template/app/build/pmr-nrf91-*.txt
 
       - name: Print run-id and fw version
         run: |

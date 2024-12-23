@@ -1,18 +1,18 @@
-# OOB on target test
+# Assert Tracker Template on target test
 
 ## Run test locally
 
 ### Setup docker
 ```shell
 docker pull ghcr.io/hello-nrfcloud/firmware:docker-v1.0.3
-cd <path_to_oob_dir>
+cd <path_to_att_dir>
 west build -p -b thingy91x/nrf9151/ns app
-cp build/merged.hex tests/on_target/artifacts/hello.nrfcloud.com-aaa000-thingy91x-nrf91.hex
+cp build/merged.hex tests/on_target/artifacts/asset-tracker-template-aaa000-thingy91x-nrf91.hex
 docker run --rm -it \
   --privileged \
   -v /dev:/dev:rw \
   -v /run/udev:/run/udev \
-  -v .:/work/thingy91x-oob \
+  -v .:/work/asset-tracker-template \
   -v /opt/setup-jlink:/opt/setup-jlink \
   ghcr.io/hello-nrfcloud/firmware:docker-v1.0.3 \
   /bin/bash
@@ -28,7 +28,7 @@ nrfutil -V
 
 ### Install requirements
 ```shell
-cd thingy91x-oob/tests/on_target
+cd asset-tracker-template/tests/on_target
 pip install -r requirements.txt --break-system-packages
 ```
 

@@ -83,7 +83,7 @@ def generate_time_series_html(csv_file, date_column, value_column, output_file="
     # Load the CSV file
     df = pd.read_csv(csv_file, parse_dates=[date_column])
 
-    title = "OOB Current Consumption Plot\n\n"
+    title = "Asset Tracker Template Current Consumption Plot\n\n"
     note_text = "Note: Low power state is reached after ~10 min, earlier than that uart is active (drawing ≳500uA)"
     title += f"<br><span style='font-size:12px;color:gray;'>{note_text}</span>"
 

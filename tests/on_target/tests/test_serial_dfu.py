@@ -20,8 +20,8 @@ NRF53_NET_HEX_FILE = get_first_artifact_match("artifacts/connectivity-bridge-*-t
 NRF53_APP_HEX_FILE = get_first_artifact_match("artifacts/connectivity-bridge-*-thingy91x-nrf53-app.hex")
 NRF53_APP_UPDATE_ZIP = get_first_artifact_match("artifacts/connectivity-bridge-*-thingy91x-nrf53-dfu.zip")
 NRF53_BL_UPDATE_ZIP = get_first_artifact_match("artifacts/connectivity-bridge-*-thingy91x-nrf53-bootloader.zip")
-NRF91_APP_UPDATE_ZIP = get_first_artifact_match("artifacts/hello.nrfcloud.com-*-thingy91x-nrf91-dfu.zip")
-NRF91_BL_UPDATE_ZIP = get_first_artifact_match("artifacts/hello.nrfcloud.com-*-thingy91x-nrf91-bootloader.zip")
+NRF91_APP_UPDATE_ZIP = get_first_artifact_match("artifacts/asset-tracker-template-*-thingy91x-nrf91-dfu.zip")
+NRF91_BL_UPDATE_ZIP = get_first_artifact_match("artifacts/asset-tracker-template-*-thingy91x-nrf91-bootloader.zip")
 NRF91_HEX_FILE = "artifacts/nrf91-bl-v2.hex"
 
 SEGGER_NRF53 = os.getenv('SEGGER_NRF53')
@@ -32,7 +32,7 @@ CONNECTIVITY_BRIDGE_UART = "THINGY91X_" + os.getenv('UART_ID', "")
 def t91x_dfu():
     '''
     This fixture initializes the nRF53 and nRF91 for dfu test.
-    First nRF91 is flashed with oob bootloader fw through segger fw on nRF53.
+    First nRF91 is flashed with Asset Tracker Template bootloader fw through segger fw on nRF53.
     Then nRF53 is flashed with connectivity bridge fw.
     '''
     logger.info(("Flashing nRF53 with Segger firmware"))
@@ -105,7 +105,7 @@ def test_dfu(t91x_dfu):
     t91x_dfu.uart.start()
 
     # Look for correct firmware version
-    expected_lines = ["Attempting to boot slot 1", "Firmware version 3", "*** Booting Hello, nRF Cloud"]
+    expected_lines = ["Attempting to boot slot 1", "Firmware version 3", "*** Booting Asset Tracker Template"]
     for _ in range(3):
         try:
             # reset nrf91
