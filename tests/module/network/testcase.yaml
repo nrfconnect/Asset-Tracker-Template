@@ -1,5 +1,5 @@
 tests:
-  hello_nrfcloud.fw.network:
+  asset_tracker_template.fw.network:
     platform_allow:
       - native_sim
       - native_sim/native/64
