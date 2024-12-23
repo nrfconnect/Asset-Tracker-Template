@@ -16,7 +16,7 @@ jobs:
     with:
       build_bl_update: true
       build_debug: true
-      memfault_sw_type: "hello.nrfcloud.com"
+      memfault_sw_type: "asset-tracker-template"
 
   attach-assets:
     runs-on: ubuntu-24.04
@@ -36,10 +36,8 @@ jobs:
           with:
             fail_on_unmatched_files: true
             files: |
-              hello.nrfcloud.com-*.*
-              connectivity-bridge*.*
+              asset-tracker-template-*.*
               nrf91-bl-*.hex
-              nrf53-bl-*.hex
 
         - name: Trigger workflow that publishes firmware bundles to nRF Cloud
           working-directory: .github/workflows

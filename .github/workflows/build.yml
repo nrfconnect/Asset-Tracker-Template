@@ -3,11 +3,6 @@ name: Build
 on:
   workflow_dispatch:
     inputs:
-      build_bl_update:
-        description: Build bootloader update
-        type: boolean
-        required: false
-        default: false
       build_debug:
         type: boolean
         required: false
@@ -21,7 +16,7 @@ on:
       memfault_sw_type:
         type: string
         required: false
-        default: "hello.nrfcloud.com-ci"
+        default: "asset-tracker-template-ci"
       build_debug:
         type: boolean
         required: false
@@ -58,26 +53,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          path: thingy91x-oob
+          path: asset-tracker-template
 
       - name: Initialize
-        working-directory: thingy91x-oob
+        working-directory: asset-tracker-template
         run: |
           west init -l .
           west config manifest.group-filter +bsec
           west config build.sysbuild True
           west update -o=--depth=1 -n
           west blobs fetch hal_nordic
-
-      - uses: robinraju/release-downloader@v1
-        with:
-          tag: 'v2.0.0-preview58'
-          fileName: 'nrf53-bl-v3-*.hex'
-
-      - uses: robinraju/release-downloader@v1
-        with:
-          tag: 'v2.0.0-preview58'
-          fileName: 'nrf91-bl-v2.hex'
 
       - name: Install dependencies
         run: |
@@ -94,7 +79,7 @@ jobs:
 
       - name: Update VERSION file for release
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-        working-directory: thingy91x-oob
+        working-directory: asset-tracker-template
         run: |
           python3 scripts/app_version.py ${GITHUB_REF_NAME} > app/VERSION
           cat app/VERSION
@@ -102,7 +87,7 @@ jobs:
       - name: Set MEMFAULT_SW_TYPE from inputs or use default
         run: |
           if [ -z "${{ inputs.memfault_sw_type }}" ]; then
-            echo "MEMFAULT_SW_TYPE=hello.nrfcloud.com-ci" >> $GITHUB_ENV
+            echo "MEMFAULT_SW_TYPE=asset-tracker-template-ci" >> $GITHUB_ENV
           else
             echo "MEMFAULT_SW_TYPE=${{ inputs.memfault_sw_type }}" >> $GITHUB_ENV
           fi
@@ -110,33 +95,33 @@ jobs:
       # Out-of-box firmware build
 
       - name: Build nrf91 firmware
-        working-directory: thingy91x-oob/app
+        working-directory: asset-tracker-template/app
         run: |
-          cp overlay-memfault.conf overlay-memfault-oob.conf
-          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ secrets.MEMFAULT_PROJECT_KEY }}\"" >> overlay-memfault-oob.conf
-          echo CONFIG_MEMFAULT_NCS_FW_VERSION_STATIC=y >> overlay-memfault-oob.conf
-          echo CONFIG_MEMFAULT_NCS_FW_VERSION=\"${{ env.VERSION }}\" >> overlay-memfault-oob.conf
-          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_SW_TYPE }}\" >> overlay-memfault-oob.conf
-          west build -b thingy91x/nrf9151/ns -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-oob.conf"
+          cp overlay-memfault.conf overlay-memfault-att.conf
+          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ secrets.MEMFAULT_PROJECT_KEY }}\"" >> overlay-memfault-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_VERSION_STATIC=y >> overlay-memfault-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_VERSION=\"${{ env.VERSION }}\" >> overlay-memfault-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_SW_TYPE }}\" >> overlay-memfault-att.conf
+          west build -b thingy91x/nrf9151/ns -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf"
 
       - name: Rename artifacts
-        working-directory: thingy91x-oob/app/build
+        working-directory: asset-tracker-template/app/build
         run: |
           cp ../../../nrf91-bl-*.hex .
           # Overwrite the bootloader part with the frozen version
           python3 ../../../zephyr/scripts/build/mergehex.py -o \
-            hello.nrfcloud.com-${{ env.VERSION }}-thingy91x-nrf91.hex \
+            asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.hex \
             merged.hex \
             nrf91-bl-*.hex \
             --overlap replace
-          cp app/zephyr/.config hello.nrfcloud.com-${{ env.VERSION }}-thingy91x-nrf91.config
-          cp app/zephyr/zephyr.signed.bin hello.nrfcloud.com-${{ env.VERSION }}-thingy91x-nrf91-update-signed.bin
-          cp app/zephyr/zephyr.signed.hex hello.nrfcloud.com-${{ env.VERSION }}-thingy91x-nrf91-update-signed.hex
-          cp app/zephyr/zephyr.elf hello.nrfcloud.com-${{ env.VERSION }}-thingy91x-nrf91.elf
-          cp dfu_application.zip hello.nrfcloud.com-${{ env.VERSION }}-thingy91x-nrf91-dfu.zip
+          cp app/zephyr/.config asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.config
+          cp app/zephyr/zephyr.signed.bin asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91-update-signed.bin
+          cp app/zephyr/zephyr.signed.hex asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91-update-signed.hex
+          cp app/zephyr/zephyr.elf asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.elf
+          cp dfu_application.zip asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91-dfu.zip
 
       - name: Create partition manager report for nRF91 firmware
-        working-directory: thingy91x-oob/app/build
+        working-directory: asset-tracker-template/app/build
         run: |
           ninja partition_manager_report
           ninja partition_manager_report > pmr-nrf91-default-${{ env.VERSION }}.txt
@@ -144,49 +129,49 @@ jobs:
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
-        id: artifact-upload-oob
+        id: artifact-upload-att
         with:
-          name: firmware-oob
+          name: firmware-att
           if-no-files-found: error
           path: |
-            thingy91x-oob/app/build/hello.nrfcloud.com-*.*
-            thingy91x-oob/app/build/nrf91-bl-*.hex
-            thingy91x-oob/app/build/pmr-nrf91-*.txt
+            asset-tracker-template/app/build/asset-tracker-template-*.*
+            asset-tracker-template/app/build/nrf91-bl-*.hex
+            asset-tracker-template/app/build/pmr-nrf91-*.txt
 
-      # Out-of-box debug firmware build
+      # Asset Tracker Template debug firmware build
 
       - name: Build nrf91 debug firmware
         if: ${{ inputs.build_debug }}
-        working-directory: thingy91x-oob/app
+        working-directory: asset-tracker-template/app
         run: |
           cp overlay-memfault.conf overlay-memfault-debug.conf
           echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ secrets.MEMFAULT_PROJECT_KEY }}\"" >> overlay-memfault-debug.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION_STATIC=y >> overlay-memfault-debug.conf
-          echo CONFIG_MEMFAULT_NCS_FW_VERSION=\"${{ env.VERSION }}+debug\" >> overlay-memfault-debug.conf
+          echo CONFIG_MEMFAULT_NCS_FW_VERSION=\"${{ env.VERSION }}-debug\" >> overlay-memfault-debug.conf
           echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_SW_TYPE }}\" >> overlay-memfault-debug.conf
           echo CONFIG_APP_MEMFAULT_UPLOAD_METRICS_ON_CLOUD_READY=y >> overlay-memfault-debug.conf
           west build -p -b thingy91x/nrf9151/ns -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-debug.conf;overlay-modemtrace-to-memfault.conf;overlay-etb.conf"
 
       - name: Rename debug artifacts
         if: ${{ inputs.build_debug }}
-        working-directory: thingy91x-oob/app/build
+        working-directory: asset-tracker-template/app/build
         run: |
           cp ../../../nrf91-bl-*.hex .
           # Overwrite the bootloader part with the frozen version
           python3 ../../../zephyr/scripts/build/mergehex.py -o \
-            hello.nrfcloud.com-${{ env.VERSION }}+debug-thingy91x-nrf91.hex \
+            asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91.hex \
             merged.hex \
             nrf91-bl-*.hex \
             --overlap replace
-          cp app/zephyr/.config hello.nrfcloud.com-${{ env.VERSION }}+debug-thingy91x-nrf91.config
-          cp app/zephyr/zephyr.signed.bin hello.nrfcloud.com-${{ env.VERSION }}+debug-thingy91x-nrf91-update-signed.bin
-          cp app/zephyr/zephyr.signed.hex hello.nrfcloud.com-${{ env.VERSION }}+debug-thingy91x-nrf91-update-signed.hex
-          cp app/zephyr/zephyr.elf hello.nrfcloud.com-${{ env.VERSION }}+debug-thingy91x-nrf91.elf
-          cp dfu_application.zip hello.nrfcloud.com-${{ env.VERSION }}+debug-thingy91x-nrf91-dfu.zip
+          cp app/zephyr/.config asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91.config
+          cp app/zephyr/zephyr.signed.bin asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91-update-signed.bin
+          cp app/zephyr/zephyr.signed.hex asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91-update-signed.hex
+          cp app/zephyr/zephyr.elf asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91.elf
+          cp dfu_application.zip asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91-dfu.zip
 
       - name: Create partition manager report for nRF91 debug firmware
         if: ${{ inputs.build_debug }}
-        working-directory: thingy91x-oob/app/build
+        working-directory: thingy91x-att/app/build
         run: |
           ninja partition_manager_report
           ninja partition_manager_report > pmr-nrf91-debug-${{ env.VERSION }}.txt
@@ -195,89 +180,13 @@ jobs:
       - name: Upload artifact
         if: ${{ inputs.build_debug }}
         uses: actions/upload-artifact@v4
-        id: artifact-upload-oob-debug
+        id: artifact-upload-att-debug
         with:
-          name: firmware-oob-debug
+          name: firmware-att-debug
           if-no-files-found: error
           path: |
-            thingy91x-oob/app/build/hello.nrfcloud.com-*.*
-            thingy91x-oob/app/build/pmr-nrf91-*.txt
-
-      # Connectivity Bridge firmware build
-
-      - name: Build nrf53 firmware
-        working-directory: nrf/applications/connectivity_bridge
-        run: |
-          west build -b thingy91x/nrf5340/cpuapp -p --sysbuild -- -Dmcuboot_CONFIG_FW_INFO_FIRMWARE_VERSION=3 -DCONFIG_BUILD_S1_VARIANT=y
-
-      - name: Create partition manager report for nRF53 firmware
-        working-directory: nrf/applications/connectivity_bridge/build
-        run: |
-          ninja partition_manager_report
-          ninja partition_manager_report > pmr-nrf53-default-${{ env.VERSION }}.txt
-          sed -i '1d' pmr-nrf53-default-${{ env.VERSION }}.txt
-
-      - name: Create nrf53 merged_domains HEX file
-        run: |
-          # check that bootloader hex files are present
-          ls $(pwd)/nrf53-bl-v*-net.hex $(pwd)/nrf53-bl-v*-app.hex
-          # merge hex files to app, net and merged variants, enforcing the frozen bootloader
-          python3 zephyr/scripts/build/mergehex.py -o \
-            $(pwd)/nrf/applications/connectivity_bridge/build/connectivity-bridge-${{ env.VERSION }}-thingy91x-nrf53-net.hex \
-            $(pwd)/nrf/applications/connectivity_bridge/build/merged_CPUNET.hex \
-            $(pwd)/nrf53-bl-v*-net.hex \
-            --overlap replace
-          python3 zephyr/scripts/build/mergehex.py -o \
-            $(pwd)/nrf/applications/connectivity_bridge/build/connectivity-bridge-${{ env.VERSION }}-thingy91x-nrf53-app.hex \
-            $(pwd)/nrf/applications/connectivity_bridge/build/merged.hex \
-            $(pwd)/nrf53-bl-v*-app.hex \
-            --overlap replace
-          python3 zephyr/scripts/build/mergehex.py -o \
-            $(pwd)/nrf/applications/connectivity_bridge/build/connectivity-bridge-${{ env.VERSION }}-thingy91x-nrf53-merged.hex \
-            $(pwd)/nrf/applications/connectivity_bridge/build/connectivity-bridge-${{ env.VERSION }}-thingy91x-nrf53-app.hex \
-            $(pwd)/nrf/applications/connectivity_bridge/build/connectivity-bridge-${{ env.VERSION }}-thingy91x-nrf53-net.hex
-
-      - name: Copy nrf53 DFU file
-        run: |
-          cp $(pwd)/nrf/applications/connectivity_bridge/build/dfu_application.zip \
-            $(pwd)/nrf/applications/connectivity_bridge/build/connectivity-bridge-${{ env.VERSION }}-thingy91x-nrf53-dfu.zip
-          cp nrf53-bl-*.hex $(pwd)/nrf/applications/connectivity_bridge/build/
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        id: artifact-upload-connectivity-bridge
-        with:
-          name: firmware-connectivity-bridge
-          if-no-files-found: error
-          path: |
-            nrf/applications/connectivity_bridge/build/connectivity-bridge-*.*
-            nrf/applications/connectivity_bridge/build/nrf53-bl-*.hex
-            nrf/applications/connectivity_bridge/build/pmr-nrf53-*.txt
-
-      # Bootloader update build
-
-      - name: Build BL Update
-        if: ${{ inputs.build_bl_update }}
-        working-directory: thingy91x-oob
-        run: |
-          west twister -T . --test app/app.build.bootloader_update -v -p thingy91x/nrf9151/ns --inline-logs
-          cp twister-out/thingy91x_nrf9151_ns/app/app.build.bootloader_update/dfu_mcuboot.zip \
-            hello.nrfcloud.com-${{ env.VERSION }}-thingy91x-nrf91-bootloader.zip
-          rm -rf twister-out
-          west build -b thingy91x/nrf5340/cpuapp -p --sysbuild -d ../nrf/applications/connectivity_bridge/build-bl-update ../nrf/applications/connectivity_bridge -- -Dmcuboot_CONFIG_FW_INFO_FIRMWARE_VERSION=4 -DCONFIG_BUILD_S1_VARIANT=y
-          cp ../nrf/applications/connectivity_bridge/build-bl-update/dfu_mcuboot.zip \
-            connectivity-bridge-${{ env.VERSION }}-thingy91x-nrf53-bootloader.zip
-
-      - name: Upload artifact
-        if: ${{ inputs.build_bl_update }}
-        uses: actions/upload-artifact@v4
-        id: artifact-upload-bl-update
-        with:
-          name: firmware-bl-update
-          if-no-files-found: error
-          path: |
-            thingy91x-oob/hello.nrfcloud.com-*.*
-            thingy91x-oob/connectivity-bridge-*.*
+            thingy91x-att/app/build/asset-tracker-template-*.*
+            thingy91x-att/app/build/pmr-nrf91-*.txt
 
       - name: Print run-id and fw version
         run: |

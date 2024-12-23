@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { Readable } from "stream";
 import { finished } from "stream/promises";
 
-const owner = process.env.OWNER ?? "hello-nrfcloud";
+const owner = process.env.OWNER ?? "asset-tracker-template";
 const repo = process.env.REPO ?? "firmware";
 const version = process.argv[process.argv.length - 1];
 
