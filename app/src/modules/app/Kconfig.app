@@ -1,7 +1,8 @@
-module = APP
-module-str = APP
-source "subsys/logging/Kconfig.template.log_config"
-
+#
+# Copyright (c) 2023 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
 menu "App"
 
 config APP_MODULE_THREAD_STACK_SIZE
@@ -21,5 +22,10 @@ config APP_MODULE_EXEC_TIME_SECONDS_MAX
 config APP_MODULE_RECV_BUFFER_SIZE
 	int "Receive buffer size"
 	default 1024
+
+
+module = APP
+module-str = APP
+source "subsys/logging/Kconfig.template.log_config"
 
 endmenu

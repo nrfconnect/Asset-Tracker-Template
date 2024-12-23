@@ -55,6 +55,10 @@ struct payload {
 enum network_status {
 	NETWORK_DISCONNECTED = 0x1,
 	NETWORK_CONNECTED,
+	NETWORK_UICC_FAILURE,
+	NETWORK_DISCONNECT,
+	NETWORK_CONNECT,
+	NETWORK_QUALITY_SAMPLE,
 };
 
 #define MSG_TO_NETWORK_STATUS(_msg)	(*(const enum network_status *)_msg)

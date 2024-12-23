@@ -11,42 +11,9 @@
 #include <date_time.h>
 
 #include "message_channel.h"
-#include "button_object_encode.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(button, CONFIG_APP_BUTTON_LOG_LEVEL);
-
-/* Encode and send button payload */
-static void send_button_payload(void)
-{
-	int err;
-	int64_t system_time;
-	struct button_object button_object = { 0 };
-	struct payload payload = { 0 };
-
-	err = date_time_now(&system_time);
-	if (err) {
-		LOG_ERR("Failed to convert uptime to unix time, error: %d", err);
-		return;
-	}
-
-	button_object.bt = (int32_t)(system_time / 1000);
-
-	err = cbor_encode_button_object(payload.buffer, sizeof(payload.buffer),
-				     &button_object, &payload.buffer_len);
-	if (err) {
-		LOG_ERR("Failed to encode button object, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
-
-	err = zbus_chan_pub(&PAYLOAD_CHAN, &payload, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
-}
 
 /* Button handler called when a user pushes a button */
 static void button_handler(uint32_t button_states, uint32_t has_changed)
@@ -63,7 +30,6 @@ static void button_handler(uint32_t button_states, uint32_t has_changed)
 			SEND_FATAL_ERROR();
 			return;
 		}
-		send_button_payload();
 	}
 }
 

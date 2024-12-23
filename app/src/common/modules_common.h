@@ -18,7 +18,7 @@ extern "C" {
  *
  *  @return see smf_set_initial().
  */
-#define STATE_SET_INITIAL(_state)	smf_set_initial(SMF_CTX(&_state_obj), &states[_state])
+#define STATE_SET_INITIAL(_state_obj, _state) smf_set_initial(SMF_CTX(&_state_obj), &states[_state])
 
 /** @brief Set the state for a module.
  *
@@ -27,7 +27,7 @@ extern "C" {
  *
  *  @return see smf_set_state().
  */
-#define STATE_SET(_state)		smf_set_state(SMF_CTX(&_state_obj), &states[_state])
+#define STATE_SET(_state_obj, _state)		smf_set_state(SMF_CTX(&_state_obj), &states[_state])
 
 /** @brief Set the state for a module and handle the event.
  *
@@ -35,7 +35,7 @@ extern "C" {
  *
  *  @return see smf_set_handled().
  */
-#define STATE_EVENT_HANDLED(_state_obj)	smf_set_handled(SMF_CTX(&_state_obj))
+#define STATE_EVENT_HANDLED(_state_obj)         smf_set_handled(SMF_CTX(&_state_obj))
 
 /** @brief Run the state machine for a module.
  *

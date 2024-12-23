@@ -16,7 +16,6 @@
 #include "modem/lte_lc.h"
 #include "modem/modem_info.h"
 #include "modules_common.h"
-#include "conn_info_object_encode.h"
 #include "message_channel.h"
 
 /* Register log module */
@@ -68,7 +67,7 @@ enum network_module_state {
 /* State object.
  * Used to transfer context data between state changes.
  */
-struct s_object {
+struct state_object {
 	/* This must be first */
 	struct smf_ctx ctx;
 
@@ -84,16 +83,12 @@ static void state_running_entry(void *obj);
 static void state_running_run(void *obj);
 static void state_disconnected_entry(void *obj);
 static void state_disconnected_run(void *obj);
-static void state_disconnected_idle_entry(void *obj);
 static void state_disconnected_idle_run(void *obj);
 static void state_disconnected_searching_entry(void *obj);
-static void state_disconnected_searching_run(void *obj);
-static void state_connected_entry(void *obj);
 static void state_connected_run(void *obj);
 static void state_disconnecting_entry(void *obj);
-static void state_disconnecting_run(void *obj);
 
-static struct s_object network_state_obj;
+static struct state_object network_state;
 
 /* State machine definition */
 static const struct smf_state states[] = {
@@ -106,19 +101,19 @@ static const struct smf_state states[] = {
 				 &states[STATE_RUNNING],
 				 &states[STATE_DISCONNECTED_SEARCHING]),
 	[STATE_DISCONNECTED_IDLE] =
-		SMF_CREATE_STATE(state_disconnected_idle_entry, state_disconnected_idle_run, NULL,
+		SMF_CREATE_STATE(NULL, state_disconnected_idle_run, NULL,
 				 &states[STATE_DISCONNECTED],
 				 NULL), /* No initial transition */
 	[STATE_DISCONNECTED_SEARCHING] =
-		SMF_CREATE_STATE(state_disconnected_searching_entry, state_disconnected_searching_run, NULL,
+		SMF_CREATE_STATE(state_disconnected_searching_entry, NULL, NULL,
 				 &states[STATE_DISCONNECTED],
 				 NULL), /* No initial transition */
 	[STATE_CONNECTED] =
-		SMF_CREATE_STATE(state_connected_entry, state_connected_run, NULL,
+		SMF_CREATE_STATE(NULL, state_connected_run, NULL,
 				 &states[STATE_RUNNING],
 				 NULL), /* No initial transition */
 	[STATE_DISCONNECTING] =
-		SMF_CREATE_STATE(state_disconnecting_entry, state_disconnecting_run, NULL,
+		SMF_CREATE_STATE(state_disconnecting_entry, NULL, NULL,
 				 &states[STATE_RUNNING],
 				 NULL), /* No initial transition */
 };
@@ -194,11 +189,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 
 static void sample_network_quality(void)
 {
-	int64_t system_time;
-	struct payload payload = { 0 };
-	struct conn_info_object conn_info_obj = { 0 };
 	int ret;
-
 	struct lte_lc_conn_eval_params conn_eval_params;
 
 	ret = lte_lc_conn_eval_params_get(&conn_eval_params);
@@ -214,55 +205,21 @@ static void sample_network_quality(void)
 		return;
 	}
 
-	ret = date_time_now(&system_time);
-	if (ret) {
-		LOG_ERR("Failed to convert uptime to unix time, error: %d", ret);
-		return;
-	}
-
-	conn_info_obj.base_attributes_m.bt = (int32_t)(system_time / 1000);
-	conn_info_obj.energy_estimate_m.vi = conn_eval_params.energy_estimate;
-
-	if (conn_eval_params.rsrp == LTE_LC_CELL_RSRP_INVALID) {
-		LOG_WRN("RSRP value is invalid, ignoring");
-	} else {
-		conn_info_obj.rsrp_m.vi_present = true;
-		conn_info_obj.rsrp_m.vi.vi = RSRP_IDX_TO_DBM(conn_eval_params.rsrp);
-
-		LOG_DBG("RSRP: %d dBm", conn_info_obj.rsrp_m.vi.vi);
-	}
-
-	LOG_DBG("System Time: %d", conn_info_obj.base_attributes_m.bt);
-	LOG_DBG("Energy Estimate: %d", conn_info_obj.energy_estimate_m.vi);
-
-	ret = cbor_encode_conn_info_object(payload.buffer, sizeof(payload.buffer),
-					   &conn_info_obj, &payload.buffer_len);
-	if (ret) {
-		LOG_ERR("Failed to encode conn info object, error: %d", ret);
-		SEND_FATAL_ERROR();
-		return;
-	}
-
-	LOG_DBG("Submitting payload");
-
-	int err = zbus_chan_pub(&PAYLOAD_CHAN, &payload, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
+	/* No further use of the network quality data is implemented */
 }
 
 static int network_disconnect(void)
 {
 	int err;
 
-	err = conn_mgr_all_if_disconnect();
+	err = conn_mgr_all_if_disconnect(true);
 	if (err) {
 		LOG_ERR("conn_mgr_all_if_down, error: %d", err);
 		SEND_FATAL_ERROR();
-		return err
+		return err;
 	}
+
+	return 0;
 }
 
 
@@ -309,19 +266,19 @@ static void state_running_entry(void *obj)
 
 static void state_running_run(void *obj)
 {
-	struct s_object const *state_object = obj;
+	struct state_object const *state_object = obj;
 
-	LOG_DBG("state_running_run")
+	LOG_DBG("state_running_run");
 
 	if (&NETWORK_CHAN == state_object->chan) {
 		enum network_status status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
 
 		switch (status) {
 		case NETWORK_DISCONNECTED:
-			STATE_SET(network_state_obj, STATE_DISCONNECTED);
+			STATE_SET(network_state, STATE_DISCONNECTED);
 			break;
 		case NETWORK_UICC_FAILURE:
-			STATE_SET(network_state_obj, STATE_DISCONNECTED_IDLE);
+			STATE_SET(network_state, STATE_DISCONNECTED_IDLE);
 			break;
 		default:
 			break;
@@ -331,8 +288,6 @@ static void state_running_run(void *obj)
 
 static void state_disconnected_entry(void *obj)
 {
-	int err;
-
 	ARG_UNUSED(obj);
 
 	LOG_DBG("state_disconnected_entry");
@@ -352,21 +307,19 @@ static void state_disconnected_entry(void *obj)
 
 static void state_disconnected_run(void *obj)
 {
-	int err;
+	struct state_object const *state_object = obj;
 
-	struct s_object const *state_object = obj;
-
-	LOG_DBG("state_disconnected_run")
+	LOG_DBG("state_disconnected_run");
 
 	if (&NETWORK_CHAN == state_object->chan) {
 		enum network_status status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
 
 		switch (status) {
 		case NETWORK_CONNECTED:
-			STATE_SET(network_state_obj, STATE_CONNECTED);
+			STATE_SET(network_state, STATE_CONNECTED);
 			break;
 		case NETWORK_DISCONNECTED:
-			STATE_EVENT_HANDLED(network_state_obj);
+			STATE_EVENT_HANDLED(network_state);
 			break;
 		default:
 			break;
@@ -402,30 +355,30 @@ static void state_disconnected_searching_entry(void *obj)
 
 static void state_disconnected_idle_run(void *obj)
 {
-	struct s_object const *state_object = obj;
+	struct state_object const *state_object = obj;
 
-	LOG_DBG("state_disconnected_idle_run")
+	LOG_DBG("state_disconnected_idle_run");
 
 	if (&NETWORK_CHAN == state_object->chan) {
 		enum network_status status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
 
 		if (status == NETWORK_CONNECT) {
-			STATE_SET(network_state_obj, STATE_DISCONNECTED_SEARCHING);
+			STATE_SET(network_state, STATE_DISCONNECTED_SEARCHING);
 		}
 	}
 }
 
 static void state_connected_run(void *obj)
 {
-	struct s_object const *state_object = obj;
+	struct state_object const *state_object = obj;
 
-	LOG_DBG("state_connected_run")
+	LOG_DBG("state_connected_run");
 
 	if (!IS_ENABLED(CONFIG_APP_NETWORK_SAMPLE_NETWORK_QUALITY)) {
 		return;
 	}
 
-	if (&NETWORK == state_object->chan) {
+	if (&NETWORK_CHAN == state_object->chan) {
 		enum network_status status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
 
 		switch (status) {
@@ -434,7 +387,7 @@ static void state_connected_run(void *obj)
 			sample_network_quality();
 			break;
 		case NETWORK_DISCONNECT:
-			STATE_SET(network_state_obj, STATE_DISCONNECTING);
+			STATE_SET(network_state, STATE_DISCONNECTING);
 			break;
 		default:
 			break;
@@ -476,7 +429,7 @@ static void network_module_thread(void)
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, network_wdt_callback, (void *)k_current_get());
 
-	STATE_SET_INITIAL(network_state_obj, STATE_RUNNING);
+	STATE_SET_INITIAL(network_state, STATE_RUNNING);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -486,8 +439,8 @@ static void network_module_thread(void)
 			return;
 		}
 
-		err = zbus_sub_wait_msg(&network, &network_state_obj.chan,
-					network_state_obj.msg_buf, zbus_wait_ms);
+		err = zbus_sub_wait_msg(&network, &network_state.chan,
+					network_state.msg_buf, zbus_wait_ms);
 		if (err == -ENOMSG) {
 			continue;
 		} else if (err) {
@@ -496,7 +449,7 @@ static void network_module_thread(void)
 			return;
 		}
 
-		err = STATE_RUN(network_state_obj);
+		err = STATE_RUN(network_state);
 		if (err) {
 			LOG_ERR("handle_message, error: %d", err);
 			SEND_FATAL_ERROR();

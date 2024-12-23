@@ -1,10 +1,10 @@
 #
-# Copyright (c) 2023 Nordic Semiconductor
+# Copyright (c) 2024 Nordic Semiconductor
 #
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-menu "Sampler"
+menu "Battery"
 
 config APP_BATTERY_THREAD_STACK_SIZE
 	int "Thread stack size"
@@ -24,4 +24,4 @@ module = APP_BATTERY
 module-str = Battery
 source "subsys/logging/Kconfig.template.log_config"
 
-endmenu # Sampler
+endmenu # Battery
