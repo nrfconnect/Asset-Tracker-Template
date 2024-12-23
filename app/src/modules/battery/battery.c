@@ -18,7 +18,6 @@
 #include "lp803448_model.h"
 #include "message_channel.h"
 #include "modules_common.h"
-#include "bat_object_encode.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(battery, CONFIG_APP_BATTERY_LOG_LEVEL);
@@ -89,7 +88,7 @@ static void state_init_entry(void *o);
 static void state_init_run(void *o);
 static void state_sampling_run(void *o);
 
-static struct s_object s_obj;
+static struct s_object battery_state_object;
 static const struct smf_state states[] = {
 	[STATE_INIT] =
 		SMF_CREATE_STATE(state_init_entry, state_init_run, NULL,
@@ -153,7 +152,7 @@ static void state_init_run(void *o)
 		if (time_status == TIME_AVAILABLE) {
 			LOG_DBG("Time available, sampling can start");
 
-			STATE_SET(STATE_SAMPLING);
+			STATE_SET(battery_state_object, STATE_SAMPLING);
 		}
 	}
 }
@@ -210,8 +209,6 @@ static void sample(int64_t *ref_time)
 	float temp;
 	float state_of_charge;
 	float delta;
-	struct bat_object bat_object = { 0 };
-	struct payload payload = { 0 };
 	int64_t system_time;
 
 	err = date_time_now(&system_time);
@@ -238,25 +235,7 @@ static void sample(int64_t *ref_time)
 	LOG_DBG("State of charge: %f", (double)roundf(state_of_charge));
 	LOG_DBG("The battery is %s", charging ? "charging" : "not charging");
 
-	bat_object.state_of_charge_m.bt = (int32_t)(system_time / 1000);
-	bat_object.state_of_charge_m.vi = (int32_t)(state_of_charge + 0.5f);
-	bat_object.voltage_m.vf = voltage;
-	bat_object.temperature_m.vf = temp;
-
-	err = cbor_encode_bat_object(payload.buffer, sizeof(payload.buffer),
-				     &bat_object, &payload.buffer_len);
-	if (err) {
-		LOG_ERR("Failed to encode env object, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
-
-	err = zbus_chan_pub(&PAYLOAD_CHAN, &payload, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
+	/* No further use of the battery data is implemented */
 }
 
 static void task_wdt_callback(int channel_id, void *user_data)
@@ -279,7 +258,7 @@ static void battery_task(void)
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 
-	STATE_SET_INITIAL(STATE_INIT);
+	STATE_SET_INITIAL(battery_state_object, STATE_INIT);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -298,7 +277,7 @@ static void battery_task(void)
 			return;
 		}
 
-		err = STATE_RUN();
+		err = STATE_RUN(battery_state_object);
 		if (err) {
 			LOG_ERR("handle_message, error: %d", err);
 			SEND_FATAL_ERROR();

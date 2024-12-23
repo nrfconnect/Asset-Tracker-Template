@@ -17,7 +17,6 @@
 #endif /* CONFIG_MEMFAULT */
 
 #include "message_channel.h"
-#include "app_object_decode.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(app, CONFIG_APP_LOG_LEVEL);
@@ -37,16 +36,13 @@ BUILD_ASSERT(CONFIG_APP_MODULE_WATCHDOG_TIMEOUT_SECONDS > CONFIG_APP_MODULE_EXEC
 static void shadow_get(bool delta_only)
 {
 	int err;
-	struct app_object app_object = { 0 };
-	struct configuration configuration = { 0 };
-	uint8_t buf_cbor[CONFIG_APP_MODULE_RECV_BUFFER_SIZE] = { 0 };
-	size_t buf_cbor_len = sizeof(buf_cbor);
-	size_t not_used;
+	uint8_t recv_buf[CONFIG_APP_MODULE_RECV_BUFFER_SIZE] = { 0 };
+	size_t recv_buf_len = sizeof(recv_buf);
 
-	LOG_DBG("Requesting device configuration from the device shadow");
+	LOG_DBG("Requesting device shadow from the device");
 
-	err = nrf_cloud_coap_shadow_get(buf_cbor, &buf_cbor_len, delta_only,
-					COAP_CONTENT_FORMAT_APP_CBOR);
+	err = nrf_cloud_coap_shadow_get(recv_buf, &recv_buf_len, delta_only,
+					COAP_CONTENT_FORMAT_APP_JSON);
 	if (err == -EACCES) {
 		LOG_WRN("Not connected, error: %d", err);
 		return;
@@ -65,111 +61,7 @@ static void shadow_get(bool delta_only)
 		return;
 	}
 
-	if (buf_cbor_len == 0) {
-		LOG_DBG("No shadow delta changes available");
-		return;
-	}
-
-	/* Workaroud: Sometimes nrf_cloud_coap_shadow_get() returns 0 even though obtaining
-	 * the shadow failed. Ignore the payload if the first 10 bytes are zero.
-	 */
-	if (!memcmp(buf_cbor, "\0\0\0\0\0\0\0\0\0\0", 10)) {
-		LOG_WRN("Returned buffer is empty, ignore");
-		return;
-	}
-
-	err = cbor_decode_app_object(buf_cbor, buf_cbor_len, &app_object, &not_used);
-	if (err) {
-		/* Do not throw an error if decoding fails. This might occur if the shadow
- 		 * structure or content changes. In such cases, we need to ensure the possibility
- 		 * of performing a Firmware Over-The-Air (FOTA) update to address the issue.
- 		 * Hardfaulting would prevent FOTA, hence it should be avoided.
- 		 */
-		LOG_ERR("Ignoring incoming configuration change due to decoding error: %d", err);
-		LOG_HEXDUMP_ERR(buf_cbor, buf_cbor_len, "CBOR data");
-
-		IF_ENABLED(CONFIG_MEMFAULT,
-			(MEMFAULT_TRACE_EVENT_WITH_STATUS(cbor_decode_app_object, err)));
-
-		return;
-	}
-
-	if (!app_object.lwm2m_present) {
-		LOG_DBG("No LwM2M object present in shadow, ignoring");
-		return;
-	}
-
-	if (app_object.lwm2m.lwm2m._1424010_present) {
-		configuration.led_present = true;
-
-		configuration.led_red = app_object.lwm2m.lwm2m._1424010._1424010._0._0._0;
-		configuration.led_red_present =
-			app_object.lwm2m.lwm2m._1424010._1424010._0._0_present;
-
-		configuration.led_green = app_object.lwm2m.lwm2m._1424010._1424010._0._1._1;
-		configuration.led_green_present =
-			app_object.lwm2m.lwm2m._1424010._1424010._0._1_present;
-
-		configuration.led_blue = app_object.lwm2m.lwm2m._1424010._1424010._0._2._2;
-		configuration.led_blue_present =
-			app_object.lwm2m.lwm2m._1424010._1424010._0._2_present;
-
-		LOG_DBG("LED object (1424010) values received from cloud:");
-
-		if (configuration.led_red_present) {
-			LOG_DBG("New RED value: %d", configuration.led_red);
-		}
-
-		if (configuration.led_green_present) {
-			LOG_DBG("New GREEN value: %d", configuration.led_green);
-		}
-
-		if (configuration.led_blue_present) {
-			LOG_DBG("New BLUE value: %d", configuration.led_blue);
-		}
-
-		LOG_DBG("Timestamp: %lld", app_object.lwm2m.lwm2m._1424010._1424010._0._99);
-	}
-
-	if (app_object.lwm2m.lwm2m._1430110_present) {
-		configuration.config_present = true;
-
-		configuration.update_interval = app_object.lwm2m.lwm2m._1430110._1430110._0._0._0;
-		configuration.update_interval_present =
-			app_object.lwm2m.lwm2m._1430110._1430110._0._0_present;
-
-		configuration.gnss = app_object.lwm2m.lwm2m._1430110._1430110._0._1._1;
-		configuration.gnss_present = app_object.lwm2m.lwm2m._1430110._1430110._0._1_present;
-
-		LOG_DBG("Application configuration object (1430110) values received from cloud:");
-
-		if (configuration.update_interval_present) {
-			LOG_DBG("New update interval: %lld", configuration.update_interval);
-		}
-
-		if (configuration.gnss_present) {
-			LOG_DBG("New GNSS setting: %d", configuration.gnss);
-		}
-
-		LOG_DBG("Timestamp: %lld", app_object.lwm2m.lwm2m._1430110._1430110._0._99);
-	}
-
-	/* Distribute configuration */
-	err = zbus_chan_pub(&CONFIG_CHAN, &configuration, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
-
-	/* Send the received configuration back to the reported shadow section. */
-	err = nrf_cloud_coap_patch("state/reported", NULL, (uint8_t *)buf_cbor,
-				   buf_cbor_len, COAP_CONTENT_FORMAT_APP_CBOR, true, NULL, NULL);
-	if (err < 0) {
-		LOG_ERR("Failed to send PATCH request: %d", err);
-	} else if (err > 0) {
-		LOG_ERR("Error from server: %d", err);
-	}
+	/* No further processing of shadow is implemented */
 }
 
 static void task_wdt_callback(int channel_id, void *user_data)

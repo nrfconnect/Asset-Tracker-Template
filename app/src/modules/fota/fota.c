@@ -68,7 +68,7 @@ enum priv_fota_evt {
 /* User defined state object.
  * Used to transfer data between state changes.
  */
-struct s_object {
+struct state_object {
 	/* This must be first */
 	struct smf_ctx ctx;
 
@@ -101,7 +101,7 @@ static void state_poll_and_process_entry(void *o);
 static void state_poll_and_process_run(void *o);
 static void state_reboot_pending_entry(void *o);
 
-static struct s_object s_obj = {
+static struct state_object fota_state = {
 	.fota_ctx.reboot_fn = fota_reboot,
 	.fota_ctx.status_fn = fota_status,
 };
@@ -134,7 +134,7 @@ static const struct smf_state states[] = {
 
 static void state_running_entry(void *o)
 {
-	struct s_object *state_object = o;
+	struct state_object *state_object = o;
 
 	/* Initialize the FOTA context */
 	int err = nrf_cloud_fota_poll_init(&state_object->fota_ctx);
@@ -154,26 +154,26 @@ static void state_running_entry(void *o)
 
 static void state_wait_for_cloud_run(void *o)
 {
-	struct s_object *state_object = o;
+	struct state_object *state_object = o;
 
 	if (&CLOUD_CHAN == state_object->chan) {
 		const enum cloud_status status = MSG_TO_CLOUD_STATUS(state_object->msg_buf);
 
 		if (status == CLOUD_CONNECTED_READY_TO_SEND) {
-			STATE_SET(STATE_WAIT_FOR_TRIGGER);
+			STATE_SET(fota_state, STATE_WAIT_FOR_TRIGGER);
 		}
 	}
 }
 
 static void state_wait_for_trigger_run(void *o)
 {
-	struct s_object *state_object = o;
+	struct state_object *state_object = o;
 
 	if (&TRIGGER_CHAN == state_object->chan) {
 		const enum trigger_type trigger_type = MSG_TO_TRIGGER_TYPE(state_object->msg_buf);
 
 		if (trigger_type == TRIGGER_FOTA_POLL) {
-			STATE_SET(STATE_POLL_AND_PROCESS);
+			STATE_SET(fota_state, STATE_POLL_AND_PROCESS);
 		}
 	}
 
@@ -181,14 +181,14 @@ static void state_wait_for_trigger_run(void *o)
 		const enum cloud_status status = MSG_TO_CLOUD_STATUS(state_object->msg_buf);
 
 		if (status == CLOUD_CONNECTED_PAUSED) {
-			STATE_SET(STATE_WAIT_FOR_CLOUD);
+			STATE_SET(fota_state, STATE_WAIT_FOR_CLOUD);
 		}
 	}
 }
 
 static void state_poll_and_process_entry(void *o)
 {
-	struct s_object *state_object = o;
+	struct state_object *state_object = o;
 
 	/* Start the FOTA processing */
 	int err = nrf_cloud_fota_poll_process(&state_object->fota_ctx);
@@ -210,19 +210,19 @@ static void state_poll_and_process_entry(void *o)
 
 static void state_poll_and_process_run(void *o)
 {
-	struct s_object *state_object = o;
+	struct state_object *state_object = o;
 
 	if (&PRIV_FOTA_CHAN == state_object->chan) {
 		const enum priv_fota_evt evt = *(const enum priv_fota_evt *)state_object->msg_buf;
 
 		switch (evt) {
 		case FOTA_PRIV_PROCESSING_DONE: {
-			STATE_SET(STATE_WAIT_FOR_TRIGGER);
+			STATE_SET(fota_state, STATE_WAIT_FOR_TRIGGER);
 			break;
 		}
 		case FOTA_PRIV_REBOOT_PENDING:
 			/* The FOTA module has requested a reboot to complete an update */
-			STATE_SET(STATE_REBOOT_PENDING);
+			STATE_SET(fota_state, STATE_REBOOT_PENDING);
 			break;
 		default:
 			LOG_ERR("Unknown event: %d", evt);
@@ -250,7 +250,7 @@ static void state_reboot_pending_entry(void *o)
 	 * This is a workaround due to modem shutdown -> reinitialization in bootloader mode fails
 	 * quite frequently. (Needed to apply the full modem image)
 	 */
-	if (s_obj.fota_ctx.img_type == DFU_TARGET_IMAGE_TYPE_FULL_MODEM) {
+	if (fota_state.fota_ctx.img_type == DFU_TARGET_IMAGE_TYPE_FULL_MODEM) {
 
 		err = nrf_cloud_fota_settings_load(&job);
 		if (err) {
@@ -393,7 +393,7 @@ static void fota_task(void)
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 
-	STATE_SET_INITIAL(STATE_RUNNING);
+	STATE_SET_INITIAL(fota_state, STATE_RUNNING);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -403,7 +403,7 @@ static void fota_task(void)
 			return;
 		}
 
-		err = zbus_sub_wait_msg(&fota, &s_obj.chan, s_obj.msg_buf, zbus_wait_ms);
+		err = zbus_sub_wait_msg(&fota, &fota_state.chan, fota_state.msg_buf, zbus_wait_ms);
 		if (err == -ENOMSG) {
 			continue;
 		} else if (err) {
@@ -412,7 +412,7 @@ static void fota_task(void)
 			return;
 		}
 
-		err = STATE_RUN();
+		err = STATE_RUN(fota_state);
 		if (err) {
 			LOG_ERR("handle_message, error: %d", err);
 			SEND_FATAL_ERROR();

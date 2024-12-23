@@ -15,7 +15,6 @@
 
 #include "message_channel.h"
 #include "modules_common.h"
-#include "env_object_encode.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(environmental_module, CONFIG_APP_ENVIRONMENTAL_LOG_LEVEL);
@@ -36,7 +35,7 @@ BUILD_ASSERT(CONFIG_APP_ENVIRONMENTAL_WATCHDOG_TIMEOUT_SECONDS >
 static const struct device *const sensor_dev = DEVICE_DT_GET(DT_ALIAS(gas_sensor));
 
 /* Forward declarations */
-static struct s_object s_obj;
+static struct s_object env_state_object;
 static void sample(void);
 
 /* State machine */
@@ -69,7 +68,7 @@ struct s_object {
 static void state_init_run(void *o);
 static void state_sampling_run(void *o);
 
-static struct s_object s_obj;
+static struct s_object env_state_object;
 static const struct smf_state states[] = {
 	[STATE_INIT] =
 		SMF_CREATE_STATE(NULL, state_init_run, NULL,
@@ -93,7 +92,7 @@ static void state_init_run(void *o)
 		if (time_status == TIME_AVAILABLE) {
 			LOG_DBG("Time available, sampling can start");
 
-			STATE_SET(STATE_SAMPLING);
+			STATE_SET(env_state_object, STATE_SAMPLING);
 		}
 	}
 }
@@ -124,15 +123,12 @@ static void task_wdt_callback(int channel_id, void *user_data)
 
 static void sample(void)
 {
-	int64_t system_time;
-	struct payload payload = { 0 };
 	struct sensor_value temp = { 0 };
 	struct sensor_value press = { 0 };
 	struct sensor_value humidity = { 0 };
 	struct sensor_value iaq = { 0 };
 	struct sensor_value co2 = { 0 };
 	struct sensor_value voc = { 0 };
-	struct env_object env_obj = { 0 };
 	int ret;
 
 	ret = sensor_sample_fetch(sensor_dev);
@@ -155,34 +151,7 @@ static void sample(void)
 		temp.val1, temp.val2, press.val1, press.val2, humidity.val1, humidity.val2,
 		iaq.val1, co2.val1, co2.val2, voc.val1, voc.val2);
 
-	ret = date_time_now(&system_time);
-	if (ret) {
-		LOG_ERR("Failed to convert uptime to unix time, error: %d", ret);
-		return;
-	}
-
-	env_obj.temperature_m.bt = (int32_t)(system_time / 1000);
-	env_obj.temperature_m.vf = sensor_value_to_double(&temp);
-	env_obj.humidity_m.vf = sensor_value_to_double(&humidity);
-	env_obj.pressure_m.vf = sensor_value_to_double(&press) / 100;
-	env_obj.iaq_m.vi = iaq.val1;
-
-	ret = cbor_encode_env_object(payload.buffer, sizeof(payload.buffer),
-				     &env_obj, &payload.buffer_len);
-	if (ret) {
-		LOG_ERR("Failed to encode env object, error: %d", ret);
-		SEND_FATAL_ERROR();
-		return;
-	}
-
-	LOG_DBG("Submitting payload");
-
-	int err = zbus_chan_pub(&PAYLOAD_CHAN, &payload, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
+	/* No further use of the environmental data is implemented */
 }
 
 static void environmental_task(void)
@@ -197,7 +166,7 @@ static void environmental_task(void)
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 
-	STATE_SET_INITIAL(STATE_INIT);
+	STATE_SET_INITIAL(env_state_object, STATE_INIT);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -207,7 +176,8 @@ static void environmental_task(void)
 			return;
 		}
 
-		err = zbus_sub_wait_msg(&environmental, &s_obj.chan, s_obj.msg_buf, zbus_wait_ms);
+		err = zbus_sub_wait_msg(&environmental, &env_state_object.chan,
+					env_state_object.msg_buf, zbus_wait_ms);
 		if (err == -ENOMSG) {
 			continue;
 		} else if (err) {
@@ -216,7 +186,7 @@ static void environmental_task(void)
 			return;
 		}
 
-		err = STATE_RUN();
+		err = STATE_RUN(env_state_object);
 		if (err) {
 			LOG_ERR("handle_message, error: %d", err);
 			SEND_FATAL_ERROR();

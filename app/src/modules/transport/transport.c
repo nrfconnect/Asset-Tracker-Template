@@ -128,7 +128,7 @@ static const struct smf_state states[] = {
 /* User defined state object.
  * Used to transfer data between state changes.
  */
-static struct s_object {
+static struct state_object {
 	/* This must be first */
 	struct smf_ctx ctx;
 
@@ -140,7 +140,7 @@ static struct s_object {
 
 	/* Network status */
 	enum network_status nw_status;
-} s_obj;
+} transport_state;
 
 /* Define connection work - Used to handle reconnection attempts to the cloud */
 static K_WORK_DELAYABLE_DEFINE(connect_work, connect_work_fn);
@@ -236,7 +236,7 @@ static void state_running_entry(void *o)
 
 static void state_running_run(void *o)
 {
-	struct s_object *state_object = o;
+	struct state_object *state_object = o;
 
 	LOG_DBG("%s", __func__);
 
@@ -244,7 +244,7 @@ static void state_running_run(void *o)
 		enum network_status nw_status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
 
 		if (nw_status == NETWORK_DISCONNECTED) {
-			STATE_SET(STATE_DISCONNECTED);
+			STATE_SET(transport_state, STATE_DISCONNECTED);
 
 			return;
 		}
@@ -272,13 +272,13 @@ static void state_disconnected_entry(void *o)
 
 static void state_disconnected_run(void *o)
 {
-	struct s_object const *state_object = o;
+	struct state_object const *state_object = o;
 
 	LOG_DBG("%s", __func__);
 
 	if ((state_object->chan == &NETWORK_CHAN) &&
 	    (MSG_TO_NETWORK_STATUS(state_object->msg_buf) == NETWORK_CONNECTED)) {
-		STATE_SET(STATE_CONNECTING);
+		STATE_SET(transport_state, STATE_CONNECTING);
 
 		return;
 	}
@@ -301,7 +301,7 @@ static void state_connecting_entry(void *o)
 
 static void state_connecting_run(void *o)
 {
-	struct s_object *state_object = o;
+	struct state_object *state_object = o;
 
 	LOG_DBG("%s", __func__);
 
@@ -309,7 +309,7 @@ static void state_connecting_run(void *o)
 		enum priv_transport_evt conn_result = *(enum priv_transport_evt *)state_object->msg_buf;
 
 		if (conn_result == CLOUD_CONN_SUCCES) {
-			STATE_SET(STATE_CONNECTED);
+			STATE_SET(transport_state, STATE_CONNECTED);
 
 			return;
 		}
@@ -367,7 +367,7 @@ static void state_connected_ready_entry(void *o)
 
 static void state_connected_ready_run(void *o)
 {
-	struct s_object *state_object = o;
+	struct state_object *state_object = o;
 
 	LOG_DBG("%s", __func__);
 
@@ -376,7 +376,7 @@ static void state_connected_ready_run(void *o)
 			*(enum priv_transport_evt *)state_object->msg_buf;
 
 		if (conn_result == CLOUD_CONN_RETRY) {
-			STATE_SET(STATE_CONNECTING);
+			STATE_SET(transport_state, STATE_CONNECTING);
 
 			return;
 		}
@@ -384,13 +384,13 @@ static void state_connected_ready_run(void *o)
 
 	if (state_object->chan == &NETWORK_CHAN) {
 		if (MSG_TO_NETWORK_STATUS(state_object->msg_buf) == NETWORK_DISCONNECTED) {
-			STATE_SET(STATE_CONNECTED_PAUSED);
+			STATE_SET(transport_state, STATE_CONNECTED_PAUSED);
 
 			return;
 		}
 
 		if (MSG_TO_NETWORK_STATUS(state_object->msg_buf) == NETWORK_CONNECTED) {
-			STATE_EVENT_HANDLED();
+			STATE_EVENT_HANDLED(transport_state);
 
 			return;
 		}
@@ -445,13 +445,13 @@ static void state_connected_paused_entry(void *o)
 
 static void state_connected_paused_run(void *o)
 {
-	struct s_object *state_object = o;
+	struct state_object *state_object = o;
 
 	LOG_DBG("%s", __func__);
 
 	if ((state_object->chan == &NETWORK_CHAN) &&
 	    (MSG_TO_NETWORK_STATUS(state_object->msg_buf) == NETWORK_CONNECTED)) {
-		STATE_SET(STATE_CONNECTED_READY);
+		STATE_SET(transport_state, STATE_CONNECTED_READY);
 
 		return;
 	}
@@ -473,7 +473,7 @@ static void transport_task(void)
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 
 	/* Initialize the state machine to STATE_RUNNING, which will also run its entry function */
-	STATE_SET_INITIAL(STATE_RUNNING);
+	STATE_SET_INITIAL(transport_state, STATE_RUNNING);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -484,7 +484,8 @@ static void transport_task(void)
 			return;
 		}
 
-		err = zbus_sub_wait_msg(&transport, &s_obj.chan, s_obj.msg_buf, zbus_wait_ms);
+		err = zbus_sub_wait_msg(&transport, &transport_state.chan, transport_state.msg_buf,
+					zbus_wait_ms);
 		if (err == -ENOMSG) {
 			continue;
 		} else if (err) {
@@ -494,7 +495,7 @@ static void transport_task(void)
 			return;
 		}
 
-		err = STATE_RUN();
+		err = STATE_RUN(transport_state);
 		if (err) {
 			LOG_ERR("STATE_RUN(), error: %d", err);
 			SEND_FATAL_ERROR();
