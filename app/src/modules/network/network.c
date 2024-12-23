@@ -189,8 +189,9 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 
 static void sample_network_quality(void)
 {
-	int ret;
+	int ret, err;
 	struct lte_lc_conn_eval_params conn_eval_params;
+	enum network_status status = NETWORK_QUALITY_SAMPLE_RESPONSE;
 
 	ret = lte_lc_conn_eval_params_get(&conn_eval_params);
 	if (ret == -EOPNOTSUPP) {
@@ -206,6 +207,14 @@ static void sample_network_quality(void)
 	}
 
 	/* No further use of the network quality data is implemented */
+
+	/* Send NETWORK_QUALITY_SAMPLE_RESPONSE */
+
+	err = zbus_chan_pub(&NETWORK_CHAN, &status, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
 }
 
 static int network_disconnect(void)
@@ -382,7 +391,7 @@ static void state_connected_run(void *obj)
 		enum network_status status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
 
 		switch (status) {
-		case NETWORK_QUALITY_SAMPLE:
+		case NETWORK_QUALITY_SAMPLE_REQUEST:
 			LOG_DBG("Sampling network quality data");
 			sample_network_quality();
 			break;
