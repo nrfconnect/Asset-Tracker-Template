@@ -37,21 +37,21 @@ jobs:
           source venv/bin/activate
           memfault \
               --org-token ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }} \
-              --org ${{ vars.MEMFAULT_ORGANIZATION_SLUG }} \
-              --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
+              --org ${{ secrets.MEMFAULT_ORGANIZATION_SLUG }} \
+              --project ${{ secrets.MEMFAULT_PROJECT_SLUG }} \
               upload-mcu-symbols \
-              --software-type hello.nrfcloud.com \
+              --software-type asset-tracker-template \
               --software-version ${{ inputs.version }} \
-              hello.nrfcloud.com-${{ inputs.version }}-thingy91x-nrf91.elf
+              asset-tracker-template-${{ inputs.version }}-thingy91x-nrf91.elf
 
       - name: Publish oob-debug symbol files
         run: |
           source venv/bin/activate
           memfault \
               --org-token ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }} \
-              --org ${{ vars.MEMFAULT_ORGANIZATION_SLUG }} \
-              --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
+              --org ${{ secrets.MEMFAULT_ORGANIZATION_SLUG }} \
+              --project ${{ secrets.MEMFAULT_PROJECT_SLUG }} \
               upload-mcu-symbols \
-              --software-type hello.nrfcloud.com \
-              --software-version ${{ inputs.version }}+debug \
-              hello.nrfcloud.com-${{ inputs.version }}+debug-thingy91x-nrf91.elf
+              --software-type asset-tracker-template \
+              --software-version ${{ inputs.version }}-debug \
+              asset-tracker-template-${{ inputs.version }}-debug-thingy91x-nrf91.elf

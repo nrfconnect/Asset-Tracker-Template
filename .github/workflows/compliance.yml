@@ -19,12 +19,12 @@ jobs:
     - name: Checkout the code
       uses: actions/checkout@v4
       with:
-        path: thingy91x-oob
+        path: thingy91x-att
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 0
 
     - name: Initialize
-      working-directory: thingy91x-oob
+      working-directory: thingy91x-att
       run: |
         west init -l .
         west config manifest.group-filter +bsec
@@ -38,13 +38,13 @@ jobs:
       shell: bash
       env:
         BASE_REF: ${{ github.base_ref }}
-      working-directory: thingy91x-oob
+      working-directory: thingy91x-att
       run: |
         export ZEPHYR_BASE="../zephyr"
         $ZEPHYR_BASE/scripts/ci/check_compliance.py -m Codeowners -m Devicetree -m Gitlint -m Identity -m Nits -m pylint -m checkpatch -m KconfigBasic -c origin/${BASE_REF}..
 
     - name: check-warns
-      working-directory: thingy91x-oob
+      working-directory: thingy91x-att
       shell: bash
       run: |
         if [[ ! -s "compliance.xml" ]]; then
@@ -52,7 +52,7 @@ jobs:
         fi
 
     - name: check-warns
-      working-directory: thingy91x-oob
+      working-directory: thingy91x-att
       shell: bash
       run: |
         for file in Nits.txt checkpatch.txt Identity.txt Gitlint.txt pylint.txt Devicetree.txt Kconfig.txt KconfigBasic.txt Codeowners.txt; do

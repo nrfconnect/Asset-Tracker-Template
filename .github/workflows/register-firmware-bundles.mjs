@@ -28,7 +28,7 @@ for (const asset of assets) {
   const fwversion = `${version}${
     configuration !== undefined ? `+${configuration}` : ""
   }`;
-  const fwName = `hello.nrfcloud.com ${fwversion}`;
+  const fwName = `asset-tracker-template ${fwversion}`;
   console.log(fwName);
   const manifest = {
     name: fwName,
