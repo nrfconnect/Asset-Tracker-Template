@@ -11,6 +11,7 @@
 #include <zephyr/sys/reboot.h>
 #include <zephyr/logging/log_ctrl.h>
 #include <zephyr/zbus/zbus.h>
+#include <modem/lte_lc.h>
 #if defined(CONFIG_MEMFAULT)
 #include <memfault/panics/assert.h>
 #endif
@@ -52,7 +53,7 @@ struct payload {
 
 #define MSG_TO_PAYLOAD(_msg) ((struct payload *)_msg)
 
-enum network_status {
+enum network_msg_type {
 	/* Output message types */
 	NETWORK_DISCONNECTED = 0x1,
 	NETWORK_CONNECTED,
@@ -62,7 +63,7 @@ enum network_status {
 	NETWORK_ATTACH_REJECTED,
 	NETWORK_PSM_PARAMS,
 	NETWORK_EDRX_PARAMS,
-	NETWORK_CURRENT_SYSTEM_MODE,
+	NETWORK_SYSTEM_MODE_RESPONSE,
 	NETWORK_QUALITY_SAMPLE_RESPONSE,
 
 	/* Input message types */
@@ -73,10 +74,36 @@ enum network_status {
 	NETWORK_QUALITY_SAMPLE_REQUEST,
 	NETWORK_SYSTEM_MODE_SET_LTE_M,
 	NETWORK_SYSTEM_MODE_SET_NBIOT,
-	NETWORK_SYSTEM_MODE_QUERY,
+	NETWORK_SYSTEM_MODE_REQUEST,
 };
 
-#define MSG_TO_NETWORK_STATUS(_msg)	(*(const enum network_status *)_msg)
+struct network_msg {
+	enum network_msg_type type;
+	union {
+		/** Contains the currently configured system mode.
+		 *  system_mode is set for NETWORK_SYSTEM_MODE_RESPONSE events
+		 */
+		enum lte_lc_system_mode system_mode;
+
+		/** Contains the current PSM configuration.
+		 *  psm_cfg is valid for NETWORK_PSM_PARAMS events.
+		 */
+		IF_ENABLED(CONFIG_LTE_LC_PSM_MODULE, (struct lte_lc_psm_cfg psm_cfg));
+
+		/** Contains the current eDRX configuration.
+		 *  edrx_cfg is valid for NETWORK_EDRX_PARAMS events.
+		 */
+		IF_ENABLED(CONFIG_LTE_LC_EDRX_MODULE, (struct lte_lc_edrx_cfg edrx_cfg));
+
+		/** Contains the current connection evaluation information.
+		 *  conn_eval_params is valid for NETWORK_QUALITY_SAMPLE_REQUEST events.
+		 */
+		IF_ENABLED(CONFIG_LTE_LC_CONN_EVAL_MODULE,
+			   (struct lte_lc_conn_eval_params conn_eval_params));
+	};
+};
+
+#define MSG_TO_NETWORK_STATUS(_msg)	(*(const enum network_msg_type *)_msg)
 
 enum cloud_status {
 	CLOUD_DISCONNECTED = 0x1,
