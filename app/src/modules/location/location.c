@@ -38,7 +38,7 @@ ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, location, 0);
 	(MAX(sizeof(enum trigger_type), \
 		 (MAX(sizeof(enum cloud_status), \
 		     (MAX(sizeof(struct configuration), \
-		         sizeof(enum network_status)))))))
+		         sizeof(enum network_msg_type)))))))
 
 static bool gnss_enabled;
 static bool gnss_initialized;
@@ -99,7 +99,7 @@ void trigger_location_update(void)
 	}
 }
 
-void handle_network_chan(enum network_status status) {
+void handle_network_chan(enum network_msg_type status) {
 	int err = 0;
 
 	if (gnss_initialized) {

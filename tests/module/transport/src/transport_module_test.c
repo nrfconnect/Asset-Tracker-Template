@@ -98,7 +98,7 @@ void test_initial_transition_to_disconnected(void)
 void test_transition_disconnected_connected_ready(void)
 {
 	int err;
-	enum network_status status = NETWORK_CONNECTED;
+	enum network_msg_type status = NETWORK_CONNECTED;
 
 	zbus_chan_pub(&NETWORK_CHAN, &status, K_NO_WAIT);
 
@@ -127,7 +127,7 @@ void test_sending_payload(void)
 void test_connected_ready_to_paused(void)
 {
 	int err;
-	enum network_status status = NETWORK_DISCONNECTED;
+	enum network_msg_type status = NETWORK_DISCONNECTED;
 
 	zbus_chan_pub(&NETWORK_CHAN, &status, K_NO_WAIT);
 
@@ -141,7 +141,7 @@ void test_connected_ready_to_paused(void)
 void test_connected_paused_to_ready_send_payload(void)
 {
 	int err;
-	enum network_status status = NETWORK_CONNECTED;
+	enum network_msg_type status = NETWORK_CONNECTED;
 	struct payload payload = {
 		.buffer = "Another test",
 		.buffer_len = sizeof(payload.buffer) - 1,
