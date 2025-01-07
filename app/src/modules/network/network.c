@@ -85,6 +85,7 @@ static void state_disconnected_entry(void *obj);
 static void state_disconnected_run(void *obj);
 static void state_disconnected_idle_run(void *obj);
 static void state_disconnected_searching_entry(void *obj);
+static void state_disconnected_searching_run(void *obj);
 static void state_connected_run(void *obj);
 static void state_disconnecting_entry(void *obj);
 
@@ -105,7 +106,8 @@ static const struct smf_state states[] = {
 				 &states[STATE_DISCONNECTED],
 				 NULL), /* No initial transition */
 	[STATE_DISCONNECTED_SEARCHING] =
-		SMF_CREATE_STATE(state_disconnected_searching_entry, NULL, NULL,
+		SMF_CREATE_STATE(state_disconnected_searching_entry,
+				 state_disconnected_searching_run, NULL,
 				 &states[STATE_DISCONNECTED],
 				 NULL), /* No initial transition */
 	[STATE_CONNECTED] =
@@ -118,15 +120,29 @@ static const struct smf_state states[] = {
 				 NULL), /* No initial transition */
 };
 
-static void network_status_notify(enum network_status status)
+static void network_status_notify(enum network_msg_type status)
 {
 	int err;
+	struct network_msg msg = {
+		.type = status,
+	};
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &status, K_SECONDS(1));
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
 		return;
+	}
+}
+
+static void network_msg_send(struct network_msg *msg)
+{
+	int err;
+
+	err = zbus_chan_pub(&NETWORK_CHAN, msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
 	}
 }
 
@@ -160,7 +176,6 @@ static void connectivity_event_handler(struct net_mgmt_event_callback *cb,
 	}
 }
 
-#if IS_ENABLED(CONFIG_LTE_LINK_CONTROL)
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 {
 	switch (evt->type) {
@@ -168,7 +183,9 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		if (evt->nw_reg_status == LTE_LC_NW_REG_UICC_FAIL) {
 			LOG_ERR("No SIM card detected!");
 			network_status_notify(NETWORK_UICC_FAILURE);
-			break;
+		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NOT_REGISTERED) {
+			LOG_WRN("Not registered, check rejection cause");
+			network_status_notify(NETWORK_ATTACH_REJECTED);
 		}
 		break;
 	case LTE_LC_EVT_MODEM_EVENT:
@@ -177,23 +194,52 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		 * the 30-minute block.
 		 */
 		if (evt->modem_evt == LTE_LC_MODEM_EVT_RESET_LOOP) {
-			LOG_ERR("The modem has detected a reset loop!");
-			SEND_IRRECOVERABLE_ERROR();
+			LOG_WRN("The modem has detected a reset loop!");
+			network_status_notify(NETWORK_MODEM_RESET_LOOP);
+		} else if (evt->modem_evt == LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE) {
+			LOG_DBG("LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE");
+			network_status_notify(NETWORK_LIGHT_SERACH_DONE);
 		}
 		break;
+	case LTE_LC_EVT_PSM_UPDATE: {
+		struct network_msg msg = {
+			.type = NETWORK_PSM_PARAMS,
+			.psm_cfg = evt->psm_cfg,
+		};
+
+		LOG_DBG("PSM parameters received, TAU: %d, Active time: %d",
+			msg.psm_cfg.tau, msg.psm_cfg.active_time);
+
+		network_msg_send(&msg);
+
+		break;
+	}
+	case LTE_LC_EVT_EDRX_UPDATE: {
+		struct network_msg msg = {
+			.type = NETWORK_EDRX_PARAMS,
+			.edrx_cfg = evt->edrx_cfg,
+		};
+
+		LOG_DBG("eDRX parameters received, mode: %d, eDRX: %0.2f s, PTW: %f s",
+			msg.edrx_cfg.mode, (double)msg.edrx_cfg.edrx, (double)msg.edrx_cfg.ptw);
+
+		network_msg_send(&msg);
+
+		break;
+	}
 	default:
 		break;
 	}
 }
-#endif /* IS_ENABLED(CONFIG_LTE_LINK_CONTROL) */
 
 static void sample_network_quality(void)
 {
-	int ret, err;
-	struct lte_lc_conn_eval_params conn_eval_params;
-	enum network_status status = NETWORK_QUALITY_SAMPLE_RESPONSE;
+	int ret;
+	struct network_msg msg = {
+		.type = NETWORK_QUALITY_SAMPLE_RESPONSE,
+	};
 
-	ret = lte_lc_conn_eval_params_get(&conn_eval_params);
+	ret = lte_lc_conn_eval_params_get(&msg.conn_eval_params);
 	if (ret == -EOPNOTSUPP) {
 		LOG_WRN("Connection evaluation not supported in current functional mode");
 		return;
@@ -206,15 +252,7 @@ static void sample_network_quality(void)
 		return;
 	}
 
-	/* No further use of the network quality data is implemented */
-
-	/* Send NETWORK_QUALITY_SAMPLE_RESPONSE */
-
-	err = zbus_chan_pub(&NETWORK_CHAN, &status, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
+	network_msg_send(&msg);
 }
 
 static int network_disconnect(void)
@@ -260,7 +298,6 @@ static void state_running_entry(void *obj)
 		return;
 	}
 
-#if IS_ENABLED(CONFIG_LTE_LINK_CONTROL)
 	lte_lc_register_handler(lte_lc_evt_handler);
 
 	/* Subscribe to modem events */
@@ -270,7 +307,6 @@ static void state_running_entry(void *obj)
 		SEND_FATAL_ERROR();
 		return;
 	}
-#endif /* IS_ENABLED(CONFIG_LTE_LINK_CONTROL) */
 }
 
 static void state_running_run(void *obj)
@@ -280,7 +316,7 @@ static void state_running_run(void *obj)
 	LOG_DBG("state_running_run");
 
 	if (&NETWORK_CHAN == state_object->chan) {
-		enum network_status status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
+		enum network_msg_type status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
 
 		switch (status) {
 		case NETWORK_DISCONNECTED:
@@ -288,6 +324,9 @@ static void state_running_run(void *obj)
 			break;
 		case NETWORK_UICC_FAILURE:
 			STATE_SET(network_state, STATE_DISCONNECTED_IDLE);
+			break;
+		case NETWORK_QUALITY_SAMPLE_REQUEST:
+			sample_network_quality();
 			break;
 		default:
 			break;
@@ -321,7 +360,7 @@ static void state_disconnected_run(void *obj)
 	LOG_DBG("state_disconnected_run");
 
 	if (&NETWORK_CHAN == state_object->chan) {
-		enum network_status status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
+		enum network_msg_type status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
 
 		switch (status) {
 		case NETWORK_CONNECTED:
@@ -362,6 +401,29 @@ static void state_disconnected_searching_entry(void *obj)
 	}
 }
 
+static void state_disconnected_searching_run(void *obj)
+{
+	struct state_object const *state_object = obj;
+
+	LOG_DBG("state_disconnected_searching_run");
+
+	if (&NETWORK_CHAN == state_object->chan) {
+		enum network_msg_type status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
+
+		switch (status) {
+		case NETWORK_CONNECT:
+			STATE_EVENT_HANDLED(network_state);
+			break;
+		case NETWORK_SEARCH_STOP: __fallthrough;
+		case NETWORK_DISCONNECT:
+			STATE_SET(network_state, STATE_DISCONNECTED_IDLE);
+			break;
+		default:
+			break;
+		}
+	}
+}
+
 static void state_disconnected_idle_run(void *obj)
 {
 	struct state_object const *state_object = obj;
@@ -369,10 +431,18 @@ static void state_disconnected_idle_run(void *obj)
 	LOG_DBG("state_disconnected_idle_run");
 
 	if (&NETWORK_CHAN == state_object->chan) {
-		enum network_status status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
+		enum network_msg_type status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
 
-		if (status == NETWORK_CONNECT) {
+		switch (status) {
+		case NETWORK_DISCONNECT:
+			STATE_EVENT_HANDLED(network_state);
+			break;
+		case NETWORK_SEARCH_START: __fallthrough;
+		case NETWORK_CONNECT:
 			STATE_SET(network_state, STATE_DISCONNECTED_SEARCHING);
+			break;
+		default:
+			break;
 		}
 	}
 }
@@ -388,7 +458,7 @@ static void state_connected_run(void *obj)
 	}
 
 	if (&NETWORK_CHAN == state_object->chan) {
-		enum network_status status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
+		enum network_msg_type status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
 
 		switch (status) {
 		case NETWORK_QUALITY_SAMPLE_REQUEST:

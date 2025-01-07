@@ -9,9 +9,9 @@
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/logging/log.h>
-#include "modem/lte_lc.h"
-#include "modem/modem_info.h"
-#include "zephyr/net/net_mgmt.h"
+#include <modem/lte_lc.h>
+#include <modem/modem_info.h>
+#include <zephyr/net/net_mgmt.h>
 
 #include "message_channel.h"
 
@@ -25,20 +25,23 @@ FAKE_VALUE_FUNC(int, conn_mgr_all_if_connect, bool);
 FAKE_VALUE_FUNC(int, conn_mgr_all_if_up, bool);
 FAKE_VALUE_FUNC(int, conn_mgr_all_if_disconnect, bool);
 FAKE_VOID_FUNC(net_mgmt_add_event_callback, struct net_mgmt_event_callback *);
+FAKE_VOID_FUNC(lte_lc_register_handler, lte_lc_evt_handler_t);
+FAKE_VALUE_FUNC(int, lte_lc_modem_events_enable);
+
 
 LOG_MODULE_REGISTER(network_module_test, 4);
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(test_subscriber);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, test_subscriber, 0);
 
-#define FAKE_TIME_MS 1723099642000
-#define FAKE_RSRP_IDX_MAX 97
-#define FAKE_RSRP_IDX_INVALID 255
-#define FAKE_RSRP_IDX 0
-#define FAKE_RSRP_IDX_MIN -17
-#define FAKE_ENERGY_ESTIMATE_MAX 9
-#define FAKE_ENERGY_ESTIMATE 7
-#define FAKE_ENERGY_ESTIMATE_MIN 5
+#define FAKE_TIME_MS			1723099642000
+#define FAKE_RSRP_IDX_MAX		97
+#define FAKE_RSRP_IDX_INVALID		255
+#define FAKE_RSRP_IDX			28
+#define FAKE_RSRP_IDX_MIN		-17
+#define FAKE_ENERGY_ESTIMATE_MAX	9
+#define FAKE_ENERGY_ESTIMATE		7
+#define FAKE_ENERGY_ESTIMATE_MIN	5
 
 static int date_time_now_custom_fake(int64_t *time)
 {
@@ -56,22 +59,22 @@ static int lte_lc_conn_eval_params_get_custom_fake(struct lte_lc_conn_eval_param
 
 static void send_connected(void)
 {
-	enum network_status network_status = NETWORK_CONNECTED;
-	int err = zbus_chan_pub(&NETWORK_CHAN, &network_status, K_SECONDS(1));
+	struct network_msg msg = { .type = NETWORK_CONNECTED, };
+	int err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-static void send_trigger(void)
+static void request_nw_quality(void)
 {
-	enum network_status status = NETWORK_QUALITY_SAMPLE_REQUEST;
+	struct network_msg msg = { .type = NETWORK_QUALITY_SAMPLE_REQUEST, };
 
-	int err = zbus_chan_pub(&NETWORK_CHAN, &status, K_SECONDS(1));
+	int err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-static void wait_for_and_decode_payload(enum network_status *output)
+static void wait_for_and_check_nw_quality_msg(struct network_msg *msg)
 {
 	const struct zbus_channel *chan;
 	int err;
@@ -80,7 +83,7 @@ static void wait_for_and_decode_payload(enum network_status *output)
 	uint64_t end_time = k_uptime_get() + 1500;
 
 	while (k_uptime_get() < end_time) {
-		err = zbus_sub_wait_msg(&test_subscriber, &chan, output, K_MSEC(1000));
+		err = zbus_sub_wait_msg(&test_subscriber, &chan, msg, K_MSEC(1000));
 		if (err == -ENOMSG) {
 			LOG_ERR("No payload message received");
 			TEST_FAIL();
@@ -97,7 +100,7 @@ static void wait_for_and_decode_payload(enum network_status *output)
 			TEST_FAIL();
 		}
 
-		if (*output == NETWORK_QUALITY_SAMPLE_RESPONSE) {
+		if (msg->type == NETWORK_QUALITY_SAMPLE_RESPONSE) {
 			return;
 		}
 	}
@@ -122,26 +125,44 @@ void setUp(void)
 void tearDown(void)
 {
 	const struct zbus_channel *chan;
-	static enum network_status status;
+	static struct network_msg msg;
 
-	while (zbus_sub_wait_msg(&test_subscriber, &chan, &status, K_MSEC(1000)) == 0) {
-		LOG_INF("Unhandled message in payload channel: %d", status);
+	while (zbus_sub_wait_msg(&test_subscriber, &chan, &msg, K_MSEC(1000)) == 0) {
+		LOG_INF("Unhandled message in payload channel: %d", msg);
 	}
 }
 
 void test_energy_estimate(void)
 {
-	static enum network_status status;
+	static struct network_msg msg;
 
 	/* Given */
 	lte_lc_conn_eval_params_get_fake.custom_fake = lte_lc_conn_eval_params_get_custom_fake;
 
 	/* When */
-	send_trigger();
+	request_nw_quality();
 
 	/* Then */
-	wait_for_and_decode_payload(&status);
-	TEST_ASSERT_EQUAL(NETWORK_QUALITY_SAMPLE_RESPONSE, status);
+	wait_for_and_check_nw_quality_msg(&msg);
+	TEST_ASSERT_EQUAL(NETWORK_QUALITY_SAMPLE_RESPONSE, msg.type);
+	TEST_ASSERT_EQUAL(FAKE_ENERGY_ESTIMATE, msg.conn_eval_params.energy_estimate);
+	TEST_ASSERT_EQUAL(FAKE_RSRP_IDX, msg.conn_eval_params.rsrp);
+}
+
+void test_psm_params_update(void)
+{
+	static struct network_msg msg;
+
+	lte_lc_conn_eval_params_get_fake.custom_fake = lte_lc_conn_eval_params_get_custom_fake;
+
+	/* When */
+	request_nw_quality();
+
+	/* Then */
+	wait_for_and_check_nw_quality_msg(&msg);
+	TEST_ASSERT_EQUAL(NETWORK_QUALITY_SAMPLE_RESPONSE, msg.type);
+	TEST_ASSERT_EQUAL(FAKE_ENERGY_ESTIMATE, msg.conn_eval_params.energy_estimate);
+	TEST_ASSERT_EQUAL(FAKE_RSRP_IDX, msg.conn_eval_params.rsrp);
 }
 
 void test_no_events_on_zbus_until_watchdog_timeout(void)

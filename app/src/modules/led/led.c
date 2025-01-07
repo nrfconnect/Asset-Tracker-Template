@@ -77,7 +77,7 @@ struct s_object {
 	enum trigger_mode mode;
 
 	/* Network status */
-	enum network_status status;
+	enum network_msg_type status;
 
 	/* Network status */
 	enum location_status location_status;
@@ -494,7 +494,7 @@ void led_callback(const struct zbus_channel *chan)
 	}
 
 	if (&NETWORK_CHAN == chan) {
-		const enum network_status *status = zbus_chan_const_msg(chan);
+		const enum network_msg_type *status = zbus_chan_const_msg(chan);
 
 		state_object.status = *status;
 	}

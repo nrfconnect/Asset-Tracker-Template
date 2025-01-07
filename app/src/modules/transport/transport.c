@@ -31,7 +31,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(transport);
 ZBUS_CHAN_ADD_OBS(PAYLOAD_CHAN, transport, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, transport, 0);
 
-#define MAX_MSG_SIZE (MAX(sizeof(struct payload), sizeof(enum network_status)))
+#define MAX_MSG_SIZE (MAX(sizeof(struct payload), sizeof(enum network_msg_type)))
 
 /* Enumerator to be used in privat transport channel */
 enum priv_transport_evt {
@@ -139,7 +139,7 @@ static struct state_object {
 	uint8_t msg_buf[MAX_MSG_SIZE];
 
 	/* Network status */
-	enum network_status nw_status;
+	enum network_msg_type nw_status;
 } transport_state;
 
 /* Define connection work - Used to handle reconnection attempts to the cloud */
@@ -241,7 +241,7 @@ static void state_running_run(void *o)
 	LOG_DBG("%s", __func__);
 
 	if (state_object->chan == &NETWORK_CHAN) {
-		enum network_status nw_status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
+		enum network_msg_type nw_status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
 
 		if (nw_status == NETWORK_DISCONNECTED) {
 			STATE_SET(transport_state, STATE_DISCONNECTED);
