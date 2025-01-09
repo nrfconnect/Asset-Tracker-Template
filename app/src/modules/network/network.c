@@ -301,7 +301,7 @@ static void state_running_entry(void *obj)
 
 	lte_lc_register_handler(lte_lc_evt_handler);
 
-	LOG_ERR("Network module started");
+	LOG_DBG("Network module started");
 }
 
 static void state_running_run(void *obj)
