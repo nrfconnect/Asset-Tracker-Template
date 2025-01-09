@@ -283,10 +283,6 @@ static void state_disconnected_run(void *o)
 
 		return;
 	}
-
-	if (state_object->chan == &PAYLOAD_CHAN) {
-		LOG_WRN("Discarding payload since we are not connected to cloud");
-	}
 }
 
 /* Handlers for STATE_CONNECTING */
@@ -368,6 +364,7 @@ static void state_connected_ready_entry(void *o)
 
 static void state_connected_ready_run(void *o)
 {
+	int err;
 	struct state_object *state_object = o;
 	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
@@ -396,30 +393,17 @@ static void state_connected_ready_run(void *o)
 
 			return;
 		}
-	}
 
-	if (state_object->chan == &PAYLOAD_CHAN) {
-		int err;
-		struct payload *payload = MSG_TO_PAYLOAD(state_object->msg_buf);
+		if (msg.type == NETWORK_QUALITY_SAMPLE_RESPONSE) {
 
-		LOG_HEXDUMP_DBG(payload->buffer, MIN(payload->buffer_len, 32), "Payload");
-
-		err = nrf_cloud_coap_bytes_send(payload->buffer, payload->buffer_len, false);
-		if (err == -EACCES) {
-
-			/* Not connected, retry connection */
-
-			enum priv_transport_evt conn_result = CLOUD_CONN_RETRY;
-
-			err = zbus_chan_pub(&PRIV_TRANSPORT_CHAN, &conn_result, K_SECONDS(1));
+			err = nrf_cloud_coap_sensor_send("RSRP", msg.conn_eval_params.rsrp,
+							 NRF_CLOUD_NO_TIMESTAMP, true);
 			if (err) {
-				LOG_ERR("zbus_chan_pub, error: %d", err);
+				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 				SEND_FATAL_ERROR();
-				return;
 			}
 
-		} else if (err) {
-			LOG_ERR("nrf_cloud_coap_bytes_send, error: %d", err);
+			return;
 		}
 	}
 }
