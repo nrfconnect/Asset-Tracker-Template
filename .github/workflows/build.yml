@@ -9,10 +9,6 @@ on:
         default: false
   workflow_call:
     inputs:
-      build_bl_update:
-        type: boolean
-        required: false
-        default: false
       memfault_sw_type:
         type: string
         required: false
