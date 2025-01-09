@@ -1,0 +1,154 @@
+name: Target tests
+
+on:
+  workflow_call:
+    inputs:
+      artifact_run_id:
+        type: string
+        required: true
+      artifact_fw_version:
+        type: string
+        required: true
+      pytest_marker:
+        type: string
+        required: false
+      pytest_path:
+        type: string
+        required: false
+        default: tests
+
+  workflow_dispatch:
+    inputs:
+      artifact_fw_version:
+        description: The firmware version found under this run_id
+        type: string
+        required: true
+      artifact_run_id:
+        description: The run ID of the workflow to fetch artifacts from
+        type: string
+        required: true
+      pytest_marker:
+        description: The pytest marker to run
+        type: string
+        required: false
+      pytest_path:
+        description: Select test execution path
+        type: string
+        required: false
+        default: tests
+
+jobs:
+  target_test:
+    # This will create multiple jobs, one for each target defined in the matrix
+    strategy:
+      matrix:
+        # nrf9151dk not available yet
+        # device: [thingy91x, nrf9151dk]
+        device: [thingy91x]
+
+    runs-on: ${{ matrix.device }}
+    name: Target Test - ${{ matrix.device }}
+
+    container:
+      image: ghcr.io/hello-nrfcloud/firmware:docker-v1.0.3
+      options: --privileged
+      volumes:
+        - /dev:/dev:rw
+        - /run/udev:/run/udev
+
+    steps:
+      - name: Display Runner Serial Number
+        # The serial number is set by a pre-job script in .env file on the local actions-runner directory
+        run: |
+          echo "Inside Container - Runner Serial Number: $RUNNER_SERIAL_NUMBER"
+          echo "Inside Container - Runner Serial Number: ${{ env.RUNNER_SERIAL_NUMBER }}"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: asset-tracker-template
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: firmware-*
+          merge-multiple: true
+          path: asset-tracker-template/tests/on_target/artifacts
+          run-id: ${{ inputs.artifact_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify artifact path
+        working-directory: asset-tracker-template
+        run: |
+          ls -l tests/on_target/artifacts
+
+      - name: Install dependencies
+        working-directory: asset-tracker-template/tests/on_target
+        run: |
+          pip install -r requirements.txt --break-system-packages
+
+      # - name: Upload symbol file to Memfault
+      #   working-directory: thingy91x-oob/tests/on_target/artifacts
+      #   run: |
+      #     memfault \
+      #         --org-token ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }} \
+      #         --org ${{ vars.MEMFAULT_ORGANIZATION_SLUG }} \
+      #         --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
+      #         upload-mcu-symbols \
+      #         --software-type hello.nrfcloud.com-ci \
+      #         --software-version ${{ inputs.artifact_fw_version }} \
+      #         hello.nrfcloud.com-${{ inputs.artifact_fw_version }}-thingy91x-nrf91.elf
+
+      - name: Target Tests
+        working-directory: asset-tracker-template/tests/on_target
+        run: |
+          mkdir -p results
+
+          if [[ '${{ inputs.pytest_marker }}' == 'no_markers_flag' || '${{ inputs.pytest_marker }}' == '' ]]; then
+            pytest_marker_arg=()
+          else
+            pytest_marker_arg=(-m "${{ inputs.pytest_marker }}")
+          fi
+
+          echo pytest -v "${pytest_marker_arg[@]}"
+          pytest -v "${pytest_marker_arg[@]}" \
+            --junit-xml=results/test-results.xml \
+            --html=results/test-results.html --self-contained-html \
+            ${{ inputs.pytest_path }}
+        shell: bash
+        env:
+          SEGGER: ${{ env.RUNNER_SERIAL_NUMBER }}
+          # IMEI: ${{ secrets.IMEI }}
+          # FINGERPRINT: ${{ secrets.FINGERPRINT }}
+          LOG_FILENAME: att_test_log
+          TEST_REPORT_NAME: ATT Firwmare Test Report
+          # MEMFAULT_ORGANIZATION_TOKEN: ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }}
+          # MEMFAULT_ORGANIZATION_SLUG: ${{ vars.MEMFAULT_ORGANIZATION_SLUG }}
+          # MEMFAULT_PROJECT_SLUG: ${{ vars.MEMFAULT_PROJECT_SLUG }}
+
+      - name: Results
+        if: always()
+        uses: pmeier/pytest-results-action@v0.7.1
+        with:
+          path: asset-tracker-template/tests/on_target/results/*.xml
+          summary: true
+          fail-on-empty: true
+          title: ATT FW Test Results
+
+      - name: Create Report Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        id: artifact-report
+        with:
+          name: test-report
+          path: |
+            asset-tracker-template/tests/on_target/results/*.html
+
+      - name: Push log files to artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        id: artifact-upload-test-logs
+        with:
+          name: test-logs
+          path: |
+            asset-tracker-template/tests/on_target/outcomes/logs/*.txt
