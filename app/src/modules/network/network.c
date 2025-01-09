@@ -27,7 +27,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(network);
 /* Observe network channel */
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network, 0);
 
-#define MAX_MSG_SIZE (MAX(sizeof(enum trigger_type), sizeof(enum time_status)))
+#define MAX_MSG_SIZE sizeof(struct network_msg)
 
 /* Macros used to subscribe to specific Zephyr NET management events. */
 #define L4_EVENT_MASK (NET_EVENT_L4_CONNECTED | NET_EVENT_L4_DISCONNECTED)
@@ -86,8 +86,9 @@ static void state_disconnected_run(void *obj);
 static void state_disconnected_idle_run(void *obj);
 static void state_disconnected_searching_entry(void *obj);
 static void state_disconnected_searching_run(void *obj);
-static void state_connected_run(void *obj);
 static void state_disconnecting_entry(void *obj);
+static void state_connected_run(void *obj);
+static void state_connected_entry(void *obj);
 
 static struct state_object network_state;
 
@@ -111,7 +112,7 @@ static const struct smf_state states[] = {
 				 &states[STATE_DISCONNECTED],
 				 NULL), /* No initial transition */
 	[STATE_CONNECTED] =
-		SMF_CREATE_STATE(NULL, state_connected_run, NULL,
+		SMF_CREATE_STATE(state_connected_entry, state_connected_run, NULL,
 				 &states[STATE_RUNNING],
 				 NULL), /* No initial transition */
 	[STATE_DISCONNECTING] =
@@ -300,13 +301,7 @@ static void state_running_entry(void *obj)
 
 	lte_lc_register_handler(lte_lc_evt_handler);
 
-	/* Subscribe to modem events */
-	err = lte_lc_modem_events_enable();
-	if (err) {
-		LOG_ERR("lte_lc_modem_events_enable, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
+	LOG_ERR("Network module started");
 }
 
 static void state_running_run(void *obj)
@@ -316,9 +311,9 @@ static void state_running_run(void *obj)
 	LOG_DBG("state_running_run");
 
 	if (&NETWORK_CHAN == state_object->chan) {
-		enum network_msg_type status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-		switch (status) {
+		switch (msg.type) {
 		case NETWORK_DISCONNECTED:
 			STATE_SET(network_state, STATE_DISCONNECTED);
 			break;
@@ -360,9 +355,9 @@ static void state_disconnected_run(void *obj)
 	LOG_DBG("state_disconnected_run");
 
 	if (&NETWORK_CHAN == state_object->chan) {
-		enum network_msg_type status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-		switch (status) {
+		switch (msg.type) {
 		case NETWORK_CONNECTED:
 			STATE_SET(network_state, STATE_CONNECTED);
 			break;
@@ -408,9 +403,9 @@ static void state_disconnected_searching_run(void *obj)
 	LOG_DBG("state_disconnected_searching_run");
 
 	if (&NETWORK_CHAN == state_object->chan) {
-		enum network_msg_type status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-		switch (status) {
+		switch (msg.type) {
 		case NETWORK_CONNECT:
 			STATE_EVENT_HANDLED(network_state);
 			break;
@@ -431,9 +426,9 @@ static void state_disconnected_idle_run(void *obj)
 	LOG_DBG("state_disconnected_idle_run");
 
 	if (&NETWORK_CHAN == state_object->chan) {
-		enum network_msg_type status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-		switch (status) {
+		switch (msg.type) {
 		case NETWORK_DISCONNECT:
 			STATE_EVENT_HANDLED(network_state);
 			break;
@@ -447,6 +442,13 @@ static void state_disconnected_idle_run(void *obj)
 	}
 }
 
+static void state_connected_entry(void *obj)
+{
+	ARG_UNUSED(obj);
+
+	LOG_DBG("state_connected_entry");
+}
+
 static void state_connected_run(void *obj)
 {
 	struct state_object const *state_object = obj;
@@ -458,9 +460,9 @@ static void state_connected_run(void *obj)
 	}
 
 	if (&NETWORK_CHAN == state_object->chan) {
-		enum network_msg_type status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-		switch (status) {
+		switch (msg.type) {
 		case NETWORK_QUALITY_SAMPLE_REQUEST:
 			LOG_DBG("Sampling network quality data");
 			sample_network_quality();

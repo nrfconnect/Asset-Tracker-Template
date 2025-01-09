@@ -103,7 +103,7 @@ struct network_msg {
 	};
 };
 
-#define MSG_TO_NETWORK_STATUS(_msg)	(*(const enum network_msg_type *)_msg)
+#define MSG_TO_NETWORK_MSG(_msg)	(*(const struct network_msg *)_msg)
 
 enum cloud_status {
 	CLOUD_DISCONNECTED = 0x1,

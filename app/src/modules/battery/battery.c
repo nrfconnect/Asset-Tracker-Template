@@ -32,7 +32,7 @@ ZBUS_CHAN_ADD_OBS(TIME_CHAN, battery, 0);
 
 #define MAX_MSG_SIZE \
 	(MAX(sizeof(enum trigger_type), \
-		(MAX(sizeof(enum network_msg_type), sizeof(enum time_status)))))
+		(MAX(sizeof(struct network_msg), sizeof(enum time_status)))))
 
 BUILD_ASSERT(CONFIG_APP_BATTERY_WATCHDOG_TIMEOUT_SECONDS >
 			CONFIG_APP_BATTERY_EXEC_TIME_SECONDS_MAX,

@@ -494,9 +494,9 @@ void led_callback(const struct zbus_channel *chan)
 	}
 
 	if (&NETWORK_CHAN == chan) {
-		const enum network_msg_type *status = zbus_chan_const_msg(chan);
+		const struct network_msg *msg = zbus_chan_const_msg(chan);
 
-		state_object.status = *status;
+		state_object.status = msg->type;
 	}
 
 	if (&LOCATION_CHAN == chan) {
