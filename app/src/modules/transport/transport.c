@@ -31,7 +31,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(transport);
 ZBUS_CHAN_ADD_OBS(PAYLOAD_CHAN, transport, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, transport, 0);
 
-#define MAX_MSG_SIZE (MAX(sizeof(struct payload), sizeof(enum network_msg_type)))
+#define MAX_MSG_SIZE (MAX(sizeof(struct payload), sizeof(struct network_msg)))
 
 /* Enumerator to be used in privat transport channel */
 enum priv_transport_evt {
@@ -241,9 +241,9 @@ static void state_running_run(void *o)
 	LOG_DBG("%s", __func__);
 
 	if (state_object->chan == &NETWORK_CHAN) {
-		enum network_msg_type nw_status = MSG_TO_NETWORK_STATUS(state_object->msg_buf);
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-		if (nw_status == NETWORK_DISCONNECTED) {
+		if (msg.type == NETWORK_DISCONNECTED) {
 			STATE_SET(transport_state, STATE_DISCONNECTED);
 
 			return;
@@ -276,8 +276,9 @@ static void state_disconnected_run(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	if ((state_object->chan == &NETWORK_CHAN) &&
-	    (MSG_TO_NETWORK_STATUS(state_object->msg_buf) == NETWORK_CONNECTED)) {
+	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
 		STATE_SET(transport_state, STATE_CONNECTING);
 
 		return;
@@ -368,6 +369,7 @@ static void state_connected_ready_entry(void *o)
 static void state_connected_ready_run(void *o)
 {
 	struct state_object *state_object = o;
+	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 	LOG_DBG("%s", __func__);
 
@@ -383,13 +385,13 @@ static void state_connected_ready_run(void *o)
 	}
 
 	if (state_object->chan == &NETWORK_CHAN) {
-		if (MSG_TO_NETWORK_STATUS(state_object->msg_buf) == NETWORK_DISCONNECTED) {
+		if (msg.type == NETWORK_DISCONNECTED) {
 			STATE_SET(transport_state, STATE_CONNECTED_PAUSED);
 
 			return;
 		}
 
-		if (MSG_TO_NETWORK_STATUS(state_object->msg_buf) == NETWORK_CONNECTED) {
+		if (msg.type == NETWORK_CONNECTED) {
 			STATE_EVENT_HANDLED(transport_state);
 
 			return;
@@ -446,11 +448,11 @@ static void state_connected_paused_entry(void *o)
 static void state_connected_paused_run(void *o)
 {
 	struct state_object *state_object = o;
+	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 	LOG_DBG("%s", __func__);
 
-	if ((state_object->chan == &NETWORK_CHAN) &&
-	    (MSG_TO_NETWORK_STATUS(state_object->msg_buf) == NETWORK_CONNECTED)) {
+	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
 		STATE_SET(transport_state, STATE_CONNECTED_READY);
 
 		return;
@@ -458,7 +460,6 @@ static void state_connected_paused_run(void *o)
 }
 
 /* End of state handlers */
-
 
 static void transport_task(void)
 {

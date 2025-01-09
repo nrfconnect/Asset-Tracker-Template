@@ -38,7 +38,7 @@ ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, location, 0);
 	(MAX(sizeof(enum trigger_type), \
 		 (MAX(sizeof(enum cloud_status), \
 		     (MAX(sizeof(struct configuration), \
-		         sizeof(enum network_msg_type)))))))
+		         sizeof(struct network_msg)))))))
 
 static bool gnss_enabled;
 static bool gnss_initialized;
@@ -99,14 +99,14 @@ void trigger_location_update(void)
 	}
 }
 
-void handle_network_chan(enum network_msg_type status) {
+void handle_network_chan(struct network_msg msg) {
 	int err = 0;
 
 	if (gnss_initialized) {
 		return;
 	}
 
-	if (status == NETWORK_CONNECTED) {
+	if (msg.type == NETWORK_CONNECTED) {
 		/* GNSS has to be enabled after the modem is initialized and enabled */
 		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
 		if (err) {
@@ -208,7 +208,7 @@ void location_task(void)
 
 		if (&NETWORK_CHAN == chan) {
 			LOG_DBG("Network status received");
-			handle_network_chan(MSG_TO_NETWORK_STATUS(&msg_buf));
+			handle_network_chan(MSG_TO_NETWORK_MSG(&msg_buf));
 		}
 
 		if (&TRIGGER_CHAN == chan) {
