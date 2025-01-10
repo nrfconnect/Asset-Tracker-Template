@@ -67,7 +67,7 @@ enum network_module_state {
 /* State object.
  * Used to transfer context data between state changes.
  */
-struct state_object {
+struct network_state_object {
 	/* This must be first */
 	struct smf_ctx ctx;
 
@@ -87,10 +87,11 @@ static void state_disconnected_idle_run(void *obj);
 static void state_disconnected_searching_entry(void *obj);
 static void state_disconnected_searching_run(void *obj);
 static void state_disconnecting_entry(void *obj);
+static void state_disconnecting_run(void *obj);
 static void state_connected_run(void *obj);
 static void state_connected_entry(void *obj);
 
-static struct state_object network_state;
+static struct network_state_object network_state;
 
 /* State machine definition */
 static const struct smf_state states[] = {
@@ -116,7 +117,7 @@ static const struct smf_state states[] = {
 				 &states[STATE_RUNNING],
 				 NULL), /* No initial transition */
 	[STATE_DISCONNECTING] =
-		SMF_CREATE_STATE(state_disconnecting_entry, NULL, NULL,
+		SMF_CREATE_STATE(state_disconnecting_entry, state_disconnecting_run, NULL,
 				 &states[STATE_RUNNING],
 				 NULL), /* No initial transition */
 };
@@ -221,7 +222,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			.edrx_cfg = evt->edrx_cfg,
 		};
 
-		LOG_DBG("eDRX parameters received, mode: %d, eDRX: %0.2f s, PTW: %f s",
+		LOG_DBG("eDRX parameters received, mode: %d, eDRX: %0.2f s, PTW: %.02f s",
 			msg.edrx_cfg.mode, (double)msg.edrx_cfg.edrx, (double)msg.edrx_cfg.ptw);
 
 		network_msg_send(&msg);
@@ -250,6 +251,24 @@ static void sample_network_quality(void)
 		return;
 	} else if (ret > 0) {
 		LOG_WRN("Connection evaluation failed due to a network related reason: %d", ret);
+		return;
+	}
+
+	network_msg_send(&msg);
+}
+
+static void request_system_mode(void)
+{
+	int err;
+	struct network_msg msg = {
+		.type = NETWORK_SYSTEM_MODE_RESPONSE,
+	};
+	enum lte_lc_system_mode_preference dummy_preference;
+
+	err = lte_lc_system_mode_get(&msg.system_mode, &dummy_preference);
+	if (err) {
+		LOG_ERR("lte_lc_system_mode_get, error: %d", err);
+		SEND_FATAL_ERROR();
 		return;
 	}
 
@@ -306,7 +325,7 @@ static void state_running_entry(void *obj)
 
 static void state_running_run(void *obj)
 {
-	struct state_object const *state_object = obj;
+	struct network_state_object const *state_object = obj;
 
 	LOG_DBG("state_running_run");
 
@@ -322,6 +341,9 @@ static void state_running_run(void *obj)
 			break;
 		case NETWORK_QUALITY_SAMPLE_REQUEST:
 			sample_network_quality();
+			break;
+		case NETWORK_SYSTEM_MODE_REQUEST:
+			request_system_mode();
 			break;
 		default:
 			break;
@@ -350,7 +372,7 @@ static void state_disconnected_entry(void *obj)
 
 static void state_disconnected_run(void *obj)
 {
-	struct state_object const *state_object = obj;
+	struct network_state_object const *state_object = obj;
 
 	LOG_DBG("state_disconnected_run");
 
@@ -398,7 +420,7 @@ static void state_disconnected_searching_entry(void *obj)
 
 static void state_disconnected_searching_run(void *obj)
 {
-	struct state_object const *state_object = obj;
+	struct network_state_object const *state_object = obj;
 
 	LOG_DBG("state_disconnected_searching_run");
 
@@ -421,7 +443,7 @@ static void state_disconnected_searching_run(void *obj)
 
 static void state_disconnected_idle_run(void *obj)
 {
-	struct state_object const *state_object = obj;
+	struct network_state_object const *state_object = obj;
 
 	LOG_DBG("state_disconnected_idle_run");
 
@@ -432,7 +454,6 @@ static void state_disconnected_idle_run(void *obj)
 		case NETWORK_DISCONNECT:
 			STATE_EVENT_HANDLED(network_state);
 			break;
-		case NETWORK_SEARCH_START: __fallthrough;
 		case NETWORK_CONNECT:
 			STATE_SET(network_state, STATE_DISCONNECTED_SEARCHING);
 			break;
@@ -451,7 +472,7 @@ static void state_connected_entry(void *obj)
 
 static void state_connected_run(void *obj)
 {
-	struct state_object const *state_object = obj;
+	struct network_state_object const *state_object = obj;
 
 	LOG_DBG("state_connected_run");
 
@@ -489,6 +510,21 @@ static void state_disconnecting_entry(void *obj)
 		LOG_ERR("network_disconnect, error: %d", err);
 		SEND_FATAL_ERROR();
 		return;
+	}
+}
+
+static void state_disconnecting_run(void *obj)
+{
+	struct network_state_object const *state_object = obj;
+
+	LOG_DBG("state_disconnecting_run");
+
+	if (&NETWORK_CHAN == state_object->chan) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		if (msg.type == NETWORK_DISCONNECTED) {
+			STATE_SET(network_state, STATE_DISCONNECTED_IDLE);
+		}
 	}
 }
 
