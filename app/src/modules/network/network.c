@@ -443,6 +443,7 @@ static void state_disconnected_searching_run(void *obj)
 
 static void state_disconnected_idle_run(void *obj)
 {
+	int err;
 	struct network_state_object const *state_object = obj;
 
 	LOG_DBG("state_disconnected_idle_run");
@@ -456,6 +457,30 @@ static void state_disconnected_idle_run(void *obj)
 			break;
 		case NETWORK_CONNECT:
 			STATE_SET(network_state, STATE_DISCONNECTED_SEARCHING);
+			break;
+		case NETWORK_SYSTEM_MODE_SET_LTEM:
+			err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM_GPS,
+						     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+			if (err) {
+				LOG_ERR("lte_lc_system_mode_set, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+			break;
+		case NETWORK_SYSTEM_MODE_SET_NBIOT:
+			err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NBIOT_GPS,
+						     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+			if (err) {
+				LOG_ERR("lte_lc_system_mode_set, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+			break;
+		case NETWORK_SYSTEM_MODE_SET_LTEM_NBIOT:
+			err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM_NBIOT_GPS,
+						     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+			if (err) {
+				LOG_ERR("lte_lc_system_mode_set, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
 			break;
 		default:
 			break;

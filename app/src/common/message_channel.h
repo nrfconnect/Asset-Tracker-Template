@@ -125,11 +125,24 @@ enum network_msg_type {
 	 */
 	NETWORK_QUALITY_SAMPLE_REQUEST,
 
-	/* Request to set the system mode to only use LTE-M access technology. */
-	NETWORK_SYSTEM_MODE_SET_LTE_M,
+	/* Request to set the system mode to only use LTE-M access technology.
+	 * Note that the network module must be disconnected and idle, ie. not actively searching
+	 * for the system mode to be set.
+	*/
+	NETWORK_SYSTEM_MODE_SET_LTEM,
 
-	/* Request to set the system mode to only use NB-IoT access technology. */
+	/* Request to set the system mode to only use NB-IoT access technology.
+	 * Note that the network module must be disconnected and idle, ie. not actively searching
+	 * for the system mode to be set.
+	 */
 	NETWORK_SYSTEM_MODE_SET_NBIOT,
+
+	/* Request to set the system mode use both LTE-M and NB-IoT access technologies
+	 * when searching for a network.
+	 * Note that the network module must be disconnected and idle, ie. not actively searching
+	 * for the system mode to be set.
+	 */
+	NETWORK_SYSTEM_MODE_SET_LTEM_NBIOT,
 
 	/* Request to retrieve the current system mode. The response is sent as a
 	 * NETWORK_SYSTEM_MODE_RESPONSE message.
