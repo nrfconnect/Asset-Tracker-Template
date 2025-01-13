@@ -1,4 +1,5 @@
 pytest
+pytest-html
 pyserial
 termcolor
 pyusb
