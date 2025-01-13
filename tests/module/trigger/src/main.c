@@ -82,14 +82,16 @@ void test_init_to_connected_state(void)
 	uint32_t interval =  HOUR_IN_SECONDS / CONFIG_APP_TRIGGER_TIMEOUT_SECONDS;
 
 	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	for (int i = 0; i < interval; i++) {
 		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+		check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	}
 
 	/* Cleanup */
 	send_cloud_disconnected();
-	check_no_network_events(7200);
+	check_no_events(7200);
 }
 
 void test_button_press_on_connected(void)
@@ -108,11 +110,13 @@ void test_button_press_on_connected(void)
 	 * button press
 	 */
 	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	/* Cleanup */
 	send_cloud_disconnected();
-	check_no_network_events(7200);
+	check_no_events(7200);
 }
 
 void test_button_press_on_disconnected(void)
@@ -125,7 +129,7 @@ void test_button_press_on_disconnected(void)
 	k_sleep(K_SECONDS(5));
 
 	/* Then */
-	check_no_network_events(7200);
+	check_no_events(7200);
 }
 
 void test_trigger_interval_change_in_connected(void)
@@ -141,14 +145,16 @@ void test_trigger_interval_change_in_connected(void)
 	uint32_t interval =  (WEEK_IN_SECONDS) / (HOUR_IN_SECONDS * 12);
 
 	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	for (int i = 0; i < interval; i++) {
 		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+		check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	}
 
 	/* Cleanup */
 	send_cloud_disconnected();
-	check_no_network_events((WEEK_IN_SECONDS));
+	check_no_events((WEEK_IN_SECONDS));
 }
 
 /* This is required to be added to each test. That is because unity's

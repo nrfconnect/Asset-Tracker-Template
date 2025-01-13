@@ -62,12 +62,22 @@ static struct state_object trigger_state;
 
 static void trigger_send(void)
 {
+	int err;
 	struct network_msg network_msg = {
 		.type = NETWORK_QUALITY_SAMPLE_REQUEST,
 	};
+	struct battery_msg battery_msg = {
+		.type = BATTERY_PERCENTAGE_SAMPLE_REQUEST,
+	};
 
-	int err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 
+	err = zbus_chan_pub(&BATTERY_CHAN, &battery_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
