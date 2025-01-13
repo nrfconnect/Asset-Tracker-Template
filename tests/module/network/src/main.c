@@ -31,6 +31,8 @@ FAKE_VOID_FUNC(lte_lc_register_handler, lte_lc_evt_handler_t);
 FAKE_VALUE_FUNC(int, lte_lc_modem_events_enable);
 FAKE_VALUE_FUNC(int, lte_lc_system_mode_get, enum lte_lc_system_mode *,
 		enum lte_lc_system_mode_preference *);
+FAKE_VALUE_FUNC(int, lte_lc_system_mode_set, enum lte_lc_system_mode,
+		enum lte_lc_system_mode_preference);
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(test_subscriber);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, test_subscriber, 0);
@@ -47,10 +49,11 @@ ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, test_subscriber, 0);
 #define FAKE_PSM_ACTIVE_TIME		16
 #define FAKE_EDRX_VALUE			163.84f
 #define FAKE_EDRX_PTW			1.28f
-#define FAKE_SYSTEM_MODE		LTE_LC_SYSTEM_MODE_LTEM_NBIOT_GPS
+#define FAKE_SYSTEM_MODE_DEFAULT	LTE_LC_SYSTEM_MODE_LTEM_NBIOT_GPS
 
 static lte_lc_evt_handler_t lte_evt_handler;
 static struct net_mgmt_event_callback net_mgmt_evt_cb;
+static enum lte_lc_system_mode current_fake_system_mode = FAKE_SYSTEM_MODE_DEFAULT;
 
 /* Forward declarations */
 static void send_l4_evt(uint32_t mgmt_event);
@@ -108,7 +111,15 @@ static void net_mgmt_add_event_callback_custom_fake(struct net_mgmt_event_callba
 static int lte_lc_system_mode_get_custom_fake(enum lte_lc_system_mode *mode,
 					       enum lte_lc_system_mode_preference *preference)
 {
-	*mode = FAKE_SYSTEM_MODE;
+	*mode = current_fake_system_mode;
+
+	return 0;
+}
+
+static int lte_lc_system_mode_set_custom_fake(enum lte_lc_system_mode mode,
+					      enum lte_lc_system_mode_preference preference)
+{
+	current_fake_system_mode = mode;
 
 	return 0;
 }
@@ -240,6 +251,7 @@ void setUp(void)
 	net_mgmt_add_event_callback_fake.custom_fake = net_mgmt_add_event_callback_custom_fake;
 	lte_lc_conn_eval_params_get_fake.custom_fake = lte_lc_conn_eval_params_get_custom_fake;
 	lte_lc_system_mode_get_fake.custom_fake = lte_lc_system_mode_get_custom_fake;
+	lte_lc_system_mode_set_fake.custom_fake = lte_lc_system_mode_set_custom_fake;
 
 	/* Sleep to allow threads to start */
 	k_sleep(K_MSEC(500));
@@ -406,7 +418,54 @@ void test_system_mode_request(void)
 
 	wait_for_and_check_msg(&msg, NETWORK_SYSTEM_MODE_RESPONSE);
 	TEST_ASSERT_EQUAL(NETWORK_SYSTEM_MODE_RESPONSE, msg.type);
-	TEST_ASSERT_EQUAL(FAKE_SYSTEM_MODE, msg.system_mode);
+	TEST_ASSERT_EQUAL(current_fake_system_mode, msg.system_mode);
+}
+
+static void system_mode_set_test(enum network_msg_type msg_type, enum lte_lc_system_mode expected)
+{
+	struct network_msg msg = { .type = NETWORK_DISCONNECT, };
+	int err;
+
+	/* Ensure that the module is disconnected and idle */
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* The test thread needs to yield to allow the message to be processed in the network
+	 * module.
+	 */
+	k_sleep(K_MSEC(10));
+
+	msg.type = msg_type;
+
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	k_sleep(K_MSEC(10));
+
+	/* Request the system mode */
+	msg.type = NETWORK_SYSTEM_MODE_REQUEST;
+
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	wait_for_and_check_msg(&msg, NETWORK_SYSTEM_MODE_RESPONSE);
+	TEST_ASSERT_EQUAL(NETWORK_SYSTEM_MODE_RESPONSE, msg.type);
+	TEST_ASSERT_EQUAL(expected, msg.system_mode);
+}
+
+void test_system_mode_set_ltem(void)
+{
+	system_mode_set_test(NETWORK_SYSTEM_MODE_SET_LTEM, LTE_LC_SYSTEM_MODE_LTEM_GPS);
+}
+
+void test_system_mode_set_nbiot(void)
+{
+	system_mode_set_test(NETWORK_SYSTEM_MODE_SET_NBIOT, LTE_LC_SYSTEM_MODE_NBIOT_GPS);
+}
+
+void test_system_mode_set_ltem_nbiot(void)
+{
+	system_mode_set_test(NETWORK_SYSTEM_MODE_SET_LTEM_NBIOT, LTE_LC_SYSTEM_MODE_LTEM_NBIOT_GPS);
 }
 
 /* This is required to be added to each test. That is because unity's
