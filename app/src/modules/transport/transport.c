@@ -19,6 +19,8 @@
 /* Register log module */
 LOG_MODULE_REGISTER(transport, CONFIG_APP_TRANSPORT_LOG_LEVEL);
 
+#define CUSTOM_JSON_APPID_VAL_CONEVAL "CONEVAL"
+#define CUSTOM_JSON_APPID_VAL_BATTERY "BATTERY"
 
 BUILD_ASSERT(CONFIG_APP_TRANSPORT_WATCHDOG_TIMEOUT_SECONDS >
 			 CONFIG_APP_TRANSPORT_EXEC_TIME_SECONDS_MAX,
@@ -30,8 +32,9 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(transport);
 /* Observe channels */
 ZBUS_CHAN_ADD_OBS(PAYLOAD_CHAN, transport, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, transport, 0);
+ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, transport, 0);
 
-#define MAX_MSG_SIZE (MAX(sizeof(struct payload), sizeof(struct network_msg)))
+#define MAX_MSG_SIZE (MAX(sizeof(struct payload), MAX(sizeof(struct network_msg), sizeof(struct battery_msg))))
 
 /* Enumerator to be used in privat transport channel */
 enum priv_transport_evt {
@@ -366,7 +369,6 @@ static void state_connected_ready_run(void *o)
 {
 	int err;
 	struct state_object *state_object = o;
-	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 	LOG_DBG("%s", __func__);
 
@@ -382,6 +384,9 @@ static void state_connected_ready_run(void *o)
 	}
 
 	if (state_object->chan == &NETWORK_CHAN) {
+
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
 		if (msg.type == NETWORK_DISCONNECTED) {
 			STATE_SET(transport_state, STATE_CONNECTED_PAUSED);
 
@@ -396,7 +401,16 @@ static void state_connected_ready_run(void *o)
 
 		if (msg.type == NETWORK_QUALITY_SAMPLE_RESPONSE) {
 
-			err = nrf_cloud_coap_sensor_send("RSRP", msg.conn_eval_params.rsrp,
+			err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_CONEVAL,
+							 msg.conn_eval_params.energy_estimate,
+							 NRF_CLOUD_NO_TIMESTAMP, true);
+			if (err) {
+				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_RSRP,
+							 msg.conn_eval_params.rsrp,
 							 NRF_CLOUD_NO_TIMESTAMP, true);
 			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
@@ -405,6 +419,25 @@ static void state_connected_ready_run(void *o)
 
 			return;
 		}
+	}
+
+	if (state_object->chan == &BATTERY_CHAN) {
+
+		struct battery_msg msg = MSG_TO_BATTERY_MSG(state_object->msg_buf);
+
+		if (msg.type == BATTERY_PERCENTAGE_SAMPLE_RESPONSE) {
+
+			err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_BATTERY,
+							 msg.percentage,
+							 NRF_CLOUD_NO_TIMESTAMP, true);
+			if (err) {
+				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			return;
+		}
+
 	}
 }
 

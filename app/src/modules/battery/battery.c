@@ -26,17 +26,13 @@ LOG_MODULE_REGISTER(battery, CONFIG_APP_BATTERY_LOG_LEVEL);
 ZBUS_MSG_SUBSCRIBER_DEFINE(battery);
 
 /* Observe channels */
-ZBUS_CHAN_ADD_OBS(TRIGGER_CHAN, battery, 0);
-ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, battery, 0);
-ZBUS_CHAN_ADD_OBS(TIME_CHAN, battery, 0);
+ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, battery, 0);
 
-#define MAX_MSG_SIZE \
-	(MAX(sizeof(enum trigger_type), \
-		(MAX(sizeof(struct network_msg), sizeof(enum time_status)))))
+#define MAX_MSG_SIZE sizeof(struct battery_msg)
 
 BUILD_ASSERT(CONFIG_APP_BATTERY_WATCHDOG_TIMEOUT_SECONDS >
-			CONFIG_APP_BATTERY_EXEC_TIME_SECONDS_MAX,
-			"Watchdog timeout must be greater than maximum execution time");
+	     CONFIG_APP_BATTERY_EXEC_TIME_SECONDS_MAX,
+	     "Watchdog timeout must be greater than maximum execution time");
 
 /* nPM1300 register bitmasks */
 
@@ -50,7 +46,6 @@ BUILD_ASSERT(CONFIG_APP_BATTERY_WATCHDOG_TIMEOUT_SECONDS >
 static const struct device *charger = DEVICE_DT_GET(DT_NODELABEL(npm1300_charger));
 
 /* Forward declarations */
-static struct s_object s_obj;
 static int charger_read_sensors(float *voltage, float *current, float *temp, int32_t *chg_status);
 static void sample(int64_t *ref_time);
 
@@ -58,12 +53,10 @@ static void sample(int64_t *ref_time);
 
 /* Defininig the module states.
  *
- * STATE_INIT: The battery module is initializing and waiting for time to be available.
- * STATE_SAMPLING: The battery module is ready to sample upon receiving a trigger.
+ * STATE_RUNNING: The battery module is initializing and waiting battery percentage to be requested.
  */
 enum battery_module_state {
-	STATE_INIT,
-	STATE_SAMPLING,
+	STATE_RUNNING,
 };
 
 /* User defined state object.
@@ -84,25 +77,18 @@ struct s_object {
 };
 
 /* Forward declarations of state handlers */
-static void state_init_entry(void *o);
-static void state_init_run(void *o);
-static void state_sampling_run(void *o);
+static void state_running_entry(void *o);
+static void state_running_run(void *o);
 
 static struct s_object battery_state_object;
 static const struct smf_state states[] = {
-	[STATE_INIT] =
-		SMF_CREATE_STATE(state_init_entry, state_init_run, NULL,
-				 NULL,	/* No parent state */
-				 NULL), /* No initial transition */
-	[STATE_SAMPLING] =
-		SMF_CREATE_STATE(NULL, state_sampling_run, NULL,
-				 NULL,
-				 NULL),
+	[STATE_RUNNING] =
+		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL, NULL, NULL),
 };
 
 /* State handlers */
 
-static void state_init_entry(void *o)
+static void state_running_entry(void *o)
 {
 	int err;
 	struct sensor_value value;
@@ -142,30 +128,15 @@ static void state_init_entry(void *o)
 	}
 }
 
-static void state_init_run(void *o)
+static void state_running_run(void *o)
 {
 	struct s_object *state_object = o;
 
-	if (&TIME_CHAN == state_object->chan) {
-		enum time_status time_status = MSG_TO_TIME_STATUS(state_object->msg_buf);
+	if (&BATTERY_CHAN == state_object->chan) {
+		struct battery_msg msg = MSG_TO_BATTERY_MSG(state_object->msg_buf);
 
-		if (time_status == TIME_AVAILABLE) {
-			LOG_DBG("Time available, sampling can start");
-
-			STATE_SET(battery_state_object, STATE_SAMPLING);
-		}
-	}
-}
-
-static void state_sampling_run(void *o)
-{
-	struct s_object *state_object = o;
-
-	if (&TRIGGER_CHAN == state_object->chan) {
-		enum trigger_type trigger_type = MSG_TO_TRIGGER_TYPE(state_object->msg_buf);
-
-		if (trigger_type == TRIGGER_DATA_SAMPLE) {
-			LOG_DBG("Data sample trigger received, getting battery data");
+		if (msg.type == BATTERY_PERCENTAGE_SAMPLE_REQUEST) {
+			LOG_DBG("Battery percentage sample request received, getting battery data");
 			sample(&state_object->fuel_gauge_ref_time);
 		}
 	}
@@ -209,13 +180,6 @@ static void sample(int64_t *ref_time)
 	float temp;
 	float state_of_charge;
 	float delta;
-	int64_t system_time;
-
-	err = date_time_now(&system_time);
-	if (err) {
-		LOG_ERR("Failed to convert uptime to unix time, error: %d", err);
-		return;
-	}
 
 	err = charger_read_sensors(&voltage, &current, &temp, &chg_status);
 	if (err) {
@@ -235,7 +199,17 @@ static void sample(int64_t *ref_time)
 	LOG_DBG("State of charge: %f", (double)roundf(state_of_charge));
 	LOG_DBG("The battery is %s", charging ? "charging" : "not charging");
 
-	/* No further use of the battery data is implemented */
+	struct battery_msg msg = {
+		.type = BATTERY_PERCENTAGE_SAMPLE_RESPONSE,
+		.percentage = (double)roundf(state_of_charge)
+	};
+
+	err = zbus_chan_pub(&BATTERY_CHAN, &msg, K_NO_WAIT);
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 }
 
 static void task_wdt_callback(int channel_id, void *user_data)
@@ -258,7 +232,7 @@ static void battery_task(void)
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 
-	STATE_SET_INITIAL(battery_state_object, STATE_INIT);
+	STATE_SET_INITIAL(battery_state_object, STATE_RUNNING);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -268,7 +242,10 @@ static void battery_task(void)
 			return;
 		}
 
-		err = zbus_sub_wait_msg(&battery, &s_obj.chan, s_obj.msg_buf, zbus_wait_ms);
+		err = zbus_sub_wait_msg(&battery,
+					&battery_state_object.chan,
+					battery_state_object.msg_buf,
+					zbus_wait_ms);
 		if (err == -ENOMSG) {
 			continue;
 		} else if (err) {
