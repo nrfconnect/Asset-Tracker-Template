@@ -1,0 +1,31 @@
+name: Build and Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      pytest_marker:
+        type: string
+        required: false
+        default: 'not slow'
+
+  schedule:
+    - cron: "0 0 * * *"
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+  test:
+    permissions:
+      contents: write
+    uses: ./.github/workflows/target-test.yml
+    needs: build
+    secrets: inherit
+    with:
+      artifact_fw_version: ${{ needs.build.outputs.version }}
+      artifact_run_id: ${{ needs.build.outputs.run_id }}
+      pytest_marker: ${{ inputs.pytest_marker || (github.event_name == 'schedule' && 'no_markers_flag') || (github.event_name == 'push' && 'not slow') }}
