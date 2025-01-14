@@ -21,7 +21,9 @@ jobs:
     secrets: inherit
   test:
     permissions:
-      contents: write
+      actions: read
+      contents: read
+      packages: read
     uses: ./.github/workflows/target-test.yml
     needs: build
     secrets: inherit
