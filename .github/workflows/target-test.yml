@@ -46,11 +46,14 @@ jobs:
         # device: [thingy91x, nrf9151dk]
         device: [thingy91x]
 
+    # Self-hosted runner is labeled according to the device it is linked with
     runs-on: ${{ matrix.device }}
     name: Target Test - ${{ matrix.device }}
 
     permissions:
-      contents: write
+      actions: read
+      contents: read
+      packages: read
 
     container:
       image: ghcr.io/hello-nrfcloud/firmware:docker-v1.0.3
