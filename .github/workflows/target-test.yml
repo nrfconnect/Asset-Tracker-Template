@@ -49,6 +49,9 @@ jobs:
     runs-on: ${{ matrix.device }}
     name: Target Test - ${{ matrix.device }}
 
+    permissions:
+      contents: write
+
     container:
       image: ghcr.io/hello-nrfcloud/firmware:docker-v1.0.3
       options: --privileged
