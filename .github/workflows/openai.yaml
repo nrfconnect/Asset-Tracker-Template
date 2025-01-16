@@ -2,23 +2,33 @@ name: AI Code Reviewer
 
 on:
   pull_request:
-    types:
-      - opened
-      - synchronize
+    types: [labeled]
 
 permissions: write-all
 
 jobs:
-  review:
+  code_review:
     runs-on: ubuntu-latest
+    if: github.event.label.name == 'ai-review'
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v3
 
       - name: AI Code Reviewer
-        uses: aidar-freeed/ai-codereviewer@main
+        uses: DematteisGiacomo/ai-codereviewer@lfsevergnini_playground
         with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # The GITHUB_TOKEN is there by default so you just need to keep it like it is and not necessarily need to add it as secret as it will throw an error. [More Details](https://docs.github.com/en/actions/security-guides/automatic-token-authentication#about-the-github_token-secret)
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_API_MODEL: "gpt-4" # Optional: defaults to "gpt-4"
-          #exclude: "**/*.json, **/*.md" # Optional: exclude patterns separated by commas
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          # AI provider
+          AI_PROVIDER: "anthropic"
+          AI_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AI_MODEL: "claude-3-5-sonnet-20241022"
+          AI_TEMPERATURE: 0.1
+
+          # Optional configurations
+          APPROVE_REVIEWS: true
+          MAX_COMMENTS: 10
+          PROJECT_CONTEXT: "This is a real-time configurable ultra-low \
+                            power capable asset tracking application firmware for the nRF91 Series"
+          CONTEXT_FILES: "README.md, docs/ARCHITECTURE.md"
+          EXCLUDE_PATTERNS: "**/*.lock,**/*.json,**/*.md"
