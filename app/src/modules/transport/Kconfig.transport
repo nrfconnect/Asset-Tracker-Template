@@ -14,23 +14,23 @@ config APP_TRANSPORT_BACKOFF_INITIAL_SECONDS
 	  Time in between reconnection attempts to the CoAP server.
 	  The timer starts after the last failed attempt.
 
-choice APP_TRANSPORT_BACKOFF_BACKOFF_TYPE
+choice APP_TRANSPORT_BACKOFF_TYPE
 	prompt "Reconnection backoff type"
-	default APP_TRANSPORT_BACKOFF_BACKOFF_TYPE_LINEAR
+	default APP_TRANSPORT_BACKOFF_TYPE_LINEAR
 
-config APP_TRANSPORT_BACKOFF_BACKOFF_TYPE_EXPONENTIAL
+config APP_TRANSPORT_BACKOFF_TYPE_EXPONENTIAL
 	bool "Exponential backoff"
 	help
 	  Exponential backoff doubles the reconnection timeout after each failed attempt.
 	  The maximum reconnection timeout is defined by APP_TRANSPORT_BACKOFF_MAX_SECONDS.
 
-config APP_TRANSPORT_BACKOFF_BACKOFF_TYPE_LINEAR
+config APP_TRANSPORT_BACKOFF_TYPE_LINEAR
 	bool "Linear backoff"
 	help
 	  Linear backoff adds a fixed amount of time to the reconnection timeout after each failed attempt,
 	  as defined by APP_TRANSPORT_BACKOFF_LINEAR_INCREMENT_SECONDS.
 
-config APP_TRANSPORT_BACKOFF_BACKOFF_TYPE_NONE
+config APP_TRANSPORT_BACKOFF_TYPE_NONE
 	bool "No backoff"
 	help
 	  No backoff means that the reconnection timeout is constant at the value defined by
@@ -41,7 +41,6 @@ endchoice
 config APP_TRANSPORT_BACKOFF_LINEAR_INCREMENT_SECONDS
 	int "Reconnection backoff time increment"
 	default 60
-	depends on APP_TRANSPORT_BACKOFF_BACKOFF_TYPE_LINEAR
 	help
 	  Time added to the reconnection timeout after each failed attempt in seconds.
 	  The maximum reconnection timeout is defined by APP_TRANSPORT_BACKOFF_MAX_SECONDS.

@@ -38,8 +38,6 @@ ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, transport, 0);
 
 /* Enumerator to be used in privat transport channel */
 enum priv_transport_msg {
-	CLOUD_CONN_SUCCES,
-	CLOUD_CONN_FAILED,
 	CLOUD_BACKOFF_EXPIRED,
 };
 
@@ -53,7 +51,7 @@ ZBUS_CHAN_DEFINE(PRIV_TRANSPORT_CHAN,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS(transport),
-		 CLOUD_CONN_FAILED
+		 CLOUD_BACKOFF_EXPIRED
 );
 
 /* Connection attempt backoff timer is run as a delayable work on the system workqueue */
@@ -73,7 +71,6 @@ static void state_disconnected_run(void *o);
 static void state_connecting_entry(void *o);
 
 static void state_connecting_attempt_entry(void *o);
-static void state_connecting_attempt_run(void *o);
 
 static void state_connecting_backoff_entry(void *o);
 static void state_connecting_backoff_run(void *o);
@@ -130,7 +127,7 @@ static const struct smf_state states[] = {
 				&states[STATE_CONNECTING_ATTEMPT]),
 
 	[STATE_CONNECTING_ATTEMPT] = SMF_CREATE_STATE(
-				state_connecting_attempt_entry, state_connecting_attempt_run, NULL,
+				state_connecting_attempt_entry, NULL, NULL,
 				&states[STATE_CONNECTING],
 				NULL),
 
@@ -192,7 +189,6 @@ static void connect_to_cloud(void)
 {
 	int err;
 	char buf[NRF_CLOUD_CLIENT_ID_MAX_LEN];
-	enum priv_transport_msg conn_result = CLOUD_CONN_SUCCES;
 
 	err = nrf_cloud_client_id_get(buf, sizeof(buf));
 	if (err == 0) {
@@ -206,17 +202,15 @@ static void connect_to_cloud(void)
 
 	err = nrf_cloud_coap_connect(APP_VERSION_STRING);
 	if (err == 0) {
-		err = zbus_chan_pub(&PRIV_TRANSPORT_CHAN, &conn_result, K_SECONDS(1));
-		if (err) {
-			LOG_ERR("zbus_chan_pub, error: %d", err);
-			SEND_FATAL_ERROR();
-		}
+		STATE_SET(transport_state, STATE_CONNECTED);
 
 		return;
 	}
 
 	/* Connection failed, retry */
 	LOG_ERR("nrf_cloud_coap_connect, error: %d", err);
+
+	STATE_SET(transport_state, STATE_CONNECTING_BACKOFF);
 }
 
 static uint32_t calculate_backoff_time(uint32_t attempts)
@@ -224,9 +218,9 @@ static uint32_t calculate_backoff_time(uint32_t attempts)
 	uint32_t backoff_time = CONFIG_APP_TRANSPORT_BACKOFF_INITIAL_SECONDS;
 
 	/* Calculate backoff time */
-	if (IS_ENABLED(CONFIG_APP_TRANSPORT_BACKOFF_EXPONENTIAL)) {
+	if (IS_ENABLED(CONFIG_APP_TRANSPORT_BACKOFF_TYPE_EXPONENTIAL)) {
 		backoff_time = CONFIG_APP_TRANSPORT_BACKOFF_INITIAL_SECONDS << (attempts - 1);
-	} else if (IS_ENABLED(CONFIG_APP_TRANSPORT_BACKOFF_LINEAR)) {
+	} else if (IS_ENABLED(CONFIG_APP_TRANSPORT_BACKOFF_TYPE_LINEAR)) {
 		backoff_time = CONFIG_APP_TRANSPORT_BACKOFF_INITIAL_SECONDS +
 			((attempts - 1) * CONFIG_APP_TRANSPORT_BACKOFF_LINEAR_INCREMENT_SECONDS);
 	}
@@ -348,28 +342,6 @@ static void state_connecting_attempt_entry(void *o)
 	state_object->connection_attempts++;
 
 	connect_to_cloud();
-}
-
-static void state_connecting_attempt_run(void *o)
-{
-	struct state_object *state_object = o;
-
-	LOG_DBG("%s", __func__);
-
-	if (state_object->chan == &PRIV_TRANSPORT_CHAN) {
-		enum priv_transport_msg msg = *(enum priv_transport_msg *)state_object->msg_buf;
-
-		switch (msg) {
-		case CLOUD_CONN_SUCCES:
-			STATE_SET(transport_state, STATE_CONNECTED);
-			break;
-		case CLOUD_CONN_FAILED:
-			STATE_SET(transport_state, STATE_CONNECTING_BACKOFF);
-			break;
-		default:
-			break;
-		}
-	}
 }
 
 /* Handler for STATE_CONNECTING_BACKOFF */
