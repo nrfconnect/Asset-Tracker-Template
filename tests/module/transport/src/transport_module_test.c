@@ -34,7 +34,7 @@ static void dummy_cb(const struct zbus_channel *chan)
 static void cloud_chan_cb(const struct zbus_channel *chan)
 {
 	if (chan == &CLOUD_CHAN) {
-		enum cloud_status status = *(enum cloud_status *)chan->message;
+		enum cloud_msg_type status = *(enum cloud_msg_type *)chan->message;
 
 		if (status == CLOUD_DISCONNECTED) {
 			k_sem_give(&cloud_disconnected);

@@ -75,7 +75,7 @@ ZBUS_CHAN_DEFINE(CONFIG_CHAN,
 );
 
 ZBUS_CHAN_DEFINE(CLOUD_CHAN,
-		 enum cloud_status,
+		 enum cloud_msg_type,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,

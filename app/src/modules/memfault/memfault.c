@@ -27,7 +27,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(memfault);
 /* Observe channels */
 ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, memfault, 0);
 
-#define MAX_MSG_SIZE sizeof(enum cloud_status)
+#define MAX_MSG_SIZE sizeof(enum cloud_msg_type)
 
 static void task_wdt_callback(int channel_id, void *user_data)
 {
@@ -196,7 +196,8 @@ static void on_connected(void)
 #endif /* CONFIG_NRF_MODEM_LIB_TRACE && CONFIG_NRF_MODEM_LIB_TRACE_BACKEND_FLASH */
 }
 
-void handle_cloud_chan(enum cloud_status status) {
+void handle_cloud_chan(enum cloud_msg_type status)
+{
 	if (status == CLOUD_CONNECTED_READY_TO_SEND) {
 		on_connected();
 	}
@@ -239,7 +240,7 @@ void memfault_task(void)
 
 		if (&CLOUD_CHAN == chan) {
 			LOG_DBG("Cloud status received");
-			handle_cloud_chan(MSG_TO_CLOUD_STATUS(&msg_buf));
+			handle_cloud_chan(MSG_TO_CLOUD_MSG(&msg_buf).type);
 		}
 	}
 }

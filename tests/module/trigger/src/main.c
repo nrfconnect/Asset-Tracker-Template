@@ -44,7 +44,7 @@ static void button_handler(uint32_t button_states, uint32_t has_changed)
 
 static void send_cloud_connected_ready_to_send(void)
 {
-	enum cloud_status status = CLOUD_CONNECTED_READY_TO_SEND;
+	enum cloud_msg_type status = CLOUD_CONNECTED_READY_TO_SEND;
 	int err = zbus_chan_pub(&CLOUD_CHAN, &status, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
@@ -64,7 +64,7 @@ static void send_config(uint64_t interval)
 
 static void send_cloud_disconnected(void)
 {
-	enum cloud_status status = CLOUD_DISCONNECTED;
+	enum cloud_msg_type status = CLOUD_DISCONNECTED;
 	int err = zbus_chan_pub(&CLOUD_CHAN, &status, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
