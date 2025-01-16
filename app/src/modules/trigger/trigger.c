@@ -54,7 +54,7 @@ struct state_object {
 	uint8_t button_number;
 
 	/* Cloud status */
-	enum cloud_status status;
+	enum cloud_msg_type status;
 };
 
 /* SMF state object variable */
@@ -233,7 +233,7 @@ void trigger_callback(const struct zbus_channel *chan)
 			trigger_state.interval_sec = config->update_interval;
 		}
 	} else if (&CLOUD_CHAN == chan) {
-		const enum cloud_status *status = zbus_chan_const_msg(chan);
+		const enum cloud_msg_type *status = zbus_chan_const_msg(chan);
 
 		trigger_state.status = *status;
 	} else if (&BUTTON_CHAN == chan) {

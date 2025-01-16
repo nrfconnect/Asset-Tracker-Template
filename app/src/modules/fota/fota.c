@@ -34,7 +34,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(fota);
 ZBUS_CHAN_ADD_OBS(TRIGGER_CHAN, fota, 0);
 ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, fota, 0);
 
-#define MAX_MSG_SIZE MAX(sizeof(enum trigger_type), sizeof(enum cloud_status))
+#define MAX_MSG_SIZE MAX(sizeof(enum trigger_type), sizeof(enum cloud_msg_type))
 
 /* FOTA support context */
 static void fota_reboot(enum nrf_cloud_fota_reboot_status status);
@@ -157,7 +157,7 @@ static void state_wait_for_cloud_run(void *o)
 	struct state_object *state_object = o;
 
 	if (&CLOUD_CHAN == state_object->chan) {
-		const enum cloud_status status = MSG_TO_CLOUD_STATUS(state_object->msg_buf);
+		const enum cloud_msg_type status = MSG_TO_CLOUD_MSG(state_object->msg_buf).type;
 
 		if (status == CLOUD_CONNECTED_READY_TO_SEND) {
 			STATE_SET(fota_state, STATE_WAIT_FOR_TRIGGER);
@@ -178,7 +178,7 @@ static void state_wait_for_trigger_run(void *o)
 	}
 
 	if (&CLOUD_CHAN == state_object->chan) {
-		const enum cloud_status status = MSG_TO_CLOUD_STATUS(state_object->msg_buf);
+		const enum cloud_msg_type status = MSG_TO_CLOUD_MSG(state_object->msg_buf).type;
 
 		if (status == CLOUD_CONNECTED_PAUSED) {
 			STATE_SET(fota_state, STATE_WAIT_FOR_CLOUD);

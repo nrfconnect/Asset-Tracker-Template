@@ -207,13 +207,20 @@ struct battery_msg {
 
 #define MSG_TO_BATTERY_MSG(_msg)	(*(const struct battery_msg *)_msg)
 
-enum cloud_status {
+enum cloud_msg_type {
 	CLOUD_DISCONNECTED = 0x1,
 	CLOUD_CONNECTED_READY_TO_SEND,
 	CLOUD_CONNECTED_PAUSED,
+	CLOUD_CONNECTION_ATTEMPT_COUNT_REACHED,
+	CLOUD_PAYLOAD_JSON,
 };
 
-#define MSG_TO_CLOUD_STATUS(_msg)	(*(const enum cloud_status *)_msg)
+struct cloud_msg {
+	enum cloud_msg_type type;
+	struct payload payload;
+};
+
+#define MSG_TO_CLOUD_MSG(_msg)	(*(const struct cloud_msg *)_msg)
 
 enum trigger_type {
 	TRIGGER_POLL = 0x1,

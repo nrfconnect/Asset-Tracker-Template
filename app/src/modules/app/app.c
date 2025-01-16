@@ -28,7 +28,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(app);
 ZBUS_CHAN_ADD_OBS(TRIGGER_CHAN, app, 0);
 ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, app, 0);
 
-#define MAX_MSG_SIZE (MAX(sizeof(enum trigger_type), sizeof(enum cloud_status)))
+#define MAX_MSG_SIZE (MAX(sizeof(enum trigger_type), sizeof(enum cloud_msg_type)))
 
 BUILD_ASSERT(CONFIG_APP_MODULE_WATCHDOG_TIMEOUT_SECONDS > CONFIG_APP_MODULE_EXEC_TIME_SECONDS_MAX,
 	     "Watchdog timeout must be greater than maximum execution time");
@@ -122,7 +122,7 @@ static void app_task(void)
 		if (&CLOUD_CHAN == chan) {
 			LOG_DBG("Cloud connection status received");
 
-			const enum cloud_status *status = (const enum cloud_status *)msg_buf;
+			const enum cloud_msg_type *status = (const enum cloud_msg_type *)msg_buf;
 
 			if (*status == CLOUD_CONNECTED_READY_TO_SEND) {
 				LOG_DBG("Cloud ready to send");
