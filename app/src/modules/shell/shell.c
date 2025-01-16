@@ -18,10 +18,17 @@
 #include <date_time.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <modem/nrf_modem_lib_trace.h>
+#include <net/nrf_cloud_defs.h>
 
 #include "message_channel.h"
 
 LOG_MODULE_REGISTER(shell, CONFIG_APP_SHELL_LOG_LEVEL);
+
+#define PAYLOAD_MSG_TEMPLATE	\
+	"{\""NRF_CLOUD_JSON_MSG_TYPE_KEY"\":\""NRF_CLOUD_JSON_MSG_TYPE_VAL_DATA"\","	\
+	"\""NRF_CLOUD_JSON_APPID_KEY"\":\"%s\","					\
+	"\""NRF_CLOUD_JSON_DATA_KEY"\":\"%s\","						\
+	"\""NRF_CLOUD_MSG_TIMESTAMP_KEY"\":%lld}"
 
 static const struct device *const shell_uart_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_shell_uart));
 static const struct device *const uart1_dev = DEVICE_DT_GET(DT_NODELABEL(uart1));
@@ -191,13 +198,44 @@ static int cmd_button_press(const struct shell *sh, size_t argc,
 	return 0;
 }
 
-static int cmd_publish_on_payload_chan(const struct shell *sh, size_t argc,
-                           char **argv)
+static int cmd_publish_on_payload_chan(const struct shell *sh, size_t argc, char **argv)
 {
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
+	int err, ret;
+	struct payload payload = {
+		.buffer_len = strlen(argv[1]),
+	};
+	int64_t current_time;
 
-	shell_print(sh, "Not implemented yet!");
+	ARG_UNUSED(argc);
+
+	if (argc != 3) {
+		shell_print(sh, "Invalid number of arguments (%d)", argc);
+		shell_print(sh, "Usage: zbus publish payload_chan <appid> <data>");
+		return 1;
+	}
+
+	err = date_time_now(&current_time);
+	if (err) {
+		shell_print(sh, "Failed to get current time, error: %d", err);
+		return 1;
+	}
+
+	ret = snprintk(payload.buffer, sizeof(payload.buffer),
+		PAYLOAD_MSG_TEMPLATE,
+		argv[1], argv[2], current_time);
+	if (ret < 0 || ret >= sizeof(payload.buffer)) {
+		shell_print(sh, "Failed to format payload, error: %d", ret);
+		return 1;
+	}
+
+	shell_print(sh, "Sending on payload channel: %s (%d bytes)",
+		    payload.buffer, payload.buffer_len);
+
+	err = zbus_chan_pub(&PAYLOAD_CHAN, &payload, K_SECONDS(1));
+	if (err) {
+		shell_print(sh, "zbus_chan_pub, error: %d", err);
+		return 1;
+	}
 
 	return 0;
 }
