@@ -30,9 +30,13 @@ on:
       - main
     paths-ignore:
       - "tests/on_target/**"
+      - ".github/workflows/*.yml"
+      - "!.github/workflows/build.yml"
   pull_request:
     paths-ignore:
       - "tests/on_target/**"
+      - ".github/workflows/*.yml"
+      - "!.github/workflows/build.yml"
   schedule:
     - cron: "0 0 * * *"
 
