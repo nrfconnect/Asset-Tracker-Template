@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: AI Code Reviewer
-        uses: DematteisGiacomo/ai-codereviewer@lfsevergnini_playground
+        uses: DematteisGiacomo/ai-codereviewer@firmware_finetune
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -29,6 +29,6 @@ jobs:
           APPROVE_REVIEWS: true
           MAX_COMMENTS: 10
           PROJECT_CONTEXT: "This is a real-time configurable ultra-low \
-                            power capable asset tracking application firmware for the nRF91 Series"
-          CONTEXT_FILES: "README.md, docs/ARCHITECTURE.md"
-          EXCLUDE_PATTERNS: "**/*.lock,**/*.json,**/*.md"
+                            power capable asset tracking application firmware for the nRF91 Series" # Project context for better reviews
+          CONTEXT_FILES: "README.md, docs/ARCHITECTURE.md" # Files to include in review (comma-separated)
+          EXCLUDE_PATTERNS: "**/*.lock,**/*.json,**/*.md" # Files to exclude (glob patterns, comma-separated)
