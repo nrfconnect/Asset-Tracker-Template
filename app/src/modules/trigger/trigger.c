@@ -69,6 +69,7 @@ static void trigger_send(void)
 	struct battery_msg battery_msg = {
 		.type = BATTERY_PERCENTAGE_SAMPLE_REQUEST,
 	};
+	enum trigger_type fota_trigger = TRIGGER_FOTA_POLL;
 
 	err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_SECONDS(1));
 	if (err) {
@@ -80,6 +81,14 @@ static void trigger_send(void)
 	err = zbus_chan_pub(&BATTERY_CHAN, &battery_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	/* Send FOTA poll trigger */
+	err = zbus_chan_pub(&TRIGGER_CHAN, &fota_trigger, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub FOTA trigger, error: %d", err);
 		SEND_FATAL_ERROR();
 		return;
 	}
