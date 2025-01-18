@@ -53,7 +53,7 @@ config APP_TRANSPORT_BACKOFF_MAX_SECONDS
 
 config APP_TRANSPORT_THREAD_STACK_SIZE
 	int "Thread stack size"
-	default 1536
+	default 2048
 
 config APP_TRANSPORT_MESSAGE_QUEUE_SIZE
 	int "Message queue size"
