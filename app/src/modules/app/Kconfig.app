@@ -5,6 +5,13 @@
 #
 menu "App"
 
+config APP_MODULE_TRIGGER_TIMEOUT_SECONDS
+	int "Trigger timer timeout"
+	default 600
+	help
+	  Timeout for the trigger timer. On timeout, the module will send triggers for
+	  sensor sampling, location search and polling of shadow and FOTA status from cloud.
+
 config APP_MODULE_THREAD_STACK_SIZE
 	int "Thread stack size"
 	default 3200

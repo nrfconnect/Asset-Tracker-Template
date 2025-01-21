@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Nordic Semiconductor ASA
+# Copyright (c) 2025 Nordic Semiconductor ASA
 #
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
@@ -7,7 +7,7 @@
 cmake_minimum_required(VERSION 3.20.0)
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
-project(trigger_module_test)
+project(app_module_test)
 
 test_runner_generate(src/main.c)
 
@@ -15,7 +15,7 @@ target_sources(app
   PRIVATE
   src/main.c
   src/checks.c
-  ../../../app/src/modules/trigger/trigger.c
+  ../../../app/src/modules/app/app.c
   ../../../app/src/common/message_channel.c
 )
 
@@ -27,7 +27,7 @@ zephyr_include_directories(../../../app/src/common)
 
 # Options that cannot be passed through Kconfig fragments
 target_compile_definitions(app PRIVATE
-	-DCONFIG_APP_TRIGGER_LOG_LEVEL=4
+	-DCONFIG_APP_LOG_LEVEL=4
 	-DCONFIG_APP_PAYLOAD_CHANNEL_BUFFER_MAX_SIZE=100
-	-DCONFIG_APP_TRIGGER_TIMEOUT_SECONDS=600
+	-DCONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS=600
 )

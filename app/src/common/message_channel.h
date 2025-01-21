@@ -223,7 +223,7 @@ struct cloud_msg {
 #define MSG_TO_CLOUD_MSG(_msg)	(*(const struct cloud_msg *)_msg)
 
 enum trigger_type {
-	TRIGGER_POLL = 0x1,
+	TRIGGER_POLL_SHADOW = 0x1,
 	TRIGGER_FOTA_POLL,
 	TRIGGER_DATA_SAMPLE,
 };

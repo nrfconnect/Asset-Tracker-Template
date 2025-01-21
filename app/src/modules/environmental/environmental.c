@@ -11,7 +11,6 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <drivers/bme68x_iaq.h>
 #include <date_time.h>
-#include <zephyr/smf.h>
 
 #include "message_channel.h"
 #include "modules_common.h"
@@ -33,85 +32,6 @@ BUILD_ASSERT(CONFIG_APP_ENVIRONMENTAL_WATCHDOG_TIMEOUT_SECONDS >
 			"Watchdog timeout must be greater than maximum execution time");
 
 static const struct device *const sensor_dev = DEVICE_DT_GET(DT_ALIAS(gas_sensor));
-
-/* Forward declarations */
-static struct s_object env_state_object;
-static void sample(void);
-
-/* State machine */
-
-/* Defininig the module states.
- *
- * STATE_INIT: The environmental module is initializing and waiting for time to be available.
- * STATE_SAMPLING: The environmental module is ready to sample upon receiving a trigger.
- */
-enum environmental_module_state {
-	STATE_INIT,
-	STATE_SAMPLING,
-};
-
-/* User defined state object.
- * Used to transfer data between state changes.
- */
-struct s_object {
-	/* This must be first */
-	struct smf_ctx ctx;
-
-	/* Last channel type that a message was received on */
-	const struct zbus_channel *chan;
-
-	/* Buffer for last zbus message */
-	uint8_t msg_buf[MAX_MSG_SIZE];
-};
-
-/* Forward declarations of state handlers */
-static void state_init_run(void *o);
-static void state_sampling_run(void *o);
-
-static struct s_object env_state_object;
-static const struct smf_state states[] = {
-	[STATE_INIT] =
-		SMF_CREATE_STATE(NULL, state_init_run, NULL,
-				 NULL,	/* No parent state */
-				 NULL), /* No initial transition */
-	[STATE_SAMPLING] =
-		SMF_CREATE_STATE(NULL, state_sampling_run, NULL,
-				 NULL,
-				 NULL),
-};
-
-/* State handlers */
-
-static void state_init_run(void *o)
-{
-	struct s_object *state_object = o;
-
-	if (&TIME_CHAN == state_object->chan) {
-		enum time_status time_status = MSG_TO_TIME_STATUS(state_object->msg_buf);
-
-		if (time_status == TIME_AVAILABLE) {
-			LOG_DBG("Time available, sampling can start");
-
-			STATE_SET(env_state_object, STATE_SAMPLING);
-		}
-	}
-}
-
-static void state_sampling_run(void *o)
-{
-	struct s_object *state_object = o;
-
-	if (&TRIGGER_CHAN == state_object->chan) {
-		enum trigger_type trigger_type = MSG_TO_TRIGGER_TYPE(state_object->msg_buf);
-
-		if (trigger_type == TRIGGER_DATA_SAMPLE) {
-			LOG_DBG("Data sample trigger received, getting environmental data");
-			sample();
-		}
-	}
-}
-
-/* End of state handling */
 
 static void task_wdt_callback(int channel_id, void *user_data)
 {
@@ -161,12 +81,15 @@ static void environmental_task(void)
 	const uint32_t wdt_timeout_ms = (CONFIG_APP_ENVIRONMENTAL_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const uint32_t execution_time_ms = (CONFIG_APP_ENVIRONMENTAL_EXEC_TIME_SECONDS_MAX * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
+	const struct zbus_channel *chan;
+	enum trigger_type trigger_type;
+
+	/* Buffer for last zbus message */
+	uint8_t msg_buf[MAX_MSG_SIZE];
 
 	LOG_DBG("Environmental module task started");
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
-
-	STATE_SET_INITIAL(env_state_object, STATE_INIT);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -176,8 +99,7 @@ static void environmental_task(void)
 			return;
 		}
 
-		err = zbus_sub_wait_msg(&environmental, &env_state_object.chan,
-					env_state_object.msg_buf, zbus_wait_ms);
+		err = zbus_sub_wait_msg(&environmental, &chan, msg_buf, zbus_wait_ms);
 		if (err == -ENOMSG) {
 			continue;
 		} else if (err) {
@@ -186,11 +108,11 @@ static void environmental_task(void)
 			return;
 		}
 
-		err = STATE_RUN(env_state_object);
-		if (err) {
-			LOG_ERR("handle_message, error: %d", err);
-			SEND_FATAL_ERROR();
-			return;
+		trigger_type = MSG_TO_TRIGGER_TYPE(msg_buf);
+
+		if (trigger_type == TRIGGER_DATA_SAMPLE) {
+			LOG_DBG("Data sample trigger received, getting environmental data");
+			sample();
 		}
 	}
 }
