@@ -13,6 +13,10 @@
 #include <net/nrf_cloud_coap.h>
 #include <app_version.h>
 
+#if defined(CONFIG_MEMFAULT)
+#include <memfault/core/trace_event.h>
+#endif /* CONFIG_MEMFAULT */
+
 #include "modules_common.h"
 #include "message_channel.h"
 
@@ -33,6 +37,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(transport);
 ZBUS_CHAN_ADD_OBS(PAYLOAD_CHAN, transport, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, transport, 0);
 ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, transport, 0);
+ZBUS_CHAN_ADD_OBS(TRIGGER_CHAN, transport, 0);
 
 #define MAX_MSG_SIZE (MAX(sizeof(struct payload), MAX(sizeof(struct network_msg), sizeof(struct battery_msg))))
 
@@ -409,6 +414,37 @@ static void state_connected_exit(void *o)
 
 /* Handlers for STATE_CONNECTED_READY */
 
+static void shadow_get(bool delta_only)
+{
+	int err;
+	uint8_t recv_buf[CONFIG_APP_MODULE_RECV_BUFFER_SIZE] = { 0 };
+	size_t recv_buf_len = sizeof(recv_buf);
+
+	LOG_DBG("Requesting device shadow from the device");
+
+	err = nrf_cloud_coap_shadow_get(recv_buf, &recv_buf_len, delta_only,
+					COAP_CONTENT_FORMAT_APP_JSON);
+	if (err == -EACCES) {
+		LOG_WRN("Not connected, error: %d", err);
+		return;
+	} else if (err == -ETIMEDOUT) {
+		LOG_WRN("Request timed out, error: %d", err);
+		return;
+	} else if (err > 0) {
+		LOG_WRN("Cloud error: %d", err);
+
+		IF_ENABLED(CONFIG_MEMFAULT,
+			(MEMFAULT_TRACE_EVENT_WITH_STATUS(nrf_cloud_coap_shadow_get, err)));
+
+		return;
+	} else if (err) {
+		LOG_ERR("Failed to request shadow delta: %d", err);
+		return;
+	}
+
+	/* No further processing of shadow is implemented */
+}
+
 static void state_connected_ready_entry(void *o)
 {
 	int err;
@@ -425,6 +461,8 @@ static void state_connected_ready_entry(void *o)
 
 		return;
 	}
+
+	shadow_get(false);
 }
 
 static void state_connected_ready_run(void *o)
@@ -489,12 +527,22 @@ static void state_connected_ready_run(void *o)
 	}
 
 	if (state_object->chan == &PAYLOAD_CHAN) {
-		struct payload *payload = (struct payload *)state_object->msg_buf;
+		struct payload *payload = MSG_TO_PAYLOAD(state_object->msg_buf);
 
 		err = nrf_cloud_coap_json_message_send(payload->buffer, false, false);
 		if (err) {
 			LOG_ERR("nrf_cloud_coap_json_message_send, error: %d", err);
 			SEND_FATAL_ERROR();
+		}
+	}
+
+	if (state_object->chan == &TRIGGER_CHAN) {
+		const enum trigger_type type = MSG_TO_TRIGGER_TYPE(state_object->msg_buf);
+
+		if (type == TRIGGER_POLL) {
+			LOG_DBG("Poll trigger received");
+
+			shadow_get(true);
 		}
 	}
 }
