@@ -1,5 +1,5 @@
 tests:
-  asset_tracker_template.fw.trigger:
+  asset_tracker_template.fw.app:
     platform_allow:
       - native_sim
       - native_sim/native/64

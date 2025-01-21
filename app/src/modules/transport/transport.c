@@ -539,7 +539,7 @@ static void state_connected_ready_run(void *o)
 	if (state_object->chan == &TRIGGER_CHAN) {
 		const enum trigger_type type = MSG_TO_TRIGGER_TYPE(state_object->msg_buf);
 
-		if (type == TRIGGER_POLL) {
+		if (type == TRIGGER_POLL_SHADOW) {
 			LOG_DBG("Poll trigger received");
 
 			shadow_get(true);

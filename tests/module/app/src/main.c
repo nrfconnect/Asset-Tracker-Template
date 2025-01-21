@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Nordic Semiconductor ASA
+ * Copyright (c) 2025 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
@@ -9,6 +9,8 @@
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/logging/log.h>
+#include <date_time.h>
+
 #include "dk_buttons_and_leds.h"
 #include "message_channel.h"
 
@@ -22,6 +24,7 @@ DEFINE_FFF_GLOBALS;
 FAKE_VALUE_FUNC(int, dk_buttons_init, button_handler_t);
 FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
+FAKE_VOID_FUNC(date_time_register_handler, date_time_evt_handler_t);
 
 LOG_MODULE_REGISTER(trigger_module_test, 4);
 
@@ -70,16 +73,28 @@ static void send_cloud_disconnected(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
+static void send_time_available(void)
+{
+	enum time_status time_type = TIME_AVAILABLE;
+	int err = zbus_chan_pub(&TIME_CHAN, &time_type, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
 void test_init_to_connected_state(void)
 {
 	/* Given */
+	send_time_available();
+
+	k_sleep(K_SECONDS(1));
+
 	send_cloud_connected_ready_to_send();
 
 	/* When */
 	k_sleep(K_SECONDS(HOUR_IN_SECONDS));
 
 	/* Then */
-	uint32_t interval =  HOUR_IN_SECONDS / CONFIG_APP_TRIGGER_TIMEOUT_SECONDS;
+	uint32_t interval =  HOUR_IN_SECONDS / CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS;
 
 	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
