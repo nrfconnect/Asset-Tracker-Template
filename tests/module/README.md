@@ -1,0 +1,33 @@
+# Assert Tracker Template Unit Tests on native sim
+
+## Run tests locally
+
+### Setup docker
+```shell
+cd <path_to_att_dir>
+docker run --rm -it \
+  --privileged \
+  -e BUILD_WRAPPER_OUT_DIR=build_wrapper_output_directory \
+  -e CMAKE_PREFIX_PATH=/opt/toolchains \
+  -v .:/work/asset-tracker-template \
+  ghcr.io/zephyrproject-rtos/ci:v0.27.4 \
+  /bin/bash
+```
+
+### Commmands
+```shell
+cd work/asset-tracker-template/
+west init -l .
+west config manifest.group-filter +bsec
+west config build.sysbuild True
+west update -o=--depth=1 -n
+west blobs fetch hal_nordic
+
+cd ..
+pip install -r nrf/scripts/requirements-build.txt
+apt-get update
+apt install -y curl ruby-full
+
+cd asset-tracker-template/
+west twister -T . -C --coverage-platform=native_sim -v --inline-logs --integration
+```

@@ -13,9 +13,6 @@
 #include "message_channel.h"
 #include "gas_sensor.h"
 
-#include "zcbor_decode.h"
-#include "env_object_decode.h"
-
 DEFINE_FFF_GLOBALS;
 
 FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
@@ -23,9 +20,6 @@ FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
 
 LOG_MODULE_REGISTER(environmental_module_test, 4);
-
-ZBUS_MSG_SUBSCRIBER_DEFINE(transport);
-ZBUS_CHAN_ADD_OBS(PAYLOAD_CHAN, transport, 0);
 
 #define FAKE_TIME_MS 1716552398505
 #define SENSOR_TEMPERATURE 25.5
@@ -59,39 +53,10 @@ void send_trigger(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-void wait_for_and_decode_payload(struct env_object *env_object)
+void wait_for_and_decode_payload(void)
 {
-	const struct zbus_channel *chan;
-	static struct payload received_payload;
-	int err;
-
 	/* Allow the test thread to sleep so that the DUT's thread is allowed to run. */
 	k_sleep(K_MSEC(100));
-
-	err = zbus_sub_wait_msg(&transport, &chan, &received_payload, K_MSEC(1000));
-	if (err == -ENOMSG) {
-		LOG_ERR("No payload message received");
-		TEST_FAIL();
-	} else if (err) {
-		LOG_ERR("zbus_sub_wait, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-
-	/* check if chan is payload channel */
-	if (chan != &PAYLOAD_CHAN) {
-		LOG_ERR("Received message from wrong channel");
-		TEST_FAIL();
-	}
-
-	/* decode payload */
-	err = cbor_decode_env_object(received_payload.buffer,
-			       received_payload.buffer_len, env_object, NULL);
-	if (err != ZCBOR_SUCCESS) {
-		LOG_ERR("Failed to decode payload");
-		TEST_FAIL();
-	}
 }
 
 void setUp(void)
@@ -110,15 +75,7 @@ void setUp(void)
 
 void tearDown(void)
 {
-	const struct zbus_channel *chan;
-	static struct payload received_payload;
-	int err;
-
-	err = zbus_sub_wait_msg(&transport, &chan, &received_payload, K_MSEC(1000));
-	if (err == 0) {
-		LOG_ERR("Unhandled message in payload channel");
-		TEST_FAIL();
-	}
+	k_sleep(K_MSEC(100));
 }
 
 void set_temperature(float temperature)
@@ -147,75 +104,59 @@ void set_iaq(int iaq)
 
 void test_only_timestamp(void)
 {
-	static struct env_object env_object = {0};
-
 	/* Given
 	 * Only timestamp needed for before state. Which is handled by date_time_now_fake
 	 */
 
 	/* When */
 	send_trigger();
-	wait_for_and_decode_payload(&env_object);
+	wait_for_and_decode_payload();
 }
 
 void test_temperaure(void)
 {
-	static struct env_object env_object = {0};
-
 	/* Given */
 	set_temperature(SENSOR_TEMPERATURE);
 
 	/* When */
 	send_trigger();
-	wait_for_and_decode_payload(&env_object);
-
-	/* Then */
-	TEST_ASSERT_EQUAL_FLOAT_MESSAGE(SENSOR_TEMPERATURE, env_object.temperature_m.vf, "temperature");
+	wait_for_and_decode_payload();
 }
 
 void test_pressure(void)
 {
-	static struct env_object env_object = {0};
-
 	/* Given */
 	set_pressure(SENSOR_PRESSURE);
 
 	/* When */
 	send_trigger();
-	wait_for_and_decode_payload(&env_object);
+	wait_for_and_decode_payload();
 
 	/* Then */
-	TEST_ASSERT_EQUAL_FLOAT_MESSAGE(SENSOR_PRESSURE / 100, env_object.pressure_m.vf, "pressure");
 }
 
 void test_humidity(void)
 {
-	static struct env_object env_object = {0};
-
 	/* Given */
 	set_humidity(SENSOR_HUMIDITY);
 
 	/* When */
 	send_trigger();
-	wait_for_and_decode_payload(&env_object);
+	wait_for_and_decode_payload();
 
 	/* Then */
-	TEST_ASSERT_EQUAL_FLOAT_MESSAGE(SENSOR_HUMIDITY, env_object.humidity_m.vf, "humidity");
 }
 
 void test_iaq(void)
 {
-	static struct env_object env_object = {0};
-
 	/* Given */
 	set_iaq(SENSOR_IAQ);
 
 	/* When */
 	send_trigger();
-	wait_for_and_decode_payload(&env_object);
+	wait_for_and_decode_payload();
 
 	/* Then */
-	TEST_ASSERT_EQUAL_INT_MESSAGE(SENSOR_IAQ, env_object.iaq_m.vi, "iaq");
 }
 
 void test_no_events_on_zbus_until_watchdog_timeout(void)

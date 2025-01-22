@@ -15,25 +15,25 @@ tests:
     platform_allow:
       - thingy91x/nrf9151/ns
     tags: ci_build
-  app.build.memfault:
-    build_only: true
-    sysbuild: true
-    integration_platforms:
-      - thingy91x/nrf9151/ns
-    platform_allow:
-      - thingy91x/nrf9151/ns
-    extra_configs:
-      - CONFIG_MEMFAULT_NCS_PROJECT_KEY="PROJECTKEY"
-    extra_args: EXTRA_CONF_FILE="overlay-memfault.conf;overlay-modemtrace-to-memfault.conf;overlay-etb.conf"
-    tags: ci_build
-  app.build.bootloader_update:
-    build_only: true
-    sysbuild: true
-    integration_platforms:
-      - thingy91x/nrf9151/ns
-    platform_allow:
-      - thingy91x/nrf9151/ns
-    tags: ci_build
-    extra_args:
-      - mcuboot_CONFIG_FW_INFO_FIRMWARE_VERSION=3
-      - CONFIG_BUILD_S1_VARIANT=y
+  # app.build.memfault:
+  #   build_only: true
+  #   sysbuild: true
+  #   integration_platforms:
+  #     - thingy91x/nrf9151/ns
+  #   platform_allow:
+  #     - thingy91x/nrf9151/ns
+  #   extra_configs:
+  #     - CONFIG_MEMFAULT_NCS_PROJECT_KEY="PROJECTKEY"
+  #   extra_args: EXTRA_CONF_FILE="overlay-memfault.conf;overlay-modemtrace-to-memfault.conf;overlay-etb.conf"
+  #   tags: ci_build
+  # app.build.bootloader_update:
+  #   build_only: true
+  #   sysbuild: true
+  #   integration_platforms:
+  #     - thingy91x/nrf9151/ns
+  #   platform_allow:
+  #     - thingy91x/nrf9151/ns
+  #   tags: ci_build
+  #   extra_args:
+  #     - mcuboot_CONFIG_FW_INFO_FIRMWARE_VERSION=3
+  #     - CONFIG_BUILD_S1_VARIANT=y

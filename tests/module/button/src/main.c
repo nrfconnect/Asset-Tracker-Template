@@ -11,8 +11,6 @@
 
 #include "message_channel.h"
 
-#include "zcbor_decode.h"
-#include "button_object_decode.h"
 #include <dk_buttons_and_leds.h>
 #include <date_time.h>
 
@@ -20,8 +18,8 @@ DEFINE_FFF_GLOBALS;
 
 LOG_MODULE_REGISTER(button_module_test, 4);
 
-ZBUS_MSG_SUBSCRIBER_DEFINE(transport);
-ZBUS_CHAN_ADD_OBS(PAYLOAD_CHAN, transport, 0);
+ZBUS_MSG_SUBSCRIBER_DEFINE(button_subscriber);
+ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, button_subscriber, 0);
 
 #define FAKE_TIME_MS 1716552398505
 
@@ -42,10 +40,10 @@ int dk_buttons_init(button_handler_t _button_handler)
 void tearDown(void)
 {
 	const struct zbus_channel *chan;
-	static struct payload received_payload;
+	uint8_t button_number;
 	int err;
 
-	err = zbus_sub_wait_msg(&transport, &chan, &received_payload, K_MSEC(1000));
+	err = zbus_sub_wait_msg(&button_subscriber, &chan, &button_number, K_MSEC(1000));
 	if (err == 0) {
 		LOG_ERR("Unhandled message in payload channel");
 		TEST_FAIL();
@@ -55,16 +53,15 @@ void tearDown(void)
 void test_button_trigger(void)
 {
 	const struct zbus_channel *chan;
-	static struct payload received_payload;
-	struct button_object button_obj = { 0 };
+	uint8_t button_number;
 	int err;
 
 	TEST_ASSERT_NOT_NULL(button_handler);
 	button_handler(DK_BTN1_MSK, DK_BTN1_MSK);
 
-	err = zbus_sub_wait_msg(&transport, &chan, &received_payload, K_MSEC(1000));
+	err = zbus_sub_wait_msg(&button_subscriber, &chan, &button_number, K_MSEC(1000));
 	if (err == -ENOMSG) {
-		LOG_ERR("No payload message received");
+		LOG_ERR("No BUTTON_CHAN message received");
 		TEST_FAIL();
 	} else if (err) {
 		LOG_ERR("zbus_sub_wait, error: %d", err);
@@ -73,19 +70,9 @@ void test_button_trigger(void)
 		return;
 	}
 
-	/* check if chan is payload channel */
-	if (chan != &PAYLOAD_CHAN) {
+	/* check if chan is button channel */
+	if (chan != &BUTTON_CHAN) {
 		LOG_ERR("Received message from wrong channel");
-		TEST_FAIL();
-	}
-
-	/* decode payload */
-	err = cbor_decode_button_object(received_payload.buffer,
-				  received_payload.buffer_len,
-				  &button_obj,
-				  NULL);
-	if (err != ZCBOR_SUCCESS) {
-		LOG_ERR("Failed to decode payload");
 		TEST_FAIL();
 	}
 }

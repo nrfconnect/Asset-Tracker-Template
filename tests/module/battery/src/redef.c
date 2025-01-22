@@ -12,7 +12,8 @@ static int sample_fetch(const struct device *dev, enum sensor_channel chan)
 	return 0;
 }
 
-static int channel_get(const struct device *dev, enum sensor_channel chan)
+static int channel_get(const struct device *dev, enum sensor_channel chan,
+		      struct sensor_value *val)
 {
 	return 0;
 }

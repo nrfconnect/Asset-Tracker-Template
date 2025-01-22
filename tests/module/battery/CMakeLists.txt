@@ -27,6 +27,7 @@ zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)
 zephyr_include_directories(${ZEPHYR_NRFXLIB_MODULE_DIR}/nrf_fuel_gauge/include/)
 zephyr_include_directories(${ZEPHYR_BASE}/subsys/testsuite/include)
 zephyr_include_directories(${ASSET_TRACKER_TEMPLATE_DIR}/app/src/common)
+zephyr_include_directories(${ASSET_TRACKER_TEMPLATE_DIR}/app/src/modules/cloud)
 
 # Options that cannot be passed through Kconfig fragments
 target_compile_definitions(app PRIVATE

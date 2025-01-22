@@ -54,10 +54,19 @@ jobs:
       # - name: Install sonar-scanner and build-wrapper
       #   uses: SonarSource/sonarcloud-github-c-cpp@v3
 
-      # - name: Build and test native sim
-      #   working-directory: asset-tracker-template
-      #   run: |
-      #     west twister -T . -C --coverage-platform=native_sim -v --inline-logs --integration
+      - name: Build and test native sim
+        working-directory: asset-tracker-template
+        run: |
+          west twister -T . -C --coverage-platform=native_sim -v --inline-logs --integration
+
+      - name: Results
+        if: always()
+        uses: pmeier/pytest-results-action@v0.7.1
+        with:
+          path: asset-tracker-template//twister-out/*.xml
+          summary: true
+          fail-on-empty: true
+          title: ATT FW Unittest natvie sim Results
 
       # - name: Build and test
       #   working-directory: asset-tracker-template
