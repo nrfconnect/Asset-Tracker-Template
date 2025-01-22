@@ -25,16 +25,12 @@ on:
         description: The version of the firmware built on this run_id
         value: ${{ jobs.build.outputs.version }}
 
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - "tests/on_target/**"
-      - ".github/workflows/*.yml"
-      - "!.github/workflows/build.yml"
   pull_request:
     paths-ignore:
-      - "tests/on_target/**"
+      - "tests/**"
+      - "docs/**"
+      - "scripts/**"
+      - "README.md"
       - ".github/workflows/*.yml"
       - "!.github/workflows/build.yml"
   schedule:
@@ -42,7 +38,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: build_self_hosted
     container: ghcr.io/zephyrproject-rtos/ci:v0.27.4
     env:
       CMAKE_PREFIX_PATH: /opt/toolchains
@@ -58,7 +54,11 @@ jobs:
       - name: Initialize
         working-directory: asset-tracker-template
         run: |
+          if [ ! -d "../.west" ]; then
           west init -l .
+          else
+          echo ".west folder already exists, skipping west init."
+          fi
           west config manifest.group-filter +bsec
           west config build.sysbuild True
           west update -o=--depth=1 -n

@@ -17,7 +17,7 @@ on:
 jobs:
   build:
     name: Build and analyze
-    runs-on: ubuntu-latest
+    runs-on: build_self_hosted
     container: ghcr.io/zephyrproject-rtos/ci:v0.27.4
     env:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory # Directory where build-wrapper output will be placed
@@ -39,7 +39,11 @@ jobs:
       - name: Initialize
         working-directory: asset-tracker-template
         run: |
+            if [ ! -d "../.west" ]; then
             west init -l .
+            else
+            echo ".west folder already exists, skipping west init."
+            fi
             west config manifest.group-filter +bsec
             west config build.sysbuild True
             west update -o=--depth=1 -n
