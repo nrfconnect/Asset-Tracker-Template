@@ -92,7 +92,7 @@ jobs:
             echo "MEMFAULT_SW_TYPE=${{ inputs.memfault_sw_type }}" >> $GITHUB_ENV
           fi
 
-      # Out-of-box firmware build
+      # Asset Tracker Template firmware build
 
       - name: Build nrf91 firmware
         working-directory: asset-tracker-template/app
