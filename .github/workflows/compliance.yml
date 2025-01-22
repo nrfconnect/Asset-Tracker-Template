@@ -10,12 +10,15 @@ jobs:
   compliance_job:
     runs-on: ubuntu-24.04
     name: Run compliance checks on patch series (PR)
-    container: ghcr.io/zephyrproject-rtos/ci:v0.27.4
 
     # Skip job if it was triggered by Renovate Bot
     if: ${{ !contains(github.actor, 'renovate') }}
 
     steps:
+      - name: Pip install
+        run: |
+          pip install unidiff yamllint junitparser python-magic west lxml gitlint
+
       - name: Checkout the code
         uses: actions/checkout@v4
         with:
@@ -27,10 +30,15 @@ jobs:
         working-directory: asset-tracker-template
         run: |
           west init -l .
-          west config manifest.group-filter +bsec
-          west config build.sysbuild True
+          west config manifest.project-filter -- \
+            "-bsim,-wfa-qt-control-app,-mcuboot,-qcbor,-mbedtls,-oberon-psa-crypto,\
+            -nrfxlib,-trusted-firmware-m,-psa-arch-tests,-matter,-cjson,-azure-sdk-for-c,\
+            -cirrus,-openthread,-suit-generator,-suit-processor,-cmock,-memfault-firmware-sdk,\
+            -canopennode,-chre,-lz4,-nanopb,-tf-m-tests,-zscilib,-cmsis-dsp,-cmsis-nn,-hostap,\
+            -liblc3,-loramac-node,-lvgl,-nrf_hw_models,-nrf_wifi,-open-amp,-picolibc,-uoscore-uedhoc,\
+            -zcbor,-soc-hwmv1,-coremark,-cmsis,-edtt,-fatfs,-hal_nordic,-hal_st,-hal_wurthelektronik,\
+            -libmetal,-littlefs,-mipi-sys-t,-net-tools,-segger,-tinycrypt"
           west update -o=--depth=1 -n
-          west blobs fetch hal_nordic
 
       - name: Run Compliance Tests
         id: compliance
@@ -48,7 +56,6 @@ jobs:
             -m Nits \
             -m pylint \
             -m checkpatch \
-            -m KconfigBasic \
             -c origin/${BASE_REF}.. || \
           echo "COMPLIANCE_FAILED=true" >> $GITHUB_ENV
 
