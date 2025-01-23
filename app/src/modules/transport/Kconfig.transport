@@ -53,19 +53,13 @@ config APP_TRANSPORT_BACKOFF_MAX_SECONDS
 
 config APP_TRANSPORT_THREAD_STACK_SIZE
 	int "Thread stack size"
-	default 2048
+	default 4096
 
 config APP_TRANSPORT_MESSAGE_QUEUE_SIZE
 	int "Message queue size"
 	default 5
 	help
 	  ZBus subscriber message queue size.
-
-config APP_TRANSPORT_WORKQUEUE_STACK_SIZE
-	int "Workqueue stack size"
-	default 1792
-	help
-	  Stack size of the module's internal workqueue.
 
 config APP_TRANSPORT_POLL_INTERVAL_SECONDS
 	int "Poll interval in seconds"
