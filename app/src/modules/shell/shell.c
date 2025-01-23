@@ -201,7 +201,7 @@ static int cmd_button_press(const struct shell *sh, size_t argc,
 static int cmd_publish_on_payload_chan(const struct shell *sh, size_t argc, char **argv)
 {
 	int err, ret;
-	struct payload payload = {
+	struct cloud_payload payload = {
 		.buffer_len = strlen(argv[1]),
 	};
 	int64_t current_time;

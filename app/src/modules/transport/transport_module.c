@@ -25,6 +25,8 @@ LOG_MODULE_REGISTER(transport, CONFIG_APP_TRANSPORT_LOG_LEVEL);
 
 #define CUSTOM_JSON_APPID_VAL_CONEVAL "CONEVAL"
 #define CUSTOM_JSON_APPID_VAL_BATTERY "BATTERY"
+#define MAX_MSG_SIZE	(MAX(sizeof(struct cloud_payload),						\
+			 MAX(sizeof(struct network_msg), sizeof(struct battery_msg))))
 
 BUILD_ASSERT(CONFIG_APP_TRANSPORT_WATCHDOG_TIMEOUT_SECONDS >
 			 CONFIG_APP_TRANSPORT_EXEC_TIME_SECONDS_MAX,
@@ -39,7 +41,23 @@ ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, transport, 0);
 ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, transport, 0);
 ZBUS_CHAN_ADD_OBS(TRIGGER_CHAN, transport, 0);
 
-#define MAX_MSG_SIZE (MAX(sizeof(struct payload), MAX(sizeof(struct network_msg), sizeof(struct battery_msg))))
+/* Define channels provided by this module */
+
+ZBUS_CHAN_DEFINE(PAYLOAD_CHAN,
+		 struct cloud_payload,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
+
+ZBUS_CHAN_DEFINE(CLOUD_CHAN,
+		 enum cloud_msg_type,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 CLOUD_DISCONNECTED
+);
 
 /* Enumerator to be used in privat transport channel */
 enum priv_transport_msg {
@@ -527,7 +545,7 @@ static void state_connected_ready_run(void *o)
 	}
 
 	if (state_object->chan == &PAYLOAD_CHAN) {
-		struct payload *payload = MSG_TO_PAYLOAD(state_object->msg_buf);
+		struct cloud_payload *payload = MSG_TO_PAYLOAD(state_object->msg_buf);
 
 		err = nrf_cloud_coap_json_message_send(payload->buffer, false, false);
 		if (err) {

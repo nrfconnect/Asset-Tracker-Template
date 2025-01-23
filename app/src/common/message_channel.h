@@ -16,6 +16,8 @@
 #include <memfault/panics/assert.h>
 #endif
 
+#include "transport_module.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -45,13 +47,6 @@ extern "C" {
 	LOG_PANIC();								\
 	k_sleep(K_SECONDS(10));							\
 } while (0)
-
-struct payload {
-	uint8_t buffer[CONFIG_APP_PAYLOAD_CHANNEL_BUFFER_MAX_SIZE];
-	size_t buffer_len;
-};
-
-#define MSG_TO_PAYLOAD(_msg) ((struct payload *)_msg)
 
 /** NETWORK_MODULE */
 
@@ -207,21 +202,6 @@ struct battery_msg {
 
 #define MSG_TO_BATTERY_MSG(_msg)	(*(const struct battery_msg *)_msg)
 
-enum cloud_msg_type {
-	CLOUD_DISCONNECTED = 0x1,
-	CLOUD_CONNECTED_READY_TO_SEND,
-	CLOUD_CONNECTED_PAUSED,
-	CLOUD_CONNECTION_ATTEMPT_COUNT_REACHED,
-	CLOUD_PAYLOAD_JSON,
-};
-
-struct cloud_msg {
-	enum cloud_msg_type type;
-	struct payload payload;
-};
-
-#define MSG_TO_CLOUD_MSG(_msg)	(*(const struct cloud_msg *)_msg)
-
 enum trigger_type {
 	TRIGGER_POLL_SHADOW = 0x1,
 	TRIGGER_FOTA_POLL,
@@ -293,14 +273,12 @@ struct configuration {
 
 ZBUS_CHAN_DECLARE(
 	BUTTON_CHAN,
-	CLOUD_CHAN,
 	CONFIG_CHAN,
 	ERROR_CHAN,
 	FOTA_STATUS_CHAN,
 	LED_CHAN,
 	NETWORK_CHAN,
 	BATTERY_CHAN,
-	PAYLOAD_CHAN,
 	TIME_CHAN,
 	TRIGGER_CHAN,
 	TRIGGER_MODE_CHAN,
