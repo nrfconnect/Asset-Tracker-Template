@@ -55,7 +55,7 @@ Cloud to device communication is done with runtime settings. Device to cloud com
 # Overview of modules reading/writing ZBUS channels
 Note: the ERROR channel and channels only used internally in modules were omitted.
 
-| CHANNEL      | battery | environment | location | network | trigger | app | button | fota | led | memfault | shell | transport |
+| CHANNEL      | battery | environment | location | network | trigger | app | button | fota | led | memfault | shell | cloud     |
 |--------------|---------|-------------|----------|---------|---------|-----|--------|------|-----|----------|-------|-----------|
 | CLOUD        |         |             | r        |         | r       | r   |        | r    |     | r        |       | w         |
 | CONFIG       |         |             | r        |         | r       | w   |        |      |     |          |       |           |

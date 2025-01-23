@@ -21,25 +21,25 @@
 #include "message_channel.h"
 
 /* Register log module */
-LOG_MODULE_REGISTER(transport, CONFIG_APP_TRANSPORT_LOG_LEVEL);
+LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 
 #define CUSTOM_JSON_APPID_VAL_CONEVAL "CONEVAL"
 #define CUSTOM_JSON_APPID_VAL_BATTERY "BATTERY"
-#define MAX_MSG_SIZE	(MAX(sizeof(struct cloud_payload),						\
+#define MAX_MSG_SIZE	(MAX(sizeof(struct cloud_payload),					\
 			 MAX(sizeof(struct network_msg), sizeof(struct battery_msg))))
 
-BUILD_ASSERT(CONFIG_APP_TRANSPORT_WATCHDOG_TIMEOUT_SECONDS >
-			 CONFIG_APP_TRANSPORT_EXEC_TIME_SECONDS_MAX,
+BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
+			 CONFIG_APP_CLOUD_EXEC_TIME_SECONDS_MAX,
 			 "Watchdog timeout must be greater than maximum execution time");
 
 /* Register subscriber */
-ZBUS_MSG_SUBSCRIBER_DEFINE(transport);
+ZBUS_MSG_SUBSCRIBER_DEFINE(cloud);
 
 /* Observe channels */
-ZBUS_CHAN_ADD_OBS(PAYLOAD_CHAN, transport, 0);
-ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, transport, 0);
-ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, transport, 0);
-ZBUS_CHAN_ADD_OBS(TRIGGER_CHAN, transport, 0);
+ZBUS_CHAN_ADD_OBS(PAYLOAD_CHAN, cloud, 0);
+ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, cloud, 0);
+ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, cloud, 0);
+ZBUS_CHAN_ADD_OBS(TRIGGER_CHAN, cloud, 0);
 
 /* Define channels provided by this module */
 
@@ -59,21 +59,21 @@ ZBUS_CHAN_DEFINE(CLOUD_CHAN,
 		 CLOUD_DISCONNECTED
 );
 
-/* Enumerator to be used in privat transport channel */
-enum priv_transport_msg {
+/* Enumerator to be used in privat cloud channel */
+enum priv_cloud_msg {
 	CLOUD_BACKOFF_EXPIRED,
 };
 
-/* Create private transport channel for internal messaging that is not intended for external use.
+/* Create private cloud channel for internal messaging that is not intended for external use.
  * The channel is needed to communicate from asynchronous callbacks to the state machine and
- * ensure state transitions only happen from the transport module thread where the state machine
+ * ensure state transitions only happen from the cloud  module thread where the state machine
  * is running.
  */
-ZBUS_CHAN_DEFINE(PRIV_TRANSPORT_CHAN,
-		 enum priv_transport_msg,
+ZBUS_CHAN_DEFINE(PRIV_CLOUD_CHAN,
+		 enum priv_cloud_msg,
 		 NULL,
 		 NULL,
-		 ZBUS_OBSERVERS(transport),
+		 ZBUS_OBSERVERS(cloud),
 		 CLOUD_BACKOFF_EXPIRED
 );
 
@@ -108,9 +108,9 @@ static void state_connected_ready_run(void *o);
 static void state_connected_paused_entry(void *o);
 static void state_connected_paused_run(void *o);
 
-/* Defining the hierarchical transport module states:
+/* Defining the hierarchical cloud  module states:
  *
- *   STATE_RUNNING: The transport module has started and is running
+ *   STATE_RUNNING: The cloud  module has started and is running
  *      - STATE_DISCONNECTED: Cloud connection is not established
  *	- STATE_CONNECTING: The module is connecting to cloud
  *		- STATE_CONNECTING_ATTEMPT: The module is trying to connect to cloud
@@ -197,7 +197,7 @@ static struct state_object {
 
 	/* Connection backoff time */
 	uint32_t backoff_time;
-} transport_state;
+} cloud_state;
 
 /* Static helper function */
 static void task_wdt_callback(int channel_id, void *user_data)
@@ -225,7 +225,7 @@ static void connect_to_cloud(void)
 
 	err = nrf_cloud_coap_connect(APP_VERSION_STRING);
 	if (err == 0) {
-		STATE_SET(transport_state, STATE_CONNECTED);
+		STATE_SET(cloud_state, STATE_CONNECTED);
 
 		return;
 	}
@@ -233,24 +233,24 @@ static void connect_to_cloud(void)
 	/* Connection failed, retry */
 	LOG_ERR("nrf_cloud_coap_connect, error: %d", err);
 
-	STATE_SET(transport_state, STATE_CONNECTING_BACKOFF);
+	STATE_SET(cloud_state, STATE_CONNECTING_BACKOFF);
 }
 
 static uint32_t calculate_backoff_time(uint32_t attempts)
 {
-	uint32_t backoff_time = CONFIG_APP_TRANSPORT_BACKOFF_INITIAL_SECONDS;
+	uint32_t backoff_time = CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS;
 
 	/* Calculate backoff time */
-	if (IS_ENABLED(CONFIG_APP_TRANSPORT_BACKOFF_TYPE_EXPONENTIAL)) {
-		backoff_time = CONFIG_APP_TRANSPORT_BACKOFF_INITIAL_SECONDS << (attempts - 1);
-	} else if (IS_ENABLED(CONFIG_APP_TRANSPORT_BACKOFF_TYPE_LINEAR)) {
-		backoff_time = CONFIG_APP_TRANSPORT_BACKOFF_INITIAL_SECONDS +
-			((attempts - 1) * CONFIG_APP_TRANSPORT_BACKOFF_LINEAR_INCREMENT_SECONDS);
+	if (IS_ENABLED(CONFIG_APP_CLOUD_BACKOFF_TYPE_EXPONENTIAL)) {
+		backoff_time = CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS << (attempts - 1);
+	} else if (IS_ENABLED(CONFIG_APP_CLOUD_BACKOFF_TYPE_LINEAR)) {
+		backoff_time = CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS +
+			((attempts - 1) * CONFIG_APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS);
 	}
 
 	/* Limit backoff time */
-	if (backoff_time > CONFIG_APP_TRANSPORT_BACKOFF_MAX_SECONDS) {
-		backoff_time = CONFIG_APP_TRANSPORT_BACKOFF_MAX_SECONDS;
+	if (backoff_time > CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS) {
+		backoff_time = CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS;
 	}
 
 	LOG_DBG("Backoff time: %u seconds", backoff_time);
@@ -261,9 +261,9 @@ static uint32_t calculate_backoff_time(uint32_t attempts)
 static void backoff_timer_work_fn(struct k_work *work)
 {
 	int err;
-	enum priv_transport_msg msg = CLOUD_BACKOFF_EXPIRED;
+	enum priv_cloud_msg msg = CLOUD_BACKOFF_EXPIRED;
 
-	err = zbus_chan_pub(&PRIV_TRANSPORT_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -301,7 +301,7 @@ static void state_running_run(void *o)
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		if (msg.type == NETWORK_DISCONNECTED) {
-			STATE_SET(transport_state, STATE_DISCONNECTED);
+			STATE_SET(cloud_state, STATE_DISCONNECTED);
 
 			return;
 		}
@@ -336,7 +336,7 @@ static void state_disconnected_run(void *o)
 	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
-		STATE_SET(transport_state, STATE_CONNECTING);
+		STATE_SET(cloud_state, STATE_CONNECTING);
 
 		return;
 	}
@@ -386,11 +386,11 @@ static void state_connecting_backoff_run(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	if (state_object->chan == &PRIV_TRANSPORT_CHAN) {
-		enum priv_transport_msg msg = *(enum priv_transport_msg *)state_object->msg_buf;
+	if (state_object->chan == &PRIV_CLOUD_CHAN) {
+		enum priv_cloud_msg msg = *(enum priv_cloud_msg *)state_object->msg_buf;
 
 		if (msg == CLOUD_BACKOFF_EXPIRED) {
-			STATE_SET(transport_state, STATE_CONNECTING_ATTEMPT);
+			STATE_SET(cloud_state, STATE_CONNECTING_ATTEMPT);
 
 			return;
 		}
@@ -495,11 +495,11 @@ static void state_connected_ready_run(void *o)
 
 		switch (msg.type) {
 		case NETWORK_DISCONNECTED:
-			STATE_SET(transport_state, STATE_CONNECTED_PAUSED);
+			STATE_SET(cloud_state, STATE_CONNECTED_PAUSED);
 			break;
 
 		case NETWORK_CONNECTED:
-			STATE_EVENT_HANDLED(transport_state);
+			STATE_EVENT_HANDLED(cloud_state);
 			break;
 
 		case NETWORK_QUALITY_SAMPLE_RESPONSE:
@@ -593,7 +593,7 @@ static void state_connected_paused_run(void *o)
 	LOG_DBG("%s", __func__);
 
 	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
-		STATE_SET(transport_state, STATE_CONNECTED_READY);
+		STATE_SET(cloud_state, STATE_CONNECTED_READY);
 
 		return;
 	}
@@ -601,20 +601,20 @@ static void state_connected_paused_run(void *o)
 
 /* End of state handlers */
 
-static void transport_module_thread(void)
+static void cloud_module_thread(void)
 {
 	int err;
 	int task_wdt_id;
-	const uint32_t wdt_timeout_ms = (CONFIG_APP_TRANSPORT_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
-	const uint32_t execution_time_ms = (CONFIG_APP_TRANSPORT_EXEC_TIME_SECONDS_MAX * MSEC_PER_SEC);
+	const uint32_t wdt_timeout_ms = (CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
+	const uint32_t execution_time_ms = (CONFIG_APP_CLOUD_EXEC_TIME_SECONDS_MAX * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 
-	LOG_DBG("Transport module task started");
+	LOG_DBG("cloud  module task started");
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 
 	/* Initialize the state machine to STATE_RUNNING, which will also run its entry function */
-	STATE_SET_INITIAL(transport_state, STATE_RUNNING);
+	STATE_SET_INITIAL(cloud_state, STATE_RUNNING);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -625,7 +625,7 @@ static void transport_module_thread(void)
 			return;
 		}
 
-		err = zbus_sub_wait_msg(&transport, &transport_state.chan, transport_state.msg_buf,
+		err = zbus_sub_wait_msg(&cloud, &cloud_state.chan, cloud_state.msg_buf,
 					zbus_wait_ms);
 		if (err == -ENOMSG) {
 			continue;
@@ -636,7 +636,7 @@ static void transport_module_thread(void)
 			return;
 		}
 
-		err = STATE_RUN(transport_state);
+		err = STATE_RUN(cloud_state);
 		if (err) {
 			LOG_ERR("STATE_RUN(), error: %d", err);
 			SEND_FATAL_ERROR();
@@ -646,6 +646,6 @@ static void transport_module_thread(void)
 	}
 }
 
-K_THREAD_DEFINE(transport_module_thread_id,
-		CONFIG_APP_TRANSPORT_THREAD_STACK_SIZE,
-		transport_module_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+K_THREAD_DEFINE(cloud_module_thread_id,
+		CONFIG_APP_CLOUD_THREAD_STACK_SIZE,
+		cloud_module_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
