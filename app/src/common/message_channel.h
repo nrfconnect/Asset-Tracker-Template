@@ -16,7 +16,7 @@
 #include <memfault/panics/assert.h>
 #endif
 
-#include "transport_module.h"
+#include "cloud_module.h"
 
 #ifdef __cplusplus
 extern "C" {

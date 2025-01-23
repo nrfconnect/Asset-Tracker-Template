@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#ifndef _TRANSPORT_MODULE_H_
-#define _TRANSPORT_MODULE_H_
+#ifndef _CLOUD_MODULE_H_
+#define _CLOUD_MODULE_H_
 
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
@@ -21,8 +21,8 @@ ZBUS_CHAN_DECLARE(
 );
 
 struct cloud_payload {
-        uint8_t buffer[CONFIG_APP_PAYLOAD_CHANNEL_BUFFER_MAX_SIZE];
-        size_t buffer_len;
+	uint8_t buffer[CONFIG_APP_PAYLOAD_CHANNEL_BUFFER_MAX_SIZE];
+	size_t buffer_len;
 };
 
 enum cloud_msg_type {
@@ -35,14 +35,14 @@ enum cloud_msg_type {
 
 struct cloud_msg {
 	enum cloud_msg_type type;
-        struct cloud_payload payload;
+	struct cloud_payload payload;
 };
 
 #define MSG_TO_CLOUD_MSG(_msg)	(*(const struct cloud_msg *)_msg)
-#define MSG_TO_PAYLOAD(_msg) ((struct cloud_payload *)_msg)
+#define MSG_TO_PAYLOAD(_msg)	((struct cloud_payload *)_msg)
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _TRANSPORT_MODULE_H_ */
+#endif /* _CLOUD_MODULE_H_ */

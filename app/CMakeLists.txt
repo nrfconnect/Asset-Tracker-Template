@@ -15,7 +15,7 @@ add_subdirectory(src/common)
 # Include mandatory module source folders
 add_subdirectory(src/modules/battery)
 add_subdirectory(src/modules/network)
-add_subdirectory(src/modules/transport)
+add_subdirectory(src/modules/cloud)
 add_subdirectory(src/modules/location)
 add_subdirectory(src/modules/app)
 add_subdirectory(src/modules/fota)

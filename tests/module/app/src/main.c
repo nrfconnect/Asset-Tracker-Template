@@ -18,7 +18,7 @@
 
 DEFINE_FFF_GLOBALS;
 
-#define HOUR_IN_SECONDS 3600
+#define HOUR_IN_SECONDS	3600
 #define WEEK_IN_SECONDS HOUR_IN_SECONDS * 24 * 7
 
 FAKE_VALUE_FUNC(int, dk_buttons_init, button_handler_t);

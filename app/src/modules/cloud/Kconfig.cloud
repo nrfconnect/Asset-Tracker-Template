@@ -4,81 +4,81 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-menu "Transport"
+menu "Cloud module"
 	depends on NRF_CLOUD_COAP
 
-config APP_TRANSPORT_BACKOFF_INITIAL_SECONDS
+config APP_CLOUD_BACKOFF_INITIAL_SECONDS
 	int "Reconnection backoff time in seconds"
 	default 60
 	help
-	  Time in between reconnection attempts to the CoAP server.
+	  Time in between reconnection attempts to the nRF Cloud CoAP server.
 	  The timer starts after the last failed attempt.
 
-choice APP_TRANSPORT_BACKOFF_TYPE
+choice APP_CLOUD_BACKOFF_TYPE
 	prompt "Reconnection backoff type"
-	default APP_TRANSPORT_BACKOFF_TYPE_LINEAR
+	default APP_CLOUD_BACKOFF_TYPE_LINEAR
 
-config APP_TRANSPORT_BACKOFF_TYPE_EXPONENTIAL
+config APP_CLOUD_BACKOFF_TYPE_EXPONENTIAL
 	bool "Exponential backoff"
 	help
 	  Exponential backoff doubles the reconnection timeout after each failed attempt.
-	  The maximum reconnection timeout is defined by APP_TRANSPORT_BACKOFF_MAX_SECONDS.
+	  The maximum reconnection timeout is defined by APP_CLOUD_BACKOFF_MAX_SECONDS.
 
-config APP_TRANSPORT_BACKOFF_TYPE_LINEAR
+config APP_CLOUD_BACKOFF_TYPE_LINEAR
 	bool "Linear backoff"
 	help
 	  Linear backoff adds a fixed amount of time to the reconnection timeout after each failed attempt,
-	  as defined by APP_TRANSPORT_BACKOFF_LINEAR_INCREMENT_SECONDS.
+	  as defined by APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS.
 
-config APP_TRANSPORT_BACKOFF_TYPE_NONE
+config APP_CLOUD_BACKOFF_TYPE_NONE
 	bool "No backoff"
 	help
 	  No backoff means that the reconnection timeout is constant at the value defined by
-	  APP_TRANSPORT_BACKOFF_INITIAL_SECONDS.
+	  APP_CLOUD_BACKOFF_INITIAL_SECONDS.
 
 endchoice
 
-config APP_TRANSPORT_BACKOFF_LINEAR_INCREMENT_SECONDS
+config APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS
 	int "Reconnection backoff time increment"
 	default 60
 	help
 	  Time added to the reconnection timeout after each failed attempt in seconds.
-	  The maximum reconnection timeout is defined by APP_TRANSPORT_BACKOFF_MAX_SECONDS.
+	  The maximum reconnection timeout is defined by APP_CLOUD_BACKOFF_MAX_SECONDS.
 
-config APP_TRANSPORT_BACKOFF_MAX_SECONDS
+config APP_CLOUD_BACKOFF_MAX_SECONDS
 	int "Maximum reconnection timeout"
 	default 3600
 	help
 	  Maximum reconnection backoff value in seconds.
 
-config APP_TRANSPORT_THREAD_STACK_SIZE
+config APP_CLOUD_THREAD_STACK_SIZE
 	int "Thread stack size"
 	default 4096
 
-config APP_TRANSPORT_MESSAGE_QUEUE_SIZE
+config APP_CLOUD_MESSAGE_QUEUE_SIZE
 	int "Message queue size"
 	default 5
 	help
 	  ZBus subscriber message queue size.
 
-config APP_TRANSPORT_POLL_INTERVAL_SECONDS
+config APP_CLOUD_POLL_INTERVAL_SECONDS
 	int "Poll interval in seconds"
 	default 10
 	help
 	  Interval in seconds between polling nRF Cloud CoAP.
 
-config APP_TRANSPORT_WATCHDOG_TIMEOUT_SECONDS
+config APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout seconds"
 	default 180
 
-config APP_TRANSPORT_EXEC_TIME_SECONDS_MAX
+config APP_CLOUD_EXEC_TIME_SECONDS_MAX
 	int "Maximum execution time seconds"
 	default 120
 	help
 	  Maximum time allowed for a single execution of the module's thread loop.
 
-module = APP_TRANSPORT
-module-str = Transport
+module = APP_CLOUD
+module-str = Cloud
 source "subsys/logging/Kconfig.template.log_config"
 
-endmenu # Transport
+endmenu # Cloud

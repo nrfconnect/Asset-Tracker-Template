@@ -15,7 +15,7 @@ config APP_PAYLOAD_CHANNEL_BUFFER_MAX_SIZE
 
 rsource "src/modules/battery/Kconfig.battery"
 rsource "src/modules/network/Kconfig.network"
-rsource "src/modules/transport/Kconfig.transport"
+rsource "src/modules/cloud/Kconfig.cloud"
 rsource "src/modules/location/Kconfig.location"
 rsource "src/modules/led/Kconfig.led"
 rsource "src/modules/app/Kconfig.app"

@@ -1,5 +1,5 @@
 tests:
-  asset_tracker_template.fw.transport:
+  asset_tracker_template.fw.cloud:
     sysbuild: true
     platform_allow:
       - native_sim

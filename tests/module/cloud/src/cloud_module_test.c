@@ -21,6 +21,7 @@ FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_device_status_update);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_bytes_send, uint8_t *, size_t, bool);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_sensor_send, const char *, double, int64_t, bool);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_json_message_send, const char *, bool, bool);
+FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_get, char *, size_t *, bool, int);
 
 /* Forward declarations */
 static void dummy_cb(const struct zbus_channel *chan);
@@ -35,7 +36,7 @@ ZBUS_SUBSCRIBER_DEFINE(fota, 1);
 ZBUS_SUBSCRIBER_DEFINE(led, 1);
 ZBUS_SUBSCRIBER_DEFINE(location, 1);
 ZBUS_LISTENER_DEFINE(trigger, dummy_cb);
-ZBUS_LISTENER_DEFINE(cloud, cloud_chan_cb);
+ZBUS_LISTENER_DEFINE(cloud_test_listener, cloud_chan_cb);
 ZBUS_LISTENER_DEFINE(error, error_cb);
 
 #define FAKE_DEVICE_ID		"test_device"
@@ -105,7 +106,7 @@ void setUp(void)
 	zbus_sub_wait(&led, &chan, K_NO_WAIT);
 	zbus_sub_wait(&battery, &chan, K_NO_WAIT);
 
-	zbus_chan_add_obs(&CLOUD_CHAN, &cloud, K_NO_WAIT);
+	zbus_chan_add_obs(&CLOUD_CHAN, &cloud_test_listener, K_NO_WAIT);
 	zbus_chan_add_obs(&ERROR_CHAN, &error, K_NO_WAIT);
 }
 
@@ -140,10 +141,10 @@ void test_connecting_backoff(void)
 	connect_duration_sec = k_uptime_delta(&connect_start_time) / MSEC_PER_SEC;
 
 	/* Check that the connection attempt took at least
-	 * CONFIG_APP_TRANSPORT_BACKOFF_INITIAL_SECONDS
+	 * CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS
 	 */
 
-	TEST_ASSERT_GREATER_OR_EQUAL(CONFIG_APP_TRANSPORT_BACKOFF_INITIAL_SECONDS,
+	TEST_ASSERT_GREATER_OR_EQUAL(CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS,
 				     connect_duration_sec);
 }
 
@@ -161,7 +162,7 @@ void test_transition_disconnected_connected_ready(void)
 void test_sending_payload(void)
 {
 	int err;
-	struct payload payload = {
+	struct cloud_payload payload = {
 		.buffer = "{\"test\": 1}",
 		.buffer_len = strlen(payload.buffer),
 	};
@@ -197,7 +198,7 @@ void test_connected_paused_to_ready_send_payload(void)
 {
 	int err;
 	enum network_msg_type status = NETWORK_CONNECTED;
-	struct payload payload = {
+	struct cloud_payload payload = {
 		.buffer = "{\"Another\": \"test\"}",
 		.buffer_len = strlen(payload.buffer),
 	};
