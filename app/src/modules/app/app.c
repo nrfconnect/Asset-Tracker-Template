@@ -120,6 +120,9 @@ static void triggers_send(void)
 	struct battery_msg battery_msg = {
 		.type = BATTERY_PERCENTAGE_SAMPLE_REQUEST,
 	};
+	struct battery_msg environmental_msg = {
+		.type = ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST,
+	};
 	enum trigger_type poll_trigger = TRIGGER_FOTA_POLL;
 
 	err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_SECONDS(1));
@@ -130,6 +133,13 @@ static void triggers_send(void)
 	}
 
 	err = zbus_chan_pub(&BATTERY_CHAN, &battery_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &environmental_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
