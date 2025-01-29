@@ -18,12 +18,22 @@
 #include "lp803448_model.h"
 #include "message_channel.h"
 #include "modules_common.h"
+#include "battery.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(battery, CONFIG_APP_BATTERY_LOG_LEVEL);
 
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(battery);
+
+/* Define channels provided by this module */
+ZBUS_CHAN_DEFINE(BATTERY_CHAN,
+		 struct battery_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
 
 /* Observe channels */
 ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, battery, 0);

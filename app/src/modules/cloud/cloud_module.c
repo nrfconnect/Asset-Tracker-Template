@@ -19,6 +19,7 @@
 
 #include "modules_common.h"
 #include "message_channel.h"
+#include "battery.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);

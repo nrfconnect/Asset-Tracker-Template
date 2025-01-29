@@ -11,6 +11,7 @@
 #include <date_time.h>
 
 #include "message_channel.h"
+#include "battery.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(button, CONFIG_APP_BUTTON_LOG_LEVEL);
