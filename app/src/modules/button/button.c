@@ -12,9 +12,19 @@
 
 #include "message_channel.h"
 #include "battery.h"
+#include "button.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(button, CONFIG_APP_BUTTON_LOG_LEVEL);
+
+/* Define channels provided by this module */
+ZBUS_CHAN_DEFINE(BUTTON_CHAN,
+		 uint8_t,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
 
 /* Button handler called when a user pushes a button */
 static void button_handler(uint32_t button_states, uint32_t has_changed)

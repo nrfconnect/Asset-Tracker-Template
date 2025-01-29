@@ -21,6 +21,7 @@
 #include <net/nrf_cloud_defs.h>
 
 #include "message_channel.h"
+#include "button.h"
 
 LOG_MODULE_REGISTER(shell, CONFIG_APP_SHELL_LOG_LEVEL);
 
