@@ -48,6 +48,39 @@ extern "C" {
 	k_sleep(K_SECONDS(10));							\
 } while (0)
 
+/** ENVIRONMENTAL MODULE */
+
+enum environmental_msg_type {
+	/* Output message types */
+
+	/* Response message to a request for current environmental sensor values.
+	 * The sampled values are found in the respective fields of the message structure.
+	 */
+	ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE = 0x1,
+
+	/* Input message types */
+
+	/* Request to sample the current environmental sensor values.
+	 * The response is sent as a ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE message.
+	 */
+	ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST,
+};
+
+struct environmental_msg {
+	enum environmental_msg_type type;
+
+	/** Contains the current temperature in celsius. */
+	double temperature;
+
+	/** Contains the current humidity in percentage. */
+	double humidity;
+
+	/** Contains the current pressure in Pa. */
+	double pressure;
+};
+
+#define MSG_TO_ENVIRONMENTAL_MSG(_msg)	(*(const struct environmental_msg *)_msg)
+
 enum trigger_type {
 	TRIGGER_POLL_SHADOW = 0x1,
 	TRIGGER_FOTA_POLL,
@@ -91,6 +124,7 @@ ZBUS_CHAN_DECLARE(
 	CONFIG_CHAN,
 	ERROR_CHAN,
 	TIME_CHAN,
+	ENVIRONMENTAL_CHAN,
 	TRIGGER_CHAN
 );
 

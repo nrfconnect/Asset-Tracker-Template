@@ -11,9 +11,12 @@ project(environmental_module_test)
 
 test_runner_generate(src/main.c)
 
+set(ASSET_TRACKER_TEMPLATE_DIR ../../..)
+
 target_sources(app
   PRIVATE
   src/main.c
+  src/redef.c
   ../../../app/src/modules/environmental/environmental.c
   ../../../app/src/common/message_channel.c
 )
@@ -33,3 +36,6 @@ target_compile_definitions(app PRIVATE
 	-DCONFIG_APP_ENVIRONMENTAL_EXEC_TIME_SECONDS_MAX=1
 	-DCONFIG_APP_ENVIRONMENTAL_WATCHDOG_TIMEOUT_SECONDS=2
 )
+
+set_property(SOURCE ${ASSET_TRACKER_TEMPLATE_DIR}/app/src/modules/environmental/environmental.c PROPERTY COMPILE_FLAGS
+             "-include ${CMAKE_CURRENT_SOURCE_DIR}/src/redef.h")

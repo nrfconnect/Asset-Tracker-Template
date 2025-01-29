@@ -28,11 +28,12 @@ LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 #define CUSTOM_JSON_APPID_VAL_CONEVAL "CONEVAL"
 #define CUSTOM_JSON_APPID_VAL_BATTERY "BATTERY"
 #define MAX_MSG_SIZE	(MAX(sizeof(struct cloud_payload),					\
-			 MAX(sizeof(struct network_msg), sizeof(struct battery_msg))))
+			 MAX(sizeof(struct network_msg),					\
+			 MAX(sizeof(struct battery_msg), sizeof(struct environmental_msg)))))
 
 BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
-			 CONFIG_APP_CLOUD_EXEC_TIME_SECONDS_MAX,
-			 "Watchdog timeout must be greater than maximum execution time");
+	     CONFIG_APP_CLOUD_EXEC_TIME_SECONDS_MAX,
+	     "Watchdog timeout must be greater than maximum execution time");
 
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(cloud);
@@ -42,6 +43,7 @@ ZBUS_CHAN_ADD_OBS(PAYLOAD_CHAN, cloud, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, cloud, 0);
 ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, cloud, 0);
 ZBUS_CHAN_ADD_OBS(TRIGGER_CHAN, cloud, 0);
+ZBUS_CHAN_ADD_OBS(ENVIRONMENTAL_CHAN, cloud, 0);
 
 /* Define channels provided by this module */
 
@@ -536,6 +538,38 @@ static void state_connected_ready_run(void *o)
 		if (msg.type == BATTERY_PERCENTAGE_SAMPLE_RESPONSE) {
 			err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_BATTERY,
 							 msg.percentage,
+							 NRF_CLOUD_NO_TIMESTAMP, true);
+			if (err) {
+				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			return;
+		}
+	}
+
+	if (state_object->chan == &ENVIRONMENTAL_CHAN) {
+		struct environmental_msg msg = MSG_TO_ENVIRONMENTAL_MSG(state_object->msg_buf);
+
+		if (msg.type == ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE) {
+			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_TEMP,
+							 msg.temperature,
+							 NRF_CLOUD_NO_TIMESTAMP, true);
+			if (err) {
+				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_AIR_PRESS,
+							 msg.pressure,
+							 NRF_CLOUD_NO_TIMESTAMP, true);
+			if (err) {
+				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_HUMID,
+							 msg.humidity,
 							 NRF_CLOUD_NO_TIMESTAMP, true);
 			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);

@@ -11,10 +11,6 @@
 };
 
 / {
-	aliases {
-		gas-sensor = &bme680;
-	};
-
 	chosen {
 		nordic,modem-trace-uart = &uart1;
 		zephyr,wifi = &nordic_wlan0;
