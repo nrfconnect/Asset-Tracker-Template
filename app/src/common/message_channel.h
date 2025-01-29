@@ -247,7 +247,6 @@ struct configuration {
 #define MSG_TO_CONFIGURATION(_msg) ((const struct configuration *)_msg)
 
 ZBUS_CHAN_DECLARE(
-	BUTTON_CHAN,
 	CONFIG_CHAN,
 	ERROR_CHAN,
 	FOTA_STATUS_CHAN,
