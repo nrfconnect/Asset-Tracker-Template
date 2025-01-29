@@ -7,9 +7,19 @@
 
 #include <zephyr/fff.h>
 #include "message_channel.h"
+#include "battery.h"
 #include <zephyr/task_wdt/task_wdt.h>
 
 DEFINE_FFF_GLOBALS;
+
+/* Define the channels for testing */
+ZBUS_CHAN_DEFINE(BATTERY_CHAN,
+		 struct battery_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
 
 FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);

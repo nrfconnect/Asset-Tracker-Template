@@ -13,8 +13,18 @@
 
 #include "dk_buttons_and_leds.h"
 #include "message_channel.h"
+#include "battery.h"
 
 #include "checks.h"
+
+/* Define the channels for testing */
+ZBUS_CHAN_DEFINE(BATTERY_CHAN,
+		 struct battery_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
 
 DEFINE_FFF_GLOBALS;
 

@@ -175,32 +175,7 @@ struct network_msg {
 
 #define MSG_TO_NETWORK_MSG(_msg)	(*(const struct network_msg *)_msg)
 
-/** BATTERY MODULE */
 
-enum battery_msg_type {
-	/* Output message types */
-
-	/* Response message to a request for a battery percentage sample. The sample is found in the
-	 * .percentage field of the message.
-	 */
-	BATTERY_PERCENTAGE_SAMPLE_RESPONSE = 0x1,
-
-	/* Input message types */
-
-	/* Request to retrieve the current battery percentage. The response is sent as a
-	 * BATTERY_PERCENTAGE_SAMPLE_RESPONSE message.
-	 */
-	BATTERY_PERCENTAGE_SAMPLE_REQUEST,
-};
-
-struct battery_msg {
-	enum battery_msg_type type;
-
-	/** Contains the current charge of the battery in percentage. */
-	double percentage;
-};
-
-#define MSG_TO_BATTERY_MSG(_msg)	(*(const struct battery_msg *)_msg)
 
 enum trigger_type {
 	TRIGGER_POLL_SHADOW = 0x1,
@@ -278,7 +253,6 @@ ZBUS_CHAN_DECLARE(
 	FOTA_STATUS_CHAN,
 	LED_CHAN,
 	NETWORK_CHAN,
-	BATTERY_CHAN,
 	TIME_CHAN,
 	TRIGGER_CHAN,
 	TRIGGER_MODE_CHAN,

@@ -7,6 +7,7 @@
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/logging/log.h>
 #include "message_channel.h"
+#include "battery.h"
 
 #include "checks.h"
 

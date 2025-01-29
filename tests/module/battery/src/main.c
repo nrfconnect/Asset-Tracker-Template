@@ -10,6 +10,7 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/logging/log.h>
 #include "message_channel.h"
+#include "battery.h"
 
 DEFINE_FFF_GLOBALS;
 
