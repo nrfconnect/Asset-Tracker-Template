@@ -201,26 +201,6 @@ enum error_type {
 	ERROR_IRRECOVERABLE,
 };
 
-/** @brief Status sent from the FOTA module on the FOTA_STATUS_CHAN channel. */
-enum fota_status {
-	/* No FOTA job is ongoing */
-	FOTA_STATUS_IDLE = 0x1,
-
-	/* FOTA started. */
-	FOTA_STATUS_START,
-
-	/* FOTA stopped. */
-	FOTA_STATUS_STOP,
-
-	/* A firmware image has been downloaded and a reboot is required to apply it.
-	 * The FOTA module will perform the reboot CONFIG_APP_FOTA_REBOOT_DELAY_SECONDS seconds
-	 * after this status is sent.
-	 */
-	FOTA_STATUS_REBOOT_PENDING,
-};
-
-#define MSG_TO_FOTA_STATUS(_msg) (*(const enum fota_status *)_msg)
-
 struct configuration {
 	/* LED */
 	int led_red;
@@ -244,7 +224,6 @@ struct configuration {
 ZBUS_CHAN_DECLARE(
 	CONFIG_CHAN,
 	ERROR_CHAN,
-	FOTA_STATUS_CHAN,
 	LED_CHAN,
 	NETWORK_CHAN,
 	TIME_CHAN,
