@@ -175,8 +175,6 @@ struct network_msg {
 
 #define MSG_TO_NETWORK_MSG(_msg)	(*(const struct network_msg *)_msg)
 
-
-
 enum trigger_type {
 	TRIGGER_POLL_SHADOW = 0x1,
 	TRIGGER_FOTA_POLL,
@@ -190,11 +188,6 @@ enum time_status {
 };
 
 #define MSG_TO_TIME_STATUS(_msg)	(*(const enum time_status *)_msg)
-
-enum location_status {
-	LOCATION_SEARCH_STARTED = 0x1,
-	LOCATION_SEARCH_DONE,
-};
 
 enum error_type {
 	ERROR_FATAL = 0x1,
@@ -227,8 +220,7 @@ ZBUS_CHAN_DECLARE(
 	LED_CHAN,
 	NETWORK_CHAN,
 	TIME_CHAN,
-	TRIGGER_CHAN,
-	LOCATION_CHAN
+	TRIGGER_CHAN
 );
 
 #ifdef __cplusplus

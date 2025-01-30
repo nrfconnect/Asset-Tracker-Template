@@ -12,6 +12,7 @@
 #include "message_channel.h"
 #include "led_pwm.h"
 #include "led.h"
+#include "location.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(led, CONFIG_APP_LED_LOG_LEVEL);
