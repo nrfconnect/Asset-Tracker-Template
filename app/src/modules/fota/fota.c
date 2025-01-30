@@ -236,15 +236,7 @@ static void state_reboot_pending_entry(void *o)
 	ARG_UNUSED(o);
 
 	int err;
-	enum fota_status fota_status = FOTA_STATUS_REBOOT_PENDING;
 	struct nrf_cloud_settings_fota_job job = { .validate = NRF_CLOUD_FOTA_VALIDATE_NONE };
-
-	/* Notify the rest of the system that a reboot is pending */
-	err = zbus_chan_pub(&FOTA_STATUS_CHAN, &fota_status, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
 
 	/* Check if validation of full modem FOTA failed, if so, try again...
 	 * This is a workaround due to modem shutdown -> reinitialization in bootloader mode fails
@@ -322,20 +314,6 @@ static void fota_reboot(enum nrf_cloud_fota_reboot_status status)
 	 */
 }
 
-static void status_events_notify(enum fota_status status)
-{
-	int err;
-
-	enum fota_status fota_status = status;
-
-	err = zbus_chan_pub(&FOTA_STATUS_CHAN, &fota_status, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
-}
-
 static void fota_status(enum nrf_cloud_fota_status status, const char *const status_details)
 {
 	int err;
@@ -351,23 +329,15 @@ static void fota_status(enum nrf_cloud_fota_status status, const char *const sta
 	switch (status) {
 	case NRF_CLOUD_FOTA_DOWNLOADING:
 		LOG_DBG("Downloading firmware update");
-
-		status_events_notify(FOTA_STATUS_START);
 		return;
 	case NRF_CLOUD_FOTA_FAILED:
 		LOG_ERR("Firmware download failed");
-
-		status_events_notify(FOTA_STATUS_STOP);
 		break;
 	case NRF_CLOUD_FOTA_TIMED_OUT:
 		LOG_ERR("Firmware download timed out");
-
-		status_events_notify(FOTA_STATUS_STOP);
 		break;
 	case NRF_CLOUD_FOTA_SUCCEEDED:
 		LOG_DBG("Firmware update succeeded");
-
-		status_events_notify(FOTA_STATUS_STOP);
 		return;
 	default:
 		LOG_ERR("Unknown FOTA status: %d", status);
