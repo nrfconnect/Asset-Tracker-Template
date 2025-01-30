@@ -17,9 +17,19 @@
 #include "modem/modem_info.h"
 #include "modules_common.h"
 #include "message_channel.h"
+#include "network.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(network, CONFIG_APP_NETWORK_LOG_LEVEL);
+
+/* Define channels provided by this module */
+ZBUS_CHAN_DEFINE(NETWORK_CHAN,
+		 struct network_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(.type = NETWORK_DISCONNECTED)
+);
 
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(network);

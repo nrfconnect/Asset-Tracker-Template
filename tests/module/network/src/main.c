@@ -14,6 +14,7 @@
 #include <zephyr/net/net_mgmt.h>
 
 #include "message_channel.h"
+#include "network.h"
 
 LOG_MODULE_REGISTER(network_module_test, 4);
 
