@@ -15,6 +15,7 @@
 #include "message_channel.h"
 #include "battery.h"
 #include "button.h"
+#include "network.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(app, CONFIG_APP_LOG_LEVEL);

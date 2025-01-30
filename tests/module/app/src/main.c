@@ -14,6 +14,7 @@
 #include "dk_buttons_and_leds.h"
 #include "message_channel.h"
 #include "battery.h"
+#include "network.h"
 
 #include "checks.h"
 
@@ -31,6 +32,13 @@ ZBUS_CHAN_DEFINE(BUTTON_CHAN,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0)
+);
+ZBUS_CHAN_DEFINE(NETWORK_CHAN,
+		 struct network_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(.type = NETWORK_DISCONNECTED)
 );
 
 DEFINE_FFF_GLOBALS;

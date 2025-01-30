@@ -29,6 +29,7 @@ zephyr_include_directories(../../../app/src/modules/cloud)
 zephyr_include_directories(${NRF_DIR}/subsys/net/lib/nrf_cloud/include)
 zephyr_include_directories(../../../app/src/modules/battery)
 zephyr_include_directories(../../../app/src/modules/button)
+zephyr_include_directories(../../../app/src/modules/network)
 zephyr_include_directories(${NRF_DIR}/../modules/lib/cjson)
 
 target_link_options(app PRIVATE --whole-archive)

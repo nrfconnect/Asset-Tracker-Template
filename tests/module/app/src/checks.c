@@ -8,6 +8,7 @@
 #include <zephyr/logging/log.h>
 #include "message_channel.h"
 #include "battery.h"
+#include "network.h"
 
 #include "checks.h"
 

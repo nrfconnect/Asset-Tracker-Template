@@ -22,6 +22,7 @@ zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)
 zephyr_include_directories(${ZEPHYR_BASE}/subsys/testsuite/include)
 zephyr_include_directories(../../../app/src/common)
 zephyr_include_directories(../../../app/src/modules/cloud)
+zephyr_include_directories(../../../app/src/modules/network)
 
 target_link_options(app PRIVATE --whole-archive)
 # Options that cannot be passed through Kconfig fragments

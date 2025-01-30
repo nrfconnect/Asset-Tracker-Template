@@ -17,6 +17,7 @@
 #include "message_channel.h"
 #include "modem/lte_lc.h"
 #include "location.h"
+#include "network.h"
 
 #include <net/nrf_cloud.h>
 
