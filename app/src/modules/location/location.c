@@ -16,6 +16,7 @@
 
 #include "message_channel.h"
 #include "modem/lte_lc.h"
+#include "location.h"
 
 #include <net/nrf_cloud.h>
 
@@ -24,6 +25,15 @@ LOG_MODULE_REGISTER(location_module, CONFIG_APP_LOCATION_LOG_LEVEL);
 BUILD_ASSERT(CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS >
 	     CONFIG_APP_LOCATION_ZBUS_TIMEOUT_SECONDS,
 	     "Watchdog timeout must be greater than trigger timeout");
+
+/* Define channels provided by this module */
+ZBUS_CHAN_DEFINE(LOCATION_CHAN,
+		 enum location_status,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
 
 /* Define listener for this module */
 ZBUS_MSG_SUBSCRIBER_DEFINE(location);
