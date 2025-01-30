@@ -27,7 +27,6 @@ ZBUS_LISTENER_DEFINE(led, led_callback);
 ZBUS_CHAN_ADD_OBS(ERROR_CHAN, led, 0);
 ZBUS_CHAN_ADD_OBS(CONFIG_CHAN, led, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, led, 0);
-ZBUS_CHAN_ADD_OBS(TRIGGER_MODE_CHAN, led, 0);
 ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, led, 0);
 
 /* Zephyr SMF states */
@@ -37,10 +36,6 @@ enum state {
 	STATE_LED_SET,
 	/* Sub-state to STATE_RUNNING */
 	STATE_LED_NOT_SET,
-	/* Sub-state to STATE_LED_NOT_SET */
-	STATE_POLL,
-	/* Sub-state to STATE_LED_NOT_SET */
-	STATE_NORMAL,
 	STATE_ERROR,
 };
 
@@ -72,9 +67,6 @@ static struct led_pattern {
 struct s_object {
 	/* This must be first */
 	struct smf_ctx ctx;
-
-	/* Trigger mode */
-	enum trigger_mode mode;
 
 	/* Network status */
 	enum network_msg_type status;
@@ -240,11 +232,8 @@ static void on_network_disconnected(void)
  * - STATE_RUNNING: Initial state, the module is running
  *	- STATE_LED_SET: LED is configured by the user
  *	- STATE_LED_NOT_SET: LED is not configured by the user, operational pattern is displayed
- *		- STATE_POLL: Poll pattern or location search pattern is displayed depending on
- 			      the location status
- *		- STATE_NORMAL: Led is off or location search pattern is displayed depending on
- *				the location status
- * - STATE_ERROR: An error has occured
+ *				(LED off or location search pattern)
+ * - STATE_ERROR: An error has occurred
  */
 
 /* STATE_RUNNING */
@@ -266,7 +255,6 @@ static void running_run(void *o)
 	}
 
 	if (&NETWORK_CHAN == user_object->chan && user_object->status == NETWORK_CONNECTED) {
-
 		/* If the network is connected, we just reenter the same state */
 		smf_set_state(SMF_CTX(user_object), &states[STATE_RUNNING]);
 		return;
@@ -299,25 +287,30 @@ static void led_set_running(void *o)
 
 	if ((&CONFIG_CHAN == user_object->chan) &&
 	    is_rgb_off(user_object->red, user_object->green, user_object->blue)) {
-
-		if (user_object->mode == TRIGGER_MODE_NORMAL) {
-			smf_set_state(SMF_CTX(user_object), &states[STATE_NORMAL]);
-			return;
-		} else if (user_object->mode == TRIGGER_MODE_POLL) {
-			smf_set_state(SMF_CTX(user_object), &states[STATE_POLL]);
-			return;
-		}
+		smf_set_state(SMF_CTX(user_object), &states[STATE_LED_NOT_SET]);
+		return;
 	}
 
 	if ((&CONFIG_CHAN == user_object->chan) &&
 	    !is_rgb_off(user_object->red, user_object->green, user_object->blue)) {
-
 		smf_set_state(SMF_CTX(user_object), &states[STATE_LED_SET]);
 		return;
 	}
 }
 
 /* STATE_LED_NOT_SET */
+
+static void led_not_set_entry(void *o)
+{
+	ARG_UNUSED(o);
+
+	LOG_DBG("led_not_set_entry");
+
+	transition_list_clear();
+	transition_list_append(LED_OFF, HOLD_FOREVER, 0, 0, 0);
+
+	k_work_reschedule(&led_pattern_update_work, K_NO_WAIT);
+}
 
 static void led_not_set_running(void *o)
 {
@@ -327,39 +320,11 @@ static void led_not_set_running(void *o)
 
 	if ((&CONFIG_CHAN == user_object->chan) &&
 	    !is_rgb_off(user_object->red, user_object->green, user_object->blue)) {
-
 		smf_set_state(SMF_CTX(user_object), &states[STATE_LED_SET]);
 		return;
 	}
-}
-
-/* STATE_POLL */
-
-static void poll_entry(void *o)
-{
-	ARG_UNUSED(o);
-
-	LOG_DBG("poll_entry");
-
-	transition_list_clear();
-	transition_list_append(LED_POLL_MODE, HOLD_FOREVER, 0, 0, 0);
-
-	k_work_reschedule(&led_pattern_update_work, K_NO_WAIT);
-}
-
-static void poll_running(void *o)
-{
-	struct s_object *user_object = o;
-
-	LOG_DBG("poll_running");
-
-	if ((&TRIGGER_MODE_CHAN == user_object->chan) && user_object->mode == TRIGGER_MODE_NORMAL) {
-		smf_set_state(SMF_CTX(user_object), &states[STATE_NORMAL]);
-		return;
-	}
 
 	if ((&LOCATION_CHAN == user_object->chan) && user_object->location_status == LOCATION_SEARCH_STARTED) {
-
 		transition_list_clear();
 		transition_list_append(LED_LOCATION_SEARCHING, HOLD_FOREVER, 0, 0, 0);
 
@@ -368,49 +333,10 @@ static void poll_running(void *o)
 	}
 
 	if ((&LOCATION_CHAN == user_object->chan) && user_object->location_status == LOCATION_SEARCH_DONE) {
-
-		smf_set_state(SMF_CTX(user_object), &states[STATE_POLL]);
-		return;
-	}
-}
-
-/* STATE_NORMAL */
-
-static void normal_entry(void *o)
-{
-	ARG_UNUSED(o);
-
-	LOG_DBG("normal_entry");
-
-	transition_list_clear();
-	transition_list_append(LED_OFF, HOLD_FOREVER, 0, 0, 0);
-
-	k_work_reschedule(&led_pattern_update_work, K_NO_WAIT);
-}
-
-static void normal_running(void *o)
-{
-	struct s_object *user_object = o;
-
-	LOG_DBG("normal_running");
-
-	if ((&TRIGGER_MODE_CHAN == user_object->chan) && user_object->mode == TRIGGER_MODE_POLL) {
-		smf_set_state(SMF_CTX(user_object), &states[STATE_POLL]);
-		return;
-	}
-
-	if ((&LOCATION_CHAN == user_object->chan) && user_object->location_status == LOCATION_SEARCH_STARTED) {
-
 		transition_list_clear();
-		transition_list_append(LED_LOCATION_SEARCHING, HOLD_FOREVER, 0, 0, 0);
+		transition_list_append(LED_OFF, HOLD_FOREVER, 0, 0, 0);
 
 		k_work_reschedule(&led_pattern_update_work, K_NO_WAIT);
-		return;
-	}
-
-	if ((&LOCATION_CHAN == user_object->chan) && user_object->location_status == LOCATION_SEARCH_DONE) {
-
-		smf_set_state(SMF_CTX(user_object), &states[STATE_NORMAL]);
 		return;
 	}
 }
@@ -449,24 +375,10 @@ static const struct smf_state states[] = {
 		NULL
 	),
 	[STATE_LED_NOT_SET] = SMF_CREATE_STATE(
-		NULL,
+		led_not_set_entry,
 		led_not_set_running,
 		NULL,
 		&states[STATE_RUNNING],
-		&states[STATE_NORMAL]
-	),
-	[STATE_POLL] = SMF_CREATE_STATE(
-		poll_entry,
-		poll_running,
-		NULL,
-		&states[STATE_LED_NOT_SET],
-		NULL
-	),
-	[STATE_NORMAL] = SMF_CREATE_STATE(
-		normal_entry,
-		normal_running,
-		NULL,
-		&states[STATE_LED_NOT_SET],
 		NULL
 	),
 	[STATE_ERROR] = SMF_CREATE_STATE(
@@ -487,27 +399,18 @@ void led_callback(const struct zbus_channel *chan)
 	state_object.chan = chan;
 
 	/* Update the state object with the message received on the channel */
-	if (&TRIGGER_MODE_CHAN == chan) {
-		const enum trigger_mode *mode = zbus_chan_const_msg(chan);
-
-		state_object.mode = *mode;
-	}
-
 	if (&NETWORK_CHAN == chan) {
 		const struct network_msg *msg = zbus_chan_const_msg(chan);
-
 		state_object.status = msg->type;
 	}
 
 	if (&LOCATION_CHAN == chan) {
 		const enum location_status *status = zbus_chan_const_msg(chan);
-
 		state_object.location_status = *status;
 	}
 
 	if (&CONFIG_CHAN == chan) {
 		/* Get LED configuration from channel. */
-
 		const struct configuration *config = zbus_chan_const_msg(chan);
 
 		if (config->led_present == false) {
@@ -549,7 +452,6 @@ void led_callback(const struct zbus_channel *chan)
 static int led_init(void)
 {
 	smf_set_initial(SMF_CTX(&state_object), &states[STATE_RUNNING]);
-
 	return 0;
 }
 

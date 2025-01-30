@@ -42,9 +42,6 @@ static K_WORK_DELAYABLE_DEFINE(uart_enable_work, &uart_enable_handler);
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(shell);
 
-/* Observe channels */
-ZBUS_CHAN_ADD_OBS(TRIGGER_MODE_CHAN, shell, 0);
-
 enum zbus_test_type {
 	PING,
 };
@@ -256,46 +253,11 @@ static void task_wdt_callback(int channel_id, void *user_data)
  */
 static int handle_message(const struct zbus_channel *chan, uint8_t *msg_buf)
 {
-	int err;
-
 	if (&ZBUS_TEST_CHAN == chan) {
 		enum zbus_test_type test_type = *(enum zbus_test_type *)msg_buf;
 
 		if (test_type == PING) {
 			LOG_INF("pong");
-		}
-	}
-	else if (&TRIGGER_MODE_CHAN == chan) {
-		if (!uart_pm_enabled) {
-			// UART power management is disabled; keep UARTs active for debugging
-			return 0;
-		}
-		enum pm_device_state shell_uart_power_state;
-
-		if (!device_is_ready(shell_uart_dev)) {
-			LOG_INF("Shell UART device not ready");
-			return 0;
-		}
-		err = pm_device_state_get(shell_uart_dev, &shell_uart_power_state);
-		if (err) {
-			LOG_ERR("Failed to assess shell UART power state, pm_device_state_get: %d.",
-				err);
-			return 0;
-		}
-
-		const enum trigger_mode mode = *(enum trigger_mode *)msg_buf;
-		if (mode == TRIGGER_MODE_POLL) {
-			// start uart if not already on
-			if (shell_uart_power_state != PM_DEVICE_STATE_ACTIVE) {
-				k_work_schedule(&uart_enable_work, K_NO_WAIT);
-			}
-		}
-		else  if (mode == TRIGGER_MODE_NORMAL) {
-			// stop uart if not already off
-			if (shell_uart_power_state != PM_DEVICE_STATE_SUSPENDED) {
-				LOG_DBG("Disabling UARTs\n");
-				k_work_schedule(&uart_disable_work, K_SECONDS(5));
-			}
 		}
 	}
 

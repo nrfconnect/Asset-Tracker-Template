@@ -87,7 +87,7 @@ static const struct smf_state states[] = {
 	)
 };
 
-/* State ovject for the app module.
+/* State object for the app module.
  * Used to transfer data between state changes.
  */
 static struct state_object {

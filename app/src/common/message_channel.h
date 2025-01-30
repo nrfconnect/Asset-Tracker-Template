@@ -185,11 +185,6 @@ enum trigger_type {
 
 #define MSG_TO_TRIGGER_TYPE(_msg)	(*(const enum trigger_type *)_msg)
 
-enum trigger_mode {
-	TRIGGER_MODE_POLL = 0x1,
-	TRIGGER_MODE_NORMAL,
-};
-
 enum time_status {
 	TIME_AVAILABLE = 0x1,
 };
@@ -254,7 +249,6 @@ ZBUS_CHAN_DECLARE(
 	NETWORK_CHAN,
 	TIME_CHAN,
 	TRIGGER_CHAN,
-	TRIGGER_MODE_CHAN,
 	LOCATION_CHAN
 );
 
