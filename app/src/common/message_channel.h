@@ -90,7 +90,6 @@ struct configuration {
 ZBUS_CHAN_DECLARE(
 	CONFIG_CHAN,
 	ERROR_CHAN,
-	LED_CHAN,
 	TIME_CHAN,
 	TRIGGER_CHAN
 );
