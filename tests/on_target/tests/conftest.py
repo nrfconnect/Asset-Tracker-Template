@@ -12,6 +12,7 @@ from utils.uart import Uart, UartBinary
 import sys
 sys.path.append(os.getcwd())
 from utils.logger import get_logger
+from utils.nrfcloud_fota import NRFCloudFOTA
 
 logger = get_logger()
 
@@ -19,7 +20,8 @@ UART_TIMEOUT = 60 * 30
 
 SEGGER = os.getenv('SEGGER')
 UART_ID = os.getenv('UART_ID', SEGGER)
-FOTADEVICE_FINGERPRINT = os.getenv('FINGERPRINT')
+FOTADEVICE_UUID = os.getenv('UUID')
+NRFCLOUD_API_KEY = os.getenv('NRFCLOUD_API_KEY')
 
 def get_uarts():
     base_path = "/dev/serial/by-id"
@@ -67,6 +69,33 @@ def t91x_board():
 
     scan_log_for_assertions(uart_log)
 
+@pytest.fixture(scope="function")
+def t91x_fota(t91x_board):
+    if not NRFCLOUD_API_KEY:
+        pytest.skip("NRFCLOUD_API_KEY environment variable not set")
+    if not FOTADEVICE_UUID:
+        pytest.skip("UUID environment variable not set")
+
+    fota = NRFCloudFOTA(api_key=NRFCLOUD_API_KEY)
+    device_id = FOTADEVICE_UUID
+    data = {
+        'job_id': '',
+        'bundle_id': ''
+    }
+    fota.cancel_incomplete_jobs(device_id)
+
+    yield types.SimpleNamespace(
+        fota=fota,
+        uart=t91x_board.uart,
+        device_id=device_id,
+        data=data
+    )
+
+    fota.cancel_incomplete_jobs(device_id)
+    if data['bundle_id']:
+        fota.delete_bundle(data['bundle_id'])
+
+
 @pytest.fixture(scope="module")
 def t91x_traces(t91x_board):
     all_uarts = get_uarts()
@@ -91,3 +120,15 @@ def hex_file():
             return os.path.join(artifacts_dir, file)
 
     pytest.fail("No matching firmware .hex file found in the artifacts directory")
+
+@pytest.fixture(scope="session")
+def bin_file():
+    # Search for the firmware bin file in the artifacts folder
+    artifacts_dir = "artifacts"
+    hex_pattern = r"asset-tracker-template-[0-9a-z\.]+-thingy91x-nrf91-update-signed\.bin"
+
+    for file in os.listdir(artifacts_dir):
+        if re.match(hex_pattern, file):
+            return os.path.join(artifacts_dir, file)
+
+    pytest.fail("No matching firmware .bin file found in the artifacts directory")
