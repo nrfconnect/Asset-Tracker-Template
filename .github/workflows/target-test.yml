@@ -123,8 +123,8 @@ jobs:
         shell: bash
         env:
           SEGGER: ${{ env.RUNNER_SERIAL_NUMBER }}
-          # IMEI: ${{ secrets.IMEI }}
-          # FINGERPRINT: ${{ secrets.FINGERPRINT }}
+          UUID: ${{ env.UUID }}
+          NRFCLOUD_API_KEY: ${{ secrets.NRF_CLOUD_API_KEY }}
           LOG_FILENAME: att_test_log
           TEST_REPORT_NAME: ATT Firwmare Test Report
           # MEMFAULT_ORGANIZATION_TOKEN: ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }}
