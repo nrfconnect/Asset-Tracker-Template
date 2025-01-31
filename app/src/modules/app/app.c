@@ -15,6 +15,7 @@
 #include "message_channel.h"
 #include "button.h"
 #include "network.h"
+#include "environmental.h"
 
 #if defined(CONFIG_APP_BATTERY)
 #include "battery.h"

@@ -9,6 +9,7 @@
 #include "message_channel.h"
 #include "battery.h"
 #include "network.h"
+#include "environmental.h"
 #include <zephyr/task_wdt/task_wdt.h>
 
 DEFINE_FFF_GLOBALS;
@@ -27,6 +28,13 @@ ZBUS_CHAN_DEFINE(NETWORK_CHAN,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(.type = NETWORK_DISCONNECTED)
+);
+ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
+		 struct environmental_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
 );
 
 FAKE_VALUE_FUNC(int, task_wdt_feed, int);

@@ -23,6 +23,7 @@
 #if defined(CONFIG_APP_BATTERY)
 #include "battery.h"
 #endif /* CONFIG_APP_BATTERY */
+#include "environmental.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
