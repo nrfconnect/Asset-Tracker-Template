@@ -15,9 +15,19 @@
 
 #include "message_channel.h"
 #include "modules_common.h"
+#include "environmental.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(environmental_module, CONFIG_APP_ENVIRONMENTAL_LOG_LEVEL);
+
+/* Define channels provided by this module */
+ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
+		 struct environmental_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
 
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(environmental);

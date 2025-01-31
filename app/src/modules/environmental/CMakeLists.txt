@@ -7,3 +7,4 @@
 target_sources_ifdef(CONFIG_APP_ENVIRONMENTAL app PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}/environmental.c
 )
+target_include_directories(app PRIVATE .)

@@ -15,6 +15,7 @@
 #include "message_channel.h"
 #include "battery.h"
 #include "network.h"
+#include "environmental.h"
 
 #include "checks.h"
 
@@ -46,6 +47,13 @@ ZBUS_CHAN_DEFINE(CLOUD_CHAN,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(CLOUD_DISCONNECTED)
+);
+ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
+		 struct environmental_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
 );
 
 DEFINE_FFF_GLOBALS;

@@ -28,6 +28,8 @@ zephyr_include_directories(../../../app/src/modules/cloud)
 zephyr_include_directories(../../../app/src/modules/battery)
 zephyr_include_directories(../../../app/src/modules/button)
 zephyr_include_directories(../../../app/src/modules/network)
+zephyr_include_directories(../../../app/src/modules/environmental)
+
 
 target_link_options(app PRIVATE --whole-archive)
 

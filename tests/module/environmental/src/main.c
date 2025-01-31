@@ -11,6 +11,7 @@
 #include <zephyr/logging/log.h>
 
 #include "message_channel.h"
+#include "environmental.h"
 
 DEFINE_FFF_GLOBALS;
 
