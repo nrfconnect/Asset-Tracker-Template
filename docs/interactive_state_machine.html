@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Asset Tracker System Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .module {
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            background: white;
+            min-height: 300px;
+        }
+        .module h2 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #333;
+        }
+        .state-machine {
+            position: relative;
+            width: 100%;
+            height: 200px;
+            margin: 10px 0;
+        }
+        .state {
+            position: absolute;
+            width: 80px;
+            height: 35px;
+            border: 2px solid #666;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: white;
+            font-size: 12px;
+            z-index: 2;
+        }
+        .state.active {
+            background: #4CAF50;
+            color: white;
+            border-color: #45a049;
+        }
+        .group {
+            position: absolute;
+            border: 2px dashed #999;
+            border-radius: 6px;
+            background: rgba(200,200,200,0.05);
+            z-index: 1;
+        }
+        .group.active {
+            border-color: #4CAF50;
+            background: rgba(76,175,80,0.05);
+        }
+        .connection {
+            position: absolute;
+            background: #999;
+            z-index: 0;
+        }
+        .connection-vertical {
+            width: 2px;
+        }
+        .connection-horizontal {
+            height: 2px;
+        }
+        .log {
+            margin-top: 10px;
+            padding: 5px;
+            background: #333;
+            color: #fff;
+            border-radius: 4px;
+            height: 60px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        .controls {
+            margin: 20px 0;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 4px;
+        }
+        .control-group {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .control-group h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #333;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #4CAF50;
+            color: white;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.error {
+            background: #f44336;
+        }
+        button.error:hover {
+            background: #d32f2f;
+        }
+        
+        /* Module-specific layouts */
+        /* Cloud Module */
+        .cloud-running { top: 10px; left: 100px; }
+        .cloud-running-group { top: 55px; left: 20px; width: 280px; height: 40px; }
+        .cloud-disconnected { top: 60px; left: 30px; }
+        .cloud-connecting { top: 60px; left: 120px; }
+        .cloud-connected { top: 60px; left: 210px; }
+        .cloud-connecting-group { top: 110px; left: 90px; width: 180px; height: 40px; }
+        .cloud-connecting-attempt { top: 115px; left: 100px; }
+        .cloud-connecting-backoff { top: 115px; left: 180px; }
+        .cloud-connected-group { top: 160px; left: 90px; width: 180px; height: 40px; }
+        .cloud-connected-ready { top: 165px; left: 100px; }
+        .cloud-connected-paused { top: 165px; left: 180px; }
+        
+        /* Network Module */
+        .network-running { top: 10px; left: 100px; }
+        .network-running-group { top: 55px; left: 20px; width: 280px; height: 40px; }
+        .network-disconnected { top: 60px; left: 30px; }
+        .network-connected { top: 60px; left: 120px; }
+        .network-disconnecting { top: 60px; left: 210px; }
+        .network-disconnected-group { top: 110px; left: 20px; width: 180px; height: 40px; }
+        .network-disconnected-idle { top: 115px; left: 30px; }
+        .network-disconnected-searching { top: 115px; left: 110px; }
+        
+        /* App Module - States at same level */
+        .app-init { top: 50%; left: 20%; transform: translate(-50%, -50%); }
+        .app-cloud-disconnected { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .app-cloud-connected { top: 50%; left: 80%; transform: translate(-50%, -50%); }
+        
+        /* Environmental Module - Single state */
+        .env-running { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+
+        /* FOTA Module */
+        .fota-running { top: 10px; left: 50%; transform: translate(-50%, 0); }
+        .fota-wait-for-cloud { top: 60px; left: 20%; transform: translate(-50%, 0); }
+        .fota-wait-for-trigger { top: 60px; left: 50%; transform: translate(-50%, 0); }
+        .fota-poll-and-process { top: 110px; left: 50%; transform: translate(-50%, 0); }
+        .fota-reboot-pending { top: 60px; left: 80%; transform: translate(-50%, 0); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Asset Tracker System Visualizer</h1>
+        
+        <div class="controls">
+            <div class="control-group">
+                <h3>Network Events</h3>
+                <button onclick="simulateNetworkEvent('NETWORK_CONNECT')">NETWORK_CONNECT</button>
+                <button onclick="simulateNetworkEvent('NETWORK_DISCONNECT')">NETWORK_DISCONNECT</button>
+                <button onclick="simulateNetworkEvent('NETWORK_SEARCH_STOP')">NETWORK_SEARCH_STOP</button>
+                <button onclick="simulateNetworkEvent('NETWORK_UICC_FAILURE')" class="error">NETWORK_UICC_FAILURE</button>
+            </div>
+
+            <div class="control-group">
+                <h3>Cloud Events</h3>
+                <button onclick="simulateCloudEvent('CLOUD_CONNECTED_READY_TO_SEND')">CLOUD_CONNECTED_READY_TO_SEND</button>
+                <button onclick="simulateCloudEvent('CLOUD_CONNECTED_PAUSED')">CLOUD_CONNECTED_PAUSED</button>
+                <button onclick="simulateCloudEvent('CLOUD_DISCONNECTED')">CLOUD_DISCONNECTED</button>
+            </div>
+
+            <div class="control-group">
+                <h3>Sensor Events</h3>
+                <button onclick="simulateSensorEvent('SAMPLE_REQUEST')">SAMPLE_REQUEST</button>
+                <button onclick="simulateSensorEvent('SENSOR_ERROR')" class="error">SENSOR_ERROR</button>
+            </div>
+
+            <div class="control-group">
+                <h3>FOTA Events</h3>
+                <button onclick="simulateFotaEvent('TRIGGER_FOTA_POLL')">TRIGGER_FOTA_POLL</button>
+                <button onclick="simulateFotaEvent('FOTA_DOWNLOAD')" class="error">FOTA_DOWNLOAD</button>
+                <button onclick="simulateFotaEvent('FOTA_REBOOT')" class="error">FOTA_REBOOT</button>
+            </div>
+
+            <div class="control-group">
+                <h3>System Control</h3>
+                <button onclick="resetAll()">Reset All</button>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Cloud Module -->
+            <div class="module" id="cloud-module">
+                <h2>Cloud Module</h2>
+                <div class="state-machine">
+                    <div class="group cloud-running-group"></div>
+                    <div class="group cloud-connecting-group"></div>
+                    <div class="group cloud-connected-group"></div>
+                    
+                    <div class="state cloud-running">Running</div>
+                    <div class="state cloud-disconnected">Disconnected</div>
+                    <div class="state cloud-connecting">Connecting</div>
+                    <div class="state cloud-connected">Connected</div>
+                    <div class="state cloud-connecting-attempt">Attempt</div>
+                    <div class="state cloud-connecting-backoff">Backoff</div>
+                    <div class="state cloud-connected-ready">Ready</div>
+                    <div class="state cloud-connected-paused">Paused</div>
+                </div>
+                <div class="log" id="cloud-log"></div>
+            </div>
+
+            <!-- Network Module -->
+            <div class="module" id="network-module">
+                <h2>Network Module</h2>
+                <div class="state-machine">
+                    <div class="group network-running-group"></div>
+                    <div class="group network-disconnected-group"></div>
+                    
+                    <div class="state network-running">Running</div>
+                    <div class="state network-disconnected">Disconnected</div>
+                    <div class="state network-connected">Connected</div>
+                    <div class="state network-disconnecting">Disconnecting</div>
+                    <div class="state network-disconnected-idle">Idle</div>
+                    <div class="state network-disconnected-searching">Searching</div>
+                </div>
+                <div class="log" id="network-log"></div>
+            </div>
+
+            <!-- FOTA Module -->
+            <div class="module" id="fota-module">
+                <h2>FOTA Module</h2>
+                <div class="state-machine">
+                    <div class="state fota-running">Running</div>
+                    <div class="state fota-wait-for-cloud">Wait Cloud</div>
+                    <div class="state fota-wait-for-trigger">Wait Trigger</div>
+                    <div class="state fota-poll-and-process">Processing</div>
+                    <div class="state fota-reboot-pending">Reboot</div>
+                </div>
+                <div class="log" id="fota-log"></div>
+            </div>
+
+            <!-- App Module -->
+            <div class="module" id="app-module">
+                <h2>App Module</h2>
+                <div class="state-machine">
+                    <div class="state app-init">Init</div>
+                    <div class="state app-cloud-disconnected">No Cloud</div>
+                    <div class="state app-cloud-connected">Connected</div>
+                </div>
+                <div class="log" id="app-log"></div>
+            </div>
+
+            <!-- Environmental Module -->
+            <div class="module" id="env-module">
+                <h2>Environmental Module</h2>
+                <div class="state-machine">
+                    <div class="state env-running">Running</div>
+                </div>
+                <div class="log" id="env-log"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const modules = {
+            cloud: {
+                currentState: 'disconnected',
+                states: new Set(['running', 'disconnected', 'connecting', 'connecting-attempt', 
+                               'connecting-backoff', 'connected', 'connected-ready', 'connected-paused'])
+            },
+            network: {
+                currentState: 'disconnected-idle',
+                states: new Set(['running', 'disconnected', 'disconnected-idle', 
+                               'disconnected-searching', 'connected', 'disconnecting'])
+            },
+            app: {
+                currentState: 'init',
+                states: new Set(['init', 'cloud-disconnected', 'cloud-connected'])
+            },
+            env: {
+                currentState: 'running',
+                states: new Set(['running'])
+            },
+            fota: {
+                currentState: 'running',
+                states: new Set(['running', 'wait-for-cloud', 'wait-for-trigger', 
+                               'poll-and-process', 'reboot-pending'])
+            }
+        };
+
+        function log(module, message) {
+            const logDiv = document.getElementById(`${module}-log`);
+            logDiv.innerHTML += `${new Date().toLocaleTimeString()} - ${message}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateState(module, newState, prefix = '') {
+            if (!modules[module].states.has(newState)) return;
+            
+            modules[module].states.forEach(state => {
+                const el = document.querySelector(`.${prefix}${state}`);
+                if (el) el.classList.remove('active');
+            });
+            
+            // Only handle running state and groups for cloud and network modules
+            if (module !== 'app' && module !== 'env' && newState !== 'error') {
+                const runningEl = document.querySelector(`.${prefix}running`);
+                const runningGroupEl = document.querySelector(`.${prefix}running-group`);
+                if (runningEl) runningEl.classList.add('active');
+                if (runningGroupEl) runningGroupEl.classList.add('active');
+            }
+            
+            if (newState.startsWith('connecting-')) {
+                document.querySelector(`.${prefix}connecting`).classList.add('active');
+                document.querySelector(`.${prefix}connecting-group`).classList.add('active');
+            } else if (newState.startsWith('connected-')) {
+                document.querySelector(`.${prefix}connected`).classList.add('active');
+                document.querySelector(`.${prefix}connected-group`).classList.add('active');
+            } else if (newState.startsWith('disconnected-')) {
+                document.querySelector(`.${prefix}disconnected`).classList.add('active');
+                document.querySelector(`.${prefix}disconnected-group`).classList.add('active');
+            }
+            
+            const stateEl = document.querySelector(`.${prefix}${newState}`);
+            if (stateEl) stateEl.classList.add('active');
+            modules[module].currentState = newState;
+            
+            log(module, `State changed to: ${newState}`);
+        }
+
+        function simulateNetworkEvent(event) {
+            switch (event) {
+                case 'NETWORK_CONNECT':
+                    if (modules.network.currentState === 'disconnected-idle') {
+                        updateState('network', 'disconnected-searching', 'network-');
+                        log('network', 'NETWORK_CONNECT: Searching for network...');
+                        
+                        setTimeout(() => {
+                            updateState('network', 'connected', 'network-');
+                            log('network', 'NETWORK_CONNECTED: Network connection established');
+                            
+                            // When network connects, cloud should transition to connecting state
+                            if (modules.cloud.currentState === 'disconnected') {
+                                updateState('cloud', 'connecting', 'cloud-');
+                                setTimeout(() => {
+                                    updateState('cloud', 'connecting-attempt', 'cloud-');
+                                    log('cloud', 'Attempting cloud connection');
+                                }, 500);
+                            }
+                        }, 2000);
+                    }
+                    break;
+
+                case 'NETWORK_DISCONNECT':
+                    if (modules.network.currentState === 'connected') {
+                        updateState('network', 'disconnecting', 'network-');
+                        log('network', 'NETWORK_DISCONNECT: Disconnecting from network...');
+                        
+                        if (modules.cloud.currentState === 'connected-ready') {
+                            updateState('cloud', 'connected-paused', 'cloud-');
+                        }
+                        
+                        setTimeout(() => {
+                            updateState('network', 'disconnected-idle', 'network-');
+                            log('network', 'NETWORK_DISCONNECTED: Network disconnected');
+                        }, 1000);
+                    }
+                    break;
+
+                case 'NETWORK_SEARCH_STOP':
+                    if (modules.network.currentState === 'disconnected-searching') {
+                        updateState('network', 'disconnected-idle', 'network-');
+                        log('network', 'NETWORK_SEARCH_STOP: Network search stopped');
+                    }
+                    break;
+
+                case 'NETWORK_UICC_FAILURE':
+                    updateState('network', 'disconnected-idle', 'network-');
+                    log('network', 'NETWORK_UICC_FAILURE: SIM card error detected');
+                    break;
+            }
+        }
+
+        function simulateCloudEvent(event) {
+            switch (event) {
+                case 'CLOUD_CONNECTED_READY_TO_SEND':
+                    if (modules.network.currentState === 'connected') {
+                        updateState('cloud', 'connecting', 'cloud-');
+                        setTimeout(() => {
+                            updateState('cloud', 'connecting-attempt', 'cloud-');
+                            log('cloud', 'Attempting cloud connection');
+                            
+                            setTimeout(() => {
+                                updateState('cloud', 'connected', 'cloud-');
+                                setTimeout(() => {
+                                    updateState('cloud', 'connected-ready', 'cloud-');
+                                    log('cloud', 'CLOUD_CONNECTED_READY_TO_SEND: Cloud ready');
+                                    updateState('app', 'cloud-connected', 'app-');
+                                    updateState('fota', 'wait-for-trigger', 'fota-');
+                                }, 500);
+                            }, 1500);
+                        }, 500);
+                    }
+                    break;
+
+                case 'CLOUD_CONNECTED_PAUSED':
+                    if (modules.cloud.currentState === 'connected-ready') {
+                        updateState('cloud', 'connected-paused', 'cloud-');
+                        log('cloud', 'CLOUD_CONNECTED_PAUSED: Cloud connection paused');
+                        updateState('app', 'cloud-disconnected', 'app-');
+                        updateState('fota', 'wait-for-cloud', 'fota-');
+                    }
+                    break;
+
+                case 'CLOUD_DISCONNECTED':
+                    updateState('cloud', 'disconnected', 'cloud-');
+                    log('cloud', 'CLOUD_DISCONNECTED: Cloud disconnected');
+                    updateState('app', 'cloud-disconnected', 'app-');
+                    updateState('fota', 'wait-for-cloud', 'fota-');
+                    break;
+            }
+        }
+
+        function simulateSensorEvent(event) {
+            switch (event) {
+                case 'SAMPLE_REQUEST':
+                    if (modules.env.currentState === 'running') {
+                        log('env', 'SAMPLE_REQUEST: Getting environmental data');
+                        
+                        setTimeout(() => {
+                            const temp = (20 + Math.random() * 5).toFixed(1);
+                            const humidity = (50 + Math.random() * 20).toFixed(1);
+                            const pressure = (101.3 + Math.random()).toFixed(1);
+                            log('env', `Sample complete: ${temp}°C, ${humidity}% RH, ${pressure} kPa`);
+                        }, 500);
+                    }
+                    break;
+
+                case 'SENSOR_ERROR':
+                    log('env', 'SENSOR_ERROR: Communication error detected');
+                    setTimeout(() => {
+                        log('env', 'Error recovered');
+                    }, 1000);
+                    break;
+            }
+        }
+
+        function simulateFotaEvent(event) {
+            switch (event) {
+                case 'TRIGGER_FOTA_POLL':
+                    if (modules.fota.currentState === 'wait-for-trigger') {
+                        updateState('fota', 'poll-and-process', 'fota-');
+                        log('fota', 'TRIGGER_FOTA_POLL: Checking for updates...');
+                        
+                        setTimeout(() => {
+                            log('fota', 'No updates available');
+                            updateState('fota', 'wait-for-trigger', 'fota-');
+                        }, 2000);
+                    }
+                    break;
+
+                case 'FOTA_DOWNLOAD':
+                    if (modules.fota.currentState === 'wait-for-trigger') {
+                        updateState('fota', 'poll-and-process', 'fota-');
+                        log('fota', 'FOTA_DOWNLOAD: Update found, downloading...');
+                        
+                        setTimeout(() => {
+                            log('fota', 'Download complete');
+                            updateState('fota', 'reboot-pending', 'fota-');
+                        }, 3000);
+                    }
+                    break;
+
+                case 'FOTA_REBOOT':
+                    if (modules.fota.currentState === 'reboot-pending') {
+                        log('fota', 'FOTA_REBOOT: Rebooting in 3 seconds...');
+                        
+                        setTimeout(() => {
+                            resetAll();
+                        }, 3000);
+                    }
+                    break;
+            }
+        }
+
+        function resetAll() {
+            updateState('network', 'disconnected-idle', 'network-');
+            updateState('cloud', 'disconnected', 'cloud-');
+            updateState('app', 'init', 'app-');
+            updateState('env', 'running', 'env-');
+            updateState('fota', 'wait-for-cloud', 'fota-');
+            
+            document.querySelectorAll('.log').forEach(log => {
+                log.innerHTML = '';
+            });
+            
+            log('network', 'Network module reset');
+            log('cloud', 'Cloud module reset');
+            log('app', 'App module reset');
+            log('env', 'Environmental module initialized');
+            log('fota', 'FOTA module initialized');
+        }
+
+        // Initialize
+        resetAll();
+    </script>
+</body>
+</html>
