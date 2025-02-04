@@ -11,7 +11,6 @@
 #include <date_time.h>
 
 #include "message_channel.h"
-#include "battery.h"
 #include "button.h"
 
 /* Register log module */

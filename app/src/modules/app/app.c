@@ -13,9 +13,12 @@
 
 #include "modules_common.h"
 #include "message_channel.h"
-#include "battery.h"
 #include "button.h"
 #include "network.h"
+
+#if defined(CONFIG_APP_BATTERY)
+#include "battery.h"
+#endif /* CONFIG_APP_BATTERY */
 
 /* Register log module */
 LOG_MODULE_REGISTER(app, CONFIG_APP_LOG_LEVEL);
@@ -117,12 +120,6 @@ static void triggers_send(void)
 	struct network_msg network_msg = {
 		.type = NETWORK_QUALITY_SAMPLE_REQUEST,
 	};
-	struct battery_msg battery_msg = {
-		.type = BATTERY_PERCENTAGE_SAMPLE_REQUEST,
-	};
-	struct battery_msg environmental_msg = {
-		.type = ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST,
-	};
 	enum trigger_type poll_trigger = TRIGGER_FOTA_POLL;
 
 	err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_SECONDS(1));
@@ -132,12 +129,23 @@ static void triggers_send(void)
 		return;
 	}
 
+#if defined(CONFIG_APP_BATTERY)
+	struct battery_msg battery_msg = {
+		.type = BATTERY_PERCENTAGE_SAMPLE_REQUEST,
+	};
+
 	err = zbus_chan_pub(&BATTERY_CHAN, &battery_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
 		return;
 	}
+#endif /* CONFIG_APP_BATTERY */
+
+#if defined(CONFIG_APP_ENVIRONMENTAL)
+	struct battery_msg environmental_msg = {
+		.type = ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST,
+	};
 
 	err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &environmental_msg, K_SECONDS(1));
 	if (err) {
@@ -145,6 +153,7 @@ static void triggers_send(void)
 		SEND_FATAL_ERROR();
 		return;
 	}
+#endif /* CONFIG_APP_ENVIRONMENTAL */
 
 	/* Send FOTA poll trigger */
 	err = zbus_chan_pub(&TRIGGER_CHAN, &poll_trigger, K_SECONDS(1));

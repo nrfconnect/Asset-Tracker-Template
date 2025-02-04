@@ -13,16 +13,16 @@ project("Asset Tracker Template")
 add_subdirectory(src/common)
 
 # Include mandatory module source folders
-add_subdirectory(src/modules/battery)
 add_subdirectory(src/modules/network)
 add_subdirectory(src/modules/cloud)
 add_subdirectory(src/modules/location)
 add_subdirectory(src/modules/app)
 add_subdirectory(src/modules/fota)
-add_subdirectory(src/modules/environmental)
 add_subdirectory(src/modules/button)
 
 # Optional modules
+add_subdirectory_ifdef(CONFIG_APP_BATTERY src/modules/battery)
+add_subdirectory_ifdef(CONFIG_APP_ENVIRONMENTAL src/modules/environmental)
 add_subdirectory_ifdef(CONFIG_APP_LED src/modules/led)
 add_subdirectory_ifdef(CONFIG_APP_MEMFAULT src/modules/memfault)
 add_subdirectory_ifdef(CONFIG_APP_SHELL src/modules/shell)
