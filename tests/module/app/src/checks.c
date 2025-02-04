@@ -39,7 +39,8 @@ void check_network_event(enum network_msg_type expected_network_type)
 	}
 
 	if (chan != &NETWORK_CHAN) {
-		LOG_ERR("Received message from wrong channel");
+		LOG_ERR("Received message from wrong channel, expected %s, got %s",
+			zbus_chan_name(&NETWORK_CHAN), zbus_chan_name(chan));
 		TEST_FAIL();
 	}
 
@@ -67,7 +68,8 @@ void check_battery_event(enum battery_msg_type expected_battery_type)
 	}
 
 	if (chan != &BATTERY_CHAN) {
-		LOG_ERR("Received message from wrong channel");
+		LOG_ERR("Received message from wrong channel, expected %s, got %s",
+			zbus_chan_name(&BATTERY_CHAN), zbus_chan_name(chan));
 		TEST_FAIL();
 	}
 

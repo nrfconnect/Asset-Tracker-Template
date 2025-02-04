@@ -6,6 +6,11 @@
 
 menu "Battery"
 
+config APP_BATTERY
+	bool "Battery module"
+
+if APP_BATTERY
+
 config APP_BATTERY_THREAD_STACK_SIZE
 	int "Thread stack size"
 	default 1536
@@ -23,5 +28,7 @@ config APP_BATTERY_EXEC_TIME_SECONDS_MAX
 module = APP_BATTERY
 module-str = Battery
 source "subsys/logging/Kconfig.template.log_config"
+
+endif # APP_BATTERY
 
 endmenu # Battery

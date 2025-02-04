@@ -19,17 +19,29 @@
 
 #include "modules_common.h"
 #include "message_channel.h"
-#include "battery.h"
 #include "network.h"
+#if defined(CONFIG_APP_BATTERY)
+#include "battery.h"
+#endif /* CONFIG_APP_BATTERY */
 
 /* Register log module */
 LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 
 #define CUSTOM_JSON_APPID_VAL_CONEVAL "CONEVAL"
 #define CUSTOM_JSON_APPID_VAL_BATTERY "BATTERY"
+
+#if defined(CONFIG_APP_BATTERY)
+#define BAT_MSG_SIZE	sizeof(struct battery_msg)
+#else
+#define BAT_MSG_SIZE	0
+#endif /* CONFIG_APP_BATTERY */
+
 #define MAX_MSG_SIZE	(MAX(sizeof(struct cloud_payload),					\
 			 MAX(sizeof(struct network_msg),					\
-			 MAX(sizeof(struct battery_msg), sizeof(struct environmental_msg)))))
+			 MAX(BAT_MSG_SIZE,							\
+			 sizeof(struct environmental_msg)))))
+
+
 
 BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
 	     CONFIG_APP_CLOUD_EXEC_TIME_SECONDS_MAX,
@@ -41,9 +53,11 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(cloud);
 /* Observe channels */
 ZBUS_CHAN_ADD_OBS(PAYLOAD_CHAN, cloud, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, cloud, 0);
-ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, cloud, 0);
 ZBUS_CHAN_ADD_OBS(TRIGGER_CHAN, cloud, 0);
 ZBUS_CHAN_ADD_OBS(ENVIRONMENTAL_CHAN, cloud, 0);
+#if defined(CONFIG_APP_BATTERY)
+ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, cloud, 0);
+#endif /* CONFIG_APP_BATTERY */
 
 /* Define channels provided by this module */
 
@@ -532,6 +546,7 @@ static void state_connected_ready_run(void *o)
 		}
 	}
 
+#if defined(CONFIG_APP_BATTERY)
 	if (state_object->chan == &BATTERY_CHAN) {
 		struct battery_msg msg = MSG_TO_BATTERY_MSG(state_object->msg_buf);
 
@@ -547,6 +562,7 @@ static void state_connected_ready_run(void *o)
 			return;
 		}
 	}
+#endif /* CONFIG_APP_BATTERY */
 
 	if (state_object->chan == &ENVIRONMENTAL_CHAN) {
 		struct environmental_msg msg = MSG_TO_ENVIRONMENTAL_MSG(state_object->msg_buf);

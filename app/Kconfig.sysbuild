@@ -1,0 +1,24 @@
+#
+# Copyright (c) 2025 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+choice BOOTLOADER
+	default BOOTLOADER_MCUBOOT if !BOARD_NATIVE_SIM
+endchoice
+
+config SECURE_BOOT_APPCORE
+	default y if BOARD_NRF9151DK_NRF9151_NS
+
+config WIFI_NRF70
+	default y if BOARD_THINGY91X_NRF9151_NS
+
+choice WIFI_NRF70_OPER_MODES
+	default WIFI_NRF70_SCAN_ONLY if BOARD_THINGY91X_NRF9151_NS
+endchoice
+
+config PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY
+	default y if BOARD_NRF9151DK_NRF9151_NS
+
+source "${ZEPHYR_BASE}/share/sysbuild/Kconfig"
