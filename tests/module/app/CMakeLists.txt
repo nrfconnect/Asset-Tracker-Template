@@ -17,7 +17,6 @@ target_sources(app
   src/checks.c
   ../../../app/src/modules/app/app.c
   ../../../app/src/common/message_channel.c
-  ../../../app/src/modules/cloud/cloud_module.c
 )
 
 target_include_directories(app PRIVATE src)
@@ -26,11 +25,9 @@ zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)
 zephyr_include_directories(${ZEPHYR_BASE}/subsys/testsuite/include)
 zephyr_include_directories(../../../app/src/common)
 zephyr_include_directories(../../../app/src/modules/cloud)
-zephyr_include_directories(${NRF_DIR}/subsys/net/lib/nrf_cloud/include)
 zephyr_include_directories(../../../app/src/modules/battery)
 zephyr_include_directories(../../../app/src/modules/button)
 zephyr_include_directories(../../../app/src/modules/network)
-zephyr_include_directories(${NRF_DIR}/../modules/lib/cjson)
 
 target_link_options(app PRIVATE --whole-archive)
 

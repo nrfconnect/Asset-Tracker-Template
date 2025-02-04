@@ -40,6 +40,13 @@ ZBUS_CHAN_DEFINE(NETWORK_CHAN,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(.type = NETWORK_DISCONNECTED)
 );
+ZBUS_CHAN_DEFINE(CLOUD_CHAN,
+		 enum cloud_msg_type,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(CLOUD_DISCONNECTED)
+);
 
 DEFINE_FFF_GLOBALS;
 
@@ -107,21 +114,9 @@ static void send_cloud_disconnected(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-static void send_time_available(void)
-{
-	enum time_status time_type = TIME_AVAILABLE;
-	int err = zbus_chan_pub(&TIME_CHAN, &time_type, K_SECONDS(1));
-
-	TEST_ASSERT_EQUAL(0, err);
-}
-
 void test_init_to_connected_state(void)
 {
 	/* Given */
-	send_time_available();
-
-	k_sleep(K_SECONDS(1));
-
 	send_cloud_connected_ready_to_send();
 
 	/* When */

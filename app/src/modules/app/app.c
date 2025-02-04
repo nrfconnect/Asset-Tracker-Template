@@ -48,22 +48,22 @@ static const struct smf_state states[];
 static void init_entry(void *o);
 static void init_run(void *o);
 
-static void connected_entry(void *o);
-static void connected_run(void *o);
+static void cloud_connected_entry(void *o);
+static void cloud_connected_run(void *o);
 
-static void disconnected_entry(void *o);
-static void disconnected_run(void *o);
+static void cloud_disconnected_entry(void *o);
+static void cloud_disconnected_run(void *o);
 
 /* Defining the hierarchical trigger module states:
  *
  *   STATE_INIT: Initial state where the module waits for time to be available.
- *   STATE_DISCONNECTED: Cloud connection is not established or paused
- *   STATE_CONNECTED: Cloud connection is established and ready to send data
+ *   STATE_CLOUD_DISCONNECTED: Cloud connection is not established or paused
+ *   STATE_CLOUD_CONNECTED: Cloud connection is established and ready to send data
  */
 enum state {
 	STATE_INIT,
-	STATE_CONNECTED,
-	STATE_DISCONNECTED,
+	STATE_CLOUD_CONNECTED,
+	STATE_CLOUD_DISCONNECTED,
 };
 
 /* Construct state table */
@@ -75,16 +75,16 @@ static const struct smf_state states[] = {
 		NULL,
 		NULL
 	),
-	[STATE_CONNECTED] = SMF_CREATE_STATE(
-		connected_entry,
-		connected_run,
+	[STATE_CLOUD_CONNECTED] = SMF_CREATE_STATE(
+		cloud_connected_entry,
+		cloud_connected_run,
 		NULL,
 		NULL,
 		NULL
 	),
-	[STATE_DISCONNECTED] = SMF_CREATE_STATE(
-		disconnected_entry,
-		disconnected_run,
+	[STATE_CLOUD_DISCONNECTED] = SMF_CREATE_STATE(
+		cloud_disconnected_entry,
+		cloud_disconnected_run,
 		NULL,
 		NULL,
 		NULL
@@ -204,16 +204,25 @@ static void init_run(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	if ((user_object->chan == &TIME_CHAN) && (user_object->time_status == TIME_AVAILABLE)) {
-		LOG_DBG("Time available, going into disconnected state");
-		STATE_SET(app_state, STATE_DISCONNECTED);
-		return;
+	if (user_object->chan == &CLOUD_CHAN) {
+		if (user_object->status == CLOUD_CONNECTED_READY_TO_SEND) {
+			LOG_DBG("Cloud connected and ready, going into connected state");
+			STATE_SET(app_state, STATE_CLOUD_CONNECTED);
+			return;
+		}
+
+		if ((user_object->status == CLOUD_DISCONNECTED) ||
+		    (user_object->status == CLOUD_CONNECTED_PAUSED)) {
+			LOG_DBG("Cloud disconnected/paused, going into disconnected state");
+			STATE_SET(app_state, STATE_CLOUD_DISCONNECTED);
+			return;
+		}
 	}
 }
 
 /* STATE_DISCONNECTED */
 
-static void disconnected_entry(void *o)
+static void cloud_disconnected_entry(void *o)
 {
 	ARG_UNUSED(o);
 
@@ -222,7 +231,7 @@ static void disconnected_entry(void *o)
 	k_work_cancel_delayable(&trigger_work);
 }
 
-static void disconnected_run(void *o)
+static void cloud_disconnected_run(void *o)
 {
 	struct state_object *user_object = o;
 
@@ -230,14 +239,15 @@ static void disconnected_run(void *o)
 
 	if ((user_object->chan == &CLOUD_CHAN) &&
 	    (user_object->status == CLOUD_CONNECTED_READY_TO_SEND)) {
-		STATE_SET(app_state, STATE_CONNECTED);
+		LOG_DBG("Cloud connected and ready, going into connected state");
+		STATE_SET(app_state, STATE_CLOUD_CONNECTED);
 		return;
 	}
 }
 
 /* STATE_CONNECTED */
 
-static void connected_entry(void *o)
+static void cloud_connected_entry(void *o)
 {
 	ARG_UNUSED(o);
 
@@ -246,7 +256,7 @@ static void connected_entry(void *o)
 	k_work_reschedule(&trigger_work, K_NO_WAIT);
 }
 
-static void connected_run(void *o)
+static void cloud_connected_run(void *o)
 {
 	struct state_object *user_object = o;
 
@@ -256,7 +266,7 @@ static void connected_run(void *o)
 	    ((user_object->status == CLOUD_CONNECTED_PAUSED) ||
 	     (user_object->status == CLOUD_DISCONNECTED))) {
 		LOG_DBG("Cloud disconnected/paused, going into disconnected state");
-		STATE_SET(app_state, STATE_DISCONNECTED);
+		STATE_SET(app_state, STATE_CLOUD_DISCONNECTED);
 		return;
 	}
 
