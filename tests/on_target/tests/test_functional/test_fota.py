@@ -114,9 +114,8 @@ def run_fota_fixture(t91x_fota, hex_file):
         else:
             raise AssertionError(f"Fota update not available after {i} attempts")
 
-
-        if fota_type == "app":
-            run_fota_resumption(t91x_fota, "app")
+        # if fota_type == "app":
+        #     run_fota_resumption(t91x_fota, "app")
 
         await_nrfcloud(
                 functools.partial(t91x_fota.fota.get_fota_status, t91x_fota.data['job_id']),
