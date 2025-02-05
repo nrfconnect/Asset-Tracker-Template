@@ -92,17 +92,17 @@ jobs:
         run: |
           pip install -r requirements.txt --break-system-packages
 
-      # - name: Upload symbol file to Memfault
-      #   working-directory: thingy91x-oob/tests/on_target/artifacts
-      #   run: |
-      #     memfault \
-      #         --org-token ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }} \
-      #         --org ${{ vars.MEMFAULT_ORGANIZATION_SLUG }} \
-      #         --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
-      #         upload-mcu-symbols \
-      #         --software-type hello.nrfcloud.com-ci \
-      #         --software-version ${{ inputs.artifact_fw_version }} \
-      #         hello.nrfcloud.com-${{ inputs.artifact_fw_version }}-thingy91x-nrf91.elf
+      - name: Upload symbol file to Memfault
+        working-directory: asset-tracker-template/tests/on_target/artifacts
+        run: |
+          memfault \
+              --org-token ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }} \
+              --org ${{ secrets.MEMFAULT_ORGANIZATION_SLUG }} \
+              --project ${{ secrets.MEMFAULT_PROJECT_SLUG }} \
+              upload-mcu-symbols \
+              --software-type asset-tracker-template-ci \
+              --software-version ${{ inputs.artifact_fw_version }} \
+              asset-tracker-template-${{ inputs.artifact_fw_version }}-thingy91x-nrf91.elf
 
       - name: Target Tests
         working-directory: asset-tracker-template/tests/on_target
