@@ -19,10 +19,13 @@ ZBUS_CHAN_DECLARE(
 	LOCATION_CHAN
 );
 
-enum location_status {
+enum location_msg_type {
 	LOCATION_SEARCH_STARTED = 0x1,
 	LOCATION_SEARCH_DONE,
+	LOCATION_SEARCH_TRIGGER,
 };
+
+#define MSG_TO_LOCATION_TYPE(_msg)	(*(const enum location_msg_type *)_msg)
 
 #ifdef __cplusplus
 }

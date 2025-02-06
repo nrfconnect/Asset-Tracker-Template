@@ -18,6 +18,7 @@
 #endif /* CONFIG_MEMFAULT */
 
 #include "modules_common.h"
+#include "cloud_module.h"
 #include "message_channel.h"
 #include "network.h"
 #if defined(CONFIG_APP_BATTERY)
@@ -54,7 +55,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(cloud);
 /* Observe channels */
 ZBUS_CHAN_ADD_OBS(PAYLOAD_CHAN, cloud, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, cloud, 0);
-ZBUS_CHAN_ADD_OBS(TRIGGER_CHAN, cloud, 0);
+ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, cloud, 0);
 ZBUS_CHAN_ADD_OBS(ENVIRONMENTAL_CHAN, cloud, 0);
 #if defined(CONFIG_APP_BATTERY)
 ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, cloud, 0);
@@ -607,11 +608,11 @@ static void state_connected_ready_run(void *o)
 		}
 	}
 
-	if (state_object->chan == &TRIGGER_CHAN) {
-		const enum trigger_type type = MSG_TO_TRIGGER_TYPE(state_object->msg_buf);
+	if (state_object->chan == &CLOUD_CHAN) {
+		const enum cloud_msg_type msg_type = MSG_TO_CLOUD_MSG(state_object->msg_buf).type;
 
-		if (type == TRIGGER_POLL_SHADOW) {
-			LOG_DBG("Poll trigger received");
+		if (msg_type == CLOUD_POLL_SHADOW) {
+			LOG_DBG("Poll shadow trigger received");
 
 			shadow_get(true);
 		}

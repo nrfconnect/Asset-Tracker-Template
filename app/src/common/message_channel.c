@@ -10,14 +10,6 @@
 
 #include "message_channel.h"
 
-ZBUS_CHAN_DEFINE(TRIGGER_CHAN,
-		 enum trigger_type,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-
 ZBUS_CHAN_DEFINE(ERROR_CHAN,
 		 enum error_type,
 		 NULL,

@@ -7,6 +7,7 @@
 
 #include <zephyr/fff.h>
 #include "message_channel.h"
+#include "cloud_module.h"
 #include "battery.h"
 #include "network.h"
 #include "environmental.h"

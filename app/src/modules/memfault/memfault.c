@@ -18,6 +18,7 @@
 #include <modem/nrf_modem_lib.h>
 
 #include "message_channel.h"
+#include "cloud_module.h"
 
 LOG_MODULE_REGISTER(memfault, CONFIG_APP_MEMFAULT_LOG_LEVEL);
 
