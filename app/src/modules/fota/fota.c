@@ -19,6 +19,8 @@
 
 #include "message_channel.h"
 #include "modules_common.h"
+#include "fota.h"
+#include "cloud_module.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(fota, CONFIG_APP_FOTA_LOG_LEVEL);
@@ -30,11 +32,20 @@ void fota_callback(const struct zbus_channel *chan);
  */
 ZBUS_MSG_SUBSCRIBER_DEFINE(fota);
 
+/* Define FOTA channel */
+ZBUS_CHAN_DEFINE(FOTA_CHAN,
+		 enum fota_msg_type,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
+
 /* Observe channels */
-ZBUS_CHAN_ADD_OBS(TRIGGER_CHAN, fota, 0);
+ZBUS_CHAN_ADD_OBS(FOTA_CHAN, fota, 0);
 ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, fota, 0);
 
-#define MAX_MSG_SIZE MAX(sizeof(enum trigger_type), sizeof(enum cloud_msg_type))
+#define MAX_MSG_SIZE MAX(sizeof(enum fota_msg_type), sizeof(enum cloud_msg_type))
 
 /* FOTA support context */
 static void fota_reboot(enum nrf_cloud_fota_reboot_status status);
@@ -169,10 +180,10 @@ static void state_wait_for_trigger_run(void *o)
 {
 	struct state_object *state_object = o;
 
-	if (&TRIGGER_CHAN == state_object->chan) {
-		const enum trigger_type trigger_type = MSG_TO_TRIGGER_TYPE(state_object->msg_buf);
+	if (&FOTA_CHAN == state_object->chan) {
+		const enum fota_msg_type msg_type = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
-		if (trigger_type == TRIGGER_FOTA_POLL) {
+		if (msg_type == FOTA_POLL) {
 			STATE_SET(fota_state, STATE_POLL_AND_PROCESS);
 		}
 	}

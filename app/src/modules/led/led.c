@@ -73,8 +73,8 @@ struct s_object {
 	/* Network status */
 	enum network_msg_type status;
 
-	/* Network status */
-	enum location_status location_status;
+	/* Location status */
+	enum location_msg_type location_status;
 
 	/* LED color */
 	uint8_t red;
@@ -407,7 +407,7 @@ void led_callback(const struct zbus_channel *chan)
 	}
 
 	if (&LOCATION_CHAN == chan) {
-		const enum location_status *status = zbus_chan_const_msg(chan);
+		const enum location_msg_type *status = zbus_chan_const_msg(chan);
 		state_object.location_status = *status;
 	}
 

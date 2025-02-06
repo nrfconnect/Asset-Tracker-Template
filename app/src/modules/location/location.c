@@ -18,6 +18,7 @@
 #include "modem/lte_lc.h"
 #include "location.h"
 #include "network.h"
+#include "cloud_module.h"
 
 #include <net/nrf_cloud.h>
 
@@ -29,7 +30,7 @@ BUILD_ASSERT(CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS >
 
 /* Define channels provided by this module */
 ZBUS_CHAN_DEFINE(LOCATION_CHAN,
-		 enum location_status,
+		 enum location_msg_type,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
@@ -40,13 +41,13 @@ ZBUS_CHAN_DEFINE(LOCATION_CHAN,
 ZBUS_MSG_SUBSCRIBER_DEFINE(location);
 
 /* Observe channels */
-ZBUS_CHAN_ADD_OBS(TRIGGER_CHAN, location, 0);
+ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, location, 0);
 ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, location, 0);
 ZBUS_CHAN_ADD_OBS(CONFIG_CHAN, location, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, location, 0);
 
 #define MAX_MSG_SIZE \
-	(MAX(sizeof(enum trigger_type), \
+	(MAX(sizeof(enum location_msg_type), \
 		 (MAX(sizeof(enum cloud_msg_type), \
 		     (MAX(sizeof(struct configuration), \
 		         sizeof(struct network_msg)))))))
@@ -73,9 +74,9 @@ static enum location_method location_method_types[] = {
 };
 static const uint8_t location_methods_size = ARRAY_SIZE(location_method_types);
 
-static void status_send(enum location_status status)
+static void status_send(enum location_msg_type status)
 {
-	enum location_status location_status = status;
+	enum location_msg_type location_status = status;
 
 	int err = zbus_chan_pub(&LOCATION_CHAN, &location_status, K_SECONDS(1));
 
@@ -130,10 +131,10 @@ void handle_network_chan(struct network_msg msg) {
 	}
 }
 
-void handle_trigger_chan(enum trigger_type trigger_type)
+void handle_location_chan(enum location_msg_type location_msg_type)
 {
-	if (trigger_type == TRIGGER_DATA_SAMPLE) {
-		LOG_DBG("Data sample trigger received, getting location");
+	if (location_msg_type == LOCATION_SEARCH_TRIGGER) {
+		LOG_DBG("Location search trigger received, getting location");
 		trigger_location_update();
 	}
 }
@@ -222,9 +223,8 @@ void location_task(void)
 			handle_network_chan(MSG_TO_NETWORK_MSG(&msg_buf));
 		}
 
-		if (&TRIGGER_CHAN == chan) {
-			LOG_DBG("Trigger received");
-			handle_trigger_chan(MSG_TO_TRIGGER_TYPE(&msg_buf));
+		if (&LOCATION_CHAN == chan) {
+			handle_location_chan(MSG_TO_LOCATION_TYPE(&msg_buf));
 		}
 
 		if (&CONFIG_CHAN == chan) {

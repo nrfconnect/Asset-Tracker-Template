@@ -16,6 +16,9 @@
 #include "button.h"
 #include "network.h"
 #include "environmental.h"
+#include "cloud_module.h"
+#include "fota.h"
+#include "location.h"
 
 #if defined(CONFIG_APP_BATTERY)
 #include "battery.h"
@@ -121,7 +124,6 @@ static void triggers_send(void)
 	struct network_msg network_msg = {
 		.type = NETWORK_QUALITY_SAMPLE_REQUEST,
 	};
-	enum trigger_type poll_trigger = TRIGGER_FOTA_POLL;
 
 	err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_SECONDS(1));
 	if (err) {
@@ -157,7 +159,9 @@ static void triggers_send(void)
 #endif /* CONFIG_APP_ENVIRONMENTAL */
 
 	/* Send FOTA poll trigger */
-	err = zbus_chan_pub(&TRIGGER_CHAN, &poll_trigger, K_SECONDS(1));
+	enum fota_msg_type fota_msg = FOTA_POLL;
+
+	err = zbus_chan_pub(&FOTA_CHAN, &fota_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub FOTA trigger, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -165,9 +169,11 @@ static void triggers_send(void)
 	}
 
 	/* Send trigger for shadow polling */
-	poll_trigger = TRIGGER_POLL_SHADOW;
+	struct cloud_msg cloud_msg = {
+		.type = CLOUD_POLL_SHADOW
+	};
 
-	err = zbus_chan_pub(&TRIGGER_CHAN, &poll_trigger, K_SECONDS(1));
+	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub shadow trigger, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -175,9 +181,9 @@ static void triggers_send(void)
 	}
 
 	/* Trigger location search and environmental data sample */
-	poll_trigger = TRIGGER_DATA_SAMPLE;
+	enum location_msg_type location_msg = LOCATION_SEARCH_TRIGGER;
 
-	err = zbus_chan_pub(&TRIGGER_CHAN, &poll_trigger, K_SECONDS(1));
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub data sample trigger, error: %d", err);
 		SEND_FATAL_ERROR();

@@ -16,8 +16,6 @@
 #include <memfault/panics/assert.h>
 #endif
 
-#include "cloud_module.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -47,14 +45,6 @@ extern "C" {
 	LOG_PANIC();								\
 	k_sleep(K_SECONDS(10));							\
 } while (0)
-
-enum trigger_type {
-	TRIGGER_POLL_SHADOW = 0x1,
-	TRIGGER_FOTA_POLL,
-	TRIGGER_DATA_SAMPLE,
-};
-
-#define MSG_TO_TRIGGER_TYPE(_msg)	(*(const enum trigger_type *)_msg)
 
 enum time_status {
 	TIME_AVAILABLE = 0x1,
@@ -90,8 +80,7 @@ struct configuration {
 ZBUS_CHAN_DECLARE(
 	CONFIG_CHAN,
 	ERROR_CHAN,
-	TIME_CHAN,
-	TRIGGER_CHAN
+	TIME_CHAN
 );
 
 #ifdef __cplusplus
