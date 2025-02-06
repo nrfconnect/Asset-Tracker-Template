@@ -1,4 +1,4 @@
-name: Twister native sim (No Sonarcloud yet)
+name: Sonarcloud and Twister Native Sim
 on:
   push:
     branches:
@@ -55,65 +55,51 @@ jobs:
             apt-get update
             apt install -y curl ruby-full
 
-      # - name: Install sonar-scanner and build-wrapper
-      #   uses: SonarSource/sonarcloud-github-c-cpp@v3
+      - name: Install sonar-scanner and build-wrapper
+        uses: SonarSource/sonarcloud-github-c-cpp@v3
 
-      - name: Build and test native sim
+      - name: Build and test
         working-directory: asset-tracker-template
         run: |
-          west twister -T . -C --coverage-platform=native_sim -v --inline-logs --integration
+          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} west twister -T . -C --coverage-platform=native_sim -v --inline-logs --integration
 
-      - name: Results
-        if: always()
-        uses: pmeier/pytest-results-action@v0.7.1
-        with:
-          path: asset-tracker-template//twister-out/*.xml
-          summary: true
-          fail-on-empty: true
-          title: ATT FW Unittest natvie sim Results
+      - name: Extract coverage into sonarqube xml format
+        working-directory: asset-tracker-template
+        run: |
+          gcovr twister-out -v --merge-mode-functions=separate --exclude='twister-out|drivers' --sonarqube coverage.xml
 
-      # - name: Build and test
-      #   working-directory: asset-tracker-template
-      #   run: |
-      #     build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} west twister -T . -C --coverage-platform=native_sim -v --inline-logs --integration
+      - name: Run sonar-scanner on main
+        working-directory: asset-tracker-template
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          sonar-scanner \
+            --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}" \
+            --define project.settings=sonar-project.properties \
+            --define sonar.coverageReportPaths=coverage.xml \
+            --define sonar.inclusions=**/*.c,**/*.h \
+            --define sonar.exclusions=tests/,drivers/sensor/*_dummy/
 
-      # - name: Extract coverage into sonarqube xml format
-      #   working-directory: asset-tracker-template
-      #   run: |
-      #     gcovr twister-out -v --merge-mode-functions=separate --exclude='twister-out|drivers' --sonarqube coverage.xml
-
-      # - name: Run sonar-scanner on main
-      #   working-directory: asset-tracker-template
-      #   if: github.event_name != 'pull_request'
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      #   run: |
-      #     sonar-scanner \
-      #       --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}" \
-      #       --define project.settings=sonar-project.properties \
-      #       --define sonar.coverageReportPaths=coverage.xml \
-      #       --define sonar.inclusions=**/*.c,**/*.h \
-      #       --define sonar.exclusions=tests/,drivers/sensor/*_dummy/
-
-      # - name: Run sonar-scanner on PR
-      #   working-directory: asset-tracker-template
-      #   if: github.event_name == 'pull_request'
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      #     PR_NUMBER: ${{ github.event.pull_request.number }}
-      #     PR_BRANCH: ${{ github.event.pull_request.head.ref }}
-      #     BASE_REF: ${{ github.event.pull_request.base.ref }}
-      #     HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-      #   run: |
-      #     sonar-scanner \
-      #       --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}" \
-      #       --define project.settings=sonar-project.properties \
-      #       --define sonar.coverageReportPaths=coverage.xml \
-      #       --define sonar.inclusions=**/*.c,**/*.h \
-      #       --define sonar.exclusions=tests/,drivers/sensor/*_dummy/ \
-      #       --define sonar.scm.revision=${{ env.HEAD_SHA }} \
-      #       --define sonar.pullrequest.key=${{ env.PR_NUMBER }} \
-      #       --define sonar.pullrequest.branch=${{ env.PR_BRANCH }} \
-      #       --define sonar.pullrequest.base=${{ env.BASE_REF }}
+      - name: Run sonar-scanner on PR
+        working-directory: asset-tracker-template
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          sonar-scanner \
+            --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}" \
+            --define project.settings=sonar-project.properties \
+            --define sonar.coverageReportPaths=coverage.xml \
+            --define sonar.inclusions=**/*.c,**/*.h \
+            --define sonar.exclusions=tests/,drivers/sensor/*_dummy/ \
+            --define sonar.scm.revision=${{ env.HEAD_SHA }} \
+            --define sonar.pullrequest.key=${{ env.PR_NUMBER }} \
+            --define sonar.pullrequest.branch=${{ env.PR_BRANCH }} \
+            --define sonar.pullrequest.base=${{ env.BASE_REF }}
