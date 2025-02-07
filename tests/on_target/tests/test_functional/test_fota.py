@@ -21,8 +21,8 @@ MFW_202_FILEPATH = "artifacts/mfw_nrf91x1_2.0.2.zip"
 TEST_APP_VERSION = "foo"
 TEST_APP_BIN = "artifacts/stable_version_jan_2025-update-signed.bin"
 
-DELTA_MFW_BUNDLEID = "MODEM*3471f88e*mfw_nrf91x1_2.0.2-FOTA-TEST"
-FULL_MFW_BUNDLEID = "MDM_FULL*124c2b20*mfw_nrf91x1_full_2.0.2"
+DELTA_MFW_BUNDLEID = "59cec896-c842-40fe-9a95-a4f3e88a4cdb"
+FULL_MFW_BUNDLEID = "d692915d-d978-4c77-ab02-f05f511971f9"
 NEW_MFW_DELTA_VERSION = "mfw_nrf91x1_2.0.2-FOTA-TEST"
 MFW_202_VERSION = "mfw_nrf91x1_2.0.2"
 
