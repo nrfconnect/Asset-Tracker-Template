@@ -19,6 +19,7 @@
 #include "cloud_module.h"
 #include "fota.h"
 #include "location.h"
+#include "led.h"
 
 #include "checks.h"
 
@@ -65,9 +66,15 @@ ZBUS_CHAN_DEFINE(FOTA_CHAN,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0)
 );
-
 ZBUS_CHAN_DEFINE(LOCATION_CHAN,
 		 enum location_msg_type,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
+ZBUS_CHAN_DEFINE(LED_CHAN,
+		 struct led_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,

@@ -7,13 +7,8 @@
 menuconfig APP_LED
 	bool "LED"
 	select LED
-	default y if !BOARD_NATIVE_POSIX
 
 if APP_LED
-
-config APP_LED_PWM_WORKQUEUE_STACK_SIZE
-	int "LED PWM WQ stack size"
-	default 768
 
 module = APP_LED
 module-str = LED

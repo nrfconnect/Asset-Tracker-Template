@@ -31,6 +31,7 @@ zephyr_include_directories(../../../app/src/modules/network)
 zephyr_include_directories(../../../app/src/modules/environmental)
 zephyr_include_directories(../../../app/src/modules/fota)
 zephyr_include_directories(../../../app/src/modules/location)
+zephyr_include_directories(../../../app/src/modules/led)
 
 
 target_link_options(app PRIVATE --whole-archive)
