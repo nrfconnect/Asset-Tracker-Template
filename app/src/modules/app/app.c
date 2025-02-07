@@ -19,6 +19,7 @@
 #include "cloud_module.h"
 #include "fota.h"
 #include "location.h"
+#include "led.h"
 
 #if defined(CONFIG_APP_BATTERY)
 #include "battery.h"
@@ -219,7 +220,7 @@ static void init_run(void *o)
 		}
 
 		if ((user_object->status == CLOUD_DISCONNECTED) ||
-		    (user_object->status == CLOUD_CONNECTED_PAUSED)) {
+			(user_object->status == CLOUD_CONNECTED_PAUSED)) {
 			LOG_DBG("Cloud disconnected/paused, going into disconnected state");
 			STATE_SET(app_state, STATE_CLOUD_DISCONNECTED);
 			return;
@@ -235,6 +236,25 @@ static void cloud_disconnected_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 
+	int err;
+
+	/* Blink Yellow */
+	struct led_msg led_msg = {
+		.type = LED_RGB_SET,
+		.red = 255,
+		.green = 255,
+		.blue = 0,
+		.duration_on_msec = 250,
+		.duration_off_msec = 2000,
+		.repetitions = 10,
+	};
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
 	k_work_cancel_delayable(&trigger_work);
 }
 
@@ -245,7 +265,7 @@ static void cloud_disconnected_run(void *o)
 	LOG_DBG("%s", __func__);
 
 	if ((user_object->chan == &CLOUD_CHAN) &&
-	    (user_object->status == CLOUD_CONNECTED_READY_TO_SEND)) {
+		(user_object->status == CLOUD_CONNECTED_READY_TO_SEND)) {
 		LOG_DBG("Cloud connected and ready, going into connected state");
 		STATE_SET(app_state, STATE_CLOUD_CONNECTED);
 		return;
@@ -260,6 +280,26 @@ static void cloud_connected_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 
+	int err;
+
+	/* Blink Green */
+	struct led_msg led_msg = {
+		.type = LED_RGB_SET,
+		.red = 0,
+		.green = 255,
+		.blue = 0,
+		.duration_on_msec = 250,
+		.duration_off_msec = 2000,
+		.repetitions = 10,
+	};
+
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
 	k_work_reschedule(&trigger_work, K_NO_WAIT);
 }
 
@@ -270,8 +310,8 @@ static void cloud_connected_run(void *o)
 	LOG_DBG("%s", __func__);
 
 	if ((user_object->chan == &CLOUD_CHAN) &&
-	    ((user_object->status == CLOUD_CONNECTED_PAUSED) ||
-	     (user_object->status == CLOUD_DISCONNECTED))) {
+		((user_object->status == CLOUD_CONNECTED_PAUSED) ||
+		(user_object->status == CLOUD_DISCONNECTED))) {
 		LOG_DBG("Cloud disconnected/paused, going into disconnected state");
 		STATE_SET(app_state, STATE_CLOUD_DISCONNECTED);
 		return;
@@ -321,9 +361,9 @@ static void app_callback(const struct zbus_channel *chan)
 	int err;
 
 	if ((chan != &CONFIG_CHAN) &&
-	    (chan != &CLOUD_CHAN) &&
-	    (chan != &BUTTON_CHAN) &&
-	    (chan != &TIME_CHAN)) {
+		(chan != &CLOUD_CHAN) &&
+		(chan != &BUTTON_CHAN) &&
+		(chan != &TIME_CHAN)) {
 		LOG_ERR("Unknown channel");
 		return;
 	}
