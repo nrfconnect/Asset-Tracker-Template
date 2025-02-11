@@ -15,11 +15,17 @@
 #include "message_channel.h"
 #include "button.h"
 #include "network.h"
-#include "environmental.h"
 #include "cloud_module.h"
 #include "fota.h"
 #include "location.h"
+
+#if defined(CONFIG_APP_LED)
 #include "led.h"
+#endif /* CONFIG_APP_LED */
+
+#if defined(CONFIG_APP_ENVIRONMENTAL)
+#include "environmental.h"
+#endif /* CONFIG_APP_ENVIRONMENTAL */
 
 #if defined(CONFIG_APP_BATTERY)
 #include "battery.h"
@@ -236,8 +242,7 @@ static void cloud_disconnected_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	int err;
-
+#if defined(CONFIG_APP_LED)
 	/* Blink Yellow */
 	struct led_msg led_msg = {
 		.type = LED_RGB_SET,
@@ -248,12 +253,15 @@ static void cloud_disconnected_entry(void *o)
 		.duration_off_msec = 2000,
 		.repetitions = 10,
 	};
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+
+	int err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
 		return;
 	}
+#endif /* CONFIG_APP_LED */
 
 	k_work_cancel_delayable(&trigger_work);
 }
@@ -280,8 +288,7 @@ static void cloud_connected_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	int err;
-
+#if defined(CONFIG_APP_LED)
 	/* Blink Green */
 	struct led_msg led_msg = {
 		.type = LED_RGB_SET,
@@ -293,12 +300,14 @@ static void cloud_connected_entry(void *o)
 		.repetitions = 10,
 	};
 
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+	int err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
 		return;
 	}
+#endif /* CONFIG_APP_LED */
 
 	k_work_reschedule(&trigger_work, K_NO_WAIT);
 }

@@ -21,10 +21,14 @@
 #include "cloud_module.h"
 #include "message_channel.h"
 #include "network.h"
+
 #if defined(CONFIG_APP_BATTERY)
 #include "battery.h"
 #endif /* CONFIG_APP_BATTERY */
+
+#if defined(CONFIG_APP_ENVIRONMENTAL)
 #include "environmental.h"
+#endif /* CONFIG_APP_ENVIRONMENTAL */
 
 /* Register log module */
 LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
@@ -38,12 +42,15 @@ LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 #define BAT_MSG_SIZE	0
 #endif /* CONFIG_APP_BATTERY */
 
+#if defined(CONFIG_APP_ENVIRONMENTAL)
+#define ENV_MSG_SIZE	sizeof(struct environmental_msg)
+#else
+#define ENV_MSG_SIZE	0
+#endif /* CONFIG_APP_ENVIRONMENTAL) */
+
 #define MAX_MSG_SIZE	(MAX(sizeof(struct cloud_payload),					\
 			 MAX(sizeof(struct network_msg),					\
-			 MAX(BAT_MSG_SIZE,							\
-			 sizeof(struct environmental_msg)))))
-
-
+			 MAX(BAT_MSG_SIZE, ENV_MSG_SIZE))))
 
 BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
 	     CONFIG_APP_CLOUD_EXEC_TIME_SECONDS_MAX,
@@ -56,7 +63,11 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(cloud);
 ZBUS_CHAN_ADD_OBS(PAYLOAD_CHAN, cloud, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, cloud, 0);
 ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, cloud, 0);
+
+#if defined(CONFIG_APP_ENVIRONMENTAL)
 ZBUS_CHAN_ADD_OBS(ENVIRONMENTAL_CHAN, cloud, 0);
+#endif /* CONFIG_APP_ENVIRONMENTAL */
+
 #if defined(CONFIG_APP_BATTERY)
 ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, cloud, 0);
 #endif /* CONFIG_APP_BATTERY */
@@ -470,10 +481,6 @@ static void shadow_get(bool delta_only)
 		return;
 	} else if (err > 0) {
 		LOG_WRN("Cloud error: %d", err);
-
-		IF_ENABLED(CONFIG_MEMFAULT,
-			(MEMFAULT_TRACE_EVENT_WITH_STATUS(nrf_cloud_coap_shadow_get, err)));
-
 		return;
 	} else if (err) {
 		LOG_ERR("Failed to request shadow delta: %d", err);
@@ -566,6 +573,7 @@ static void state_connected_ready_run(void *o)
 	}
 #endif /* CONFIG_APP_BATTERY */
 
+#if defined(CONFIG_APP_ENVIRONMENTAL)
 	if (state_object->chan == &ENVIRONMENTAL_CHAN) {
 		struct environmental_msg msg = MSG_TO_ENVIRONMENTAL_MSG(state_object->msg_buf);
 
@@ -597,6 +605,7 @@ static void state_connected_ready_run(void *o)
 			return;
 		}
 	}
+#endif /* CONFIG_APP_ENVIRONMENTAL */
 
 	if (state_object->chan == &PAYLOAD_CHAN) {
 		struct cloud_payload *payload = MSG_TO_PAYLOAD(state_object->msg_buf);
