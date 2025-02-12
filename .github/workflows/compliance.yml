@@ -16,11 +16,10 @@ jobs:
     if: ${{ !contains(github.actor, 'renovate') }}
 
     steps:
-      - name: Install requirements
+      - name: Installation
         run: |
-          apt-get update
-          apt-get install --no-install-recommends -y libmagic1 git
-          pip install unidiff yamllint junitparser python-magic west lxml gitlint
+          apt-get update && apt-get install --no-install-recommends -y libmagic1 git
+          pip install west gitlint
 
       - name: Checkout the code
         uses: actions/checkout@v4
@@ -38,6 +37,10 @@ jobs:
           echo ".west folder already exists, skipping west init."
           fi
           west update -o=--depth=1 -n
+
+      - name: Install zephyr requirements
+        run: |
+          pip install -r zephyr/scripts/requirements-compliance.txt
 
       - name: Run Compliance Tests
         id: compliance
