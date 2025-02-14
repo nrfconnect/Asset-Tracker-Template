@@ -91,17 +91,20 @@ FAKE_VALUE_FUNC(int, dk_buttons_init, button_handler_t);
 FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
 FAKE_VOID_FUNC(date_time_register_handler, date_time_evt_handler_t);
-FAKE_VALUE_FUNC(int, nrf_cloud_client_id_get, char *, size_t);
-FAKE_VALUE_FUNC(int, nrf_cloud_coap_init);
-FAKE_VALUE_FUNC(int, nrf_cloud_coap_connect, const char * const);
-FAKE_VALUE_FUNC(int, nrf_cloud_coap_disconnect);
-FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_device_status_update);
-FAKE_VALUE_FUNC(int, nrf_cloud_coap_bytes_send, uint8_t *, size_t, bool);
-FAKE_VALUE_FUNC(int, nrf_cloud_coap_sensor_send, const char *, double, int64_t, bool);
-FAKE_VALUE_FUNC(int, nrf_cloud_coap_json_message_send, const char *, bool, bool);
-FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_get, char *, size_t *, bool, int);
+FAKE_VOID_FUNC(sys_reboot, int);
 
 LOG_MODULE_REGISTER(trigger_module_test, 4);
+
+void setUp(void)
+{
+	RESET_FAKE(dk_buttons_init);
+	RESET_FAKE(task_wdt_feed);
+	RESET_FAKE(task_wdt_add);
+	RESET_FAKE(date_time_register_handler);
+	RESET_FAKE(sys_reboot);
+
+	FFF_RESET_HISTORY();
+}
 
 static void button_handler(uint32_t button_states, uint32_t has_changed)
 {

@@ -11,12 +11,14 @@ project(app_module_test)
 
 test_runner_generate(src/main.c)
 
+set(ASSET_TRACKER_TEMPLATE_DIR ../../..)
+
 target_sources(app
-  PRIVATE
-  src/main.c
-  src/checks.c
-  ../../../app/src/modules/app/app.c
-  ../../../app/src/common/message_channel.c
+	PRIVATE
+	src/main.c
+	src/checks.c
+	${ASSET_TRACKER_TEMPLATE_DIR}/app/src/modules/app/app.c
+	${ASSET_TRACKER_TEMPLATE_DIR}/app/src/common/message_channel.c
 )
 
 target_include_directories(app PRIVATE src)
@@ -36,6 +38,10 @@ zephyr_include_directories(../../../app/src/modules/led)
 
 target_link_options(app PRIVATE --whole-archive)
 
+add_compile_options(-Wno-return-type)
+
+set_property(SOURCE ${ASSET_TRACKER_TEMPLATE_DIR}/app/src/modules/app/app.c PROPERTY COMPILE_FLAGS
+	     "-include ${CMAKE_CURRENT_SOURCE_DIR}/src/redef.h")
 
 # Options that cannot be passed through Kconfig fragments
 target_compile_definitions(app PRIVATE
@@ -58,4 +64,6 @@ target_compile_definitions(app PRIVATE
 	-DCOAP_CONTENT_FORMAT_APP_JSON=50
 	-DCONFIG_APP_BATTERY=1
 	-DCONFIG_APP_ENVIRONMENTAL=1
+	-DZEPHYR_INCLUDE_SYS_REBOOT_H_
+	-DCONFIG_APP_REQUEST_NETWORK_QUALITY=1
 )
