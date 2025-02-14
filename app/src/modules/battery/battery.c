@@ -204,7 +204,7 @@ static void sample(int64_t *ref_time)
 				  NPM1300_CHG_STATUS_CC_MASK |
 				  NPM1300_CHG_STATUS_CV_MASK)) != 0;
 
-	state_of_charge = nrf_fuel_gauge_process(voltage, current, temp, delta, false, NULL);
+	state_of_charge = nrf_fuel_gauge_process(voltage, current, temp, delta, NULL);
 
 	LOG_DBG("State of charge: %f", (double)roundf(state_of_charge));
 	LOG_DBG("The battery is %s", charging ? "charging" : "not charging");

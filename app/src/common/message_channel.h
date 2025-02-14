@@ -79,8 +79,7 @@ struct configuration {
 
 ZBUS_CHAN_DECLARE(
 	CONFIG_CHAN,
-	ERROR_CHAN,
-	TIME_CHAN
+	ERROR_CHAN
 );
 
 #ifdef __cplusplus

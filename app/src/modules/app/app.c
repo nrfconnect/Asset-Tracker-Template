@@ -7,7 +7,6 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
-#include <date_time.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
 
@@ -42,39 +41,52 @@ ZBUS_LISTENER_DEFINE(app_listener, app_callback);
 ZBUS_CHAN_ADD_OBS(CONFIG_CHAN, app_listener, 0);
 ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, app_listener, 0);
 ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, app_listener, 0);
-ZBUS_CHAN_ADD_OBS(TIME_CHAN, app_listener, 0);
+ZBUS_CHAN_ADD_OBS(FOTA_CHAN, app_listener, 0);
+ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, app_listener, 0);
 
 /* Forward declarations */
 static void trigger_work_fn(struct k_work *work);
-static void date_time_handler(const struct date_time_evt *evt);
-static const struct smf_state states[];
 
 /* Delayable work used to schedule triggers */
 static K_WORK_DELAYABLE_DEFINE(trigger_work, trigger_work_fn);
 
-/* State machine definitions */
-static const struct smf_state states[];
-
 /* Forward declarations of state handlers */
-static void init_entry(void *o);
-static void init_run(void *o);
+static void running_run(void *o);
 
-static void cloud_connected_entry(void *o);
-static void cloud_connected_run(void *o);
+static void periodic_triggering_entry(void *o);
+static void periodic_triggering_run(void *o);
 
-static void cloud_disconnected_entry(void *o);
-static void cloud_disconnected_run(void *o);
+static void idle_entry(void *o);
+static void idle_run(void *o);
+
+static void fota_entry(void *o);
+static void fota_run(void *o);
+
+static void fota_network_disconnect_pending_entry(void *o);
+static void fota_network_disconnect_pending_run(void *o);
+
+static void fota_image_apply_pending_entry(void *o);
+static void fota_image_apply_pending_run(void *o);
+
+static void fota_rebooting_entry(void *o);
 
 /* Defining the hierarchical trigger module states:
- *
- *   STATE_INIT: Initial state where the module waits for time to be available.
- *   STATE_CLOUD_DISCONNECTED: Cloud connection is not established or paused
- *   STATE_CLOUD_CONNECTED: Cloud connection is established and ready to send data
+ * STATE_RUNNING: The module is operating normally.
+ *	STATE_PERIODIC_TRIGGERING: The module is sending triggers to the rest of the system.
+ *	STATE_IDLE: The module is disconnected from the cloud, triggers are blocked.
+ * STATE_FOTA: The module is in the FOTA process, triggers are blocked.
+ *	STATE_FOTA_NETWORK_DISCONNECT_PENDING: The module is waiting for the network to disconnect.
+ *	STATE_FOTA_IMAGE_APPLY_PENDING: The module is waiting for the FOTA image to be applied.
+ *	STATE_FOTA_REBOOTING: The module is rebooting after applying the FOTA image.
  */
 enum state {
-	STATE_INIT,
-	STATE_CLOUD_CONNECTED,
-	STATE_CLOUD_DISCONNECTED,
+	STATE_RUNNING,
+	STATE_PERIODIC_TRIGGERING,
+	STATE_IDLE,
+	STATE_FOTA,
+	STATE_FOTA_NETWORK_DISCONNECT_PENDING,
+	STATE_FOTA_IMAGE_APPLY_PENDING,
+	STATE_FOTA_REBOOTING,
 };
 
 /* State object for the app module.
@@ -98,33 +110,67 @@ struct app_state_object {
 
 	/* Cloud status */
 	enum cloud_msg_type status;
+
+	/* FOTA status */
+	enum fota_msg_type fota_status;
+
+	/* Network status */
+	enum network_msg_type network_status;
 };
 
 static struct app_state_object app_state;
 
 /* Construct state table */
 static const struct smf_state states[] = {
-	[STATE_INIT] = SMF_CREATE_STATE(
-		init_entry,
-		init_run,
+	[STATE_RUNNING] = SMF_CREATE_STATE(
+		NULL,
+		running_run,
+		NULL,
+		NULL,
+		&states[STATE_IDLE]
+	),
+	[STATE_PERIODIC_TRIGGERING] = SMF_CREATE_STATE(
+		periodic_triggering_entry,
+		periodic_triggering_run,
+		NULL,
+		&states[STATE_RUNNING],
+		NULL
+	),
+	[STATE_IDLE] = SMF_CREATE_STATE(
+		idle_entry,
+		idle_run,
+		NULL,
+		&states[STATE_RUNNING],
+		NULL
+	),
+	[STATE_FOTA] = SMF_CREATE_STATE(
+		fota_entry,
+		fota_run,
 		NULL,
 		NULL,
 		NULL
 	),
-	[STATE_CLOUD_CONNECTED] = SMF_CREATE_STATE(
-		cloud_connected_entry,
-		cloud_connected_run,
+	[STATE_FOTA_NETWORK_DISCONNECT_PENDING] = SMF_CREATE_STATE(
+		fota_network_disconnect_pending_entry,
+		fota_network_disconnect_pending_run,
 		NULL,
-		NULL,
+		&states[STATE_FOTA],
 		NULL
 	),
-	[STATE_CLOUD_DISCONNECTED] = SMF_CREATE_STATE(
-		cloud_disconnected_entry,
-		cloud_disconnected_run,
+	[STATE_FOTA_IMAGE_APPLY_PENDING] = SMF_CREATE_STATE(
+		fota_image_apply_pending_entry,
+		fota_image_apply_pending_run,
 		NULL,
-		NULL,
+		&states[STATE_FOTA],
 		NULL
-	)
+	),
+	[STATE_FOTA_REBOOTING] = SMF_CREATE_STATE(
+		fota_rebooting_entry,
+		NULL,
+		NULL,
+		&states[STATE_FOTA],
+		NULL
+	),
 };
 
 static void triggers_send(void)
@@ -168,7 +214,7 @@ static void triggers_send(void)
 #endif /* CONFIG_APP_ENVIRONMENTAL */
 
 	/* Send FOTA poll trigger */
-	enum fota_msg_type fota_msg = FOTA_POLL;
+	enum fota_msg_type fota_msg = FOTA_POLL_REQUEST;
 
 	err = zbus_chan_pub(&FOTA_CHAN, &fota_msg, K_SECONDS(1));
 	if (err) {
@@ -200,45 +246,39 @@ static void triggers_send(void)
 	}
 }
 
-/* Zephyr State Machine framework handlers */
-
-/* STATE_INIT */
-
-static void init_entry(void *o)
+/* Delayable work used to send triggers to the rest of the system */
+static void trigger_work_fn(struct k_work *work)
 {
-	ARG_UNUSED(o);
+	ARG_UNUSED(work);
 
-	LOG_DBG("%s", __func__);
+	LOG_DBG("Sending data sample trigger");
 
-	/* Setup handler for date_time library */
-	date_time_register_handler(date_time_handler);
+	triggers_send();
+
+	k_work_reschedule(&trigger_work, K_SECONDS(app_state.interval_sec));
 }
 
-static void init_run(void *o)
+/* Zephyr State Machine framework handlers */
+
+/* STATE_RUNNING */
+
+static void running_run(void *o)
 {
 	const struct app_state_object *state_object = (const struct app_state_object *)o;
 
 	LOG_DBG("%s", __func__);
 
-	if (state_object->chan == &CLOUD_CHAN) {
-		if (state_object->status == CLOUD_CONNECTED_READY_TO_SEND) {
-			LOG_DBG("Cloud connected and ready, going into connected state");
-			STATE_SET(app_state, STATE_CLOUD_CONNECTED);
-			return;
-		}
-
-		if ((state_object->status == CLOUD_DISCONNECTED) ||
-			(state_object->status == CLOUD_CONNECTED_PAUSED)) {
-			LOG_DBG("Cloud disconnected/paused, going into disconnected state");
-			STATE_SET(app_state, STATE_CLOUD_DISCONNECTED);
+	if (state_object->chan == &FOTA_CHAN) {
+		if (state_object->fota_status == FOTA_DOWNLOADING_UPDATE) {
+			STATE_SET(app_state, STATE_FOTA);
 			return;
 		}
 	}
 }
 
-/* STATE_DISCONNECTED */
+/* STATE_IDLE */
 
-static void cloud_disconnected_entry(void *o)
+static void idle_entry(void *o)
 {
 	ARG_UNUSED(o);
 
@@ -268,7 +308,7 @@ static void cloud_disconnected_entry(void *o)
 	k_work_cancel_delayable(&trigger_work);
 }
 
-static void cloud_disconnected_run(void *o)
+static void idle_run(void *o)
 {
 	const struct app_state_object *state_object = (const struct app_state_object *)o;
 
@@ -276,15 +316,15 @@ static void cloud_disconnected_run(void *o)
 
 	if ((state_object->chan == &CLOUD_CHAN) &&
 		(state_object->status == CLOUD_CONNECTED_READY_TO_SEND)) {
-		LOG_DBG("Cloud connected and ready, going into connected state");
-		STATE_SET(app_state, STATE_CLOUD_CONNECTED);
+		LOG_DBG("Cloud connected and ready, going into periodic triggering state");
+		STATE_SET(app_state, STATE_PERIODIC_TRIGGERING);
 		return;
 	}
 }
 
 /* STATE_CONNECTED */
 
-static void cloud_connected_entry(void *o)
+static void periodic_triggering_entry(void *o)
 {
 	ARG_UNUSED(o);
 
@@ -314,7 +354,7 @@ static void cloud_connected_entry(void *o)
 	k_work_reschedule(&trigger_work, K_NO_WAIT);
 }
 
-static void cloud_connected_run(void *o)
+static void periodic_triggering_run(void *o)
 {
 	const struct app_state_object *state_object = (const struct app_state_object *)o;
 
@@ -323,13 +363,12 @@ static void cloud_connected_run(void *o)
 	if ((state_object->chan == &CLOUD_CHAN) &&
 		((state_object->status == CLOUD_CONNECTED_PAUSED) ||
 		(state_object->status == CLOUD_DISCONNECTED))) {
-		LOG_DBG("Cloud disconnected/paused, going into disconnected state");
-		STATE_SET(app_state, STATE_CLOUD_DISCONNECTED);
+		LOG_DBG("Cloud disconnected/paused, going into idle state");
+		STATE_SET(app_state, STATE_IDLE);
 		return;
 	}
 
 	if (state_object->chan == &BUTTON_CHAN) {
-		LOG_DBG("Button %d pressed!", state_object->button_number);
 		k_work_reschedule(&trigger_work, K_NO_WAIT);
 		return;
 	}
@@ -341,43 +380,131 @@ static void cloud_connected_run(void *o)
 	}
 }
 
-static void date_time_handler(const struct date_time_evt *evt) {
-	if (evt->type != DATE_TIME_NOT_OBTAINED) {
-		int err;
-		enum time_status time_status = TIME_AVAILABLE;
+/* STATE_FOTA */
 
-		err = zbus_chan_pub(&TIME_CHAN, &time_status, K_SECONDS(1));
-		if (err) {
-			LOG_ERR("zbus_chan_pub, error: %d", err);
-			SEND_FATAL_ERROR();
+static void fota_entry(void *o)
+{
+	ARG_UNUSED(o);
+
+	LOG_DBG("%s", __func__);
+
+	k_work_cancel_delayable(&trigger_work);
+}
+
+static void fota_run(void *o)
+{
+	const struct app_state_object *state_object = (const struct app_state_object *)o;
+
+	LOG_DBG("%s", __func__);
+
+	if (state_object->chan == &FOTA_CHAN) {
+		switch (state_object->fota_status) {
+		case FOTA_CANCELED:
+			__fallthrough;
+		case FOTA_DOWNLOAD_TIMED_OUT:
+			__fallthrough;
+		case FOTA_DOWNLOAD_FAILED:
+			STATE_SET(app_state, STATE_RUNNING);
+			return;
+		case FOTA_NETWORK_DISCONNECT_NEEDED:
+			STATE_SET(app_state, STATE_FOTA_NETWORK_DISCONNECT_PENDING);
+			return;
+		default:
+			/* Don't care */
+			break;
 		}
 	}
 }
 
-/* Delayable work used to send triggers to the rest of the system */
-static void trigger_work_fn(struct k_work *work)
+/* STATE_FOTA_NETWORK_DISCONNECT_PENDING */
+
+static void fota_network_disconnect_pending_entry(void *o)
 {
-	ARG_UNUSED(work);
+	ARG_UNUSED(o);
 
-	LOG_DBG("Sending data sample trigger");
+	LOG_DBG("%s", __func__);
 
-	triggers_send();
+	int err;
+	struct network_msg msg = {
+		.type = NETWORK_DISCONNECT
+	};
 
-	k_work_reschedule(&trigger_work, K_SECONDS(app_state.interval_sec));
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+static void fota_network_disconnect_pending_run(void *o)
+{
+	const struct app_state_object *state_object = (const struct app_state_object *)o;
+
+	LOG_DBG("%s", __func__);
+
+	if (state_object->chan == &NETWORK_CHAN) {
+		if (state_object->network_status == NETWORK_DISCONNECTED) {
+			STATE_SET(app_state, STATE_FOTA_IMAGE_APPLY_PENDING);
+			return;
+		}
+	}
+}
+
+/* STATE_FOTA_IMAGE_APPLY_PENDING */
+
+static void fota_image_apply_pending_entry(void *o)
+{
+	ARG_UNUSED(o);
+
+	LOG_DBG("%s", __func__);
+
+	int err;
+	enum fota_msg_type msg = FOTA_APPLY_IMAGE;
+
+	err = zbus_chan_pub(&FOTA_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+static void fota_image_apply_pending_run(void *o)
+{
+	const struct app_state_object *state_object = (const struct app_state_object *)o;
+
+	LOG_DBG("%s", __func__);
+
+	if (state_object->chan == &FOTA_CHAN) {
+		if (state_object->fota_status == FOTA_REBOOT_NEEDED) {
+			STATE_SET(app_state, STATE_FOTA_REBOOTING);
+			return;
+		}
+	}
+}
+
+/* STATE_FOTA_REBOOTING */
+
+static void fota_rebooting_entry(void *o)
+{
+	ARG_UNUSED(o);
+
+	LOG_DBG("%s", __func__);
+
+	/* Reboot the device */
+	LOG_WRN("Rebooting the device to apply the FOTA update");
+
+	/* Flush log buffer */
+	LOG_PANIC();
+
+	k_sleep(K_SECONDS(5));
+
+	sys_reboot(SYS_REBOOT_COLD);
 }
 
 /* Function called when there is a message received on a channel that the module listens to */
 static void app_callback(const struct zbus_channel *chan)
 {
 	int err;
-
-	if ((chan != &CONFIG_CHAN) &&
-		(chan != &CLOUD_CHAN) &&
-		(chan != &BUTTON_CHAN) &&
-		(chan != &TIME_CHAN)) {
-		LOG_ERR("Unknown channel");
-		return;
-	}
 
 	LOG_DBG("Received message on channel %s", zbus_chan_name(chan));
 
@@ -395,14 +522,14 @@ static void app_callback(const struct zbus_channel *chan)
 		const enum cloud_msg_type *status = zbus_chan_const_msg(chan);
 
 		app_state.status = *status;
-	} else if (&BUTTON_CHAN == chan) {
-		const int *button_number = zbus_chan_const_msg(chan);
+	} else if (&FOTA_CHAN == chan) {
+		const enum fota_msg_type *fota_status = zbus_chan_const_msg(chan);
 
-		app_state.button_number = (uint8_t)*button_number;
-	} else if (&TIME_CHAN == chan) {
-		const enum time_status *time_status = zbus_chan_const_msg(chan);
+		app_state.fota_status = *fota_status;
+	} else if (&NETWORK_CHAN == chan) {
+		const struct network_msg *network_msg = zbus_chan_const_msg(chan);
 
-		app_state.time_status = *time_status;
+		app_state.network_status = network_msg->type;
 	}
 
 	LOG_DBG("Running SMF");
@@ -420,7 +547,7 @@ static int app_init(void)
 {
 	app_state.interval_sec = CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS;
 
-	STATE_SET_INITIAL(app_state, STATE_INIT);
+	STATE_SET_INITIAL(app_state, STATE_RUNNING);
 
 	return 0;
 }

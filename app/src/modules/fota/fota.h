@@ -18,10 +18,44 @@ extern "C" {
 ZBUS_CHAN_DECLARE(FOTA_CHAN);
 
 enum fota_msg_type {
-	FOTA_POLL = 0x1,
+	/* Output message types */
+
+	/* Event notified when downloading the FOTA update failed. */
+	FOTA_DOWNLOAD_FAILED = 0x1,
+
+	/* Event notified when downloading the FOTA update timed out. */
+	FOTA_DOWNLOAD_TIMED_OUT,
+
+	/* Event notified when a FOTA update is being downloaded. */
+	FOTA_DOWNLOADING_UPDATE,
+
+	/* Event notified if there is no available update. */
+	FOTA_NO_AVAILABLE_UPDATE,
+
+	/* Event notified when a FOTA update has succeeded, reboot is needed */
+	FOTA_REBOOT_NEEDED,
+
+	/* Event notified when the module needs the network to disconnect in order to apply
+	 * an update. When network has been disconnect, send the event FOTA_APPLY_IMAGE.
+	 */
+	FOTA_NETWORK_DISCONNECT_NEEDED,
+
+	/* Event notified when the FOTA update has been canceled. */
+	FOTA_CANCELED,
+
+	/* Input message types */
+
+	/* Request to poll cloud for any available firmware updates. */
+	FOTA_POLL_REQUEST,
+
+	/* Request to apply the downloaded firmware image. */
+	FOTA_APPLY_IMAGE,
+
+	/* Cancel the FOTA process. */
+	FOTA_CANCEL,
 };
 
-#define MSG_TO_FOTA_TYPE(_msg)	(*(const enum fota_msg_type *)_msg)
+#define MSG_TO_FOTA_TYPE(_msg) (*(const enum fota_msg_type *)_msg)
 
 #ifdef __cplusplus
 }

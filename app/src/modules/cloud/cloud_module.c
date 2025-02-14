@@ -367,8 +367,6 @@ static void state_disconnected_run(void *o)
 {
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
-	LOG_DBG("%s", __func__);
-
 	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
@@ -460,7 +458,7 @@ static void state_connected_exit(void *o)
 	LOG_DBG("%s", __func__);
 
 	err = nrf_cloud_coap_disconnect();
-	if (err && (err != -ENOTCONN)) {
+	if (err && (err != -ENOTCONN && err != -EPERM)) {
 		LOG_ERR("nrf_cloud_coap_disconnect, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
