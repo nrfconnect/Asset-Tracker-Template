@@ -53,7 +53,7 @@ def pytest_runtest_logstart(nodeid, location):
 def pytest_runtest_logfinish(nodeid, location):
     logger.info(f"Finished test: {nodeid}")
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def t91x_board():
     all_uarts = get_uarts()
     if not all_uarts:
