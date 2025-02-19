@@ -21,9 +21,6 @@ config APP_NETWORK_EXEC_TIME_SECONDS_MAX
 	help
 	  Maximum time allowed for a single execution of the module's thread loop.
 
-config APP_NETWORK_SAMPLE_NETWORK_QUALITY
-	bool "Sample network quality"
-
 module = APP_NETWORK
 module-str = Network
 source "subsys/logging/Kconfig.template.log_config"
