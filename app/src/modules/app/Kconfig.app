@@ -30,6 +30,10 @@ config APP_MODULE_RECV_BUFFER_SIZE
 	int "Receive buffer size"
 	default 1024
 
+config APP_REQUEST_NETWORK_QUALITY
+	bool "Request network quality"
+	help
+	  Request network quality on triggers.
 
 module = APP
 module-str = APP
