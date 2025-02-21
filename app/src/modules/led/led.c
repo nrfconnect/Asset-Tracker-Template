@@ -106,6 +106,8 @@ static int pwm_out(const struct led_msg *led_msg, bool force_off)
 /* Timer work handler for LED blinking */
 static void blink_timer_handler(struct k_work *work)
 {
+	ARG_UNUSED(work);
+
 	led_is_on = !led_is_on;
 
 	/* Update LED state */
