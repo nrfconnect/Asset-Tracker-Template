@@ -77,6 +77,31 @@ enum state {
 	STATE_CLOUD_DISCONNECTED,
 };
 
+/* State object for the app module.
+ * Used to transfer data between state changes.
+ */
+struct app_state_object {
+	/* This must be first */
+	struct smf_ctx ctx;
+
+	/* Last channel type that a message was received on */
+	const struct zbus_channel *chan;
+
+	/* Trigger interval */
+	uint64_t interval_sec;
+
+	/* Button number */
+	uint8_t button_number;
+
+	/* Time available */
+	enum time_status time_status;
+
+	/* Cloud status */
+	enum cloud_msg_type status;
+};
+
+static struct app_state_object app_state;
+
 /* Construct state table */
 static const struct smf_state states[] = {
 	[STATE_INIT] = SMF_CREATE_STATE(
@@ -101,29 +126,6 @@ static const struct smf_state states[] = {
 		NULL
 	)
 };
-
-/* State object for the app module.
- * Used to transfer data between state changes.
- */
-static struct state_object {
-	/* This must be first */
-	struct smf_ctx ctx;
-
-	/* Last channel type that a message was received on */
-	const struct zbus_channel *chan;
-
-	/* Trigger interval */
-	uint64_t interval_sec;
-
-	/* Button number */
-	uint8_t button_number;
-
-	/* Time available */
-	enum time_status time_status;
-
-	/* Cloud status */
-	enum cloud_msg_type status;
-} app_state;
 
 static void triggers_send(void)
 {
@@ -214,19 +216,19 @@ static void init_entry(void *o)
 
 static void init_run(void *o)
 {
-	struct state_object *user_object = o;
+	const struct app_state_object *state_object = (const struct app_state_object *)o;
 
 	LOG_DBG("%s", __func__);
 
-	if (user_object->chan == &CLOUD_CHAN) {
-		if (user_object->status == CLOUD_CONNECTED_READY_TO_SEND) {
+	if (state_object->chan == &CLOUD_CHAN) {
+		if (state_object->status == CLOUD_CONNECTED_READY_TO_SEND) {
 			LOG_DBG("Cloud connected and ready, going into connected state");
 			STATE_SET(app_state, STATE_CLOUD_CONNECTED);
 			return;
 		}
 
-		if ((user_object->status == CLOUD_DISCONNECTED) ||
-			(user_object->status == CLOUD_CONNECTED_PAUSED)) {
+		if ((state_object->status == CLOUD_DISCONNECTED) ||
+			(state_object->status == CLOUD_CONNECTED_PAUSED)) {
 			LOG_DBG("Cloud disconnected/paused, going into disconnected state");
 			STATE_SET(app_state, STATE_CLOUD_DISCONNECTED);
 			return;
@@ -268,12 +270,12 @@ static void cloud_disconnected_entry(void *o)
 
 static void cloud_disconnected_run(void *o)
 {
-	struct state_object *user_object = o;
+	const struct app_state_object *state_object = (const struct app_state_object *)o;
 
 	LOG_DBG("%s", __func__);
 
-	if ((user_object->chan == &CLOUD_CHAN) &&
-		(user_object->status == CLOUD_CONNECTED_READY_TO_SEND)) {
+	if ((state_object->chan == &CLOUD_CHAN) &&
+		(state_object->status == CLOUD_CONNECTED_READY_TO_SEND)) {
 		LOG_DBG("Cloud connected and ready, going into connected state");
 		STATE_SET(app_state, STATE_CLOUD_CONNECTED);
 		return;
@@ -314,27 +316,27 @@ static void cloud_connected_entry(void *o)
 
 static void cloud_connected_run(void *o)
 {
-	struct state_object *user_object = o;
+	const struct app_state_object *state_object = (const struct app_state_object *)o;
 
 	LOG_DBG("%s", __func__);
 
-	if ((user_object->chan == &CLOUD_CHAN) &&
-		((user_object->status == CLOUD_CONNECTED_PAUSED) ||
-		(user_object->status == CLOUD_DISCONNECTED))) {
+	if ((state_object->chan == &CLOUD_CHAN) &&
+		((state_object->status == CLOUD_CONNECTED_PAUSED) ||
+		(state_object->status == CLOUD_DISCONNECTED))) {
 		LOG_DBG("Cloud disconnected/paused, going into disconnected state");
 		STATE_SET(app_state, STATE_CLOUD_DISCONNECTED);
 		return;
 	}
 
-	if (user_object->chan == &BUTTON_CHAN) {
-		LOG_DBG("Button %d pressed!", user_object->button_number);
+	if (state_object->chan == &BUTTON_CHAN) {
+		LOG_DBG("Button %d pressed!", state_object->button_number);
 		k_work_reschedule(&trigger_work, K_NO_WAIT);
 		return;
 	}
 
-	if (user_object->chan == &CONFIG_CHAN) {
-		LOG_DBG("Configuration update, new interval: %lld", user_object->interval_sec);
-		k_work_reschedule(&trigger_work, K_SECONDS(user_object->interval_sec));
+	if (state_object->chan == &CONFIG_CHAN) {
+		LOG_DBG("Configuration update, new interval: %lld", state_object->interval_sec);
+		k_work_reschedule(&trigger_work, K_SECONDS(state_object->interval_sec));
 		return;
 	}
 }
