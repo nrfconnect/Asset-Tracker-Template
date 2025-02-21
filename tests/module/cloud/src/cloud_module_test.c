@@ -149,7 +149,8 @@ void test_connecting_backoff(void)
 {
 	int err;
 	struct network_msg msg = { .type = NETWORK_CONNECTED, };
-	uint64_t connect_start_time, connect_duration_sec;
+	uint64_t connect_start_time;
+	uint64_t connect_duration_sec;
 
 	nrf_cloud_coap_connect_fake.return_val = -EAGAIN;
 	connect_start_time = k_uptime_get();

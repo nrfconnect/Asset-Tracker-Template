@@ -232,7 +232,7 @@ void test_trigger_interval_change_in_connected(void)
 
 	/* Cleanup */
 	send_cloud_disconnected();
-	check_no_events((WEEK_IN_SECONDS));
+	check_no_events(WEEK_IN_SECONDS);
 }
 
 /* This is required to be added to each test. That is because unity's

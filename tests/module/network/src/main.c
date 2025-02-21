@@ -112,6 +112,8 @@ static void net_mgmt_add_event_callback_custom_fake(struct net_mgmt_event_callba
 static int lte_lc_system_mode_get_custom_fake(enum lte_lc_system_mode *mode,
 					       enum lte_lc_system_mode_preference *preference)
 {
+	ARG_UNUSED(preference);
+
 	*mode = current_fake_system_mode;
 
 	return 0;
@@ -120,6 +122,8 @@ static int lte_lc_system_mode_get_custom_fake(enum lte_lc_system_mode *mode,
 static int lte_lc_system_mode_set_custom_fake(enum lte_lc_system_mode mode,
 					      enum lte_lc_system_mode_preference preference)
 {
+	ARG_UNUSED(preference);
+
 	current_fake_system_mode = mode;
 
 	return 0;
