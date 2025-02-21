@@ -207,10 +207,10 @@ static const struct smf_state states[] = {
 				 NULL),
 };
 
-/* User defined state object.
+/* Cloud module state object.
  * Used to transfer data between state changes.
  */
-static struct state_object {
+struct cloud_state {
 	/* This must be first */
 	struct smf_ctx ctx;
 
@@ -228,7 +228,10 @@ static struct state_object {
 
 	/* Connection backoff time */
 	uint32_t backoff_time;
-} cloud_state;
+};
+
+static struct cloud_state cloud_state;
+
 
 /* Static helper function */
 static void task_wdt_callback(int channel_id, void *user_data)
@@ -294,6 +297,8 @@ static void backoff_timer_work_fn(struct k_work *work)
 	int err;
 	enum priv_cloud_msg msg = CLOUD_BACKOFF_EXPIRED;
 
+	ARG_UNUSED(work);
+
 	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
@@ -324,7 +329,7 @@ static void state_running_entry(void *o)
 
 static void state_running_run(void *o)
 {
-	struct state_object *state_object = o;
+	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
 	LOG_DBG("%s", __func__);
 
@@ -360,7 +365,7 @@ static void state_disconnected_entry(void *o)
 
 static void state_disconnected_run(void *o)
 {
-	struct state_object const *state_object = o;
+	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
 	LOG_DBG("%s", __func__);
 
@@ -378,7 +383,7 @@ static void state_disconnected_run(void *o)
 static void state_connecting_entry(void *o)
 {
 	/* Reset connection attempts counter */
-	struct state_object *state_object = o;
+	struct cloud_state *state_object = o;
 
 	LOG_DBG("%s", __func__);
 
@@ -389,7 +394,7 @@ static void state_connecting_entry(void *o)
 
 static void state_connecting_attempt_entry(void *o)
 {
-	struct state_object *state_object = o;
+	struct cloud_state *state_object = o;
 
 	LOG_DBG("%s", __func__);
 
@@ -402,7 +407,7 @@ static void state_connecting_attempt_entry(void *o)
 
 static void state_connecting_backoff_entry(void *o)
 {
-	struct state_object *state_object = o;
+	struct cloud_state *state_object = o;
 
 	LOG_DBG("%s", __func__);
 
@@ -413,7 +418,7 @@ static void state_connecting_backoff_entry(void *o)
 
 static void state_connecting_backoff_run(void *o)
 {
-	struct state_object *state_object = o;
+	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
 	LOG_DBG("%s", __func__);
 
@@ -513,7 +518,7 @@ static void state_connected_ready_entry(void *o)
 static void state_connected_ready_run(void *o)
 {
 	int err;
-	struct state_object *state_object = o;
+	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
 	LOG_DBG("%s", __func__);
 
@@ -650,7 +655,7 @@ static void state_connected_paused_entry(void *o)
 
 static void state_connected_paused_run(void *o)
 {
-	struct state_object *state_object = o;
+	const struct cloud_state *state_object = (const struct cloud_state *)o;
 	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 	LOG_DBG("%s", __func__);
