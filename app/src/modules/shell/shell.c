@@ -61,8 +61,10 @@ static bool uart_pm_enabled = IS_ENABLED(CONFIG_APP_SHELL_UART_PM_ENABLE);
 
 static void uart_disable_handler(struct k_work *work)
 {
+	ARG_UNUSED(work);
+
 	if (!uart_pm_enabled) {
-		// UART power management is disabled; do not disable UART
+		/* UART power management is disabled; do not disable UART */
 		return;
 	}
 
@@ -90,6 +92,8 @@ static void uart_disable_handler(struct k_work *work)
 
 static void uart_enable_handler(struct k_work *work)
 {
+	ARG_UNUSED(work);
+
 	if (device_is_ready(shell_uart_dev)) {
 		pm_device_action_run(shell_uart_dev, PM_DEVICE_ACTION_RESUME);
 	}
@@ -112,6 +116,9 @@ static void uart_enable_handler(struct k_work *work)
 static int cmd_uart_pm_enable(const struct shell *sh, size_t argc,
                          char **argv)
 {
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	uart_pm_enabled = true;
 	shell_print(sh, "UART power management enabled");
 	return 0;
@@ -120,9 +127,13 @@ static int cmd_uart_pm_enable(const struct shell *sh, size_t argc,
 static int cmd_uart_pm_disable(const struct shell *sh, size_t argc,
                          char **argv)
 {
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	uart_pm_enabled = false;
 	shell_print(sh, "UART power management disabled");
-	// Ensure UARTs are enabled immediately for debugging
+
+	/* Ensure UARTs are enabled immediately for debugging */
 	k_work_cancel_delayable(&uart_disable_work);
 	k_work_schedule(&uart_enable_work, K_NO_WAIT);
 	return 0;
@@ -163,6 +174,7 @@ static int cmd_zbus_ping(const struct shell *sh, size_t argc,
 {
 	int err;
 	enum zbus_test_type test_type;
+
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
@@ -199,13 +211,12 @@ static int cmd_button_press(const struct shell *sh, size_t argc,
 
 static int cmd_publish_on_payload_chan(const struct shell *sh, size_t argc, char **argv)
 {
-	int err, ret;
+	int err;
+	int ret;
 	struct cloud_payload payload = {
 		.buffer_len = strlen(argv[1]),
 	};
 	int64_t current_time;
-
-	ARG_UNUSED(argc);
 
 	if (argc != 3) {
 		shell_print(sh, "Invalid number of arguments (%d)", argc);
