@@ -176,6 +176,8 @@ static const struct smf_state states[] = {
 static void triggers_send(void)
 {
 	int err;
+
+#if defined(CONFIG_APP_REQUEST_NETWORK_QUALITY)
 	struct network_msg network_msg = {
 		.type = NETWORK_QUALITY_SAMPLE_REQUEST,
 	};
@@ -186,6 +188,7 @@ static void triggers_send(void)
 		SEND_FATAL_ERROR();
 		return;
 	}
+#endif /* CONFIG_APP_REQUEST_NETWORK_QUALITY */
 
 #if defined(CONFIG_APP_BATTERY)
 	struct battery_msg battery_msg = {
