@@ -79,7 +79,7 @@ enum priv_fota_evt {
 /* User defined state object.
  * Used to transfer data between state changes.
  */
-struct state_object {
+struct fota_state {
 	/* This must be first */
 	struct smf_ctx ctx;
 
@@ -112,7 +112,7 @@ static void state_poll_and_process_entry(void *o);
 static void state_poll_and_process_run(void *o);
 static void state_reboot_pending_entry(void *o);
 
-static struct state_object fota_state = {
+static struct fota_state fota_state = {
 	.fota_ctx.reboot_fn = fota_reboot,
 	.fota_ctx.status_fn = fota_status,
 };
@@ -145,7 +145,7 @@ static const struct smf_state states[] = {
 
 static void state_running_entry(void *o)
 {
-	struct state_object *state_object = o;
+	struct fota_state *state_object = o;
 
 	/* Initialize the FOTA context */
 	int err = nrf_cloud_fota_poll_init(&state_object->fota_ctx);
@@ -165,7 +165,7 @@ static void state_running_entry(void *o)
 
 static void state_wait_for_cloud_run(void *o)
 {
-	struct state_object *state_object = o;
+	const struct fota_state *state_object = (const struct fota_state *)o;
 
 	if (&CLOUD_CHAN == state_object->chan) {
 		const enum cloud_msg_type status = MSG_TO_CLOUD_MSG(state_object->msg_buf).type;
@@ -178,7 +178,7 @@ static void state_wait_for_cloud_run(void *o)
 
 static void state_wait_for_trigger_run(void *o)
 {
-	struct state_object *state_object = o;
+	const struct fota_state *state_object = (const struct fota_state *)o;
 
 	if (&FOTA_CHAN == state_object->chan) {
 		const enum fota_msg_type msg_type = MSG_TO_FOTA_TYPE(state_object->msg_buf);
@@ -199,7 +199,7 @@ static void state_wait_for_trigger_run(void *o)
 
 static void state_poll_and_process_entry(void *o)
 {
-	struct state_object *state_object = o;
+	struct fota_state *state_object = o;
 
 	/* Start the FOTA processing */
 	int err = nrf_cloud_fota_poll_process(&state_object->fota_ctx);
@@ -221,7 +221,7 @@ static void state_poll_and_process_entry(void *o)
 
 static void state_poll_and_process_run(void *o)
 {
-	struct state_object *state_object = o;
+	const struct fota_state *state_object = (const struct fota_state *)o;
 
 	if (&PRIV_FOTA_CHAN == state_object->chan) {
 		const enum priv_fota_evt evt = *(const enum priv_fota_evt *)state_object->msg_buf;
