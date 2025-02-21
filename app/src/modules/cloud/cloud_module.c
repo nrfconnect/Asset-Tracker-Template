@@ -423,7 +423,7 @@ static void state_connecting_backoff_run(void *o)
 	LOG_DBG("%s", __func__);
 
 	if (state_object->chan == &PRIV_CLOUD_CHAN) {
-		enum priv_cloud_msg msg = *(enum priv_cloud_msg *)state_object->msg_buf;
+		const enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
 
 		if (msg == CLOUD_BACKOFF_EXPIRED) {
 			STATE_SET(cloud_state, STATE_CONNECTING_ATTEMPT);
@@ -613,7 +613,7 @@ static void state_connected_ready_run(void *o)
 #endif /* CONFIG_APP_ENVIRONMENTAL */
 
 	if (state_object->chan == &PAYLOAD_CHAN) {
-		struct cloud_payload *payload = MSG_TO_PAYLOAD(state_object->msg_buf);
+		const struct cloud_payload *payload = MSG_TO_PAYLOAD(state_object->msg_buf);
 
 		err = nrf_cloud_coap_json_message_send(payload->buffer, false, false);
 		if (err) {
