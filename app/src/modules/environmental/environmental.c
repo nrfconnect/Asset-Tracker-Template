@@ -56,7 +56,7 @@ enum environmental_module_state {
 /* User defined state object.
  * Used to transfer data between state changes.
  */
-struct s_object {
+struct environmental_state {
 	/* This must be first */
 	struct smf_ctx ctx;
 
@@ -73,7 +73,7 @@ struct s_object {
 	double humidity;
 };
 
-static struct s_object environmental_state_object;
+static struct environmental_state environmental_state;
 
 /* Forward declarations of state handlers */
 static void state_running_run(void *o);
@@ -130,7 +130,7 @@ static void task_wdt_callback(int channel_id, void *user_data)
 
 static void state_running_run(void *o)
 {
-	struct s_object *state_object = o;
+	const struct environmental_state *state_object = (const struct environmental_state *)o;
 
 	if (&ENVIRONMENTAL_CHAN == state_object->chan) {
 		struct environmental_msg msg = MSG_TO_ENVIRONMENTAL_MSG(state_object->msg_buf);
@@ -156,7 +156,7 @@ static void environmental_task(void)
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 
-	STATE_SET_INITIAL(environmental_state_object, STATE_RUNNING);
+	STATE_SET_INITIAL(environmental_state, STATE_RUNNING);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -167,8 +167,8 @@ static void environmental_task(void)
 		}
 
 		err = zbus_sub_wait_msg(&environmental,
-					&environmental_state_object.chan,
-					environmental_state_object.msg_buf,
+					&environmental_state.chan,
+					environmental_state.msg_buf,
 					zbus_wait_ms);
 		if (err == -ENOMSG) {
 			continue;
@@ -178,7 +178,7 @@ static void environmental_task(void)
 			return;
 		}
 
-		err = STATE_RUN(environmental_state_object);
+		err = STATE_RUN(environmental_state);
 		if (err) {
 			LOG_ERR("handle_message, error: %d", err);
 			SEND_FATAL_ERROR();
