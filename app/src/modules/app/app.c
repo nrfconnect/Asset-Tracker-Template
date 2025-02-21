@@ -266,8 +266,6 @@ static void running_run(void *o)
 {
 	const struct app_state_object *state_object = (const struct app_state_object *)o;
 
-	LOG_DBG("%s", __func__);
-
 	if (state_object->chan == &FOTA_CHAN) {
 		if (state_object->fota_status == FOTA_DOWNLOADING_UPDATE) {
 			STATE_SET(app_state, STATE_FOTA);
@@ -311,8 +309,6 @@ static void idle_entry(void *o)
 static void idle_run(void *o)
 {
 	const struct app_state_object *state_object = (const struct app_state_object *)o;
-
-	LOG_DBG("%s", __func__);
 
 	if ((state_object->chan == &CLOUD_CHAN) &&
 		(state_object->status == CLOUD_CONNECTED_READY_TO_SEND)) {
@@ -358,8 +354,6 @@ static void periodic_triggering_run(void *o)
 {
 	const struct app_state_object *state_object = (const struct app_state_object *)o;
 
-	LOG_DBG("%s", __func__);
-
 	if ((state_object->chan == &CLOUD_CHAN) &&
 		((state_object->status == CLOUD_CONNECTED_PAUSED) ||
 		(state_object->status == CLOUD_DISCONNECTED))) {
@@ -394,8 +388,6 @@ static void fota_entry(void *o)
 static void fota_run(void *o)
 {
 	const struct app_state_object *state_object = (const struct app_state_object *)o;
-
-	LOG_DBG("%s", __func__);
 
 	if (state_object->chan == &FOTA_CHAN) {
 		switch (state_object->fota_status) {
@@ -440,8 +432,6 @@ static void fota_network_disconnect_pending_run(void *o)
 {
 	const struct app_state_object *state_object = (const struct app_state_object *)o;
 
-	LOG_DBG("%s", __func__);
-
 	if (state_object->chan == &NETWORK_CHAN) {
 		if (state_object->network_status == NETWORK_DISCONNECTED) {
 			STATE_SET(app_state, STATE_FOTA_IMAGE_APPLY_PENDING);
@@ -471,8 +461,6 @@ static void fota_image_apply_pending_entry(void *o)
 static void fota_image_apply_pending_run(void *o)
 {
 	const struct app_state_object *state_object = (const struct app_state_object *)o;
-
-	LOG_DBG("%s", __func__);
 
 	if (state_object->chan == &FOTA_CHAN) {
 		if (state_object->fota_status == FOTA_REBOOT_NEEDED) {
@@ -506,8 +494,6 @@ static void app_callback(const struct zbus_channel *chan)
 {
 	int err;
 
-	LOG_DBG("Received message on channel %s", zbus_chan_name(chan));
-
 	/* Update the state object with the channel that the message was received on */
 	app_state.chan = chan;
 
@@ -531,8 +517,6 @@ static void app_callback(const struct zbus_channel *chan)
 
 		app_state.network_status = network_msg->type;
 	}
-
-	LOG_DBG("Running SMF");
 
 	/* State object updated, run SMF */
 	err = STATE_RUN(app_state);

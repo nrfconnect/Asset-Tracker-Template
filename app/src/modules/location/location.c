@@ -219,7 +219,6 @@ void location_task(void)
 		}
 
 		if (&NETWORK_CHAN == chan) {
-			LOG_DBG("Network status received");
 			handle_network_chan(MSG_TO_NETWORK_MSG(&msg_buf));
 		}
 
@@ -228,7 +227,6 @@ void location_task(void)
 		}
 
 		if (&CONFIG_CHAN == chan) {
-			LOG_DBG("Configuration received");
 			handle_config_chan(MSG_TO_CONFIGURATION(&msg_buf));
 		}
 	}

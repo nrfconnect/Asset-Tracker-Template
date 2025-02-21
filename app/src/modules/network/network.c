@@ -347,8 +347,6 @@ static void state_running_run(void *obj)
 {
 	struct network_state_object const *state_object = obj;
 
-	LOG_DBG("state_running_run");
-
 	if (&NETWORK_CHAN == state_object->chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
@@ -393,8 +391,6 @@ static void state_disconnected_entry(void *obj)
 static void state_disconnected_run(void *obj)
 {
 	struct network_state_object const *state_object = obj;
-
-	LOG_DBG("state_disconnected_run");
 
 	if (&NETWORK_CHAN == state_object->chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
@@ -442,8 +438,6 @@ static void state_disconnected_searching_run(void *obj)
 {
 	struct network_state_object const *state_object = obj;
 
-	LOG_DBG("state_disconnected_searching_run");
-
 	if (&NETWORK_CHAN == state_object->chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
@@ -465,8 +459,6 @@ static void state_disconnected_idle_run(void *obj)
 {
 	int err;
 	struct network_state_object const *state_object = obj;
-
-	LOG_DBG("state_disconnected_idle_run");
 
 	if (&NETWORK_CHAN == state_object->chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
@@ -519,8 +511,6 @@ static void state_connected_run(void *obj)
 {
 	struct network_state_object const *state_object = obj;
 
-	LOG_DBG("state_connected_run");
-
 	if (&NETWORK_CHAN == state_object->chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
@@ -557,8 +547,6 @@ static void state_disconnecting_entry(void *obj)
 static void state_disconnecting_run(void *obj)
 {
 	struct network_state_object const *state_object = obj;
-
-	LOG_DBG("state_disconnecting_run");
 
 	if (&NETWORK_CHAN == state_object->chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
