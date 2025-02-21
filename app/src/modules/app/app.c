@@ -403,6 +403,9 @@ static void fota_run(void *o)
 		case FOTA_NETWORK_DISCONNECT_NEEDED:
 			STATE_SET(app_state, STATE_FOTA_NETWORK_DISCONNECT_PENDING);
 			return;
+		case FOTA_REBOOT_NEEDED:
+			STATE_SET(app_state, STATE_FOTA_REBOOTING);
+			return;
 		default:
 			/* Don't care */
 			break;
