@@ -72,7 +72,7 @@ enum battery_module_state {
 /* User defined state object.
  * Used to transfer data between state changes.
  */
-struct s_object {
+struct battery_state {
 	/* This must be first */
 	struct smf_ctx ctx;
 
@@ -90,7 +90,7 @@ struct s_object {
 static void state_running_entry(void *o);
 static void state_running_run(void *o);
 
-static struct s_object battery_state_object;
+static struct battery_state battery_state_object;
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
 		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL, NULL, NULL),
@@ -106,7 +106,7 @@ static void state_running_entry(void *o)
 		.model = &battery_model
 	};
 	int32_t chg_status;
-	struct s_object *state_object = o;
+	struct battery_state *state_object = o;
 
 	if (!device_is_ready(charger)) {
 		LOG_ERR("Charger device not ready.");
@@ -140,7 +140,7 @@ static void state_running_entry(void *o)
 
 static void state_running_run(void *o)
 {
-	struct s_object *state_object = o;
+	struct battery_state *state_object = o;
 
 	if (&BATTERY_CHAN == state_object->chan) {
 		struct battery_msg msg = MSG_TO_BATTERY_MSG(state_object->msg_buf);
