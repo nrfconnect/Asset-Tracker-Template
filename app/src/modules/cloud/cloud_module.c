@@ -331,8 +331,6 @@ static void state_running_run(void *o)
 {
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
-	LOG_DBG("%s", __func__);
-
 	if (state_object->chan == &NETWORK_CHAN) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
@@ -366,7 +364,6 @@ static void state_disconnected_entry(void *o)
 static void state_disconnected_run(void *o)
 {
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
-
 	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
@@ -417,8 +414,6 @@ static void state_connecting_backoff_entry(void *o)
 static void state_connecting_backoff_run(void *o)
 {
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
-
-	LOG_DBG("%s", __func__);
 
 	if (state_object->chan == &PRIV_CLOUD_CHAN) {
 		const enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
@@ -517,8 +512,6 @@ static void state_connected_ready_run(void *o)
 {
 	int err;
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
-
-	LOG_DBG("%s", __func__);
 
 	if (state_object->chan == &NETWORK_CHAN) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
@@ -655,8 +648,6 @@ static void state_connected_paused_run(void *o)
 {
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
-
-	LOG_DBG("%s", __func__);
 
 	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
 		STATE_SET(cloud_state, STATE_CONNECTED_READY);
