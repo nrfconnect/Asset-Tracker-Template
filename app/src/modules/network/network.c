@@ -166,6 +166,9 @@ static void l4_event_handler(struct net_mgmt_event_callback *cb,
 			     uint32_t event,
 			     struct net_if *iface)
 {
+	ARG_UNUSED(cb);
+	ARG_UNUSED(iface);
+
 	switch (event) {
 	case NET_EVENT_L4_CONNECTED:
 		LOG_INF("Network connectivity established");
@@ -185,6 +188,9 @@ static void connectivity_event_handler(struct net_mgmt_event_callback *cb,
 				       uint32_t event,
 				       struct net_if *iface)
 {
+	ARG_UNUSED(cb);
+	ARG_UNUSED(iface);
+
 	if (event == NET_EVENT_CONN_IF_FATAL_ERROR) {
 		LOG_ERR("NET_EVENT_CONN_IF_FATAL_ERROR");
 		SEND_FATAL_ERROR();
