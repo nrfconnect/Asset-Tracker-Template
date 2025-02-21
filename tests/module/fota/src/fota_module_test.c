@@ -71,7 +71,7 @@ void tearDown(void)
 	event_expect(FOTA_CANCEL);
 }
 
-void event_expect(enum fota_msg_type expected_fota_type)
+static void event_expect(enum fota_msg_type expected_fota_type)
 {
 	int err;
 	const struct zbus_channel *chan;
@@ -96,7 +96,7 @@ void event_expect(enum fota_msg_type expected_fota_type)
 	TEST_ASSERT_EQUAL(expected_fota_type, fota_msg);
 }
 
-void no_events_expect(uint32_t time_in_seconds)
+static void no_events_expect(uint32_t time_in_seconds)
 {
 	int err;
 	const struct zbus_channel *chan;
