@@ -9,12 +9,19 @@
 
 static int sample_fetch(const struct device *dev, enum sensor_channel chan)
 {
+	ARG_UNUSED(dev);
+	ARG_UNUSED(chan);
+
 	return 0;
 }
 
 static int channel_get(const struct device *dev, enum sensor_channel chan,
 		      struct sensor_value *val)
 {
+	ARG_UNUSED(dev);
+	ARG_UNUSED(chan);
+	ARG_UNUSED(val);
+
 	return 0;
 }
 
