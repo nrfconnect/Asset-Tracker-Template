@@ -269,11 +269,10 @@ static void running_run(void *o)
 {
 	const struct app_state_object *state_object = (const struct app_state_object *)o;
 
-	if (state_object->chan == &FOTA_CHAN) {
-		if (state_object->fota_status == FOTA_DOWNLOADING_UPDATE) {
-			STATE_SET(app_state, STATE_FOTA);
-			return;
-		}
+	if (state_object->chan == &FOTA_CHAN &&
+	    state_object->fota_status == FOTA_DOWNLOADING_UPDATE) {
+		STATE_SET(app_state, STATE_FOTA);
+		return;
 	}
 }
 
@@ -435,11 +434,10 @@ static void fota_network_disconnect_pending_run(void *o)
 {
 	const struct app_state_object *state_object = (const struct app_state_object *)o;
 
-	if (state_object->chan == &NETWORK_CHAN) {
-		if (state_object->network_status == NETWORK_DISCONNECTED) {
-			STATE_SET(app_state, STATE_FOTA_IMAGE_APPLY_PENDING);
-			return;
-		}
+	if (state_object->chan == &NETWORK_CHAN &&
+	    state_object->network_status == NETWORK_DISCONNECTED) {
+		STATE_SET(app_state, STATE_FOTA_IMAGE_APPLY_PENDING);
+		return;
 	}
 }
 
@@ -465,11 +463,9 @@ static void fota_image_apply_pending_run(void *o)
 {
 	const struct app_state_object *state_object = (const struct app_state_object *)o;
 
-	if (state_object->chan == &FOTA_CHAN) {
-		if (state_object->fota_status == FOTA_REBOOT_NEEDED) {
-			STATE_SET(app_state, STATE_FOTA_REBOOTING);
-			return;
-		}
+	if (state_object->chan == &FOTA_CHAN && state_object->fota_status == FOTA_REBOOT_NEEDED) {
+		STATE_SET(app_state, STATE_FOTA_REBOOTING);
+		return;
 	}
 }
 
