@@ -103,7 +103,8 @@ static void state_waiting_for_image_apply_run(void *o);
 
 static void state_reboot_needed_entry(void *o);
 
-static void state_canceled_entry(void *o);
+static void state_canceling_entry(void *o);
+static void state_canceling_run(void *o);
 
 static struct fota_state fota_state = {
 	.fota_ctx.reboot_fn = fota_reboot,
@@ -148,8 +149,8 @@ static const struct smf_state states[] = {
 				 &states[STATE_RUNNING],
 				 NULL),
 	[STATE_CANCELED] =
-		SMF_CREATE_STATE(state_canceled_entry,
-				 NULL,
+		SMF_CREATE_STATE(state_canceling_entry,
+				 state_canceling_run,
 				 NULL,
 				 &states[STATE_RUNNING],
 				 NULL),
@@ -189,6 +190,11 @@ static void fota_status(enum nrf_cloud_fota_status status, const char *const sta
 
 		evt = FOTA_DOWNLOAD_FAILED;
 		break;
+	case NRF_CLOUD_FOTA_CANCELED:
+		LOG_WRN("Firmware download canceled");
+
+		evt = FOTA_CANCELED;
+		break;
 	case NRF_CLOUD_FOTA_TIMED_OUT:
 		LOG_WRN("Firmware download timed out");
 
@@ -214,14 +220,14 @@ static void fota_status(enum nrf_cloud_fota_status status, const char *const sta
 
 	err = zbus_chan_pub(&FOTA_CHAN, &evt, K_SECONDS(1));
 	if (err) {
-		LOG_DBG("zbus_chan_pub, error: %d", err);
+		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
 }
 
 static void task_wdt_callback(int channel_id, void *user_data)
 {
-	LOG_DBG("Watchdog expired, Channel: %d, Thread: %s",
+	LOG_ERR("Watchdog expired, Channel: %d, Thread: %s",
 		channel_id, k_thread_name_get((k_tid_t)user_data));
 
 	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
@@ -239,16 +245,16 @@ static void state_running_entry(void *o)
 	/* Initialize the FOTA context */
 	err = nrf_cloud_fota_poll_init(&state_object->fota_ctx);
 	if (err) {
-		LOG_DBG("nrf_cloud_fota_poll_init failed: %d", err);
+		LOG_ERR("nrf_cloud_fota_poll_init failed: %d", err);
 		SEND_FATAL_ERROR();
 	}
 
 	/* Process pending FOTA job, the FOTA type is returned */
 	err = nrf_cloud_fota_poll_process_pending(&state_object->fota_ctx);
 	if (err < 0) {
-		LOG_DBG("nrf_cloud_fota_poll_process_pending failed: %d", err);
+		LOG_ERR("nrf_cloud_fota_poll_process_pending failed: %d", err);
 	} else if (err != NRF_CLOUD_FOTA_TYPE__INVALID) {
-		LOG_DBG("Processed pending FOTA job type: %d", err);
+		LOG_ERR("Processed pending FOTA job type: %d", err);
 	}
 }
 
@@ -306,7 +312,7 @@ static void state_polling_for_update_entry(void *o)
 
 		err = zbus_chan_pub(&FOTA_CHAN, &evt, K_SECONDS(1));
 		if (err) {
-			LOG_DBG("zbus_chan_pub, error: %d", err);
+			LOG_ERR("zbus_chan_pub, error: %d", err);
 			SEND_FATAL_ERROR();
 		}
 		break;
@@ -317,7 +323,7 @@ static void state_polling_for_update_entry(void *o)
 		LOG_DBG("Job available, FOTA processing started");
 		break;
 	default:
-		LOG_DBG("nrf_cloud_fota_poll_process, error: %d", err);
+		LOG_ERR("nrf_cloud_fota_poll_process, error: %d", err);
 		SEND_FATAL_ERROR();
 		break;
 	}
@@ -336,6 +342,11 @@ static void state_polling_for_update_run(void *o)
 			break;
 		case FOTA_NO_AVAILABLE_UPDATE:
 			STATE_SET(fota_state, STATE_WAITING_FOR_POLL_REQUEST);
+			break;
+		case FOTA_CANCEL:
+			LOG_DBG("No ongoing FOTA update, nothing to cancel");
+
+			STATE_EVENT_HANDLED(fota_state);
 			break;
 		default:
 			/* Don't care */
@@ -395,7 +406,7 @@ static void state_waiting_for_image_apply_run(void *o)
 			int err = nrf_cloud_fota_poll_update_apply(&state_object->fota_ctx);
 
 			if (err) {
-				LOG_DBG("nrf_cloud_fota_poll_update_apply, error: %d", err);
+				LOG_ERR("nrf_cloud_fota_poll_update_apply, error: %d", err);
 				SEND_FATAL_ERROR();
 			}
 
@@ -417,16 +428,32 @@ static void state_reboot_needed_entry(void *o)
 	LOG_DBG("Waiting for the application to reboot in order to apply the update");
 }
 
-static void state_canceled_entry(void *o)
+static void state_canceling_entry(void *o)
 {
 	ARG_UNUSED(o);
 
 	LOG_DBG("%s", __func__);
-	LOG_WRN("Canceling download");
+	LOG_DBG("Canceling download");
 
-	(void)fota_download_cancel();
+	int err = fota_download_cancel();
 
-	STATE_SET(fota_state, STATE_WAITING_FOR_POLL_REQUEST);
+	if (err) {
+		LOG_ERR("fota_download_cancel, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+static void state_canceling_run(void *o)
+{
+	const struct fota_state *state_object = (const struct fota_state *)o;
+
+	if (&FOTA_CHAN == state_object->chan) {
+		const enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+
+		if (msg == FOTA_CANCELED) {
+			STATE_SET(fota_state, STATE_WAITING_FOR_POLL_REQUEST);
+		}
+	}
 }
 
 /* End of state handlers */
@@ -449,7 +476,7 @@ static void fota_task(void)
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
 		if (err) {
-			LOG_DBG("task_wdt_feed, error: %d", err);
+			LOG_ERR("task_wdt_feed, error: %d", err);
 			SEND_FATAL_ERROR();
 			return;
 		}
@@ -458,14 +485,14 @@ static void fota_task(void)
 		if (err == -ENOMSG) {
 			continue;
 		} else if (err) {
-			LOG_DBG("zbus_sub_wait_msg, error: %d", err);
+			LOG_ERR("zbus_sub_wait_msg, error: %d", err);
 			SEND_FATAL_ERROR();
 			return;
 		}
 
 		err = STATE_RUN(fota_state);
 		if (err) {
-			LOG_DBG("handle_message, error: %d", err);
+			LOG_ERR("handle_message, error: %d", err);
 			SEND_FATAL_ERROR();
 			return;
 		}
