@@ -51,6 +51,7 @@ static void trigger_work_fn(struct k_work *work);
 static K_WORK_DELAYABLE_DEFINE(trigger_work, trigger_work_fn);
 
 /* Forward declarations of state handlers */
+static void running_entry(void *o);
 static void running_run(void *o);
 
 static void periodic_triggering_entry(void *o);
@@ -125,11 +126,11 @@ static struct app_state_object app_state;
 /* Construct state table */
 static const struct smf_state states[] = {
 	[STATE_RUNNING] = SMF_CREATE_STATE(
-		NULL,
+		running_entry,
 		running_run,
 		NULL,
 		NULL,
-		&states[STATE_IDLE]
+		NULL
 	),
 	[STATE_PERIODIC_TRIGGERING] = SMF_CREATE_STATE(
 		periodic_triggering_entry,
@@ -267,12 +268,30 @@ static void trigger_work_fn(struct k_work *work)
 
 	triggers_send();
 
+	LOG_DBG("Next trigger in %lld seconds", app_state.interval_sec);
+
 	k_work_reschedule(&trigger_work, K_SECONDS(app_state.interval_sec));
 }
 
 /* Zephyr State Machine framework handlers */
 
 /* STATE_RUNNING */
+
+static void running_entry(void *o)
+{
+	const struct app_state_object *state_object = (const struct app_state_object *)o;
+
+	LOG_DBG("%s", __func__);
+
+	if (state_object->status == CLOUD_CONNECTED_READY_TO_SEND ||
+	    state_object->status == CLOUD_PAYLOAD_JSON ||
+	    state_object->status == CLOUD_POLL_SHADOW) {
+		STATE_SET(app_state, STATE_PERIODIC_TRIGGERING);
+		return;
+	}
+
+	STATE_SET(app_state, STATE_IDLE);
+}
 
 static void running_run(void *o)
 {
