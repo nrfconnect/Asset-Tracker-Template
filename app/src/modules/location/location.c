@@ -25,8 +25,8 @@
 LOG_MODULE_REGISTER(location_module, CONFIG_APP_LOCATION_LOG_LEVEL);
 
 BUILD_ASSERT(CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS >
-	     CONFIG_APP_LOCATION_ZBUS_TIMEOUT_SECONDS,
-	     "Watchdog timeout must be greater than trigger timeout");
+	     CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS,
+	     "Watchdog timeout must be greater than maximum message processing time");
 
 /* Define channels provided by this module */
 ZBUS_CHAN_DEFINE(LOCATION_CHAN,
@@ -179,8 +179,11 @@ void location_task(void)
 	int err = 0;
 	const struct zbus_channel *chan;
 	int task_wdt_id;
-	const uint32_t wdt_timeout_ms = (CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
-	const k_timeout_t zbus_timeout = K_SECONDS(CONFIG_APP_LOCATION_ZBUS_TIMEOUT_SECONDS);
+	const uint32_t wdt_timeout_ms =
+		(CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
+	const uint32_t execution_time_ms =
+		(CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
+	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	uint8_t msg_buf[MAX_MSG_SIZE];
 
 	LOG_DBG("Location module task started");
@@ -209,7 +212,7 @@ void location_task(void)
 			return;
 		}
 
-		err = zbus_sub_wait_msg(&location, &chan, &msg_buf, zbus_timeout);
+		err = zbus_sub_wait_msg(&location, &chan, &msg_buf, zbus_wait_ms);
 		if (err == -ENOMSG) {
 			continue;
 		} else if (err) {

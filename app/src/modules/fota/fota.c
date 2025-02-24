@@ -24,6 +24,10 @@
 /* Register log module */
 LOG_MODULE_REGISTER(fota, CONFIG_APP_FOTA_LOG_LEVEL);
 
+BUILD_ASSERT(CONFIG_APP_FOTA_WATCHDOG_TIMEOUT_SECONDS >
+	     CONFIG_APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS,
+	     "Watchdog timeout must be greater than maximum message processing time");
+
 /* Register message subscriber - will be called everytime a channel that the module listens on
  * receives a new message.
  */
@@ -432,7 +436,8 @@ static void fota_task(void)
 	int err;
 	int task_wdt_id;
 	const uint32_t wdt_timeout_ms = (CONFIG_APP_FOTA_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
-	const uint32_t execution_time_ms = (CONFIG_APP_FOTA_EXEC_TIME_SECONDS_MAX * MSEC_PER_SEC);
+	const uint32_t execution_time_ms =
+		(CONFIG_APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 
 	LOG_DBG("FOTA module task started");

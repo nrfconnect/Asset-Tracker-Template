@@ -53,8 +53,8 @@ LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 			 MAX(BAT_MSG_SIZE, ENV_MSG_SIZE))))
 
 BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
-	     CONFIG_APP_CLOUD_EXEC_TIME_SECONDS_MAX,
-	     "Watchdog timeout must be greater than maximum execution time");
+	     CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS,
+	     "Watchdog timeout must be greater than maximum message processing time");
 
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(cloud);
@@ -669,7 +669,8 @@ static void cloud_module_thread(void)
 	int err;
 	int task_wdt_id;
 	const uint32_t wdt_timeout_ms = (CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
-	const uint32_t execution_time_ms = (CONFIG_APP_CLOUD_EXEC_TIME_SECONDS_MAX * MSEC_PER_SEC);
+	const uint32_t execution_time_ms =
+		(CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 
 	LOG_DBG("cloud  module task started");

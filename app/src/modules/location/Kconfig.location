@@ -12,12 +12,24 @@ config APP_LOCATION_THREAD_STACK_SIZE
 	default 2048
 
 config APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS
-	int "Watchdog timeout seconds"
+	int "Watchdog timeout"
 	default 120
+	help
+	  Timeout in seconds for the location module watchdog.
+	  The timeout given in this option covers both:
+	    * Waiting for an incoming message in zbus_sub_wait_msg().
+	    * Time spent processing the message, defined by
+	      CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS.
+	  Ensure that this value exceeds CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS.
+	  A small difference between the two can mean more frequent watchdog feeds, which increases
+	  power consumption.
 
-config APP_LOCATION_ZBUS_TIMEOUT_SECONDS
-	int "Wait for zbus timeout seconds"
+config APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS
+	int "Maximum message processing time"
 	default 60
+	help
+	  Maximum time allowed for processing a single message in the module's state machine.
+	  The value must be smaller than CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS.
 
 module = APP_LOCATION
 module-str = Location
