@@ -62,31 +62,33 @@ static void idle_run(void *o);
 static void fota_entry(void *o);
 static void fota_run(void *o);
 
-static void fota_network_disconnect_pending_entry(void *o);
-static void fota_network_disconnect_pending_run(void *o);
+static void fota_downloading_run(void *o);
 
-static void fota_image_apply_pending_entry(void *o);
-static void fota_image_apply_pending_run(void *o);
+static void fota_network_disconnect_entry(void *o);
+static void fota_network_disconnect_run(void *o);
+
+static void fota_applying_image_entry(void *o);
+static void fota_applying_image_run(void *o);
 
 static void fota_rebooting_entry(void *o);
 
-/* Defining the hierarchical trigger module states:
- * STATE_RUNNING: The module is operating normally.
- *	STATE_PERIODIC_TRIGGERING: The module is sending triggers to the rest of the system.
- *	STATE_IDLE: The module is disconnected from the cloud, triggers are blocked.
- * STATE_FOTA: The module is in the FOTA process, triggers are blocked.
- *	STATE_FOTA_NETWORK_DISCONNECT_PENDING: The module is waiting for the network to disconnect.
- *	STATE_FOTA_IMAGE_APPLY_PENDING: The module is waiting for the FOTA image to be applied.
- *	STATE_FOTA_REBOOTING: The module is rebooting after applying the FOTA image.
- */
 enum state {
+	/* Normal operation */
 	STATE_RUNNING,
-	STATE_PERIODIC_TRIGGERING,
-	STATE_IDLE,
+		/* Triggers are periodically sent at a configured interval */
+		STATE_PERIODIC_TRIGGERING,
+		/* Disconnected from the network, no triggers are sent */
+		STATE_IDLE,
+	/* Ongoing FOTA process, triggers are blocked */
 	STATE_FOTA,
-	STATE_FOTA_NETWORK_DISCONNECT_PENDING,
-	STATE_FOTA_IMAGE_APPLY_PENDING,
-	STATE_FOTA_REBOOTING,
+		/* FOTA image is being downloaded */
+		STATE_FOTA_DOWNLOADING,
+		/* Disconnecting from the network */
+		STATE_FOTA_NETWORK_DISCONNECT,
+		/* Applying the image */
+		STATE_FOTA_APPLYING_IMAGE,
+		/* Rebooting */
+		STATE_FOTA_REBOOTING,
 };
 
 /* State object for the app module.
@@ -148,18 +150,25 @@ static const struct smf_state states[] = {
 		fota_run,
 		NULL,
 		NULL,
-		NULL
+		&states[STATE_FOTA_DOWNLOADING]
 	),
-	[STATE_FOTA_NETWORK_DISCONNECT_PENDING] = SMF_CREATE_STATE(
-		fota_network_disconnect_pending_entry,
-		fota_network_disconnect_pending_run,
+	[STATE_FOTA_DOWNLOADING] = SMF_CREATE_STATE(
+		NULL,
+		fota_downloading_run,
 		NULL,
 		&states[STATE_FOTA],
 		NULL
 	),
-	[STATE_FOTA_IMAGE_APPLY_PENDING] = SMF_CREATE_STATE(
-		fota_image_apply_pending_entry,
-		fota_image_apply_pending_run,
+	[STATE_FOTA_NETWORK_DISCONNECT] = SMF_CREATE_STATE(
+		fota_network_disconnect_entry,
+		fota_network_disconnect_run,
+		NULL,
+		&states[STATE_FOTA],
+		NULL
+	),
+	[STATE_FOTA_APPLYING_IMAGE] = SMF_CREATE_STATE(
+		fota_applying_image_entry,
+		fota_applying_image_run,
 		NULL,
 		&states[STATE_FOTA],
 		NULL
@@ -400,11 +409,26 @@ static void fota_run(void *o)
 		case FOTA_DOWNLOAD_FAILED:
 			STATE_SET(app_state, STATE_RUNNING);
 			return;
-		case FOTA_NETWORK_DISCONNECT_NEEDED:
-			STATE_SET(app_state, STATE_FOTA_NETWORK_DISCONNECT_PENDING);
+		default:
+			/* Don't care */
+			break;
+		}
+	}
+}
+
+/* STATE_FOTA_DOWNLOADING */
+
+static void fota_downloading_run(void *o)
+{
+	const struct app_state_object *state_object = (const struct app_state_object *)o;
+
+	if (state_object->chan == &FOTA_CHAN) {
+		switch (state_object->fota_status) {
+		case FOTA_SUCCESS_REBOOT_NEEDED:
+			STATE_SET(app_state, STATE_FOTA_NETWORK_DISCONNECT);
 			return;
-		case FOTA_REBOOT_NEEDED:
-			STATE_SET(app_state, STATE_FOTA_REBOOTING);
+		case FOTA_IMAGE_APPLY_NEEDED:
+			STATE_SET(app_state, STATE_FOTA_APPLYING_IMAGE);
 			return;
 		default:
 			/* Don't care */
@@ -413,9 +437,9 @@ static void fota_run(void *o)
 	}
 }
 
-/* STATE_FOTA_NETWORK_DISCONNECT_PENDING */
+/* STATE_FOTA_NETWORK_DISCONNECT */
 
-static void fota_network_disconnect_pending_entry(void *o)
+static void fota_network_disconnect_entry(void *o)
 {
 	ARG_UNUSED(o);
 
@@ -433,40 +457,55 @@ static void fota_network_disconnect_pending_entry(void *o)
 	}
 }
 
-static void fota_network_disconnect_pending_run(void *o)
+static void fota_network_disconnect_run(void *o)
 {
 	const struct app_state_object *state_object = (const struct app_state_object *)o;
 
 	if (state_object->chan == &NETWORK_CHAN &&
 	    state_object->network_status == NETWORK_DISCONNECTED) {
-		STATE_SET(app_state, STATE_FOTA_IMAGE_APPLY_PENDING);
+		STATE_SET(app_state, STATE_FOTA_REBOOTING);
 		return;
 	}
 }
 
-/* STATE_FOTA_IMAGE_APPLY_PENDING */
+/* STATE_FOTA_APPLYING_IMAGE, */
 
-static void fota_image_apply_pending_entry(void *o)
+static void fota_applying_image_entry(void *o)
 {
 	ARG_UNUSED(o);
 
 	LOG_DBG("%s", __func__);
 
 	int err;
-	enum fota_msg_type msg = FOTA_APPLY_IMAGE;
+	struct network_msg msg = {
+		.type = NETWORK_DISCONNECT
+	};
 
-	err = zbus_chan_pub(&FOTA_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
 }
 
-static void fota_image_apply_pending_run(void *o)
+static void fota_applying_image_run(void *o)
 {
 	const struct app_state_object *state_object = (const struct app_state_object *)o;
 
-	if (state_object->chan == &FOTA_CHAN && state_object->fota_status == FOTA_REBOOT_NEEDED) {
+	if (state_object->chan == &NETWORK_CHAN &&
+	    state_object->network_status == NETWORK_DISCONNECTED) {
+
+		int err;
+		enum fota_msg_type msg = FOTA_IMAGE_APPLY;
+
+		err = zbus_chan_pub(&FOTA_CHAN, &msg, K_SECONDS(1));
+		if (err) {
+			LOG_ERR("zbus_chan_pub, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
+
+	} else if (state_object->chan == &FOTA_CHAN &&
+		   state_object->fota_status == FOTA_SUCCESS_REBOOT_NEEDED) {
 		STATE_SET(app_state, STATE_FOTA_REBOOTING);
 		return;
 	}
