@@ -37,8 +37,7 @@ def run_location(t91x_board, hex_file, location_method):
 
     patterns_location = ["Wi-Fi and cellular methods combined"] if location_method == "Wi-Fi" else []
     patterns_location = patterns_location + [
-        "location_event_handler: Got location: lat:",
-        "Location search done"]
+        "location_event_handler: Got location: lat:"]
 
     # Cloud connection
     t91x_board.uart.flush()
