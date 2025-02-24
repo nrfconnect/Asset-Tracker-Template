@@ -26,6 +26,10 @@
 
 LOG_MODULE_REGISTER(shell, CONFIG_APP_SHELL_LOG_LEVEL);
 
+BUILD_ASSERT(CONFIG_APP_SHELL_WATCHDOG_TIMEOUT_SECONDS >
+	     CONFIG_APP_SHELL_MSG_PROCESSING_TIMEOUT_SECONDS,
+	     "Watchdog timeout must be greater than maximum message processing time");
+
 #define PAYLOAD_MSG_TEMPLATE	\
 	"{\""NRF_CLOUD_JSON_MSG_TYPE_KEY"\":\""NRF_CLOUD_JSON_MSG_TYPE_VAL_DATA"\","	\
 	"\""NRF_CLOUD_JSON_APPID_KEY"\":\"%s\","					\
@@ -282,7 +286,8 @@ static void shell_task(void)
 	const struct zbus_channel *chan;
 	int task_wdt_id;
 	const uint32_t wdt_timeout_ms = (CONFIG_APP_SHELL_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
-	const uint32_t execution_time_ms = (CONFIG_APP_SHELL_EXEC_TIME_SECONDS_MAX * MSEC_PER_SEC);
+	const uint32_t execution_time_ms =
+		(CONFIG_APP_SHELL_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	uint8_t msg_buf[MAX_MSG_SIZE];
 

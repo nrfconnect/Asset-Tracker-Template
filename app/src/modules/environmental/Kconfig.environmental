@@ -16,14 +16,24 @@ config APP_ENVIRONMENTAL_THREAD_STACK_SIZE
 	default 1280
 
 config APP_ENVIRONMENTAL_WATCHDOG_TIMEOUT_SECONDS
-	int "Watchdog timeout seconds"
+	int "Watchdog timeout"
 	default 120
+	help
+	  Timeout in seconds for the environmental module watchdog.
+	  The timeout given in this option covers both:
+	    * Waiting for an incoming message in zbus_sub_wait_msg().
+	    * Time spent processing the message, defined by
+	      CONFIG_APP_ENVIRONMENTAL_MSG_PROCESSING_TIMEOUT_SECONDS.
+	  Ensure that this value exceeds CONFIG_APP_ENVIRONMENTAL_MSG_PROCESSING_TIMEOUT_SECONDS.
+	  A small difference between the two can mean more frequent watchdog feeds, which increases
+	  power consumption.
 
-config APP_ENVIRONMENTAL_EXEC_TIME_SECONDS_MAX
-	int "Maximum execution time seconds"
+config APP_ENVIRONMENTAL_MSG_PROCESSING_TIMEOUT_SECONDS
+	int "Maximum message processing time"
 	default 3
 	help
-	  Maximum time allowed for a single execution of the module's thread loop.
+	  Maximum time allowed for processing a single message in the module's state machine.
+	  The value must be smaller than CONFIG_APP_ENVIRONMENTAL_WATCHDOG_TIMEOUT_SECONDS.
 
 module = APP_ENVIRONMENTAL
 module-str = ENVIRONMENTAL

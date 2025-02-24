@@ -12,14 +12,24 @@ config APP_NETWORK_THREAD_STACK_SIZE
 	default 2048
 
 config APP_NETWORK_WATCHDOG_TIMEOUT_SECONDS
-	int "Watchdog timeout seconds"
+	int "Watchdog timeout"
 	default 600
+	help
+	  Timeout in seconds for the network module watchdog.
+	  The timeout given in this option covers both:
+	    * Waiting for an incoming message in zbus_sub_wait_msg().
+	    * Time spent processing the message, defined by
+	      CONFIG_APP_NETWORK__MSG_PROCESSING_TIMEOUT_SECONDS.
+	  Ensure that this value exceeds CONFIG_APP_NETWORK__MSG_PROCESSING_TIMEOUT_SECONDS.
+	  A small difference between the two can mean more frequent watchdog feeds, which increases
+	  power consumption.
 
-config APP_NETWORK_EXEC_TIME_SECONDS_MAX
-	int "Maximum execution time seconds"
+config APP_NETWORK_MSG_PROCESSING_TIMEOUT_SECONDS
+	int "Maximum message processing time"
 	default 570
 	help
-	  Maximum time allowed for a single execution of the module's thread loop.
+	  Maximum time allowed for processing a single message in the module's state machine.
+	  The value must be smaller than CONFIG_APP_NETWORK__WATCHDOG_TIMEOUT_SECONDS.
 
 config APP_NETWORK_SEARCH_NETWORK_ON_STARTUP
 	bool "Search for network on startup"

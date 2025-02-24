@@ -41,8 +41,8 @@ ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, battery, 0);
 #define MAX_MSG_SIZE sizeof(struct battery_msg)
 
 BUILD_ASSERT(CONFIG_APP_BATTERY_WATCHDOG_TIMEOUT_SECONDS >
-	     CONFIG_APP_BATTERY_EXEC_TIME_SECONDS_MAX,
-	     "Watchdog timeout must be greater than maximum execution time");
+	     CONFIG_APP_BATTERY_MSG_PROCESSING_TIMEOUT_SECONDS,
+	     "Watchdog timeout must be greater than maximum message processing time");
 
 /* nPM1300 register bitmasks */
 
@@ -234,8 +234,10 @@ static void battery_task(void)
 {
 	int err;
 	int task_wdt_id;
-	const uint32_t wdt_timeout_ms = (CONFIG_APP_BATTERY_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
-	const uint32_t execution_time_ms = (CONFIG_APP_BATTERY_EXEC_TIME_SECONDS_MAX * MSEC_PER_SEC);
+	const uint32_t wdt_timeout_ms =
+		(CONFIG_APP_BATTERY_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
+	const uint32_t execution_time_ms =
+		(CONFIG_APP_BATTERY_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 
 	LOG_DBG("Battery module task started");
