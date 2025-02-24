@@ -47,26 +47,21 @@ ZBUS_CHAN_ADD_OBS(FOTA_CHAN, fota, 0);
 static void fota_reboot(enum nrf_cloud_fota_reboot_status status);
 static void fota_status(enum nrf_cloud_fota_status status, const char *const status_details);
 
-/* State machine */
-
-/* Defining modules states.
- * STATE_RUNNING: The FOTA module is initializing and waiting for a poll request.
- *	STATE_WAITING_FOR_POLL_REQUEST: The FOTA module is waiting for a poll request.
- *	STATE_POLLING_FOR_UPDATE: The FOTA module is polling for an update.
- *	STATE_DOWNLOADING_UPDATE: The FOTA module is downloading an update.
- *	STATE_WAITING_FOR_NETWORK_DISCONNECT: The FOTA module is waiting for a network disconnect
- *					      in order to apply the update.
- *	STATE_REBOOT_NEEDED: The FOTA module is waiting for a reboot.
- *	STATE_CANCELED: The FOTA module has been canceled, cleaning up.
- */
 enum fota_module_state {
+	/* The module is initialized and running */
 	STATE_RUNNING,
-	STATE_WAITING_FOR_POLL_REQUEST,
-	STATE_POLLING_FOR_UPDATE,
-	STATE_DOWNLOADING_UPDATE,
-	STATE_WAITING_FOR_NETWORK_DISCONNECT,
-	STATE_REBOOT_NEEDED,
-	STATE_CANCELED,
+		/* The module is waiting for a poll request */
+		STATE_WAITING_FOR_POLL_REQUEST,
+		/* The module is polling for an update */
+		STATE_POLLING_FOR_UPDATE,
+		/* The module is downloading an update */
+		STATE_DOWNLOADING_UPDATE,
+		/* The module is waiting for the event FOTA_IMAGE_APPLY to apply the image */
+		STATE_WAITING_FOR_IMAGE_APPLY,
+		/* The FOTA module is waiting for a reboot */
+		STATE_REBOOT_NEEDED,
+		/* The FOTA module has been canceled, cleaning up */
+		STATE_CANCELED,
 };
 
 /* User defined state object.
@@ -89,15 +84,21 @@ struct fota_state {
 /* Forward declarations */
 static void state_running_entry(void *o);
 static void state_running_run(void *o);
+
 static void state_waiting_for_poll_request_entry(void *o);
 static void state_waiting_for_poll_request_run(void *o);
+
 static void state_polling_for_update_entry(void *o);
 static void state_polling_for_update_run(void *o);
+
 static void state_downloading_update_entry(void *o);
 static void state_downloading_update_run(void *o);
-static void state_waiting_for_network_disconnect_entry(void *o);
-static void state_waiting_for_network_disconnect_run(void *o);
+
+static void state_waiting_for_image_apply_entry(void *o);
+static void state_waiting_for_image_apply_run(void *o);
+
 static void state_reboot_needed_entry(void *o);
+
 static void state_canceled_entry(void *o);
 
 static struct fota_state fota_state = {
@@ -130,9 +131,9 @@ static const struct smf_state states[] = {
 				 NULL,
 				 &states[STATE_RUNNING],
 				 NULL),
-	[STATE_WAITING_FOR_NETWORK_DISCONNECT] =
-		SMF_CREATE_STATE(state_waiting_for_network_disconnect_entry,
-				 state_waiting_for_network_disconnect_run,
+	[STATE_WAITING_FOR_IMAGE_APPLY] =
+		SMF_CREATE_STATE(state_waiting_for_image_apply_entry,
+				 state_waiting_for_image_apply_run,
 				 NULL,
 				 &states[STATE_RUNNING],
 				 NULL),
@@ -155,7 +156,7 @@ static const struct smf_state states[] = {
 static void fota_reboot(enum nrf_cloud_fota_reboot_status status)
 {
 	int err;
-	enum fota_msg_type evt = FOTA_REBOOT_NEEDED;
+	enum fota_msg_type evt = FOTA_SUCCESS_REBOOT_NEEDED;
 
 	LOG_DBG("Reboot requested with FOTA status %d", status);
 
@@ -200,7 +201,7 @@ static void fota_status(enum nrf_cloud_fota_status status, const char *const sta
 	case NRF_CLOUD_FOTA_FMFU_VALIDATION_NEEDED:
 		LOG_DBG("Full Modem FOTA Update validation needed, network disconnect required");
 
-		evt = FOTA_NETWORK_DISCONNECT_NEEDED;
+		evt = FOTA_IMAGE_APPLY_NEEDED;
 		break;
 	default:
 		LOG_DBG("Unknown FOTA status: %d", status);
@@ -354,8 +355,8 @@ static void state_downloading_update_run(void *o)
 		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		switch (evt) {
-		case FOTA_NETWORK_DISCONNECT_NEEDED:
-			STATE_SET(fota_state, STATE_WAITING_FOR_NETWORK_DISCONNECT);
+		case FOTA_IMAGE_APPLY_NEEDED:
+			STATE_SET(fota_state, STATE_WAITING_FOR_IMAGE_APPLY);
 			break;
 		case FOTA_DOWNLOAD_FAILED:
 			STATE_SET(fota_state, STATE_WAITING_FOR_POLL_REQUEST);
@@ -367,14 +368,14 @@ static void state_downloading_update_run(void *o)
 	}
 }
 
-static void state_waiting_for_network_disconnect_entry(void *o)
+static void state_waiting_for_image_apply_entry(void *o)
 {
 	ARG_UNUSED(o);
 
 	LOG_DBG("%s", __func__);
 }
 
-static void state_waiting_for_network_disconnect_run(void *o)
+static void state_waiting_for_image_apply_run(void *o)
 {
 	struct fota_state *state_object = o;
 
@@ -382,7 +383,7 @@ static void state_waiting_for_network_disconnect_run(void *o)
 		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		switch (evt) {
-		case FOTA_APPLY_IMAGE:
+		case FOTA_IMAGE_APPLY:
 
 			LOG_DBG("Applying downloaded firmware image");
 
@@ -395,7 +396,7 @@ static void state_waiting_for_network_disconnect_run(void *o)
 			}
 
 			break;
-		case FOTA_REBOOT_NEEDED:
+		case FOTA_SUCCESS_REBOOT_NEEDED:
 			STATE_SET(fota_state, STATE_REBOOT_NEEDED);
 			break;
 		default:

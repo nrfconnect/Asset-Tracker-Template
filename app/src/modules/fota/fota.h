@@ -32,13 +32,14 @@ enum fota_msg_type {
 	/* Event notified if there is no available update. */
 	FOTA_NO_AVAILABLE_UPDATE,
 
-	/* Event notified when a FOTA update has succeeded, reboot is needed */
-	FOTA_REBOOT_NEEDED,
+	/* Event notified when a FOTA update has succeeded, reboot is needed to apply the image. */
+	FOTA_SUCCESS_REBOOT_NEEDED,
 
 	/* Event notified when the module needs the network to disconnect in order to apply
-	 * an update. When network has been disconnect, send the event FOTA_APPLY_IMAGE.
+	 * an update. When disconnected from the network, send the event FOTA_IMAGE_APPLY.
+	 * This is needed for Full Modem FOTA updates.
 	 */
-	FOTA_NETWORK_DISCONNECT_NEEDED,
+	FOTA_IMAGE_APPLY_NEEDED,
 
 	/* Event notified when the FOTA update has been canceled. */
 	FOTA_CANCELED,
@@ -49,7 +50,7 @@ enum fota_msg_type {
 	FOTA_POLL_REQUEST,
 
 	/* Request to apply the downloaded firmware image. */
-	FOTA_APPLY_IMAGE,
+	FOTA_IMAGE_APPLY,
 
 	/* Cancel the FOTA process. */
 	FOTA_CANCEL,

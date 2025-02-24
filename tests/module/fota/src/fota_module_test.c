@@ -158,15 +158,15 @@ void test_fota_module_should_succeed(void)
 
 	/* 3. Download succeeded, validation needed */
 	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_FMFU_VALIDATION_NEEDED);
-	event_expect(FOTA_NETWORK_DISCONNECT_NEEDED);
+	event_expect(FOTA_IMAGE_APPLY_NEEDED);
 
 	/* 4. Apply image */
-	event_send(FOTA_APPLY_IMAGE);
-	event_expect(FOTA_APPLY_IMAGE);
+	event_send(FOTA_IMAGE_APPLY);
+	event_expect(FOTA_IMAGE_APPLY);
 
 	/* 5. Reboot needed */
 	invoke_nrf_cloud_fota_callback_stub_reboot(FOTA_REBOOT_SUCCESS);
-	event_expect(FOTA_REBOOT_NEEDED);
+	event_expect(FOTA_SUCCESS_REBOOT_NEEDED);
 }
 
 void test_fota_module_should_fail_on_timeout(void)
