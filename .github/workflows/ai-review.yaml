@@ -19,11 +19,17 @@ jobs:
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          # AI provider
-          AI_PROVIDER: "anthropic"
-          AI_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          AI_MODEL: "claude-3-5-sonnet-20241022"
-          AI_TEMPERATURE: 0.1
+          # # Claude
+          # AI_PROVIDER: "anthropic"
+          # AI_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # AI_MODEL: "claude-3-5-sonnet-20241022"
+          # AI_TEMPERATURE: 0.1
+
+          # Openai
+          AI_PROVIDER: "openai"
+          AI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AI_MODEL: "gpt-4o"
+          AI_TEMPERATURE: 0.3
 
           # Optional configurations
           APPROVE_REVIEWS: true
