@@ -127,9 +127,9 @@ jobs:
           NRFCLOUD_API_KEY: ${{ secrets.NRF_CLOUD_API_KEY }}
           LOG_FILENAME: att_test_log
           TEST_REPORT_NAME: ATT Firwmare Test Report
-          # MEMFAULT_ORGANIZATION_TOKEN: ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }}
-          # MEMFAULT_ORGANIZATION_SLUG: ${{ vars.MEMFAULT_ORGANIZATION_SLUG }}
-          # MEMFAULT_PROJECT_SLUG: ${{ vars.MEMFAULT_PROJECT_SLUG }}
+          MEMFAULT_ORGANIZATION_TOKEN: ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }}
+          MEMFAULT_ORGANIZATION_SLUG: ${{ secrets.MEMFAULT_ORGANIZATION_SLUG }}
+          MEMFAULT_PROJECT_SLUG: ${{ secrets.MEMFAULT_PROJECT_SLUG }}
 
       - name: Results
         if: always()
