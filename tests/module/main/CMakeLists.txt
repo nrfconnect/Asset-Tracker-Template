@@ -17,7 +17,7 @@ target_sources(app
 	PRIVATE
 	src/main.c
 	src/checks.c
-	${ASSET_TRACKER_TEMPLATE_DIR}/app/src/modules/app/app.c
+	${ASSET_TRACKER_TEMPLATE_DIR}/app/src/main.c
 	${ASSET_TRACKER_TEMPLATE_DIR}/app/src/common/message_channel.c
 )
 
@@ -40,7 +40,7 @@ target_link_options(app PRIVATE --whole-archive)
 
 add_compile_options(-Wno-return-type)
 
-set_property(SOURCE ${ASSET_TRACKER_TEMPLATE_DIR}/app/src/modules/app/app.c PROPERTY COMPILE_FLAGS
+set_property(SOURCE ${ASSET_TRACKER_TEMPLATE_DIR}/app/src/main.c PROPERTY COMPILE_FLAGS
 	     "-include ${CMAKE_CURRENT_SOURCE_DIR}/src/redef.h")
 
 # Options that cannot be passed through Kconfig fragments

@@ -12,11 +12,13 @@ project("Asset Tracker Template")
 # Include files that are common for all modules
 add_subdirectory(src/common)
 
+# Add main application source
+target_sources(app PRIVATE src/main.c)
+
 # Include mandatory module source folders
 add_subdirectory(src/modules/network)
 add_subdirectory(src/modules/cloud)
 add_subdirectory(src/modules/location)
-add_subdirectory(src/modules/app)
 add_subdirectory(src/modules/fota)
 add_subdirectory(src/modules/button)
 
