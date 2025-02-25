@@ -13,12 +13,12 @@ config APP_PAYLOAD_CHANNEL_BUFFER_MAX_SIZE
 	  Maximum size of the buffer sent over the payload channel.
 	  Contains encoded CBOR data sampled and encoded in the various modules.
 
+rsource "src/Kconfig.main"
 rsource "src/modules/battery/Kconfig.battery"
 rsource "src/modules/network/Kconfig.network"
 rsource "src/modules/cloud/Kconfig.cloud"
 rsource "src/modules/location/Kconfig.location"
 rsource "src/modules/led/Kconfig.led"
-rsource "src/modules/app/Kconfig.app"
 rsource "src/modules/fota/Kconfig.fota"
 rsource "src/modules/environmental/Kconfig.environmental"
 rsource "src/modules/shell/Kconfig.shell"
