@@ -377,7 +377,7 @@ static void periodic_triggering_entry(void *o)
 	}
 #endif /* CONFIG_APP_LED */
 
-	k_work_reschedule(&trigger_work, K_NO_WAIT);
+	k_work_reschedule(&trigger_work, K_SECONDS(10));
 }
 
 static void periodic_triggering_run(void *o)
@@ -421,7 +421,7 @@ static void fota_run(void *o)
 
 	if (state_object->chan == &FOTA_CHAN) {
 		switch (state_object->fota_status) {
-		case FOTA_CANCELED:
+		case FOTA_DOWNLOAD_CANCELED:
 			__fallthrough;
 		case FOTA_DOWNLOAD_TIMED_OUT:
 			__fallthrough;
