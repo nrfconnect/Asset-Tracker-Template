@@ -67,8 +67,8 @@ void tearDown(void)
 	no_events_expect(3600);
 
 	/* Reset DuTs internal state between each test case */
-	event_send(FOTA_CANCEL);
-	event_expect(FOTA_CANCEL);
+	event_send(FOTA_DOWNLOAD_CANCEL);
+	event_expect(FOTA_DOWNLOAD_CANCEL);
 }
 
 static void event_expect(enum fota_msg_type expected_fota_type)
@@ -185,6 +185,42 @@ void test_fota_module_should_fail_on_timeout(void)
 	/* 3. Download timed out */
 	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_TIMED_OUT);
 	event_expect(FOTA_DOWNLOAD_TIMED_OUT);
+}
+
+void test_fota_module_should_fail_on_fail(void)
+{
+	/* Given */
+	nrf_cloud_fota_poll_process_fake.return_val = 0;
+
+	/* 1. Poll for update */
+	event_send(FOTA_POLL_REQUEST);
+	event_expect(FOTA_POLL_REQUEST);
+
+	/* 2. Downloading update */
+	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_DOWNLOADING);
+	event_expect(FOTA_DOWNLOADING_UPDATE);
+
+	/* 3. Download failed */
+	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_FAILED);
+	event_expect(FOTA_DOWNLOAD_FAILED);
+}
+
+void test_fota_module_should_fail_on_cancellation(void)
+{
+	/* Given */
+	nrf_cloud_fota_poll_process_fake.return_val = 0;
+
+	/* 1. Poll for update */
+	event_send(FOTA_POLL_REQUEST);
+	event_expect(FOTA_POLL_REQUEST);
+
+	/* 2. Downloading update */
+	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_DOWNLOADING);
+	event_expect(FOTA_DOWNLOADING_UPDATE);
+
+	/* 3. Download canceled */
+	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_CANCELED);
+	event_expect(FOTA_DOWNLOAD_CANCELED);
 }
 
 /* This is required to be added to each test. That is because unity's

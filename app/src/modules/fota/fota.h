@@ -41,8 +41,8 @@ enum fota_msg_type {
 	 */
 	FOTA_IMAGE_APPLY_NEEDED,
 
-	/* Event notified when the FOTA update has been canceled. */
-	FOTA_CANCELED,
+	/* Event notified when the FOTA download has been canceled. */
+	FOTA_DOWNLOAD_CANCELED,
 
 	/* Input message types */
 
@@ -52,8 +52,8 @@ enum fota_msg_type {
 	/* Request to apply the downloaded firmware image. */
 	FOTA_IMAGE_APPLY,
 
-	/* Cancel the FOTA process. */
-	FOTA_CANCEL,
+	/* Cancel the FOTA download. */
+	FOTA_DOWNLOAD_CANCEL,
 };
 
 #define MSG_TO_FOTA_TYPE(_msg) (*(const enum fota_msg_type *)_msg)

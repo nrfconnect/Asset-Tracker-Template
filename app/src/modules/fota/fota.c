@@ -193,7 +193,7 @@ static void fota_status(enum nrf_cloud_fota_status status, const char *const sta
 	case NRF_CLOUD_FOTA_CANCELED:
 		LOG_WRN("Firmware download canceled");
 
-		evt = FOTA_CANCELED;
+		evt = FOTA_DOWNLOAD_CANCELED;
 		break;
 	case NRF_CLOUD_FOTA_TIMED_OUT:
 		LOG_WRN("Firmware download timed out");
@@ -265,7 +265,7 @@ static void state_running_run(void *o)
 	if (&FOTA_CHAN == state_object->chan) {
 		const enum fota_msg_type msg_type = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
-		if (msg_type == FOTA_CANCEL) {
+		if (msg_type == FOTA_DOWNLOAD_CANCEL) {
 			STATE_SET(fota_state, STATE_CANCELED);
 		}
 	}
@@ -287,7 +287,7 @@ static void state_waiting_for_poll_request_run(void *o)
 
 		if (msg_type == FOTA_POLL_REQUEST) {
 			STATE_SET(fota_state, STATE_POLLING_FOR_UPDATE);
-		} else if (msg_type == FOTA_CANCEL) {
+		} else if (msg_type == FOTA_DOWNLOAD_CANCEL) {
 			LOG_DBG("No ongoing FOTA update, nothing to cancel");
 
 			STATE_EVENT_HANDLED(fota_state);
@@ -343,7 +343,7 @@ static void state_polling_for_update_run(void *o)
 		case FOTA_NO_AVAILABLE_UPDATE:
 			STATE_SET(fota_state, STATE_WAITING_FOR_POLL_REQUEST);
 			break;
-		case FOTA_CANCEL:
+		case FOTA_DOWNLOAD_CANCEL:
 			LOG_DBG("No ongoing FOTA update, nothing to cancel");
 
 			STATE_EVENT_HANDLED(fota_state);
@@ -373,6 +373,10 @@ static void state_downloading_update_run(void *o)
 		case FOTA_IMAGE_APPLY_NEEDED:
 			STATE_SET(fota_state, STATE_WAITING_FOR_IMAGE_APPLY);
 			break;
+		case FOTA_DOWNLOAD_CANCELED:
+			__fallthrough;
+		case FOTA_DOWNLOAD_TIMED_OUT:
+			__fallthrough;
 		case FOTA_DOWNLOAD_FAILED:
 			STATE_SET(fota_state, STATE_WAITING_FOR_POLL_REQUEST);
 			break;
@@ -450,7 +454,7 @@ static void state_canceling_run(void *o)
 	if (&FOTA_CHAN == state_object->chan) {
 		const enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
-		if (msg == FOTA_CANCELED) {
+		if (msg == FOTA_DOWNLOAD_CANCELED) {
 			STATE_SET(fota_state, STATE_WAITING_FOR_POLL_REQUEST);
 		}
 	}
