@@ -6,7 +6,7 @@ NOTE: The tests have been tested on Ubuntu 22.04. For details on how to install 
 
 ### Setup docker
 ```shell
-docker pull ghcr.io/hello-nrfcloud/firmware:docker-v1.0.3
+docker pull ghcr.io/nordicsemiconductor/asset-tracker-template:test-docker-v1.0.0
 cd <path_to_att_dir>
 docker run --rm -it \
   --privileged \
@@ -14,7 +14,7 @@ docker run --rm -it \
   -v /run/udev:/run/udev \
   -v .:/work/asset-tracker-template \
   -v /opt/setup-jlink:/opt/setup-jlink \
-  ghcr.io/hello-nrfcloud/firmware:docker-v1.0.3 \
+  ghcr.io/nordicsemiconductor/asset-tracker-template:test-docker-v1.0.0 \
   /bin/bash
 cd asset-tracker-template/tests/on_target
 ```
