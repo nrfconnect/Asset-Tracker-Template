@@ -134,6 +134,15 @@ static void send_cloud_connected_ready_to_send(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
+static void send_location_search_done(void)
+{
+	enum location_msg_type msg = LOCATION_SEARCH_DONE;
+
+	int err = zbus_chan_pub(&LOCATION_CHAN, &msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
 static void send_config(uint64_t interval)
 {
 	const struct configuration config = {
@@ -159,21 +168,13 @@ static void send_cloud_disconnected(void)
 
 void test_init_to_connected_state(void)
 {
-	/* Given */
 	send_cloud_connected_ready_to_send();
 
-	/* When */
-	k_sleep(K_SECONDS(HOUR_IN_SECONDS));
-
-	/* Then */
-	uint32_t interval =  HOUR_IN_SECONDS / CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS;
-
-	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-	check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
-
-	for (int i = 0; i < interval; i++) {
+	for (int i = 0; i < 10; i++) {
+		send_location_search_done();
 		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 		check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+		k_sleep(K_SECONDS(CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS));
 	}
 
 	/* Cleanup */
@@ -185,19 +186,13 @@ void test_button_press_on_connected(void)
 {
 	/* Given */
 	send_cloud_connected_ready_to_send();
+	send_location_search_done();
 
 	/* When */
 	button_handler(DK_BTN1_MSK, DK_BTN1_MSK);
 	k_sleep(K_SECONDS(5));
 
-
 	/* Then */
-
-	/* Two events, one for initial trigger when entering connected state and one for the
-	 * button press
-	 */
-	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-	check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
@@ -221,22 +216,38 @@ void test_button_press_on_disconnected(void)
 
 void test_trigger_interval_change_in_connected(void)
 {
-	/* Given */
 	send_cloud_connected_ready_to_send();
 	send_config(HOUR_IN_SECONDS * 12);
 
-	/* When */
-	k_sleep(K_SECONDS(WEEK_IN_SECONDS));
-
-	/* Then */
-	uint32_t interval =  (WEEK_IN_SECONDS) / (HOUR_IN_SECONDS * 12);
-
-	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-	check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
-
-	for (int i = 0; i < interval; i++) {
+	for (int i = 0; i < 10; i++) {
+		send_location_search_done();
 		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 		check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+		k_sleep(K_SECONDS(HOUR_IN_SECONDS * 12));
+	}
+
+	/* Cleanup */
+	send_cloud_disconnected();
+	check_no_events(WEEK_IN_SECONDS);
+}
+
+void test_trigger_disconnect_and_connect_when_triggering(void)
+{
+	send_cloud_connected_ready_to_send();
+	send_config(HOUR_IN_SECONDS * 12);
+
+	for (int i = 0; i < 10; i++) {
+
+		if (i == 5) {
+			send_cloud_disconnected();
+			check_no_events(7200);
+			send_cloud_connected_ready_to_send();
+		}
+
+		send_location_search_done();
+		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+		check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+		k_sleep(K_SECONDS(HOUR_IN_SECONDS * 12));
 	}
 
 	/* Cleanup */

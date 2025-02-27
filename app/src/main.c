@@ -37,25 +37,42 @@ LOG_MODULE_REGISTER(app, CONFIG_APP_LOG_LEVEL);
 static void app_callback(const struct zbus_channel *chan);
 ZBUS_LISTENER_DEFINE(app_listener, app_callback);
 
+ZBUS_CHAN_DEFINE(TIMER_CHAN,
+		 int,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
+
 /* Observe channels */
 ZBUS_CHAN_ADD_OBS(CONFIG_CHAN, app_listener, 0);
 ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, app_listener, 0);
 ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, app_listener, 0);
 ZBUS_CHAN_ADD_OBS(FOTA_CHAN, app_listener, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, app_listener, 0);
+ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, app_listener, 0);
+ZBUS_CHAN_ADD_OBS(TIMER_CHAN, app_listener, 0);
 
 /* Forward declarations */
-static void trigger_work_fn(struct k_work *work);
+static void timer_work_fn(struct k_work *work);
 
 /* Delayable work used to schedule triggers */
-static K_WORK_DELAYABLE_DEFINE(trigger_work, trigger_work_fn);
+static K_WORK_DELAYABLE_DEFINE(trigger_work, timer_work_fn);
 
 /* Forward declarations of state handlers */
 static void running_entry(void *o);
 static void running_run(void *o);
 
-static void periodic_triggering_entry(void *o);
-static void periodic_triggering_run(void *o);
+static void triggering_entry(void *o);
+static void triggering_run(void *o);
+
+static void requesting_location_entry(void *o);
+static void requesting_location_run(void *o);
+
+static void requesting_sensors_and_polling_entry(void *o);
+static void requesting_sensors_and_polling_run(void *o);
+static void requesting_sensors_and_polling_exit(void *o);
 
 static void idle_entry(void *o);
 static void idle_run(void *o);
@@ -77,7 +94,11 @@ enum state {
 	/* Normal operation */
 	STATE_RUNNING,
 		/* Triggers are periodically sent at a configured interval */
-		STATE_PERIODIC_TRIGGERING,
+		STATE_TRIGGERING,
+			/* Requesting location from the location module */
+			STATE_REQUESTING_LOCATION,
+			/* Requesting sensor values and polling for downlink data */
+			STATE_REQUESTING_SENSORS_AND_POLLING,
 		/* Disconnected from the network, no triggers are sent */
 		STATE_IDLE,
 	/* Ongoing FOTA process, triggers are blocked */
@@ -119,6 +140,9 @@ struct app_state_object {
 
 	/* Network status */
 	enum network_msg_type network_status;
+
+	/* Location status */
+	enum location_msg_type location_status;
 };
 
 static struct app_state_object app_state;
@@ -132,11 +156,25 @@ static const struct smf_state states[] = {
 		NULL,
 		NULL
 	),
-	[STATE_PERIODIC_TRIGGERING] = SMF_CREATE_STATE(
-		periodic_triggering_entry,
-		periodic_triggering_run,
+	[STATE_TRIGGERING] = SMF_CREATE_STATE(
+		triggering_entry,
+		triggering_run,
 		NULL,
 		&states[STATE_RUNNING],
+		&states[STATE_REQUESTING_LOCATION]
+	),
+	[STATE_REQUESTING_LOCATION] = SMF_CREATE_STATE(
+		requesting_location_entry,
+		requesting_location_run,
+		NULL,
+		&states[STATE_TRIGGERING],
+		NULL
+	),
+	[STATE_REQUESTING_SENSORS_AND_POLLING] = SMF_CREATE_STATE(
+		requesting_sensors_and_polling_entry,
+		requesting_sensors_and_polling_run,
+		requesting_sensors_and_polling_exit,
+		&states[STATE_TRIGGERING],
 		NULL
 	),
 	[STATE_IDLE] = SMF_CREATE_STATE(
@@ -183,7 +221,7 @@ static const struct smf_state states[] = {
 	),
 };
 
-static void triggers_send(void)
+static void sensor_and_poll_triggers_send(void)
 {
 	int err;
 
@@ -247,30 +285,21 @@ static void triggers_send(void)
 		SEND_FATAL_ERROR();
 		return;
 	}
-
-	/* Trigger location search and environmental data sample */
-	enum location_msg_type location_msg = LOCATION_SEARCH_TRIGGER;
-
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub data sample trigger, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
 }
 
-/* Delayable work used to send triggers to the rest of the system */
-static void trigger_work_fn(struct k_work *work)
+/* Delayable work used to send messages on the TIMER_CHAN */
+static void timer_work_fn(struct k_work *work)
 {
 	ARG_UNUSED(work);
 
-	LOG_DBG("Sending data sample trigger");
+	int err, dummy = 0;
 
-	triggers_send();
-
-	LOG_DBG("Next trigger in %lld seconds", app_state.interval_sec);
-
-	k_work_reschedule(&trigger_work, K_SECONDS(app_state.interval_sec));
+	err = zbus_chan_pub(&TIMER_CHAN, &dummy, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 }
 
 /* Zephyr State Machine framework handlers */
@@ -286,7 +315,7 @@ static void running_entry(void *o)
 	if (state_object->status == CLOUD_CONNECTED_READY_TO_SEND ||
 	    state_object->status == CLOUD_PAYLOAD_JSON ||
 	    state_object->status == CLOUD_POLL_SHADOW) {
-		STATE_SET(app_state, STATE_PERIODIC_TRIGGERING);
+		STATE_SET(app_state, STATE_TRIGGERING);
 		return;
 	}
 
@@ -342,15 +371,14 @@ static void idle_run(void *o)
 
 	if ((state_object->chan == &CLOUD_CHAN) &&
 		(state_object->status == CLOUD_CONNECTED_READY_TO_SEND)) {
-		LOG_DBG("Cloud connected and ready, going into periodic triggering state");
-		STATE_SET(app_state, STATE_PERIODIC_TRIGGERING);
+		STATE_SET(app_state, STATE_TRIGGERING);
 		return;
 	}
 }
 
 /* STATE_CONNECTED */
 
-static void periodic_triggering_entry(void *o)
+static void triggering_entry(void *o)
 {
 	ARG_UNUSED(o);
 
@@ -377,23 +405,17 @@ static void periodic_triggering_entry(void *o)
 	}
 #endif /* CONFIG_APP_LED */
 
-	k_work_reschedule(&trigger_work, K_SECONDS(10));
+	k_work_reschedule(&trigger_work, K_NO_WAIT);
 }
 
-static void periodic_triggering_run(void *o)
+static void triggering_run(void *o)
 {
 	const struct app_state_object *state_object = (const struct app_state_object *)o;
 
 	if ((state_object->chan == &CLOUD_CHAN) &&
-		((state_object->status == CLOUD_CONNECTED_PAUSED) ||
-		(state_object->status == CLOUD_DISCONNECTED))) {
-		LOG_DBG("Cloud disconnected/paused, going into idle state");
+	    ((state_object->status == CLOUD_CONNECTED_PAUSED) ||
+	     (state_object->status == CLOUD_DISCONNECTED))) {
 		STATE_SET(app_state, STATE_IDLE);
-		return;
-	}
-
-	if (state_object->chan == &BUTTON_CHAN) {
-		k_work_reschedule(&trigger_work, K_NO_WAIT);
 		return;
 	}
 
@@ -402,6 +424,80 @@ static void periodic_triggering_run(void *o)
 		k_work_reschedule(&trigger_work, K_SECONDS(state_object->interval_sec));
 		return;
 	}
+}
+
+/* STATE_REQUESTING_LOCATION */
+
+static void requesting_location_entry(void *o)
+{
+	ARG_UNUSED(o);
+
+	LOG_DBG("%s", __func__);
+
+	int err;
+	enum location_msg_type location_msg = LOCATION_SEARCH_TRIGGER;
+
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub data sample trigger, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+}
+
+static void requesting_location_run(void *o)
+{
+	const struct app_state_object *state_object = (const struct app_state_object *)o;
+
+	if (state_object->chan == &LOCATION_CHAN &&
+	    (state_object->location_status == LOCATION_SEARCH_DONE)) {
+		STATE_SET(app_state, STATE_REQUESTING_SENSORS_AND_POLLING);
+		return;
+	}
+
+	if (state_object->chan == &BUTTON_CHAN) {
+		STATE_EVENT_HANDLED(app_state);
+		return;
+	}
+}
+
+/* STATE_REQUESTING_SENSORS_AND_POLLING */
+
+static void requesting_sensors_and_polling_entry(void *o)
+{
+	ARG_UNUSED(o);
+
+	LOG_DBG("%s", __func__);
+
+	sensor_and_poll_triggers_send();
+
+	LOG_DBG("Next trigger in %lld seconds", app_state.interval_sec);
+
+	k_work_reschedule(&trigger_work, K_SECONDS(app_state.interval_sec));
+}
+
+static void requesting_sensors_and_polling_run(void *o)
+{
+	const struct app_state_object *state_object = (const struct app_state_object *)o;
+
+	if (state_object->chan == &TIMER_CHAN) {
+		STATE_SET(app_state, STATE_REQUESTING_LOCATION);
+		return;
+	}
+
+	if (state_object->chan == &BUTTON_CHAN) {
+		STATE_SET(app_state, STATE_REQUESTING_LOCATION);
+		return;
+	}
+}
+
+static void requesting_sensors_and_polling_exit(void *o)
+{
+	ARG_UNUSED(o);
+
+	LOG_DBG("%s", __func__);
+
+	k_work_cancel_delayable(&trigger_work);
 }
 
 /* STATE_FOTA */
@@ -576,6 +672,10 @@ static void app_callback(const struct zbus_channel *chan)
 		const struct network_msg *network_msg = zbus_chan_const_msg(chan);
 
 		app_state.network_status = network_msg->type;
+	} else if (&LOCATION_CHAN == chan) {
+		const enum location_msg_type *location_msg = zbus_chan_const_msg(chan);
+
+		app_state.location_status = *location_msg;
 	}
 
 	/* State object updated, run SMF */
