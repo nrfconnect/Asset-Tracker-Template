@@ -43,16 +43,13 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(location);
 /* Observe channels */
 ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, location, 0);
 ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, location, 0);
-ZBUS_CHAN_ADD_OBS(CONFIG_CHAN, location, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, location, 0);
 
 #define MAX_MSG_SIZE \
 	(MAX(sizeof(enum location_msg_type), \
 		 (MAX(sizeof(struct cloud_msg), \
-		     (MAX(sizeof(struct configuration), \
-		         sizeof(struct network_msg)))))))
+		      sizeof(struct network_msg)))))
 
-static bool gnss_enabled;
 static bool gnss_initialized;
 
 static void location_event_handler(const struct location_event_data *event_data);
@@ -66,13 +63,6 @@ static void task_wdt_callback(int channel_id, void *user_data)
 
 	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
 }
-
-static enum location_method location_method_types[] = {
-	LOCATION_METHOD_GNSS,
-	LOCATION_METHOD_WIFI,
-	LOCATION_METHOD_CELLULAR
-};
-static const uint8_t location_methods_size = ARRAY_SIZE(location_method_types);
 
 static void status_send(enum location_msg_type status)
 {
@@ -89,25 +79,15 @@ static void status_send(enum location_msg_type status)
 
 void trigger_location_update(void)
 {
-	int err;
-	struct location_config config = { 0 };
-
-	if (gnss_enabled) {
-		location_config_defaults_set(&config, location_methods_size, location_method_types);
-		LOG_DBG("GNSS enabled");
-	} else {
-		/* Only pass in a subset of the location methods to skip GNSS */
-		location_config_defaults_set(&config, location_methods_size - 1, location_method_types + 1);
-		LOG_DBG("GNSS disabled");
-	}
-
 	LOG_DBG("location library initialized");
 
-	err = location_request(&config);
+	int err = location_request(NULL);
+
 	if (err == -EBUSY) {
 		LOG_WRN("Location request already in progress");
 	} else if (err) {
 		LOG_ERR("Unable to send location request: %d", err);
+		SEND_FATAL_ERROR();
 	}
 }
 
@@ -136,16 +116,6 @@ void handle_location_chan(enum location_msg_type location_msg_type)
 	if (location_msg_type == LOCATION_SEARCH_TRIGGER) {
 		LOG_DBG("Location search trigger received, getting location");
 		trigger_location_update();
-	}
-}
-
-void handle_config_chan(const struct configuration *config)
-{
-	if (config->config_present && config->gnss_present) {
-		gnss_enabled = config->gnss;
-		LOG_DBG("GNSS enabled: %d", gnss_enabled);
-	} else {
-		LOG_DBG("Configuration not present");
 	}
 }
 
@@ -228,10 +198,6 @@ void location_task(void)
 		if (&LOCATION_CHAN == chan) {
 			handle_location_chan(MSG_TO_LOCATION_TYPE(&msg_buf));
 		}
-
-		if (&CONFIG_CHAN == chan) {
-			handle_config_chan(MSG_TO_CONFIGURATION(&msg_buf));
-		}
 	}
 }
 
@@ -258,11 +224,11 @@ static void location_event_handler(const struct location_event_data *event_data)
 {
 	switch (event_data->id) {
 	case LOCATION_EVT_LOCATION:
-		LOG_DBG("Got location: lat: %f, lon: %f, acc: %f, method: %d",
+		LOG_DBG("Got location: lat: %f, lon: %f, acc: %f, method: %s",
 			(double) event_data->location.latitude,
 			(double) event_data->location.longitude,
 			(double) event_data->location.accuracy,
-			(int) event_data->method);
+			location_method_str(event_data->method));
 
 		if (event_data->method == LOCATION_METHOD_GNSS) {
 			struct nrf_modem_gnss_pvt_data_frame pvt_data =
