@@ -516,6 +516,7 @@ static void state_connected_ready_run(void *o)
 {
 	int err;
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
+	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
 
 	if (state_object->chan == &NETWORK_CHAN) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
@@ -532,7 +533,8 @@ static void state_connected_ready_run(void *o)
 		case NETWORK_QUALITY_SAMPLE_RESPONSE:
 			err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_CONEVAL,
 							 msg.conn_eval_params.energy_estimate,
-							 NRF_CLOUD_NO_TIMESTAMP, true);
+							 NRF_CLOUD_NO_TIMESTAMP,
+							 confirmable);
 			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 				SEND_FATAL_ERROR();
@@ -541,7 +543,8 @@ static void state_connected_ready_run(void *o)
 
 			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_RSRP,
 							 msg.conn_eval_params.rsrp,
-							 NRF_CLOUD_NO_TIMESTAMP, true);
+							 NRF_CLOUD_NO_TIMESTAMP,
+							 confirmable);
 			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 				SEND_FATAL_ERROR();
@@ -562,7 +565,8 @@ static void state_connected_ready_run(void *o)
 		if (msg.type == BATTERY_PERCENTAGE_SAMPLE_RESPONSE) {
 			err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_BATTERY,
 							 msg.percentage,
-							 NRF_CLOUD_NO_TIMESTAMP, true);
+							 NRF_CLOUD_NO_TIMESTAMP,
+							 confirmable);
 			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 				SEND_FATAL_ERROR();
@@ -580,7 +584,8 @@ static void state_connected_ready_run(void *o)
 		if (msg.type == ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE) {
 			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_TEMP,
 							 msg.temperature,
-							 NRF_CLOUD_NO_TIMESTAMP, true);
+							 NRF_CLOUD_NO_TIMESTAMP,
+							 confirmable);
 			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 				SEND_FATAL_ERROR();
@@ -588,7 +593,8 @@ static void state_connected_ready_run(void *o)
 
 			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_AIR_PRESS,
 							 msg.pressure,
-							 NRF_CLOUD_NO_TIMESTAMP, true);
+							 NRF_CLOUD_NO_TIMESTAMP,
+							 confirmable);
 			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 				SEND_FATAL_ERROR();
@@ -596,7 +602,8 @@ static void state_connected_ready_run(void *o)
 
 			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_HUMID,
 							 msg.humidity,
-							 NRF_CLOUD_NO_TIMESTAMP, true);
+							 NRF_CLOUD_NO_TIMESTAMP,
+							 confirmable);
 			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 				SEND_FATAL_ERROR();
@@ -610,7 +617,7 @@ static void state_connected_ready_run(void *o)
 	if (state_object->chan == &PAYLOAD_CHAN) {
 		const struct cloud_payload *payload = MSG_TO_PAYLOAD(state_object->msg_buf);
 
-		err = nrf_cloud_coap_json_message_send(payload->buffer, false, false);
+		err = nrf_cloud_coap_json_message_send(payload->buffer, false, confirmable);
 		if (err) {
 			LOG_ERR("nrf_cloud_coap_json_message_send, error: %d", err);
 			SEND_FATAL_ERROR();

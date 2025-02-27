@@ -7,6 +7,13 @@
 menu "Cloud module"
 	depends on NRF_CLOUD_COAP
 
+config APP_CLOUD_CONFIRMABLE_MESSAGES
+	bool "Use confirmable messages"
+	help
+	  Use confirmable messages for CoAP communications with nRF Cloud.
+	  Confirmable messages are retransmitted COAP_MAX_RETRANSMIT times
+	  until an acknowledgment is received.
+
 config APP_CLOUD_BACKOFF_INITIAL_SECONDS
 	int "Reconnection backoff time in seconds"
 	default 60
