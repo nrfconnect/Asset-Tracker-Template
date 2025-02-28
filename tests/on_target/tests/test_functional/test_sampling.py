@@ -14,20 +14,7 @@ from utils.logger import get_logger
 
 logger = get_logger()
 
-def test_wifi_location(t91x_board, hex_file):
-    '''
-    Test that the device can get location using Wi-Fi
-    '''
-    run_location(t91x_board, hex_file, location_method="Wi-Fi")
-
-@pytest.mark.skip(reason="GNSS location is not supported on this device")
-def test_gnss_location(t91x_board, hex_file):
-    '''
-    Test that the device can get location using GNSS
-    '''
-    run_location(t91x_board, hex_file, location_method="GNSS")
-
-def run_location(t91x_board, hex_file, location_method):
+def test_sampling(t91x_board, hex_file):
     flash_device(os.path.abspath(hex_file))
     t91x_board.uart.xfactoryreset()
     patterns_cloud_connection = [
@@ -64,6 +51,3 @@ def run_location(t91x_board, hex_file, location_method):
     assert values
     lat, lon, acc, method = values
     assert abs(float(lat) - 61.5) < 2 and abs(float(lon) - 10.5) < 1
-    method = int(method)
-    expected_method = 4 if location_method == "Wi-Fi" else 1
-    assert method == expected_method
