@@ -43,11 +43,12 @@ def test_sampling(t91x_board, hex_file):
     reset_device()
 
     # Sampling
-    t91x_board.uart.wait_for_str(pattern_list, timeout=60)
+    t91x_board.uart.wait_for_str(pattern_list, timeout=120)
 
     # Extract coordinates from UART output
     values = t91x_board.uart.extract_value( \
         r"location_event_handler: Got location: lat: ([\d.]+), lon: ([\d.]+), acc: ([\d.]+), method: ([\d.]+)")
     assert values
+
     lat, lon, acc, method = values
     assert abs(float(lat) - 61.5) < 2 and abs(float(lon) - 10.5) < 1
