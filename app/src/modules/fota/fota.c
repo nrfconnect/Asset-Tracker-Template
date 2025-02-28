@@ -64,8 +64,8 @@ enum fota_module_state {
 		STATE_WAITING_FOR_IMAGE_APPLY,
 		/* The FOTA module is waiting for a reboot */
 		STATE_REBOOT_NEEDED,
-		/* The FOTA module has been canceled, cleaning up */
-		STATE_CANCELED,
+		/* The FOTA module is canceling the job */
+		STATE_CANCELING,
 };
 
 /* User defined state object.
@@ -148,7 +148,7 @@ static const struct smf_state states[] = {
 				 NULL,
 				 &states[STATE_RUNNING],
 				 NULL),
-	[STATE_CANCELED] =
+	[STATE_CANCELING] =
 		SMF_CREATE_STATE(state_canceling_entry,
 				 state_canceling_run,
 				 NULL,
@@ -266,7 +266,7 @@ static void state_running_run(void *o)
 		const enum fota_msg_type msg_type = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		if (msg_type == FOTA_DOWNLOAD_CANCEL) {
-			STATE_SET(fota_state, STATE_CANCELED);
+			STATE_SET(fota_state, STATE_CANCELING);
 		}
 	}
 }
@@ -372,6 +372,9 @@ static void state_downloading_update_run(void *o)
 		switch (evt) {
 		case FOTA_IMAGE_APPLY_NEEDED:
 			STATE_SET(fota_state, STATE_WAITING_FOR_IMAGE_APPLY);
+			break;
+		case FOTA_SUCCESS_REBOOT_NEEDED:
+			STATE_SET(fota_state, STATE_REBOOT_NEEDED);
 			break;
 		case FOTA_DOWNLOAD_CANCELED:
 			__fallthrough;
