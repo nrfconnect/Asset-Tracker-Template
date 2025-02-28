@@ -195,7 +195,7 @@ class Uart:
                 break
             if start_t + timeout < time.time():
                 raise AssertionError(
-                    f"{missing if missing else msgs} missing in UART log in the expected order. {error_msg}\nUart log:\n{self.log}"
+                    f"{missing if missing else msgs} missing in UART log in the expected order. {error_msg}"
                 )
             if self._evt.is_set():
                 raise RuntimeError(f"Uart thread stopped, log:\n{self.log}")
@@ -210,7 +210,7 @@ class Uart:
             if missing_msgs == []:
                 return self.get_size()
             if start_t + timeout < time.time():
-                raise AssertionError(f"{missing_msgs} missing in UART log. {error_msg}\nUart log:\n{self.log}")
+                raise AssertionError(f"{missing_msgs} missing in UART log. {error_msg}\n")
             if self._evt.is_set():
                 raise RuntimeError(f"Uart thread stopped, log:\n{self.log}")
             time.sleep(1)
