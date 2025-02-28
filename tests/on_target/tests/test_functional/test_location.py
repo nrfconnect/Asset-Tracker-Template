@@ -35,17 +35,28 @@ def run_location(t91x_board, hex_file, location_method):
         "Connected to Cloud"
     ]
 
-    patterns_location = ["Wi-Fi and cellular methods combined"] if location_method == "Wi-Fi" else []
-    patterns_location = patterns_location + [
-        "location_event_handler: Got location: lat:"]
+    # Log patterns
+    pattern_location = "location_event_handler: Got location: lat:"
+    pattern_shadow_poll = "Requesting device shadow from the device"
+    pattern_environmental = "Environmental values sample request received, getting data"
+    pattern_fota_poll = "Checking for FOTA job..."
+    pattern_battery = "State of charge:"
+
+    # Combine patterns for convenience
+    pattern_list = [
+        pattern_location,
+        pattern_shadow_poll,
+        pattern_environmental,
+        pattern_fota_poll,
+        pattern_battery
+    ]
 
     # Cloud connection
     t91x_board.uart.flush()
     reset_device()
-    t91x_board.uart.wait_for_str(patterns_cloud_connection, timeout=120)
 
-    # Location
-    t91x_board.uart.wait_for_str(patterns_location, timeout=180)
+    # Sampling
+    t91x_board.uart.wait_for_str(pattern_list, timeout=60)
 
     # Extract coordinates from UART output
     values = t91x_board.uart.extract_value( \
