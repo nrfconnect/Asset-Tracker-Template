@@ -28,14 +28,20 @@
 
 #if defined(CONFIG_APP_POWER)
 #include "power.h"
+#define BAT_MSG_SIZE	sizeof(struct power_msg)
+#else
+#define BAT_MSG_SIZE	0
 #endif /* CONFIG_APP_POWER */
 
 /* Register log module */
-LOG_MODULE_REGISTER(app, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_REGISTER(main, CONFIG_APP_LOG_LEVEL);
 
-/* Define a ZBUS listener for this module */
-static void app_callback(const struct zbus_channel *chan);
-ZBUS_LISTENER_DEFINE(app_listener, app_callback);
+#define MAX_MSG_SIZE	(MAX(sizeof(struct configuration),					\
+			 MAX(sizeof(struct cloud_payload),					\
+			 MAX(sizeof(struct network_msg), BAT_MSG_SIZE))))
+
+/* Register subscriber */
+ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
 
 ZBUS_CHAN_DEFINE(TIMER_CHAN,
 		 int,
@@ -46,13 +52,13 @@ ZBUS_CHAN_DEFINE(TIMER_CHAN,
 );
 
 /* Observe channels */
-ZBUS_CHAN_ADD_OBS(CONFIG_CHAN, app_listener, 0);
-ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, app_listener, 0);
-ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, app_listener, 0);
-ZBUS_CHAN_ADD_OBS(FOTA_CHAN, app_listener, 0);
-ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, app_listener, 0);
-ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, app_listener, 0);
-ZBUS_CHAN_ADD_OBS(TIMER_CHAN, app_listener, 0);
+ZBUS_CHAN_ADD_OBS(CONFIG_CHAN, main_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, main_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, main_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(FOTA_CHAN, main_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, main_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, main_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(TIMER_CHAN, main_subscriber, 0);
 
 /* Forward declarations */
 static void timer_work_fn(struct k_work *work);
@@ -116,12 +122,15 @@ enum state {
 /* State object for the app module.
  * Used to transfer data between state changes.
  */
-struct app_state_object {
+struct main_state {
 	/* This must be first */
 	struct smf_ctx ctx;
 
 	/* Last channel type that a message was received on */
 	const struct zbus_channel *chan;
+
+	/* Last received message */
+	uint8_t msg_buf[MAX_MSG_SIZE];
 
 	/* Trigger interval */
 	uint64_t interval_sec;
@@ -145,7 +154,7 @@ struct app_state_object {
 	enum location_msg_type location_status;
 };
 
-static struct app_state_object app_state;
+static struct main_state main_state;
 
 /* Construct state table */
 static const struct smf_state states[] = {
@@ -220,6 +229,15 @@ static const struct smf_state states[] = {
 		NULL
 	),
 };
+
+/* Static helper function */
+static void task_wdt_callback(int channel_id, void *user_data)
+{
+	LOG_ERR("Watchdog expired, Channel: %d, Thread: %s",
+		channel_id, k_thread_name_get((k_tid_t)user_data));
+
+	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
+}
 
 static void sensor_and_poll_triggers_send(void)
 {
@@ -308,27 +326,27 @@ static void timer_work_fn(struct k_work *work)
 
 static void running_entry(void *o)
 {
-	const struct app_state_object *state_object = (const struct app_state_object *)o;
+	const struct main_state *state_object = (const struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
 
 	if (state_object->status == CLOUD_CONNECTED_READY_TO_SEND ||
 	    state_object->status == CLOUD_PAYLOAD_JSON ||
 	    state_object->status == CLOUD_POLL_SHADOW) {
-		STATE_SET(app_state, STATE_TRIGGERING);
+		STATE_SET(main_state, STATE_TRIGGERING);
 		return;
 	}
 
-	STATE_SET(app_state, STATE_IDLE);
+	STATE_SET(main_state, STATE_IDLE);
 }
 
 static void running_run(void *o)
 {
-	const struct app_state_object *state_object = (const struct app_state_object *)o;
+	const struct main_state *state_object = (const struct main_state *)o;
 
 	if (state_object->chan == &FOTA_CHAN &&
 	    state_object->fota_status == FOTA_DOWNLOADING_UPDATE) {
-		STATE_SET(app_state, STATE_FOTA);
+		STATE_SET(main_state, STATE_FOTA);
 		return;
 	}
 }
@@ -367,11 +385,11 @@ static void idle_entry(void *o)
 
 static void idle_run(void *o)
 {
-	const struct app_state_object *state_object = (const struct app_state_object *)o;
+	const struct main_state *state_object = (const struct main_state *)o;
 
 	if ((state_object->chan == &CLOUD_CHAN) &&
 		(state_object->status == CLOUD_CONNECTED_READY_TO_SEND)) {
-		STATE_SET(app_state, STATE_TRIGGERING);
+		STATE_SET(main_state, STATE_TRIGGERING);
 		return;
 	}
 }
@@ -410,12 +428,12 @@ static void triggering_entry(void *o)
 
 static void triggering_run(void *o)
 {
-	const struct app_state_object *state_object = (const struct app_state_object *)o;
+	const struct main_state *state_object = (const struct main_state *)o;
 
 	if ((state_object->chan == &CLOUD_CHAN) &&
 	    ((state_object->status == CLOUD_CONNECTED_PAUSED) ||
 	     (state_object->status == CLOUD_DISCONNECTED))) {
-		STATE_SET(app_state, STATE_IDLE);
+		STATE_SET(main_state, STATE_IDLE);
 		return;
 	}
 
@@ -447,16 +465,16 @@ static void requesting_location_entry(void *o)
 
 static void requesting_location_run(void *o)
 {
-	const struct app_state_object *state_object = (const struct app_state_object *)o;
+	const struct main_state *state_object = (const struct main_state *)o;
 
 	if (state_object->chan == &LOCATION_CHAN &&
 	    (state_object->location_status == LOCATION_SEARCH_DONE)) {
-		STATE_SET(app_state, STATE_REQUESTING_SENSORS_AND_POLLING);
+		STATE_SET(main_state, STATE_REQUESTING_SENSORS_AND_POLLING);
 		return;
 	}
 
 	if (state_object->chan == &BUTTON_CHAN) {
-		STATE_EVENT_HANDLED(app_state);
+		STATE_EVENT_HANDLED(main_state);
 		return;
 	}
 }
@@ -471,22 +489,22 @@ static void requesting_sensors_and_polling_entry(void *o)
 
 	sensor_and_poll_triggers_send();
 
-	LOG_DBG("Next trigger in %lld seconds", app_state.interval_sec);
+	LOG_DBG("Next trigger in %lld seconds", main_state.interval_sec);
 
-	k_work_reschedule(&trigger_work, K_SECONDS(app_state.interval_sec));
+	k_work_reschedule(&trigger_work, K_SECONDS(main_state.interval_sec));
 }
 
 static void requesting_sensors_and_polling_run(void *o)
 {
-	const struct app_state_object *state_object = (const struct app_state_object *)o;
+	const struct main_state *state_object = (const struct main_state *)o;
 
 	if (state_object->chan == &TIMER_CHAN) {
-		STATE_SET(app_state, STATE_REQUESTING_LOCATION);
+		STATE_SET(main_state, STATE_REQUESTING_LOCATION);
 		return;
 	}
 
 	if (state_object->chan == &BUTTON_CHAN) {
-		STATE_SET(app_state, STATE_REQUESTING_LOCATION);
+		STATE_SET(main_state, STATE_REQUESTING_LOCATION);
 		return;
 	}
 }
@@ -513,7 +531,7 @@ static void fota_entry(void *o)
 
 static void fota_run(void *o)
 {
-	const struct app_state_object *state_object = (const struct app_state_object *)o;
+	const struct main_state *state_object = (const struct main_state *)o;
 
 	if (state_object->chan == &FOTA_CHAN) {
 		switch (state_object->fota_status) {
@@ -522,7 +540,7 @@ static void fota_run(void *o)
 		case FOTA_DOWNLOAD_TIMED_OUT:
 			__fallthrough;
 		case FOTA_DOWNLOAD_FAILED:
-			STATE_SET(app_state, STATE_RUNNING);
+			STATE_SET(main_state, STATE_RUNNING);
 			return;
 		default:
 			/* Don't care */
@@ -535,15 +553,15 @@ static void fota_run(void *o)
 
 static void fota_downloading_run(void *o)
 {
-	const struct app_state_object *state_object = (const struct app_state_object *)o;
+	const struct main_state *state_object = (const struct main_state *)o;
 
 	if (state_object->chan == &FOTA_CHAN) {
 		switch (state_object->fota_status) {
 		case FOTA_SUCCESS_REBOOT_NEEDED:
-			STATE_SET(app_state, STATE_FOTA_NETWORK_DISCONNECT);
+			STATE_SET(main_state, STATE_FOTA_NETWORK_DISCONNECT);
 			return;
 		case FOTA_IMAGE_APPLY_NEEDED:
-			STATE_SET(app_state, STATE_FOTA_APPLYING_IMAGE);
+			STATE_SET(main_state, STATE_FOTA_APPLYING_IMAGE);
 			return;
 		default:
 			/* Don't care */
@@ -574,11 +592,11 @@ static void fota_network_disconnect_entry(void *o)
 
 static void fota_network_disconnect_run(void *o)
 {
-	const struct app_state_object *state_object = (const struct app_state_object *)o;
+	const struct main_state *state_object = (const struct main_state *)o;
 
 	if (state_object->chan == &NETWORK_CHAN &&
 	    state_object->network_status == NETWORK_DISCONNECTED) {
-		STATE_SET(app_state, STATE_FOTA_REBOOTING);
+		STATE_SET(main_state, STATE_FOTA_REBOOTING);
 		return;
 	}
 }
@@ -605,7 +623,7 @@ static void fota_applying_image_entry(void *o)
 
 static void fota_applying_image_run(void *o)
 {
-	const struct app_state_object *state_object = (const struct app_state_object *)o;
+	const struct main_state *state_object = (const struct main_state *)o;
 
 	if (state_object->chan == &NETWORK_CHAN &&
 	    state_object->network_status == NETWORK_DISCONNECTED) {
@@ -621,7 +639,7 @@ static void fota_applying_image_run(void *o)
 
 	} else if (state_object->chan == &FOTA_CHAN &&
 		   state_object->fota_status == FOTA_SUCCESS_REBOOT_NEEDED) {
-		STATE_SET(app_state, STATE_FOTA_REBOOTING);
+		STATE_SET(main_state, STATE_FOTA_REBOOTING);
 		return;
 	}
 }
@@ -645,55 +663,75 @@ static void fota_rebooting_entry(void *o)
 	sys_reboot(SYS_REBOOT_COLD);
 }
 
-/* Function called when there is a message received on a channel that the module listens to */
-static void app_callback(const struct zbus_channel *chan)
+int main(void)
 {
 	int err;
+	int task_wdt_id;
+	const uint32_t wdt_timeout_ms = (CONFIG_APP_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
+	const uint32_t execution_time_ms =
+		(CONFIG_APP_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
+	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 
-	/* Update the state object with the channel that the message was received on */
-	app_state.chan = chan;
+	main_state.interval_sec = CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS;
 
-	/* Copy corresponding data to the state object depending on the incoming channel */
-	if (&CONFIG_CHAN == chan) {
-		const struct configuration *config = zbus_chan_const_msg(chan);
+	LOG_DBG("Main has started");
 
-		if (config->update_interval_present) {
-			app_state.interval_sec = config->update_interval;
+	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
+
+	STATE_SET_INITIAL(main_state, STATE_RUNNING);
+
+	while (1) {
+		err = task_wdt_feed(task_wdt_id);
+		if (err) {
+			LOG_ERR("task_wdt_feed, error: %d", err);
+			SEND_FATAL_ERROR();
+
+			return err;
 		}
-	} else if (&CLOUD_CHAN == chan) {
-		const struct cloud_msg *cloud_msg = zbus_chan_const_msg(chan);
 
-		app_state.status = cloud_msg->type;
-	} else if (&FOTA_CHAN == chan) {
-		const enum fota_msg_type *fota_status = zbus_chan_const_msg(chan);
+		err = zbus_sub_wait_msg(&main_subscriber, &main_state.chan, main_state.msg_buf,
+					zbus_wait_ms);
+		if (err == -ENOMSG) {
+			continue;
+		} else if (err) {
+			LOG_ERR("zbus_sub_wait_msg, error: %d", err);
+			SEND_FATAL_ERROR();
 
-		app_state.fota_status = *fota_status;
-	} else if (&NETWORK_CHAN == chan) {
-		const struct network_msg *network_msg = zbus_chan_const_msg(chan);
+			return err;
+		}
 
-		app_state.network_status = network_msg->type;
-	} else if (&LOCATION_CHAN == chan) {
-		const enum location_msg_type *location_msg = zbus_chan_const_msg(chan);
+		/* Copy corresponding data to the state object depending on the incoming channel */
+		if (&CONFIG_CHAN == main_state.chan) {
+			const struct configuration *config = zbus_chan_const_msg(main_state.chan);
 
-		app_state.location_status = *location_msg;
-	}
+			if (config->update_interval_present) {
+				main_state.interval_sec = config->update_interval;
+			}
+		} else if (&CLOUD_CHAN == main_state.chan) {
+			const struct cloud_msg *cloud_msg = zbus_chan_const_msg(main_state.chan);
 
-	/* State object updated, run SMF */
-	err = STATE_RUN(app_state);
-	if (err) {
-		LOG_ERR("smf_run_state, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
+			main_state.status = cloud_msg->type;
+		} else if (&FOTA_CHAN == main_state.chan) {
+			const enum fota_msg_type *status = zbus_chan_const_msg(main_state.chan);
+
+			main_state.fota_status = *status;
+		} else if (&NETWORK_CHAN == main_state.chan) {
+			const struct network_msg *msg = zbus_chan_const_msg(main_state.chan);
+
+			main_state.network_status = msg->type;
+		} else if (&LOCATION_CHAN == main_state.chan) {
+			const enum location_msg_type *msg = zbus_chan_const_msg(main_state.chan);
+
+			main_state.location_status = *msg;
+		}
+
+		/* State object updated, run SMF */
+		err = STATE_RUN(main_state);
+		if (err) {
+			LOG_ERR("STATE_RUN(), error: %d", err);
+			SEND_FATAL_ERROR();
+
+			return err;
+		}
 	}
 }
-
-static int app_init(void)
-{
-	app_state.interval_sec = CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS;
-
-	STATE_SET_INITIAL(app_state, STATE_RUNNING);
-
-	return 0;
-}
-
-SYS_INIT(app_init, POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY);
