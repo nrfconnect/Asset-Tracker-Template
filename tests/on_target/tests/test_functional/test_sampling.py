@@ -47,8 +47,8 @@ def test_sampling(t91x_board, hex_file):
 
     # Extract coordinates from UART output
     values = t91x_board.uart.extract_value( \
-        r"location_event_handler: Got location: lat: ([\d.]+), lon: ([\d.]+), acc: ([\d.]+), method: ([\d.]+)")
+        r"location_event_handler: Got location: lat: ([\d.]+), lon: ([\d.]+), acc: ([\d.]+), method: Wi-Fi")
     assert values
 
-    lat, lon, acc, method = values
+    lat, lon, acc = values
     assert abs(float(lat) - 61.5) < 2 and abs(float(lon) - 10.5) < 1
