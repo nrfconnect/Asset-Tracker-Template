@@ -30,7 +30,6 @@ DEVICE_MSG_TIMEOUT = 60 * 5
 APP_FOTA_TIMEOUT = 60 * 10
 FULL_MFW_FOTA_TIMEOUT = 60 * 30
 
-
 def await_nrfcloud(func, expected, field, timeout):
     start = time.time()
     logger.info(f"Awaiting {field} == {expected} in nrfcloud shadow...")
@@ -65,25 +64,60 @@ def run_fota_resumption(t91x_fota, fota_type):
 
     # LTE disconnect
     t91x_fota.uart.flush()
-    t91x_fota.uart.write("lte offline\r\n")
+    t91x_fota.uart.write("zbus disconnect\r\n")
     t91x_fota.uart.wait_for_str(patterns_lte_offline, timeout=20)
 
     # LTE reconnect
     t91x_fota.uart.flush()
-    t91x_fota.uart.write("lte normal\r\n")
+    t91x_fota.uart.write("zbus connect\r\n")
     t91x_fota.uart.wait_for_str(patterns_lte_normal, timeout=120)
 
     t91x_fota.uart.wait_for_str("fota_download: Refuse fragment, restart with offset")
     t91x_fota.uart.wait_for_str("fota_download: Downloading from offset:")
 
+def run_fota_reschedule(t91x_fota, fota_type):
+    t91x_fota.uart.wait_for_str(f"5%", timeout=APP_FOTA_TIMEOUT)
+    logger.debug(f"Cancelling FOTA, type: {fota_type}")
+
+    t91x_fota.fota.cancel_fota_job(t91x_fota.data['job_id'])
+
+    await_nrfcloud(
+        functools.partial(t91x_fota.fota.get_fota_status, t91x_fota.data['job_id']),
+        "CANCELLED",
+        "FOTA status",
+        APP_FOTA_TIMEOUT
+    )
+
+    patterns_fota_cancel = ["Firmware download canceled", "state_waiting_for_poll_request_entry"]
+
+    t91x_fota.uart.wait_for_str(patterns_fota_cancel, timeout=180)
+
+    t91x_fota.data['job_id'] = t91x_fota.fota.create_fota_job(t91x_fota.device_id, t91x_fota.data['bundle_id'])
+
+    logger.info(f"Rescheduled FOTA Job (ID: {t91x_fota.data['job_id']})")
+
+    # Sleep a bit and trigger fota poll
+    for i in range(3):
+        try:
+            time.sleep(30)
+            t91x_fota.uart.write("zbus button_press\r\n")
+            t91x_fota.uart.wait_for_str("nrf_cloud_fota_poll: Starting FOTA download")
+            break
+        except AssertionError:
+            continue
+    else:
+        raise AssertionError(f"Fota update not available after {i} attempts")
+
 @pytest.fixture
-def run_fota_fixture(t91x_fota, hex_file):
-    def _run_fota(bundle_id="", fota_type="app", fotatimeout=APP_FOTA_TIMEOUT, new_version=TEST_APP_VERSION):
+def run_fota_fixture(t91x_fota, hex_file, reschedule=False):
+    def _run_fota(bundle_id="", fota_type="app", fotatimeout=APP_FOTA_TIMEOUT, new_version=TEST_APP_VERSION, reschedule=False):
         flash_device(os.path.abspath(hex_file))
         t91x_fota.uart.xfactoryreset()
         t91x_fota.uart.flush()
         reset_device()
         t91x_fota.uart.wait_for_str("Connected to Cloud")
+
+        time.sleep(60)
 
         if fota_type == "app":
             bundle_id = t91x_fota.fota.upload_firmware(
@@ -105,7 +139,7 @@ def run_fota_fixture(t91x_fota, hex_file):
         # Sleep a bit and trigger fota poll
         for i in range(3):
             try:
-                time.sleep(30)
+                time.sleep(10)
                 t91x_fota.uart.write("zbus button_press\r\n")
                 t91x_fota.uart.wait_for_str("nrf_cloud_fota_poll: Starting FOTA download")
                 break
@@ -114,8 +148,18 @@ def run_fota_fixture(t91x_fota, hex_file):
         else:
             raise AssertionError(f"Fota update not available after {i} attempts")
 
-        # if fota_type == "app":
-        #     run_fota_resumption(t91x_fota, "app")
+        if reschedule:
+            run_fota_reschedule(t91x_fota, fota_type)
+
+        if fota_type == "app":
+            run_fota_resumption(t91x_fota, "app")
+
+        await_nrfcloud(
+                functools.partial(t91x_fota.fota.get_fota_status, t91x_fota.data['job_id']),
+                "IN_PROGRESS",
+                "FOTA status",
+                fotatimeout
+            )
 
         await_nrfcloud(
                 functools.partial(t91x_fota.fota.get_fota_status, t91x_fota.data['job_id']),
@@ -123,6 +167,7 @@ def run_fota_fixture(t91x_fota, hex_file):
                 "FOTA status",
                 fotatimeout
             )
+
         try:
             if fota_type == "app":
                 await_nrfcloud(
@@ -173,5 +218,6 @@ def test_full_mfw_fota(run_fota_fixture):
         bundle_id=FULL_MFW_BUNDLEID,
         fota_type="full",
         new_version=MFW_202_VERSION,
-        fotatimeout=FULL_MFW_FOTA_TIMEOUT
+        fotatimeout=FULL_MFW_FOTA_TIMEOUT,
+        reschedule=True
     )
