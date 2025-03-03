@@ -479,6 +479,9 @@ static void shadow_get(bool delta_only)
 	} else if (err == -ETIMEDOUT) {
 		LOG_WRN("Request timed out, error: %d", err);
 		return;
+	} else if (err == -ENETUNREACH) {
+		LOG_WRN("Network is unreachable, error: %d", err);
+		return;
 	} else if (err > 0) {
 		LOG_WRN("Cloud error: %d", err);
 		return;
@@ -535,7 +538,10 @@ static void state_connected_ready_run(void *o)
 							 msg.conn_eval_params.energy_estimate,
 							 NRF_CLOUD_NO_TIMESTAMP,
 							 confirmable);
-			if (err) {
+			if (err == -ENETUNREACH) {
+				LOG_WRN("Network is unreachable, error: %d", err);
+				return;
+			} else if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 				SEND_FATAL_ERROR();
 				return;
@@ -545,7 +551,10 @@ static void state_connected_ready_run(void *o)
 							 msg.conn_eval_params.rsrp,
 							 NRF_CLOUD_NO_TIMESTAMP,
 							 confirmable);
-			if (err) {
+			if (err == -ENETUNREACH) {
+				LOG_WRN("Network is unreachable, error: %d", err);
+				return;
+			} else if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 				SEND_FATAL_ERROR();
 				return;
@@ -567,9 +576,13 @@ static void state_connected_ready_run(void *o)
 							 msg.percentage,
 							 NRF_CLOUD_NO_TIMESTAMP,
 							 confirmable);
-			if (err) {
+			if (err == -ENETUNREACH) {
+				LOG_WRN("Network is unreachable, error: %d", err);
+				return;
+			} else if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 				SEND_FATAL_ERROR();
+				return;
 			}
 
 			return;
@@ -586,27 +599,39 @@ static void state_connected_ready_run(void *o)
 							 msg.temperature,
 							 NRF_CLOUD_NO_TIMESTAMP,
 							 confirmable);
-			if (err) {
+			if (err == -ENETUNREACH) {
+				LOG_WRN("Network is unreachable, error: %d", err);
+				return;
+			} else if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 				SEND_FATAL_ERROR();
+				return;
 			}
 
 			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_AIR_PRESS,
 							 msg.pressure,
 							 NRF_CLOUD_NO_TIMESTAMP,
 							 confirmable);
-			if (err) {
+			if (err == -ENETUNREACH) {
+				LOG_WRN("Network is unreachable, error: %d", err);
+				return;
+			} else if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 				SEND_FATAL_ERROR();
+				return;
 			}
 
 			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_HUMID,
 							 msg.humidity,
 							 NRF_CLOUD_NO_TIMESTAMP,
 							 confirmable);
-			if (err) {
+			if (err == -ENETUNREACH) {
+				LOG_WRN("Network is unreachable, error: %d", err);
+				return;
+			} else if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 				SEND_FATAL_ERROR();
+				return;
 			}
 
 			return;
@@ -618,9 +643,13 @@ static void state_connected_ready_run(void *o)
 		const struct cloud_payload *payload = MSG_TO_PAYLOAD(state_object->msg_buf);
 
 		err = nrf_cloud_coap_json_message_send(payload->buffer, false, confirmable);
-		if (err) {
-			LOG_ERR("nrf_cloud_coap_json_message_send, error: %d", err);
+		if (err == -ENETUNREACH) {
+			LOG_WRN("Network is unreachable, error: %d", err);
+			return;
+		} else if (err) {
+			LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 			SEND_FATAL_ERROR();
+			return;
 		}
 	}
 

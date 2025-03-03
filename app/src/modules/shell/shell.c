@@ -23,6 +23,7 @@
 #include "message_channel.h"
 #include "button.h"
 #include "cloud_module.h"
+#include "network.h"
 
 LOG_MODULE_REGISTER(shell, CONFIG_APP_SHELL_LOG_LEVEL);
 
@@ -213,6 +214,44 @@ static int cmd_button_press(const struct shell *sh, size_t argc,
 	return 0;
 }
 
+static int cmd_connect(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	int err;
+	const struct network_msg msg = {
+		.type = NETWORK_CONNECT,
+	};
+
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		shell_print(sh, "zbus_chan_pub, error: %d", err);
+		return 1;
+	}
+
+	return 0;
+}
+
+static int cmd_disconnect(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	int err;
+	const struct network_msg msg = {
+		.type = NETWORK_DISCONNECT,
+	};
+
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		shell_print(sh, "zbus_chan_pub, error: %d", err);
+		return 1;
+	}
+
+	return 0;
+}
+
 static int cmd_publish_on_payload_chan(const struct shell *sh, size_t argc, char **argv)
 {
 	int err;
@@ -323,16 +362,21 @@ static void shell_task(void)
 }
 
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_zbus_publish,
-				SHELL_CMD(payload_chan,   NULL, "Publish on payload channel", cmd_publish_on_payload_chan),
-				SHELL_SUBCMD_SET_END
-		);
+			       SHELL_CMD(payload_chan,
+					 NULL,
+					 "Publish on payload channel",
+					 cmd_publish_on_payload_chan),
+			       SHELL_SUBCMD_SET_END
+);
 
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_zbus,
-				SHELL_CMD(ping,   NULL, "Ping command.", cmd_zbus_ping),
-				SHELL_CMD(button_press,   NULL, "Button press command.", cmd_button_press),
-				SHELL_CMD(publish, &sub_zbus_publish, "Publish on a zbus channel", NULL),
-				SHELL_SUBCMD_SET_END
-		);
+			       SHELL_CMD(ping, NULL, "Ping", cmd_zbus_ping),
+			       SHELL_CMD(button_press, NULL, "Button press", cmd_button_press),
+			       SHELL_CMD(publish, &sub_zbus_publish, "Publish a payload", NULL),
+			       SHELL_CMD(connect, NULL, "Connect to LTE", cmd_connect),
+			       SHELL_CMD(disconnect, NULL, "Disconnect from LTE", cmd_disconnect),
+			       SHELL_SUBCMD_SET_END
+);
 
 SHELL_CMD_REGISTER(zbus, &sub_zbus, "Zbus shell", NULL);
 
@@ -342,7 +386,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sub_uart,
 				SHELL_CMD(pm_enable, NULL, "Enable UART power management", cmd_uart_pm_enable),
 				SHELL_CMD(pm_disable, NULL, "Disable UART power management", cmd_uart_pm_disable),
 				SHELL_SUBCMD_SET_END
-		);
+);
 
 SHELL_CMD_REGISTER(uart, &sub_uart, "UART shell", NULL);
 

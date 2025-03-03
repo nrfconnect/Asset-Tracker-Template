@@ -316,6 +316,9 @@ static void state_polling_for_update_entry(void *o)
 			SEND_FATAL_ERROR();
 		}
 		break;
+	case -ENETUNREACH:
+		LOG_WRN("Network is unreachable");
+		break;
 	case -ENOENT:
 		LOG_DBG("FOTA job finished, status reported to nRF Cloud");
 		break;
