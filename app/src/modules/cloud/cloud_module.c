@@ -22,9 +22,9 @@
 #include "message_channel.h"
 #include "network.h"
 
-#if defined(CONFIG_APP_BATTERY)
+#if defined(CONFIG_APP_POWER)
 #include "power.h"
-#endif /* CONFIG_APP_BATTERY */
+#endif /* CONFIG_APP_POWER */
 
 #if defined(CONFIG_APP_ENVIRONMENTAL)
 #include "environmental.h"
@@ -36,11 +36,11 @@ LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 #define CUSTOM_JSON_APPID_VAL_CONEVAL "CONEVAL"
 #define CUSTOM_JSON_APPID_VAL_BATTERY "BATTERY"
 
-#if defined(CONFIG_APP_BATTERY)
+#if defined(CONFIG_APP_POWER)
 #define BAT_MSG_SIZE	sizeof(struct power_msg)
 #else
 #define BAT_MSG_SIZE	0
-#endif /* CONFIG_APP_BATTERY */
+#endif /* CONFIG_APP_POWER */
 
 #if defined(CONFIG_APP_ENVIRONMENTAL)
 #define ENV_MSG_SIZE	sizeof(struct environmental_msg)
@@ -68,9 +68,9 @@ ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, cloud, 0);
 ZBUS_CHAN_ADD_OBS(ENVIRONMENTAL_CHAN, cloud, 0);
 #endif /* CONFIG_APP_ENVIRONMENTAL */
 
-#if defined(CONFIG_APP_BATTERY)
+#if defined(CONFIG_APP_POWER)
 ZBUS_CHAN_ADD_OBS(POWER_CHAN, cloud, 0);
-#endif /* CONFIG_APP_BATTERY */
+#endif /* CONFIG_APP_POWER */
 
 /* Define channels provided by this module */
 
@@ -567,7 +567,7 @@ static void state_connected_ready_run(void *o)
 		}
 	}
 
-#if defined(CONFIG_APP_BATTERY)
+#if defined(CONFIG_APP_POWER)
 	if (state_object->chan == &POWER_CHAN) {
 		struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
 
@@ -588,7 +588,7 @@ static void state_connected_ready_run(void *o)
 			return;
 		}
 	}
-#endif /* CONFIG_APP_BATTERY */
+#endif /* CONFIG_APP_POWER */
 
 #if defined(CONFIG_APP_ENVIRONMENTAL)
 	if (state_object->chan == &ENVIRONMENTAL_CHAN) {

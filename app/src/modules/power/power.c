@@ -8,6 +8,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/drivers/sensor/npm1300_charger.h>
+#include <zephyr/drivers/mfd/npm1300.h>
 #include <zephyr/sys/util.h>
 #include <nrf_fuel_gauge.h>
 #include <date_time.h>
@@ -54,8 +55,10 @@ BUILD_ASSERT(CONFIG_APP_POWER_WATCHDOG_TIMEOUT_SECONDS >
 #define NPM1300_CHG_STATUS_CV_MASK BIT(4)
 
 static const struct device *charger = DEVICE_DT_GET(DT_NODELABEL(npm1300_charger));
+static const struct device *pmic = DEVICE_DT_GET(DT_NODELABEL(pmic_main));
 
 /* Forward declarations */
+static int subscribe_to_vsbus_events(const struct device *pmic, struct gpio_callback *event_cb);
 static int charger_read_sensors(float *voltage, float *current, float *temp, int32_t *chg_status);
 static void sample(int64_t *ref_time);
 
@@ -107,9 +110,17 @@ static void state_running_entry(void *o)
 	};
 	int32_t chg_status;
 	struct power_state *state_object = o;
+	static struct gpio_callback event_cb;
 
 	if (!device_is_ready(charger)) {
 		LOG_ERR("Charger device not ready.");
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	err = subscribe_to_vsbus_events(pmic, &event_cb);
+	if (err) {
+		LOG_ERR("subscribe_to_vsbus_events, error: %d", err);
 		SEND_FATAL_ERROR();
 		return;
 	}
@@ -153,6 +164,33 @@ static void state_running_run(void *o)
 }
 
 /* End of state handling */
+
+static void event_callback(const struct device *dev, struct gpio_callback *cb, uint32_t pins)
+{
+	if (pins & BIT(NPM1300_EVENT_VBUS_DETECTED)) {
+		LOG_WRN("Vbus detected");
+	}
+
+	if (pins & BIT(NPM1300_EVENT_VBUS_REMOVED)) {
+		LOG_WRN("Vbus removed");
+	}
+}
+
+static int subscribe_to_vsbus_events(const struct device *pmic, struct gpio_callback *event_cb)
+{
+	int err;
+
+	gpio_init_callback(event_cb, event_callback, BIT(NPM1300_EVENT_VBUS_DETECTED) |
+						      BIT(NPM1300_EVENT_VBUS_REMOVED));
+
+	err = mfd_npm1300_add_callback(pmic, event_cb);
+	if (err) {
+		LOG_ERR("mfd_npm1300_add_callback, error: %d", err);
+		return err;
+	}
+
+	return 0;
+}
 
 static int charger_read_sensors(float *voltage, float *current, float *temp, int32_t *chg_status)
 {
