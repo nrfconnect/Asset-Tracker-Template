@@ -24,6 +24,7 @@ target_sources(app
 target_include_directories(app PRIVATE src)
 
 zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)
+zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/drivers/mfd/)
 zephyr_include_directories(${ZEPHYR_NRFXLIB_MODULE_DIR}/nrf_fuel_gauge/include/)
 zephyr_include_directories(${ZEPHYR_BASE}/subsys/testsuite/include)
 zephyr_include_directories(${ASSET_TRACKER_TEMPLATE_DIR}/app/src/common)
