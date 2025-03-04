@@ -11,39 +11,9 @@ menuconfig APP_SHELL
 	imply AT_SHELL
 	default y
 	help
-	  Adds a zbus shell. The shell command is called
-	  "zbus" and will interpret arguments as zbus commands, and print back the
-	  response.
+	  Shell that adds usefaul commands to control certain aspects of the application.
 
 if APP_SHELL
-
-config APP_SHELL_THREAD_STACK_SIZE
-	int "Thread stack size"
-	default 1024
-
-config APP_SHELL_WATCHDOG_TIMEOUT_SECONDS
-	int "Watchdog timeout"
-	default 120
-	help
-	  Timeout in seconds for the shell module watchdog.
-	  The timeout given in this option covers both:
-	    * Waiting for an incoming message in zbus_sub_wait_msg().
-	    * Time spent processing the message, defined by
-	      CONFIG_APP_SHELL_MSG_PROCESSING_TIMEOUT_SECONDS.
-	  Ensure that this value exceeds CONFIG_APP_SHELL_MSG_PROCESSING_TIMEOUT_SECONDS.
-	  A small difference between the two can mean more frequent watchdog feeds, which increases
-	  power consumption.
-
-config APP_SHELL_MSG_PROCESSING_TIMEOUT_SECONDS
-	int "Maximum message processing time"
-	default 3
-	help
-	  Maximum time allowed for processing a single message in the module's state machine.
-	  The value must be smaller than CONFIG_APP_SHELL_WATCHDOG_TIMEOUT_SECONDS.
-
-config APP_SHELL_UART_PM_ENABLE
-	bool "Enable UART power management feature"
-	default y
 
 module = APP_SHELL
 module-str = SHELL
