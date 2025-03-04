@@ -19,6 +19,7 @@ FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
 FAKE_VALUE_FUNC(float, nrf_fuel_gauge_process, float, float, float, float, bool, void *);
 FAKE_VALUE_FUNC(int, charger_read_sensors, float *, float *, float *, int32_t *);
 FAKE_VALUE_FUNC(int, nrf_fuel_gauge_init, const struct nrf_fuel_gauge_init_parameters *, void *);
+FAKE_VALUE_FUNC(int, mfd_npm1300_add_callback, const struct device *, struct gpio_callback *);
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(power_subscriber);
 ZBUS_CHAN_ADD_OBS(POWER_CHAN, power_subscriber, 0);

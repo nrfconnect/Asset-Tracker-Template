@@ -167,6 +167,9 @@ static void state_running_run(void *o)
 
 static void event_callback(const struct device *dev, struct gpio_callback *cb, uint32_t pins)
 {
+	ARG_UNUSED(dev);
+	ARG_UNUSED(cb);
+
 	if (pins & BIT(NPM1300_EVENT_VBUS_DETECTED)) {
 		LOG_WRN("Vbus detected");
 	}
@@ -176,14 +179,14 @@ static void event_callback(const struct device *dev, struct gpio_callback *cb, u
 	}
 }
 
-static int subscribe_to_vsbus_events(const struct device *pmic, struct gpio_callback *event_cb)
+static int subscribe_to_vsbus_events(const struct device *device, struct gpio_callback *event_cb)
 {
 	int err;
 
 	gpio_init_callback(event_cb, event_callback, BIT(NPM1300_EVENT_VBUS_DETECTED) |
-						      BIT(NPM1300_EVENT_VBUS_REMOVED));
+						     BIT(NPM1300_EVENT_VBUS_REMOVED));
 
-	err = mfd_npm1300_add_callback(pmic, event_cb);
+	err = mfd_npm1300_add_callback(device, event_cb);
 	if (err) {
 		LOG_ERR("mfd_npm1300_add_callback, error: %d", err);
 		return err;
