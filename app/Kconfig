@@ -14,7 +14,7 @@ config APP_PAYLOAD_CHANNEL_BUFFER_MAX_SIZE
 	  Contains encoded CBOR data sampled and encoded in the various modules.
 
 rsource "src/Kconfig.main"
-rsource "src/modules/battery/Kconfig.battery"
+rsource "src/modules/power/Kconfig.power"
 rsource "src/modules/network/Kconfig.network"
 rsource "src/modules/cloud/Kconfig.cloud"
 rsource "src/modules/location/Kconfig.location"

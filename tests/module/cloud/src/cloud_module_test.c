@@ -8,7 +8,7 @@
 #include <zephyr/fff.h>
 #include "message_channel.h"
 #include "cloud_module.h"
-#include "battery.h"
+#include "power.h"
 #include "network.h"
 #include "environmental.h"
 #include <zephyr/task_wdt/task_wdt.h>
@@ -16,8 +16,8 @@
 DEFINE_FFF_GLOBALS;
 
 /* Define the channels for testing */
-ZBUS_CHAN_DEFINE(BATTERY_CHAN,
-		 struct battery_msg,
+ZBUS_CHAN_DEFINE(POWER_CHAN,
+		 struct power_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,

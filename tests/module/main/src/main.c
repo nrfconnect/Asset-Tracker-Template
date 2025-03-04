@@ -13,7 +13,7 @@
 
 #include "dk_buttons_and_leds.h"
 #include "message_channel.h"
-#include "battery.h"
+#include "power.h"
 #include "network.h"
 #include "environmental.h"
 #include "cloud_module.h"
@@ -24,15 +24,15 @@
 #include "checks.h"
 
 /* Define the channels for testing */
-ZBUS_CHAN_DEFINE(BATTERY_CHAN,
-		 struct battery_msg,
+ZBUS_CHAN_DEFINE(POWER_CHAN,
+		 struct power_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0)
 );
 ZBUS_CHAN_DEFINE(BUTTON_CHAN,
-		 struct battery_msg,
+		 struct power_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
@@ -173,7 +173,7 @@ void test_init_to_connected_state(void)
 	for (int i = 0; i < 10; i++) {
 		send_location_search_done();
 		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-		check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 		k_sleep(K_SECONDS(CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS));
 	}
 
@@ -194,7 +194,7 @@ void test_button_press_on_connected(void)
 
 	/* Then */
 	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-	check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	/* Cleanup */
 	send_cloud_disconnected();
@@ -222,7 +222,7 @@ void test_trigger_interval_change_in_connected(void)
 	for (int i = 0; i < 10; i++) {
 		send_location_search_done();
 		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-		check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 		k_sleep(K_SECONDS(HOUR_IN_SECONDS * 12));
 	}
 
@@ -246,7 +246,7 @@ void test_trigger_disconnect_and_connect_when_triggering(void)
 
 		send_location_search_done();
 		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-		check_battery_event(BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 		k_sleep(K_SECONDS(HOUR_IN_SECONDS * 12));
 	}
 

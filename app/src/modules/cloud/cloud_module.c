@@ -23,7 +23,7 @@
 #include "network.h"
 
 #if defined(CONFIG_APP_BATTERY)
-#include "battery.h"
+#include "power.h"
 #endif /* CONFIG_APP_BATTERY */
 
 #if defined(CONFIG_APP_ENVIRONMENTAL)
@@ -37,7 +37,7 @@ LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 #define CUSTOM_JSON_APPID_VAL_BATTERY "BATTERY"
 
 #if defined(CONFIG_APP_BATTERY)
-#define BAT_MSG_SIZE	sizeof(struct battery_msg)
+#define BAT_MSG_SIZE	sizeof(struct power_msg)
 #else
 #define BAT_MSG_SIZE	0
 #endif /* CONFIG_APP_BATTERY */
@@ -69,7 +69,7 @@ ZBUS_CHAN_ADD_OBS(ENVIRONMENTAL_CHAN, cloud, 0);
 #endif /* CONFIG_APP_ENVIRONMENTAL */
 
 #if defined(CONFIG_APP_BATTERY)
-ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, cloud, 0);
+ZBUS_CHAN_ADD_OBS(POWER_CHAN, cloud, 0);
 #endif /* CONFIG_APP_BATTERY */
 
 /* Define channels provided by this module */
@@ -568,10 +568,10 @@ static void state_connected_ready_run(void *o)
 	}
 
 #if defined(CONFIG_APP_BATTERY)
-	if (state_object->chan == &BATTERY_CHAN) {
-		struct battery_msg msg = MSG_TO_BATTERY_MSG(state_object->msg_buf);
+	if (state_object->chan == &POWER_CHAN) {
+		struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
 
-		if (msg.type == BATTERY_PERCENTAGE_SAMPLE_RESPONSE) {
+		if (msg.type == POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE) {
 			err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_BATTERY,
 							 msg.percentage,
 							 NRF_CLOUD_NO_TIMESTAMP,

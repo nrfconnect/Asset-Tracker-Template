@@ -18,17 +18,17 @@
 #include "lp803448_model.h"
 #include "message_channel.h"
 #include "modules_common.h"
-#include "battery.h"
+#include "power.h"
 
 /* Register log module */
-LOG_MODULE_REGISTER(battery, CONFIG_APP_BATTERY_LOG_LEVEL);
+LOG_MODULE_REGISTER(power, CONFIG_APP_POWER_LOG_LEVEL);
 
 /* Register subscriber */
-ZBUS_MSG_SUBSCRIBER_DEFINE(battery);
+ZBUS_MSG_SUBSCRIBER_DEFINE(power);
 
 /* Define channels provided by this module */
-ZBUS_CHAN_DEFINE(BATTERY_CHAN,
-		 struct battery_msg,
+ZBUS_CHAN_DEFINE(POWER_CHAN,
+		 struct power_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
@@ -36,12 +36,12 @@ ZBUS_CHAN_DEFINE(BATTERY_CHAN,
 );
 
 /* Observe channels */
-ZBUS_CHAN_ADD_OBS(BATTERY_CHAN, battery, 0);
+ZBUS_CHAN_ADD_OBS(POWER_CHAN, power, 0);
 
-#define MAX_MSG_SIZE sizeof(struct battery_msg)
+#define MAX_MSG_SIZE sizeof(struct power_msg)
 
-BUILD_ASSERT(CONFIG_APP_BATTERY_WATCHDOG_TIMEOUT_SECONDS >
-	     CONFIG_APP_BATTERY_MSG_PROCESSING_TIMEOUT_SECONDS,
+BUILD_ASSERT(CONFIG_APP_POWER_WATCHDOG_TIMEOUT_SECONDS >
+	     CONFIG_APP_POWER_MSG_PROCESSING_TIMEOUT_SECONDS,
 	     "Watchdog timeout must be greater than maximum message processing time");
 
 /* nPM1300 register bitmasks */
@@ -63,16 +63,16 @@ static void sample(int64_t *ref_time);
 
 /* Defininig the module states.
  *
- * STATE_RUNNING: The battery module is initializing and waiting battery percentage to be requested.
+ * STATE_RUNNING: The power module is initializing and waiting battery percentage to be requested.
  */
-enum battery_module_state {
+enum power_module_state {
 	STATE_RUNNING,
 };
 
 /* User defined state object.
  * Used to transfer data between state changes.
  */
-struct battery_state {
+struct power_state {
 	/* This must be first */
 	struct smf_ctx ctx;
 
@@ -90,7 +90,7 @@ struct battery_state {
 static void state_running_entry(void *o);
 static void state_running_run(void *o);
 
-static struct battery_state battery_state_object;
+static struct power_state power_state_object;
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
 		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL, NULL, NULL),
@@ -106,7 +106,7 @@ static void state_running_entry(void *o)
 		.model = &battery_model
 	};
 	int32_t chg_status;
-	struct battery_state *state_object = o;
+	struct power_state *state_object = o;
 
 	if (!device_is_ready(charger)) {
 		LOG_ERR("Charger device not ready.");
@@ -132,7 +132,7 @@ static void state_running_entry(void *o)
 
 	err = sensor_channel_get(charger, SENSOR_CHAN_GAUGE_DESIRED_CHARGING_CURRENT, &value);
 	if (err) {
-		LOG_ERR("sensor_channel_get(DESIRED_CHARGING_CURRENT), error: %d", err);
+		LOG_ERR("sensor_channel_get, DESIRED_CHARGING_CURRENT, error: %d", err);
 		SEND_FATAL_ERROR();
 		return;
 	}
@@ -140,12 +140,12 @@ static void state_running_entry(void *o)
 
 static void state_running_run(void *o)
 {
-	struct battery_state *state_object = o;
+	struct power_state *state_object = o;
 
-	if (&BATTERY_CHAN == state_object->chan) {
-		struct battery_msg msg = MSG_TO_BATTERY_MSG(state_object->msg_buf);
+	if (&POWER_CHAN == state_object->chan) {
+		struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
 
-		if (msg.type == BATTERY_PERCENTAGE_SAMPLE_REQUEST) {
+		if (msg.type == POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST) {
 			LOG_DBG("Battery percentage sample request received, getting battery data");
 			sample(&state_object->fuel_gauge_ref_time);
 		}
@@ -209,12 +209,12 @@ static void sample(int64_t *ref_time)
 	LOG_DBG("State of charge: %f", (double)roundf(state_of_charge));
 	LOG_DBG("The battery is %s", charging ? "charging" : "not charging");
 
-	struct battery_msg msg = {
-		.type = BATTERY_PERCENTAGE_SAMPLE_RESPONSE,
+	struct power_msg msg = {
+		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE,
 		.percentage = (double)roundf(state_of_charge)
 	};
 
-	err = zbus_chan_pub(&BATTERY_CHAN, &msg, K_NO_WAIT);
+	err = zbus_chan_pub(&POWER_CHAN, &msg, K_NO_WAIT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -230,21 +230,21 @@ static void task_wdt_callback(int channel_id, void *user_data)
 	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
 }
 
-static void battery_task(void)
+static void power_task(void)
 {
 	int err;
 	int task_wdt_id;
 	const uint32_t wdt_timeout_ms =
-		(CONFIG_APP_BATTERY_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
+		(CONFIG_APP_POWER_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const uint32_t execution_time_ms =
-		(CONFIG_APP_BATTERY_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
+		(CONFIG_APP_POWER_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 
-	LOG_DBG("Battery module task started");
+	LOG_DBG("Power module task started");
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 
-	STATE_SET_INITIAL(battery_state_object, STATE_RUNNING);
+	STATE_SET_INITIAL(power_state_object, STATE_RUNNING);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -254,9 +254,9 @@ static void battery_task(void)
 			return;
 		}
 
-		err = zbus_sub_wait_msg(&battery,
-					&battery_state_object.chan,
-					battery_state_object.msg_buf,
+		err = zbus_sub_wait_msg(&power,
+					&power_state_object.chan,
+					power_state_object.msg_buf,
 					zbus_wait_ms);
 		if (err == -ENOMSG) {
 			continue;
@@ -266,7 +266,7 @@ static void battery_task(void)
 			return;
 		}
 
-		err = STATE_RUN(battery_state_object);
+		err = STATE_RUN(power_state_object);
 		if (err) {
 			LOG_ERR("handle_message, error: %d", err);
 			SEND_FATAL_ERROR();
@@ -275,6 +275,6 @@ static void battery_task(void)
 	}
 }
 
-K_THREAD_DEFINE(battery_task_id,
-		CONFIG_APP_BATTERY_THREAD_STACK_SIZE,
-		battery_task, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+K_THREAD_DEFINE(power_task_id,
+		CONFIG_APP_POWER_THREAD_STACK_SIZE,
+		power_task, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);

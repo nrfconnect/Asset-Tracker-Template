@@ -27,7 +27,7 @@
 #endif /* CONFIG_APP_ENVIRONMENTAL */
 
 #if defined(CONFIG_APP_BATTERY)
-#include "battery.h"
+#include "power.h"
 #endif /* CONFIG_APP_BATTERY */
 
 /* Register log module */
@@ -239,11 +239,11 @@ static void sensor_and_poll_triggers_send(void)
 #endif /* CONFIG_APP_REQUEST_NETWORK_QUALITY */
 
 #if defined(CONFIG_APP_BATTERY)
-	struct battery_msg battery_msg = {
-		.type = BATTERY_PERCENTAGE_SAMPLE_REQUEST,
+	struct power_msg power_msg = {
+		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST,
 	};
 
-	err = zbus_chan_pub(&BATTERY_CHAN, &battery_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&POWER_CHAN, &power_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -252,7 +252,7 @@ static void sensor_and_poll_triggers_send(void)
 #endif /* CONFIG_APP_BATTERY */
 
 #if defined(CONFIG_APP_ENVIRONMENTAL)
-	struct battery_msg environmental_msg = {
+	struct environmental_msg environmental_msg = {
 		.type = ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST,
 	};
 

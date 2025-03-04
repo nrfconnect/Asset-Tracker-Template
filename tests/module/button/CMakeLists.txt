@@ -22,7 +22,6 @@ zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)
 zephyr_include_directories(${ZEPHYR_BASE}/subsys/testsuite/include)
 zephyr_include_directories(../../../app/src/common)
 zephyr_include_directories(../../../app/src/modules/cloud)
-zephyr_include_directories(../../../app/src/modules/battery)
 zephyr_include_directories(../../../app/src/modules/button)
 
 target_link_options(app PRIVATE --whole-archive)
