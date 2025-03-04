@@ -10,7 +10,6 @@
 #include <zephyr/logging/log.h>
 
 #include "message_channel.h"
-#include "battery.h"
 #include "button.h"
 
 #include <dk_buttons_and_leds.h>

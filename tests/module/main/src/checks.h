@@ -6,6 +6,6 @@
 
 void check_network_event(enum network_msg_type expected_network_type);
 
-void check_battery_event(enum battery_msg_type expected_battery_type);
+void check_power_event(enum power_msg_type expected_power_type);
 
 void check_no_events(uint32_t time_in_seconds);

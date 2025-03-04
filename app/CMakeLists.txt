@@ -23,7 +23,7 @@ add_subdirectory(src/modules/fota)
 add_subdirectory(src/modules/button)
 
 # Optional modules
-add_subdirectory_ifdef(CONFIG_APP_BATTERY src/modules/battery)
+add_subdirectory_ifdef(CONFIG_APP_POWER src/modules/power)
 add_subdirectory_ifdef(CONFIG_APP_ENVIRONMENTAL src/modules/environmental)
 add_subdirectory_ifdef(CONFIG_APP_LED src/modules/led)
 add_subdirectory_ifdef(CONFIG_APP_SHELL src/modules/shell)
