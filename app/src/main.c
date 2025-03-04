@@ -26,9 +26,9 @@
 #include "environmental.h"
 #endif /* CONFIG_APP_ENVIRONMENTAL */
 
-#if defined(CONFIG_APP_BATTERY)
+#if defined(CONFIG_APP_POWER)
 #include "power.h"
-#endif /* CONFIG_APP_BATTERY */
+#endif /* CONFIG_APP_POWER */
 
 /* Register log module */
 LOG_MODULE_REGISTER(app, CONFIG_APP_LOG_LEVEL);
@@ -238,7 +238,7 @@ static void sensor_and_poll_triggers_send(void)
 	}
 #endif /* CONFIG_APP_REQUEST_NETWORK_QUALITY */
 
-#if defined(CONFIG_APP_BATTERY)
+#if defined(CONFIG_APP_POWER)
 	struct power_msg power_msg = {
 		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST,
 	};
@@ -249,7 +249,7 @@ static void sensor_and_poll_triggers_send(void)
 		SEND_FATAL_ERROR();
 		return;
 	}
-#endif /* CONFIG_APP_BATTERY */
+#endif /* CONFIG_APP_POWER */
 
 #if defined(CONFIG_APP_ENVIRONMENTAL)
 	struct environmental_msg environmental_msg = {
