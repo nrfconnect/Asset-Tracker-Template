@@ -6,6 +6,9 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/device.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/pm/device.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/drivers/sensor/npm1300_charger.h>
 #include <zephyr/drivers/mfd/npm1300.h>
@@ -55,6 +58,9 @@ BUILD_ASSERT(CONFIG_APP_POWER_WATCHDOG_TIMEOUT_SECONDS >
 
 static const struct device *charger = DEVICE_DT_GET(DT_NODELABEL(npm1300_charger));
 static const struct device *pmic = DEVICE_DT_GET(DT_NODELABEL(pmic_main));
+
+static const struct device *const uart0_dev = DEVICE_DT_GET(DT_NODELABEL(uart0));
+static const struct device *const uart1_dev = DEVICE_DT_GET(DT_NODELABEL(uart1));
 
 /* Forward declarations */
 static int subscribe_to_vsbus_events(const struct device *pmic, struct gpio_callback *event_cb);
@@ -116,11 +122,13 @@ static void state_running_entry(void *o)
 		return;
 	}
 
-	err = subscribe_to_vsbus_events(pmic, &event_cb);
-	if (err) {
-		LOG_ERR("subscribe_to_vsbus_events, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
+	if (IS_ENABLED(CONFIG_APP_POWER_DISABLE_UART_ON_VBUS_REMOVED)) {
+		err = subscribe_to_vsbus_events(pmic, &event_cb);
+		if (err) {
+			LOG_ERR("subscribe_to_vsbus_events, error: %d", err);
+			SEND_FATAL_ERROR();
+			return;
+		}
 	}
 
 	err = charger_read_sensors(&parameters.v0, &parameters.i0, &parameters.t0, &chg_status);
@@ -163,17 +171,97 @@ static void state_running_run(void *o)
 
 /* End of state handling */
 
+static int uart_disable(void)
+{
+	int err;
+
+	if (!device_is_ready(uart0_dev) || !device_is_ready(uart1_dev)) {
+		LOG_ERR("UART devices are not ready");
+		return -ENODEV;
+	}
+
+#ifdef CONFIG_NRF_MODEM_LIB_TRACE_BACKEND_UART
+	err = nrf_modem_lib_trace_level_set(NRF_MODEM_LIB_TRACE_LEVEL_OFF);
+	if (err) {
+		LOG_ERR("nrf_modem_lib_trace_level_set, error: %d", err);
+		return err;
+	}
+#endif
+
+	/* Wait for UART buffers to be emptied before suspending.
+	 * If a transfer is ongoing, the driver will cause an assertion to fail.
+	 * 100 ms is an arbitrary value that should be enough for the buffers to empty.
+	 */
+	k_busy_wait(100 * USEC_PER_MSEC);
+
+	err = pm_device_action_run(uart1_dev, PM_DEVICE_ACTION_SUSPEND);
+	if (err) {
+		LOG_ERR("pm_device_action_run, error: %d", err);
+		return err;
+	}
+
+	err = pm_device_action_run(uart0_dev, PM_DEVICE_ACTION_SUSPEND);
+	if (err) {
+		LOG_ERR("pm_device_actiöon_run, error: %d", err);
+		return err;
+	}
+
+	LOG_DBG("UART devices disabled");
+	return 0;
+}
+
+static int uart_enable(void)
+{
+	int err;
+
+	if (!device_is_ready(uart0_dev) || !device_is_ready(uart1_dev)) {
+		LOG_ERR("UART devices are not ready");
+		return -ENODEV;
+	}
+
+	err = pm_device_action_run(uart0_dev, PM_DEVICE_ACTION_RESUME);
+	if (err) {
+		LOG_ERR("pm_device_action_run, error: %d", err);
+		return err;
+	}
+
+	err = pm_device_action_run(uart1_dev, PM_DEVICE_ACTION_RESUME);
+	if (err) {
+		LOG_ERR("pm_device_action_run, error: %d", err);
+		return err;
+	}
+
+	LOG_DBG("UART devices enabled");
+	return 0;
+}
+
 static void event_callback(const struct device *dev, struct gpio_callback *cb, uint32_t pins)
 {
 	ARG_UNUSED(dev);
 	ARG_UNUSED(cb);
 
+	int err;
+
 	if (pins & BIT(NPM1300_EVENT_VBUS_DETECTED)) {
-		LOG_WRN("Vbus detected");
+		LOG_DBG("VBUS detected");
+
+		err = uart_enable();
+		if (err) {
+			LOG_ERR("uart_enable, error: %d", err);
+			SEND_FATAL_ERROR();
+			return;
+		}
 	}
 
 	if (pins & BIT(NPM1300_EVENT_VBUS_REMOVED)) {
-		LOG_WRN("Vbus removed");
+		LOG_DBG("VBUS removed");
+
+		err = uart_disable();
+		if (err) {
+			LOG_ERR("uart_disable, error: %d", err);
+			SEND_FATAL_ERROR();
+			return;
+		}
 	}
 }
 
