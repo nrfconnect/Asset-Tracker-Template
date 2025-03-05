@@ -44,7 +44,7 @@ def timestamp(event):
     )
 
 
-def test_memfault(t91x_board, hex_file):
+def test_memfault(dut_board, hex_file):
     # Save timestamp of latest coredump
     coredumps = get_latest_coredump_traces(IMEI)
     logger.debug(f"Found coredumps: {coredumps}")
@@ -53,15 +53,15 @@ def test_memfault(t91x_board, hex_file):
 
 
     flash_device(os.path.abspath(hex_file))
-    t91x_board.uart.xfactoryreset()
-    t91x_board.uart.flush()
+    dut_board.uart.xfactoryreset()
+    dut_board.uart.flush()
     reset_device()
-    t91x_board.uart.wait_for_str("Connected to Cloud", timeout=120)
+    dut_board.uart.wait_for_str("Connected to Cloud", timeout=120)
 
     time.sleep(10)
 
     # Trigger usage fault to generate coredump
-    t91x_board.uart.write("mflt test usagefault\r\n")
+    dut_board.uart.write("mflt test usagefault\r\n")
 
     # Wait for upload to be reported to memfault api
     start = time.time()
@@ -80,5 +80,4 @@ def test_memfault(t91x_board, hex_file):
             if timestamp(coredumps[0]) > timestamp_old_coredump:
                 break
     else:
-        raise RuntimeError(f"No new coredump observed")
-
+        raise RuntimeError("No new coredump observed")

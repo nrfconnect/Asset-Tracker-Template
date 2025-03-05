@@ -93,8 +93,7 @@ jobs:
           fi
 
       # Asset Tracker Template firmware build
-
-      - name: Build nrf91 firmware
+      - name: Build thingy91x firmware
         working-directory: asset-tracker-template/app
         run: |
           cp overlay-memfault.conf overlay-memfault-att.conf
@@ -102,10 +101,20 @@ jobs:
           echo CONFIG_MEMFAULT_NCS_FW_VERSION_STATIC=y >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION=\"${{ env.VERSION }}\" >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_SW_TYPE }}\" >> overlay-memfault-att.conf
-          west build -b thingy91x/nrf9151/ns -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf"
+          west build -b thingy91x/nrf9151/ns -d build_thingy91x -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf"
 
-      - name: Rename artifacts
-        working-directory: asset-tracker-template/app/build
+      - name: Build nrf9151dk firmware
+        working-directory: asset-tracker-template/app
+        run: |
+          cp overlay-memfault.conf overlay-memfault-att.conf
+          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ secrets.MEMFAULT_PROJECT_KEY }}\"" >> overlay-memfault-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_VERSION_STATIC=y >> overlay-memfault-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_VERSION=\"${{ env.VERSION }}\" >> overlay-memfault-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_SW_TYPE }}\" >> overlay-memfault-att.conf
+          west build -b nrf9151dk/nrf9151/ns -d build_nrf9151dk -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf"
+
+      - name: Rename artifacts thingy91x
+        working-directory: asset-tracker-template/app/build_thingy91x
         run: |
           cp merged.hex asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.hex
           cp app/zephyr/.config asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.config
@@ -114,8 +123,18 @@ jobs:
           cp app/zephyr/zephyr.elf asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.elf
           cp dfu_application.zip asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91-dfu.zip
 
-      - name: Create partition manager report for nRF91 firmware
-        working-directory: asset-tracker-template/app/build
+      - name: Rename artifacts dk
+        working-directory: asset-tracker-template/app/build_nrf9151dk
+        run: |
+          cp merged.hex asset-tracker-template-${{ env.VERSION }}-nrf9151dk-nrf91.hex
+          cp app/zephyr/.config asset-tracker-template-${{ env.VERSION }}-nrf9151dk-nrf91.config
+          cp app/zephyr/zephyr.signed.bin asset-tracker-template-${{ env.VERSION }}-nrf9151dk-nrf91-update-signed.bin
+          cp app/zephyr/zephyr.signed.hex asset-tracker-template-${{ env.VERSION }}-nrf9151dk-nrf91-update-signed.hex
+          cp app/zephyr/zephyr.elf asset-tracker-template-${{ env.VERSION }}-nrf9151dk-nrf91.elf
+          cp dfu_application.zip asset-tracker-template-${{ env.VERSION }}-nrf9151dk-nrf91-dfu.zip
+
+      - name: Create partition manager report for thingy91x firmware
+        working-directory: asset-tracker-template/app/build_thingy91x
         run: |
           ninja partition_manager_report
           ninja partition_manager_report > pmr-nrf91-default-${{ env.VERSION }}.txt
@@ -128,11 +147,12 @@ jobs:
           name: firmware-att
           if-no-files-found: error
           path: |
-            asset-tracker-template/app/build/asset-tracker-template-*.*
+            asset-tracker-template/app/build_thingy91x/asset-tracker-template-*.*
+            asset-tracker-template/app/build_nrf9151dk/asset-tracker-template-*.*
 
       # Asset Tracker Template debug firmware build
 
-      - name: Build nrf91 debug firmware
+      - name: Build thingy91x debug firmware
         if: ${{ inputs.build_debug }}
         working-directory: asset-tracker-template/app
         run: |
