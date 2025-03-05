@@ -22,6 +22,7 @@ SEGGER = os.getenv('SEGGER')
 UART_ID = os.getenv('UART_ID', SEGGER)
 FOTADEVICE_UUID = os.getenv('UUID')
 NRFCLOUD_API_KEY = os.getenv('NRFCLOUD_API_KEY')
+DUT_DEVICE_TYPE = os.getenv('DUT_DEVICE_TYPE')
 
 def get_uarts():
     base_path = "/dev/serial/by-id"
@@ -54,14 +55,17 @@ def pytest_runtest_logfinish(nodeid, location):
     logger.info(f"Finished test: {nodeid}")
 
 @pytest.fixture(scope="function")
-def t91x_board():
+def dut_board():
     all_uarts = get_uarts()
     if not all_uarts:
         pytest.fail("No UARTs found")
     log_uart_string = all_uarts[0]
     uart = Uart(log_uart_string, timeout=UART_TIMEOUT)
 
-    yield types.SimpleNamespace(uart=uart)
+    yield types.SimpleNamespace(
+        uart=uart,
+        device_type=DUT_DEVICE_TYPE
+    )
 
     uart_log = uart.whole_log
     uart.stop()
@@ -70,7 +74,7 @@ def t91x_board():
     scan_log_for_assertions(uart_log)
 
 @pytest.fixture(scope="function")
-def t91x_fota(t91x_board):
+def dut_fota(dut_board):
     if not NRFCLOUD_API_KEY:
         pytest.skip("NRFCLOUD_API_KEY environment variable not set")
     if not FOTADEVICE_UUID:
@@ -85,26 +89,25 @@ def t91x_fota(t91x_board):
     fota.cancel_incomplete_jobs(device_id)
 
     yield types.SimpleNamespace(
+        **dut_board.__dict__,
         fota=fota,
-        uart=t91x_board.uart,
         device_id=device_id,
         data=data
     )
-
     fota.cancel_incomplete_jobs(device_id)
     if data['bundle_id']:
         fota.delete_bundle(data['bundle_id'])
 
 
 @pytest.fixture(scope="module")
-def t91x_traces(t91x_board):
+def dut_traces(dut_board):
     all_uarts = get_uarts()
     trace_uart_string = all_uarts[1]
     uart_trace = UartBinary(trace_uart_string)
 
     yield types.SimpleNamespace(
+        **dut_board.__dict__,
         trace=uart_trace,
-        uart=t91x_board.uart
         )
 
     uart_trace.stop()
@@ -112,8 +115,8 @@ def t91x_traces(t91x_board):
 @pytest.fixture(scope="session")
 def hex_file():
     # Search for the firmware hex file in the artifacts folder
-    artifacts_dir = "artifacts"
-    hex_pattern = r"asset-tracker-template-[0-9a-z\.]+-thingy91x-nrf91\.hex"
+    artifacts_dir = "artifacts/"
+    hex_pattern = f"asset-tracker-template-{r"[0-9a-z\.]+"}-{DUT_DEVICE_TYPE}-nrf91.hex"
 
     for file in os.listdir(artifacts_dir):
         if re.match(hex_pattern, file):
@@ -125,7 +128,7 @@ def hex_file():
 def bin_file():
     # Search for the firmware bin file in the artifacts folder
     artifacts_dir = "artifacts"
-    hex_pattern = r"asset-tracker-template-[0-9a-z\.]+-thingy91x-nrf91-update-signed\.bin"
+    hex_pattern = f"asset-tracker-template-{r"[0-9a-z\.]+"}-{DUT_DEVICE_TYPE}-nrf91-update-signed.hex"
 
     for file in os.listdir(artifacts_dir):
         if re.match(hex_pattern, file):

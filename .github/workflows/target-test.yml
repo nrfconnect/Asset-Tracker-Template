@@ -41,13 +41,15 @@ jobs:
   target_test:
     # This will create multiple jobs, one for each target defined in the matrix
     strategy:
-      fail-fast: false  # Don't fail all jobs if one fails
+      fail-fast: false # Don't fail all jobs if one fails
       matrix:
         include:
-          - device: cia-trd-thingy91x
+          - device: nrf9151dk
+          - device: thingy91x
 
     # Self-hosted runner is labeled according to the device it is linked with
-    runs-on: ${{ matrix.device }}
+    runs-on: cia-trd-${{ matrix.device }}
+    environment: ${{ matrix.device }}
     name: Target Test - ${{ matrix.device }}
 
     permissions:
@@ -94,6 +96,7 @@ jobs:
           pip install -r requirements.txt --break-system-packages
 
       - name: Upload symbol file to Memfault
+        if: ${{ matrix.device != 'ppk_thingy91x' }}
         working-directory: asset-tracker-template/tests/on_target/artifacts
         run: |
           memfault \
@@ -103,7 +106,7 @@ jobs:
               upload-mcu-symbols \
               --software-type asset-tracker-template-ci \
               --software-version ${{ inputs.artifact_fw_version }} \
-              asset-tracker-template-${{ inputs.artifact_fw_version }}-thingy91x-nrf91.elf
+              asset-tracker-template-${{ inputs.artifact_fw_version }}-${{ matrix.device }}-nrf91.elf
 
       - name: Target Tests
         working-directory: asset-tracker-template/tests/on_target
@@ -133,6 +136,7 @@ jobs:
         shell: bash
         env:
           SEGGER: ${{ env.RUNNER_SERIAL_NUMBER }}
+          DUT_DEVICE_TYPE: ${{ matrix.device }}
           UUID: ${{ env.UUID }}
           NRFCLOUD_API_KEY: ${{ secrets.NRF_CLOUD_API_KEY }}
           LOG_FILENAME: att_test_log

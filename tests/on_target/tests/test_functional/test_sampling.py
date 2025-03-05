@@ -14,9 +14,9 @@ from utils.logger import get_logger
 
 logger = get_logger()
 
-def test_sampling(t91x_board, hex_file):
+def test_sampling(dut_board, hex_file):
     flash_device(os.path.abspath(hex_file))
-    t91x_board.uart.xfactoryreset()
+    dut_board.uart.xfactoryreset()
     patterns_cloud_connection = [
         "Network connectivity established",
         "Connected to Cloud"
@@ -29,25 +29,26 @@ def test_sampling(t91x_board, hex_file):
     pattern_fota_poll = "Checking for FOTA job..."
     pattern_battery = "State of charge:"
 
-    # Combine patterns for convenience
+    devicetype = os.getenv("DUT_DEVICE_TYPE")
+
     pattern_list = [
         pattern_location,
         pattern_shadow_poll,
-        pattern_environmental,
         pattern_fota_poll,
-        pattern_battery
     ]
+    if devicetype == "thingy91x":
+        pattern_list.extend([pattern_battery, pattern_environmental])
 
     # Cloud connection
-    t91x_board.uart.flush()
+    dut_board.uart.flush()
     reset_device()
 
     # Sampling
-    t91x_board.uart.wait_for_str(pattern_list, timeout=120)
+    dut_board.uart.wait_for_str(pattern_list, timeout=120)
 
     # Extract coordinates from UART output
-    values = t91x_board.uart.extract_value( \
-        r"location_event_handler: Got location: lat: ([\d.]+), lon: ([\d.]+), acc: ([\d.]+), method: Wi-Fi")
+    values = dut_board.uart.extract_value( \
+        r"location_event_handler: Got location: lat: ([\d.]+), lon: ([\d.]+), acc: ([\d.]+), method:")
     assert values
 
     lat, lon, acc = values
