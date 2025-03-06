@@ -42,8 +42,11 @@ jobs:
     # This will create multiple jobs, one for each target defined in the matrix
     strategy:
       matrix:
-        # nrf9151dk not available yet
-        device: [cia-trd-thingy91x]
+        include:
+          - device: cia-trd-thingy91x
+          - device: ppk_thingy91x
+            # Only run PPK tests when slow marker is specified
+            if: ${{ inputs.pytest_marker == 'slow' }}
 
     # Self-hosted runner is labeled according to the device it is linked with
     runs-on: ${{ matrix.device }}
@@ -51,7 +54,7 @@ jobs:
 
     permissions:
       actions: read
-      contents: read
+      contents: write
       packages: read
 
     container:
@@ -109,17 +112,25 @@ jobs:
         run: |
           mkdir -p results
 
-          if [[ '${{ inputs.pytest_marker }}' == 'no_markers_flag' || '${{ inputs.pytest_marker }}' == '' ]]; then
-            pytest_marker_arg=()
+          if [[ '${{ matrix.device }}' == 'ppk_thingy91x' ]]; then
+            # For PPK device, only run test_power.py
+            pytest -v tests/test_ppk/test_power.py \
+              --junit-xml=results/test-results.xml \
+              --html=results/test-results.html --self-contained-html
           else
-            pytest_marker_arg=(-m "${{ inputs.pytest_marker }}")
-          fi
+            # For other devices, use normal marker logic
+            if [[ '${{ inputs.pytest_marker }}' == 'no_markers_flag' || '${{ inputs.pytest_marker }}' == '' ]]; then
+              pytest_marker_arg=()
+            else
+              pytest_marker_arg=(-m "${{ inputs.pytest_marker }}")
+            fi
 
-          echo pytest -v "${pytest_marker_arg[@]}"
-          pytest -v "${pytest_marker_arg[@]}" \
-            --junit-xml=results/test-results.xml \
-            --html=results/test-results.html --self-contained-html \
-            ${{ inputs.pytest_path }}
+            echo pytest -v "${pytest_marker_arg[@]}"
+            pytest -v "${pytest_marker_arg[@]}" \
+              --junit-xml=results/test-results.xml \
+              --html=results/test-results.html --self-contained-html \
+              ${{ inputs.pytest_path }}
+          fi
         shell: bash
         env:
           SEGGER: ${{ env.RUNNER_SERIAL_NUMBER }}
@@ -130,6 +141,14 @@ jobs:
           MEMFAULT_ORGANIZATION_TOKEN: ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }}
           MEMFAULT_ORGANIZATION_SLUG: ${{ secrets.MEMFAULT_ORGANIZATION_SLUG }}
           MEMFAULT_PROJECT_SLUG: ${{ secrets.MEMFAULT_PROJECT_SLUG }}
+
+      - name: Commit and Push Badge File to gh-pages Branch
+        if: always()
+        continue-on-error: true
+        working-directory: asset-tracker-template
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./tests/on_target/scripts/commit_badge.sh
 
       - name: Results
         if: always()

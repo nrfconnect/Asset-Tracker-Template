@@ -22,7 +22,7 @@ jobs:
   test:
     permissions:
       actions: read
-      contents: read
+      contents: write
       packages: read
     uses: ./.github/workflows/target-test.yml
     needs: build
