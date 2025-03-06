@@ -18,7 +18,7 @@ logger = get_logger()
 MFW_202_FILEPATH = "artifacts/mfw_nrf91x1_2.0.2.zip"
 
 # Stable version used for testing
-TEST_APP_VERSION = "foo"
+TEST_APP_VERSION = "0.0.0-foo"
 TEST_APP_BIN = "artifacts/stable_version_jan_2025-update-signed.bin"
 
 DELTA_MFW_BUNDLEID = "59cec896-c842-40fe-9a95-a4f3e88a4cdb"
@@ -183,8 +183,9 @@ def run_fota_fixture(t91x_fota, hex_file, reschedule=False):
                     "modemFirmware",
                     DEVICE_MSG_TIMEOUT
                 )
-        except RuntimeError:
+        except RuntimeError as e:
             logger.error(f"Version is not {new_version} after {DEVICE_MSG_TIMEOUT}s")
+            raise e
 
     return _run_fota
 
