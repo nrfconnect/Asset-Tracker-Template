@@ -46,6 +46,7 @@ jobs:
         include:
           - device: cia-trd-thingy91x
           - device: ppk_thingy91x
+            if: ${{ inputs.pytest_marker == 'no_markers_flag' || inputs.pytest_marker == 'not slow' || inputs.pytest_marker == 'slow' }}
 
     # Self-hosted runner is labeled according to the device it is linked with
     runs-on: ${{ matrix.device }}
@@ -119,11 +120,11 @@ jobs:
           echo pytest -v "${pytest_marker_arg[@]}"
 
           if [[ '${{ matrix.device }}' == 'ppk_thingy91x' ]]; then
-            # For PPK device, only run test_power.py
+            # For PPK device, only run tests/test_ppk
             pytest -v "${pytest_marker_arg[@]}" \
               --junit-xml=results/test-results.xml \
               --html=results/test-results.html --self-contained-html \
-              tests/test_ppk/test_power.py
+              tests/test_ppk
           else
             pytest -v "${pytest_marker_arg[@]}" \
               --junit-xml=results/test-results.xml \
