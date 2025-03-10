@@ -15,7 +15,6 @@
 
 #include "modem/lte_lc.h"
 #include "modem/modem_info.h"
-#include "modules_common.h"
 #include "message_channel.h"
 #include "network.h"
 
@@ -104,8 +103,6 @@ static void state_disconnecting_entry(void *obj);
 static void state_disconnecting_run(void *obj);
 static void state_connected_run(void *obj);
 static void state_connected_entry(void *obj);
-
-static struct network_state_object network_state;
 
 /* State machine definition */
 static const struct smf_state states[] = {
@@ -356,10 +353,10 @@ static void state_running_run(void *obj)
 
 		switch (msg.type) {
 		case NETWORK_DISCONNECTED:
-			STATE_SET(network_state, STATE_DISCONNECTED);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
 			break;
 		case NETWORK_UICC_FAILURE:
-			STATE_SET(network_state, STATE_DISCONNECTED_IDLE);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_IDLE]);
 			break;
 		case NETWORK_QUALITY_SAMPLE_REQUEST:
 			sample_network_quality();
@@ -401,10 +398,10 @@ static void state_disconnected_run(void *obj)
 
 		switch (msg.type) {
 		case NETWORK_CONNECTED:
-			STATE_SET(network_state, STATE_CONNECTED);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
 			break;
 		case NETWORK_DISCONNECTED:
-			STATE_EVENT_HANDLED(network_state);
+			smf_set_handled(SMF_CTX(state_object));
 			break;
 		default:
 			break;
@@ -447,11 +444,11 @@ static void state_disconnected_searching_run(void *obj)
 
 		switch (msg.type) {
 		case NETWORK_CONNECT:
-			STATE_EVENT_HANDLED(network_state);
+			smf_set_handled(SMF_CTX(state_object));
 			break;
 		case NETWORK_SEARCH_STOP: __fallthrough;
 		case NETWORK_DISCONNECT:
-			STATE_SET(network_state, STATE_DISCONNECTED_IDLE);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_IDLE]);
 			break;
 		default:
 			break;
@@ -469,10 +466,10 @@ static void state_disconnected_idle_run(void *obj)
 
 		switch (msg.type) {
 		case NETWORK_DISCONNECT:
-			STATE_EVENT_HANDLED(network_state);
+			smf_set_handled(SMF_CTX(state_object));
 			break;
 		case NETWORK_CONNECT:
-			STATE_SET(network_state, STATE_DISCONNECTED_SEARCHING);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_SEARCHING]);
 			break;
 		case NETWORK_SYSTEM_MODE_SET_LTEM:
 			err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM_GPS,
@@ -524,7 +521,7 @@ static void state_connected_run(void *obj)
 			sample_network_quality();
 			break;
 		case NETWORK_DISCONNECT:
-			STATE_SET(network_state, STATE_DISCONNECTING);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTING]);
 			break;
 		default:
 			break;
@@ -556,7 +553,7 @@ static void state_disconnecting_run(void *obj)
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		if (msg.type == NETWORK_DISCONNECTED) {
-			STATE_SET(network_state, STATE_DISCONNECTED_IDLE);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_IDLE]);
 		}
 	}
 }
@@ -578,10 +575,11 @@ static void network_module_thread(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_NETWORK_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
+	struct network_state_object network_state;
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, network_wdt_callback, (void *)k_current_get());
 
-	STATE_SET_INITIAL(network_state, STATE_RUNNING);
+	smf_set_initial(SMF_CTX(&network_state), &states[STATE_RUNNING]);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -601,9 +599,9 @@ static void network_module_thread(void)
 			return;
 		}
 
-		err = STATE_RUN(network_state);
+		err = smf_run_state(SMF_CTX(&network_state));
 		if (err) {
-			LOG_ERR("handle_message, error: %d", err);
+			LOG_ERR("smf_run_state(), error: %d", err);
 			SEND_FATAL_ERROR();
 			return;
 		}

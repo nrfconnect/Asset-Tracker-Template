@@ -10,7 +10,6 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
 
-#include "modules_common.h"
 #include "message_channel.h"
 #include "button.h"
 #include "network.h"
@@ -153,8 +152,6 @@ struct main_state {
 	/* Location status */
 	enum location_msg_type location_status;
 };
-
-static struct main_state main_state;
 
 /* Construct state table */
 static const struct smf_state states[] = {
@@ -333,11 +330,11 @@ static void running_entry(void *o)
 	if (state_object->status == CLOUD_CONNECTED_READY_TO_SEND ||
 	    state_object->status == CLOUD_PAYLOAD_JSON ||
 	    state_object->status == CLOUD_POLL_SHADOW) {
-		STATE_SET(main_state, STATE_TRIGGERING);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_TRIGGERING]);
 		return;
 	}
 
-	STATE_SET(main_state, STATE_IDLE);
+	smf_set_state(SMF_CTX(state_object), &states[STATE_IDLE]);
 }
 
 static void running_run(void *o)
@@ -346,7 +343,7 @@ static void running_run(void *o)
 
 	if (state_object->chan == &FOTA_CHAN &&
 	    state_object->fota_status == FOTA_DOWNLOADING_UPDATE) {
-		STATE_SET(main_state, STATE_FOTA);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA]);
 		return;
 	}
 }
@@ -389,7 +386,7 @@ static void idle_run(void *o)
 
 	if ((state_object->chan == &CLOUD_CHAN) &&
 		(state_object->status == CLOUD_CONNECTED_READY_TO_SEND)) {
-		STATE_SET(main_state, STATE_TRIGGERING);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_TRIGGERING]);
 		return;
 	}
 }
@@ -433,7 +430,7 @@ static void triggering_run(void *o)
 	if ((state_object->chan == &CLOUD_CHAN) &&
 	    ((state_object->status == CLOUD_CONNECTED_PAUSED) ||
 	     (state_object->status == CLOUD_DISCONNECTED))) {
-		STATE_SET(main_state, STATE_IDLE);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_IDLE]);
 		return;
 	}
 
@@ -469,12 +466,12 @@ static void requesting_location_run(void *o)
 
 	if (state_object->chan == &LOCATION_CHAN &&
 	    (state_object->location_status == LOCATION_SEARCH_DONE)) {
-		STATE_SET(main_state, STATE_REQUESTING_SENSORS_AND_POLLING);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_REQUESTING_SENSORS_AND_POLLING]);
 		return;
 	}
 
 	if (state_object->chan == &BUTTON_CHAN) {
-		STATE_EVENT_HANDLED(main_state);
+		smf_set_handled(SMF_CTX(state_object));
 		return;
 	}
 }
@@ -483,15 +480,15 @@ static void requesting_location_run(void *o)
 
 static void requesting_sensors_and_polling_entry(void *o)
 {
-	ARG_UNUSED(o);
+	const struct main_state *state_object = (const struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
 
 	sensor_and_poll_triggers_send();
 
-	LOG_DBG("Next trigger in %lld seconds", main_state.interval_sec);
+	LOG_DBG("Next trigger in %lld seconds", state_object->interval_sec);
 
-	k_work_reschedule(&trigger_work, K_SECONDS(main_state.interval_sec));
+	k_work_reschedule(&trigger_work, K_SECONDS(state_object->interval_sec));
 }
 
 static void requesting_sensors_and_polling_run(void *o)
@@ -499,12 +496,12 @@ static void requesting_sensors_and_polling_run(void *o)
 	const struct main_state *state_object = (const struct main_state *)o;
 
 	if (state_object->chan == &TIMER_CHAN) {
-		STATE_SET(main_state, STATE_REQUESTING_LOCATION);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_REQUESTING_LOCATION]);
 		return;
 	}
 
 	if (state_object->chan == &BUTTON_CHAN) {
-		STATE_SET(main_state, STATE_REQUESTING_LOCATION);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_REQUESTING_LOCATION]);
 		return;
 	}
 }
@@ -540,7 +537,7 @@ static void fota_run(void *o)
 		case FOTA_DOWNLOAD_TIMED_OUT:
 			__fallthrough;
 		case FOTA_DOWNLOAD_FAILED:
-			STATE_SET(main_state, STATE_RUNNING);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_RUNNING]);
 			return;
 		default:
 			/* Don't care */
@@ -558,10 +555,11 @@ static void fota_downloading_run(void *o)
 	if (state_object->chan == &FOTA_CHAN) {
 		switch (state_object->fota_status) {
 		case FOTA_SUCCESS_REBOOT_NEEDED:
-			STATE_SET(main_state, STATE_FOTA_NETWORK_DISCONNECT);
+			smf_set_state(SMF_CTX(state_object),
+					      &states[STATE_FOTA_NETWORK_DISCONNECT]);
 			return;
 		case FOTA_IMAGE_APPLY_NEEDED:
-			STATE_SET(main_state, STATE_FOTA_APPLYING_IMAGE);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_APPLYING_IMAGE]);
 			return;
 		default:
 			/* Don't care */
@@ -596,7 +594,7 @@ static void fota_network_disconnect_run(void *o)
 
 	if (state_object->chan == &NETWORK_CHAN &&
 	    state_object->network_status == NETWORK_DISCONNECTED) {
-		STATE_SET(main_state, STATE_FOTA_REBOOTING);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
 		return;
 	}
 }
@@ -639,7 +637,7 @@ static void fota_applying_image_run(void *o)
 
 	} else if (state_object->chan == &FOTA_CHAN &&
 		   state_object->fota_status == FOTA_SUCCESS_REBOOT_NEEDED) {
-		STATE_SET(main_state, STATE_FOTA_REBOOTING);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
 		return;
 	}
 }
@@ -671,6 +669,7 @@ int main(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
+	struct main_state main_state;
 
 	main_state.interval_sec = CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS;
 
@@ -678,7 +677,7 @@ int main(void)
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 
-	STATE_SET_INITIAL(main_state, STATE_RUNNING);
+	smf_set_initial(SMF_CTX(&main_state), &states[STATE_RUNNING]);
 
 	while (1) {
 		err = task_wdt_feed(task_wdt_id);
@@ -726,9 +725,9 @@ int main(void)
 		}
 
 		/* State object updated, run SMF */
-		err = STATE_RUN(main_state);
+		err = smf_run_state(SMF_CTX(&main_state));
 		if (err) {
-			LOG_ERR("STATE_RUN(), error: %d", err);
+			LOG_ERR("smf_run_state(), error: %d", err);
 			SEND_FATAL_ERROR();
 
 			return err;

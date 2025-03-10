@@ -18,7 +18,6 @@
 #include <net/fota_download.h>
 
 #include "message_channel.h"
-#include "modules_common.h"
 #include "fota.h"
 
 /* Register log module */
@@ -105,11 +104,6 @@ static void state_reboot_needed_entry(void *o);
 
 static void state_canceling_entry(void *o);
 static void state_canceling_run(void *o);
-
-static struct fota_state fota_state = {
-	.fota_ctx.reboot_fn = fota_reboot,
-	.fota_ctx.status_fn = fota_status,
-};
 
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
@@ -266,7 +260,7 @@ static void state_running_run(void *o)
 		const enum fota_msg_type msg_type = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		if (msg_type == FOTA_DOWNLOAD_CANCEL) {
-			STATE_SET(fota_state, STATE_CANCELING);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CANCELING]);
 		}
 	}
 }
@@ -286,11 +280,11 @@ static void state_waiting_for_poll_request_run(void *o)
 		const enum fota_msg_type msg_type = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		if (msg_type == FOTA_POLL_REQUEST) {
-			STATE_SET(fota_state, STATE_POLLING_FOR_UPDATE);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_POLLING_FOR_UPDATE]);
 		} else if (msg_type == FOTA_DOWNLOAD_CANCEL) {
 			LOG_DBG("No ongoing FOTA update, nothing to cancel");
 
-			STATE_EVENT_HANDLED(fota_state);
+			smf_set_handled(SMF_CTX(state_object));
 		}
 	}
 }
@@ -343,15 +337,16 @@ static void state_polling_for_update_run(void *o)
 
 		switch (evt) {
 		case FOTA_DOWNLOADING_UPDATE:
-			STATE_SET(fota_state, STATE_DOWNLOADING_UPDATE);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DOWNLOADING_UPDATE]);
 			break;
 		case FOTA_NO_AVAILABLE_UPDATE:
-			STATE_SET(fota_state, STATE_WAITING_FOR_POLL_REQUEST);
+			smf_set_state(SMF_CTX(state_object),
+					      &states[STATE_WAITING_FOR_POLL_REQUEST]);
 			break;
 		case FOTA_DOWNLOAD_CANCEL:
 			LOG_DBG("No ongoing FOTA update, nothing to cancel");
 
-			STATE_EVENT_HANDLED(fota_state);
+			smf_set_handled(SMF_CTX(state_object));
 			break;
 		default:
 			/* Don't care */
@@ -376,17 +371,19 @@ static void state_downloading_update_run(void *o)
 
 		switch (evt) {
 		case FOTA_IMAGE_APPLY_NEEDED:
-			STATE_SET(fota_state, STATE_WAITING_FOR_IMAGE_APPLY);
+			smf_set_state(SMF_CTX(state_object),
+					      &states[STATE_WAITING_FOR_IMAGE_APPLY]);
 			break;
 		case FOTA_SUCCESS_REBOOT_NEEDED:
-			STATE_SET(fota_state, STATE_REBOOT_NEEDED);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_NEEDED]);
 			break;
 		case FOTA_DOWNLOAD_CANCELED:
 			__fallthrough;
 		case FOTA_DOWNLOAD_TIMED_OUT:
 			__fallthrough;
 		case FOTA_DOWNLOAD_FAILED:
-			STATE_SET(fota_state, STATE_WAITING_FOR_POLL_REQUEST);
+			smf_set_state(SMF_CTX(state_object),
+					      &states[STATE_WAITING_FOR_POLL_REQUEST]);
 			break;
 		default:
 			/* Don't care */
@@ -424,7 +421,7 @@ static void state_waiting_for_image_apply_run(void *o)
 
 			break;
 		case FOTA_SUCCESS_REBOOT_NEEDED:
-			STATE_SET(fota_state, STATE_REBOOT_NEEDED);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_NEEDED]);
 			break;
 		default:
 			/* Don't care */
@@ -463,7 +460,8 @@ static void state_canceling_run(void *o)
 		const enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		if (msg == FOTA_DOWNLOAD_CANCELED) {
-			STATE_SET(fota_state, STATE_WAITING_FOR_POLL_REQUEST);
+			smf_set_state(SMF_CTX(state_object),
+					      &states[STATE_WAITING_FOR_POLL_REQUEST]);
 		}
 	}
 }
@@ -478,12 +476,16 @@ static void fota_task(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
+	struct fota_state fota_state = {
+		.fota_ctx.reboot_fn = fota_reboot,
+		.fota_ctx.status_fn = fota_status,
+	};
 
 	LOG_DBG("FOTA module task started");
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 
-	STATE_SET_INITIAL(fota_state, STATE_RUNNING);
+	smf_set_initial(SMF_CTX(&fota_state), &states[STATE_RUNNING]);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -502,9 +504,9 @@ static void fota_task(void)
 			return;
 		}
 
-		err = STATE_RUN(fota_state);
+		err = smf_run_state(SMF_CTX(&fota_state));
 		if (err) {
-			LOG_ERR("handle_message, error: %d", err);
+			LOG_ERR("smf_run_state(), error: %d", err);
 			SEND_FATAL_ERROR();
 			return;
 		}

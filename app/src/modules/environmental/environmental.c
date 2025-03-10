@@ -14,7 +14,6 @@
 #include <zephyr/smf.h>
 
 #include "message_channel.h"
-#include "modules_common.h"
 #include "environmental.h"
 
 /* Register log module */
@@ -73,7 +72,6 @@ struct environmental_state {
 	double humidity;
 };
 
-static struct environmental_state environmental_state;
 
 /* Forward declarations of state handlers */
 static void state_running_run(void *o);
@@ -153,12 +151,13 @@ static void environmental_task(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_ENVIRONMENTAL_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
+	struct environmental_state environmental_state;
 
 	LOG_DBG("Environmental module task started");
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 
-	STATE_SET_INITIAL(environmental_state, STATE_RUNNING);
+	smf_set_initial(SMF_CTX(&environmental_state), &states[STATE_RUNNING]);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -180,9 +179,9 @@ static void environmental_task(void)
 			return;
 		}
 
-		err = STATE_RUN(environmental_state);
+		err = smf_run_state(SMF_CTX(&environmental_state));
 		if (err) {
-			LOG_ERR("handle_message, error: %d", err);
+			LOG_ERR("smf_run_state(), error: %d", err);
 			SEND_FATAL_ERROR();
 			return;
 		}
