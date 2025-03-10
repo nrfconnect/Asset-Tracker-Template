@@ -215,10 +215,15 @@ def test_full_mfw_fota(run_fota_fixture):
     '''
     Test full modem FOTA on nrf9151
     '''
-    run_fota_fixture(
-        bundle_id=FULL_MFW_BUNDLEID,
-        fota_type="full",
-        new_version=MFW_202_VERSION,
-        fotatimeout=FULL_MFW_FOTA_TIMEOUT,
-        reschedule=True
-    )
+
+    try:
+        run_fota_fixture(
+            bundle_id=FULL_MFW_BUNDLEID,
+            fota_type="full",
+            new_version=MFW_202_VERSION,
+            fotatimeout=FULL_MFW_FOTA_TIMEOUT,
+            reschedule=True
+        )
+    finally:
+        # Restore mfw202, no matter if test pass/fails
+        flash_device(os.path.abspath(MFW_202_FILEPATH))

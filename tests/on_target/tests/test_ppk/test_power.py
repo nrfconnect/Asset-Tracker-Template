@@ -135,7 +135,7 @@ def thingy91x_ppk2():
     ppk2_dev.toggle_DUT_power("ON")  # enable DUT power
 
     time.sleep(10)
-    for i in range(10):
+    for _ in range(10):
         try:
             all_uarts = get_uarts()
             logger.warning(f"momo all uarts {all_uarts}")
@@ -174,6 +174,10 @@ def test_power(thingy91x_ppk2, hex_file):
         thingy91x_ppk2.t91x_uart.wait_for_str("Connected to Cloud", timeout=120)
     except AssertionError:
         pytest.skip("Device unable to connect to cloud, skip ppk test")
+
+    # Disable UART on the device
+    thingy91x_ppk2.t91x_uart.write("pm suspend uartuart@9000\r\n")
+    thingy91x_ppk2.t91x_uart.write("pm suspend uartuart@8000\r\n")
 
     thingy91x_ppk2.ppk2_dev.start_measuring()
 
@@ -214,7 +218,7 @@ def test_power(thingy91x_ppk2, hex_file):
                     last_log_time = current_time
 
                     # Check if PSM target has been reached
-                    if rolling_average < MAX_CURRENT_PSM_UA and rolling_average > 0:
+                    if 0 < rolling_average < MAX_CURRENT_PSM_UA:
                         psm_reached = True
 
         except Exception as e:
