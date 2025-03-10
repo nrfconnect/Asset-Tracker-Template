@@ -18,7 +18,6 @@
 
 #include "lp803448_model.h"
 #include "message_channel.h"
-#include "modules_common.h"
 #include "power.h"
 
 /* Register log module */
@@ -93,7 +92,6 @@ struct power_state {
 static void state_running_entry(void *o);
 static void state_running_run(void *o);
 
-static struct power_state power_state_object;
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
 		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL, NULL, NULL),
@@ -280,12 +278,13 @@ static void power_task(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_POWER_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
+	struct power_state power_state;
 
 	LOG_DBG("Power module task started");
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 
-	STATE_SET_INITIAL(power_state_object, STATE_RUNNING);
+	smf_set_initial(SMF_CTX(&power_state), &states[STATE_RUNNING]);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -296,8 +295,8 @@ static void power_task(void)
 		}
 
 		err = zbus_sub_wait_msg(&power,
-					&power_state_object.chan,
-					power_state_object.msg_buf,
+					&power_state.chan,
+					power_state.msg_buf,
 					zbus_wait_ms);
 		if (err == -ENOMSG) {
 			continue;
@@ -307,9 +306,9 @@ static void power_task(void)
 			return;
 		}
 
-		err = STATE_RUN(power_state_object);
+		err = smf_run_state(SMF_CTX(&power_state));
 		if (err) {
-			LOG_ERR("handle_message, error: %d", err);
+			LOG_ERR("smf_run_state(), error: %d", err);
 			SEND_FATAL_ERROR();
 			return;
 		}

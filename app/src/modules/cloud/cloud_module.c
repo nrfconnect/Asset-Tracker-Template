@@ -17,7 +17,6 @@
 #include <memfault/core/trace_event.h>
 #endif /* CONFIG_MEMFAULT */
 
-#include "modules_common.h"
 #include "cloud_module.h"
 #include "message_channel.h"
 #include "network.h"
@@ -230,9 +229,6 @@ struct cloud_state {
 	uint32_t backoff_time;
 };
 
-static struct cloud_state cloud_state;
-
-
 /* Static helper function */
 static void task_wdt_callback(int channel_id, void *user_data)
 {
@@ -242,7 +238,7 @@ static void task_wdt_callback(int channel_id, void *user_data)
 	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
 }
 
-static void connect_to_cloud(void)
+static void connect_to_cloud(const struct cloud_state *state_object)
 {
 	int err;
 	char buf[NRF_CLOUD_CLIENT_ID_MAX_LEN];
@@ -259,7 +255,7 @@ static void connect_to_cloud(void)
 
 	err = nrf_cloud_coap_connect(APP_VERSION_STRING);
 	if (err == 0) {
-		STATE_SET(cloud_state, STATE_CONNECTED);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
 
 		return;
 	}
@@ -267,7 +263,7 @@ static void connect_to_cloud(void)
 	/* Connection failed, retry */
 	LOG_ERR("nrf_cloud_coap_connect, error: %d", err);
 
-	STATE_SET(cloud_state, STATE_CONNECTING_BACKOFF);
+	smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
 }
 
 static uint32_t calculate_backoff_time(uint32_t attempts)
@@ -335,7 +331,7 @@ static void state_running_run(void *o)
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		if (msg.type == NETWORK_DISCONNECTED) {
-			STATE_SET(cloud_state, STATE_DISCONNECTED);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
 
 			return;
 		}
@@ -369,7 +365,7 @@ static void state_disconnected_run(void *o)
 	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
-		STATE_SET(cloud_state, STATE_CONNECTING);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
 
 		return;
 	}
@@ -397,7 +393,7 @@ static void state_connecting_attempt_entry(void *o)
 
 	state_object->connection_attempts++;
 
-	connect_to_cloud();
+	connect_to_cloud(state_object);
 }
 
 /* Handler for STATE_CONNECTING_BACKOFF */
@@ -421,7 +417,7 @@ static void state_connecting_backoff_run(void *o)
 		const enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
 
 		if (msg == CLOUD_BACKOFF_EXPIRED) {
-			STATE_SET(cloud_state, STATE_CONNECTING_ATTEMPT);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_ATTEMPT]);
 
 			return;
 		}
@@ -526,11 +522,11 @@ static void state_connected_ready_run(void *o)
 
 		switch (msg.type) {
 		case NETWORK_DISCONNECTED:
-			STATE_SET(cloud_state, STATE_CONNECTED_PAUSED);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_PAUSED]);
 			break;
 
 		case NETWORK_CONNECTED:
-			STATE_EVENT_HANDLED(cloud_state);
+			smf_set_handled(SMF_CTX(state_object));
 			break;
 
 		case NETWORK_QUALITY_SAMPLE_RESPONSE:
@@ -692,7 +688,7 @@ static void state_connected_paused_run(void *o)
 	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
-		STATE_SET(cloud_state, STATE_CONNECTED_READY);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_READY]);
 
 		return;
 	}
@@ -708,13 +704,14 @@ static void cloud_module_thread(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
+	struct cloud_state cloud_state;
 
 	LOG_DBG("cloud  module task started");
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 
 	/* Initialize the state machine to STATE_RUNNING, which will also run its entry function */
-	STATE_SET_INITIAL(cloud_state, STATE_RUNNING);
+	smf_set_initial(SMF_CTX(&cloud_state), &states[STATE_RUNNING]);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -736,9 +733,9 @@ static void cloud_module_thread(void)
 			return;
 		}
 
-		err = STATE_RUN(cloud_state);
+		err = smf_run_state(SMF_CTX(&cloud_state));
 		if (err) {
-			LOG_ERR("STATE_RUN(), error: %d", err);
+			LOG_ERR("smf_run_state(), error: %d", err);
 			SEND_FATAL_ERROR();
 
 			return;
