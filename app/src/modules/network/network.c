@@ -50,7 +50,6 @@ ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network, 0);
 static struct net_mgmt_event_callback l4_cb;
 static struct net_mgmt_event_callback conn_cb;
 
-
 /* State machine */
 
 /* Network module states.
@@ -309,7 +308,6 @@ static int network_disconnect(void)
 
 	return 0;
 }
-
 
 /* State handlers */
 

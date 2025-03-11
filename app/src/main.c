@@ -310,9 +310,10 @@ static void sensor_and_poll_triggers_send(void)
 /* Delayable work used to send messages on the TIMER_CHAN */
 static void timer_work_fn(struct k_work *work)
 {
-	ARG_UNUSED(work);
+	int err;
+	int dummy = 0;
 
-	int err, dummy = 0;
+	ARG_UNUSED(work);
 
 	err = zbus_chan_pub(&TIMER_CHAN, &dummy, K_SECONDS(1));
 	if (err) {
@@ -363,6 +364,7 @@ static void idle_entry(void *o)
 	LOG_DBG("%s", __func__);
 
 #if defined(CONFIG_APP_LED)
+	int err;
 	/* Blink Yellow */
 	struct led_msg led_msg = {
 		.type = LED_RGB_SET,
@@ -374,8 +376,7 @@ static void idle_entry(void *o)
 		.repetitions = 10,
 	};
 
-	int err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
-
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -383,7 +384,7 @@ static void idle_entry(void *o)
 	}
 #endif /* CONFIG_APP_LED */
 
-	k_work_cancel_delayable(&trigger_work);
+	(void)k_work_cancel_delayable(&trigger_work);
 }
 
 static void idle_run(void *o)
@@ -405,6 +406,8 @@ static void idle_run(void *o)
 
 static void triggering_entry(void *o)
 {
+	int err;
+
 	ARG_UNUSED(o);
 
 	LOG_DBG("%s", __func__);
@@ -421,8 +424,7 @@ static void triggering_entry(void *o)
 		.repetitions = 10,
 	};
 
-	int err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
-
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -430,7 +432,12 @@ static void triggering_entry(void *o)
 	}
 #endif /* CONFIG_APP_LED */
 
-	k_work_reschedule(&trigger_work, K_NO_WAIT);
+	err = k_work_reschedule(&trigger_work, K_NO_WAIT);
+	if (err < 0) {
+		LOG_ERR("k_work_reschedule, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 }
 
 static void triggering_run(void *o)
@@ -452,11 +459,19 @@ static void triggering_run(void *o)
 		struct configuration config = MSG_TO_CONFIGURATION(state_object->msg_buf);
 
 		if (config.config_present) {
+			int err;
+
 			LOG_DBG("Configuration update, new interval: %lld", config.update_interval);
 
 			state_object->interval_sec = config.update_interval;
 
-			k_work_reschedule(&trigger_work, K_SECONDS(state_object->interval_sec));
+			err = k_work_reschedule(&trigger_work,
+						K_SECONDS(state_object->interval_sec));
+			if (err < 0) {
+				LOG_ERR("k_work_reschedule, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
 			return;
 		}
 	}
@@ -466,12 +481,12 @@ static void triggering_run(void *o)
 
 static void requesting_location_entry(void *o)
 {
+	int err;
+	enum location_msg_type location_msg = LOCATION_SEARCH_TRIGGER;
+
 	ARG_UNUSED(o);
 
 	LOG_DBG("%s", __func__);
-
-	int err;
-	enum location_msg_type location_msg = LOCATION_SEARCH_TRIGGER;
 
 	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
 	if (err) {
@@ -505,6 +520,7 @@ static void requesting_location_run(void *o)
 
 static void requesting_sensors_and_polling_entry(void *o)
 {
+	int err;
 	const struct main_state *state_object = (const struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
@@ -513,7 +529,11 @@ static void requesting_sensors_and_polling_entry(void *o)
 
 	LOG_DBG("Next trigger in %lld seconds", state_object->interval_sec);
 
-	k_work_reschedule(&trigger_work, K_SECONDS(state_object->interval_sec));
+	err = k_work_reschedule(&trigger_work, K_SECONDS(state_object->interval_sec));
+	if (err < 0) {
+		LOG_ERR("k_work_reschedule, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
 }
 
 static void requesting_sensors_and_polling_run(void *o)
@@ -537,7 +557,7 @@ static void requesting_sensors_and_polling_exit(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	k_work_cancel_delayable(&trigger_work);
+	(void)k_work_cancel_delayable(&trigger_work);
 }
 
 /* STATE_FOTA */
@@ -548,7 +568,7 @@ static void fota_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	k_work_cancel_delayable(&trigger_work);
+	(void)k_work_cancel_delayable(&trigger_work);
 }
 
 static void fota_run(void *o)
@@ -602,14 +622,14 @@ static void fota_downloading_run(void *o)
 
 static void fota_waiting_for_network_disconnect_entry(void *o)
 {
-	ARG_UNUSED(o);
-
-	LOG_DBG("%s", __func__);
-
 	int err;
 	struct network_msg msg = {
 		.type = NETWORK_DISCONNECT
 	};
+
+	ARG_UNUSED(o);
+
+	LOG_DBG("%s", __func__);
 
 	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
 	if (err) {

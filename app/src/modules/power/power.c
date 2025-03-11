@@ -291,17 +291,33 @@ static int charger_read_sensors(float *voltage, float *current, float *temp, int
 		return err;
 	}
 
-	sensor_channel_get(charger, SENSOR_CHAN_GAUGE_VOLTAGE, &value);
+	err = sensor_channel_get(charger, SENSOR_CHAN_GAUGE_VOLTAGE, &value);
+	if (err) {
+		return err;
+	}
+
 	*voltage = (float)value.val1 + ((float)value.val2 / 1000000);
 
-	sensor_channel_get(charger, SENSOR_CHAN_GAUGE_TEMP, &value);
+	err = sensor_channel_get(charger, SENSOR_CHAN_GAUGE_TEMP, &value);
+	if (err) {
+		return err;
+	}
+
 	*temp = (float)value.val1 + ((float)value.val2 / 1000000);
 
-	sensor_channel_get(charger, SENSOR_CHAN_GAUGE_AVG_CURRENT, &value);
+	err = sensor_channel_get(charger, SENSOR_CHAN_GAUGE_AVG_CURRENT, &value);
+	if (err) {
+		return err;
+	}
+
 	*current = (float)value.val1 + ((float)value.val2 / 1000000);
 
-	sensor_channel_get(charger, (enum sensor_channel)SENSOR_CHAN_NPM1300_CHARGER_STATUS,
+	err = sensor_channel_get(charger, (enum sensor_channel)SENSOR_CHAN_NPM1300_CHARGER_STATUS,
 			   &value);
+	if (err) {
+		return err;
+	}
+
 	*chg_status = value.val1;
 
 	return 0;
