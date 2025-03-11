@@ -27,9 +27,9 @@
 
 #if defined(CONFIG_APP_POWER)
 #include "power.h"
-#define BAT_MSG_SIZE	sizeof(struct power_msg)
+#define POWER_MSG_SIZE	sizeof(struct power_msg)
 #else
-#define BAT_MSG_SIZE	0
+#define POWER_MSG_SIZE	0
 #endif /* CONFIG_APP_POWER */
 
 /* Register log module */
@@ -37,7 +37,13 @@ LOG_MODULE_REGISTER(main, CONFIG_APP_LOG_LEVEL);
 
 #define MAX_MSG_SIZE	(MAX(sizeof(struct configuration),					\
 			 MAX(sizeof(struct cloud_payload),					\
-			 MAX(sizeof(struct network_msg), BAT_MSG_SIZE))))
+			 /* Button channel payload size */					\
+			 MAX(sizeof(uint8_t),							\
+			 /* Timer channel payload size */					\
+			 MAX(sizeof(int),							\
+			 MAX(sizeof(enum fota_msg_type),					\
+			 MAX(sizeof(enum location_msg_type),					\
+			 MAX(sizeof(struct network_msg), POWER_MSG_SIZE))))))))
 
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
@@ -134,23 +140,8 @@ struct main_state {
 	/* Trigger interval */
 	uint64_t interval_sec;
 
-	/* Button number */
-	uint8_t button_number;
-
-	/* Time available */
-	enum time_status time_status;
-
-	/* Cloud status */
-	enum cloud_msg_type status;
-
-	/* FOTA status */
-	enum fota_msg_type fota_status;
-
-	/* Network status */
-	enum network_msg_type network_status;
-
-	/* Location status */
-	enum location_msg_type location_status;
+	/* Cloud connection status */
+	bool connected;
 };
 
 /* Construct state table */
@@ -327,9 +318,7 @@ static void running_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	if (state_object->status == CLOUD_CONNECTED_READY_TO_SEND ||
-	    state_object->status == CLOUD_PAYLOAD_JSON ||
-	    state_object->status == CLOUD_POLL_SHADOW) {
+	if (state_object->connected) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_TRIGGERING]);
 		return;
 	}
@@ -341,10 +330,13 @@ static void running_run(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
-	if (state_object->chan == &FOTA_CHAN &&
-	    state_object->fota_status == FOTA_DOWNLOADING_UPDATE) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA]);
-		return;
+	if (state_object->chan == &FOTA_CHAN) {
+		enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+
+		if (msg == FOTA_DOWNLOADING_UPDATE) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA]);
+			return;
+		}
 	}
 }
 
@@ -382,12 +374,16 @@ static void idle_entry(void *o)
 
 static void idle_run(void *o)
 {
-	const struct main_state *state_object = (const struct main_state *)o;
+	struct main_state *state_object = o;
 
-	if ((state_object->chan == &CLOUD_CHAN) &&
-		(state_object->status == CLOUD_CONNECTED_READY_TO_SEND)) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_TRIGGERING]);
-		return;
+	if (state_object->chan == &CLOUD_CHAN) {
+		struct cloud_msg msg = MSG_TO_CLOUD_MSG(state_object->msg_buf);
+
+		if (msg.type == CLOUD_CONNECTED_READY_TO_SEND) {
+			state_object->connected = true;
+			smf_set_state(SMF_CTX(state_object), &states[STATE_TRIGGERING]);
+			return;
+		}
 	}
 }
 
@@ -425,19 +421,30 @@ static void triggering_entry(void *o)
 
 static void triggering_run(void *o)
 {
-	const struct main_state *state_object = (const struct main_state *)o;
+	struct main_state *state_object = o;
 
-	if ((state_object->chan == &CLOUD_CHAN) &&
-	    ((state_object->status == CLOUD_CONNECTED_PAUSED) ||
-	     (state_object->status == CLOUD_DISCONNECTED))) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_IDLE]);
-		return;
+	if ((state_object->chan == &CLOUD_CHAN)) {
+		struct cloud_msg msg = MSG_TO_CLOUD_MSG(state_object->msg_buf);
+
+		if ((msg.type == CLOUD_CONNECTED_PAUSED) ||
+		    (msg.type == CLOUD_DISCONNECTED)) {
+			state_object->connected = false;
+			smf_set_state(SMF_CTX(state_object), &states[STATE_IDLE]);
+			return;
+		}
 	}
 
 	if (state_object->chan == &CONFIG_CHAN) {
-		LOG_DBG("Configuration update, new interval: %lld", state_object->interval_sec);
-		k_work_reschedule(&trigger_work, K_SECONDS(state_object->interval_sec));
-		return;
+		struct configuration config = MSG_TO_CONFIGURATION(state_object->msg_buf);
+
+		if (config.config_present) {
+			LOG_DBG("Configuration update, new interval: %lld", config.update_interval);
+
+			state_object->interval_sec = config.update_interval;
+
+			k_work_reschedule(&trigger_work, K_SECONDS(state_object->interval_sec));
+			return;
+		}
 	}
 }
 
@@ -464,10 +471,13 @@ static void requesting_location_run(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
-	if (state_object->chan == &LOCATION_CHAN &&
-	    (state_object->location_status == LOCATION_SEARCH_DONE)) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_REQUESTING_SENSORS_AND_POLLING]);
-		return;
+	if (state_object->chan == &LOCATION_CHAN) {
+		enum location_msg_type msg = MSG_TO_LOCATION_TYPE(state_object->msg_buf);
+
+		if (msg == LOCATION_SEARCH_DONE) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_REQUESTING_SENSORS_AND_POLLING]);
+			return;
+		}
 	}
 
 	if (state_object->chan == &BUTTON_CHAN) {
@@ -531,7 +541,9 @@ static void fota_run(void *o)
 	const struct main_state *state_object = (const struct main_state *)o;
 
 	if (state_object->chan == &FOTA_CHAN) {
-		switch (state_object->fota_status) {
+		enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+
+		switch (msg) {
 		case FOTA_DOWNLOAD_CANCELED:
 			__fallthrough;
 		case FOTA_DOWNLOAD_TIMED_OUT:
@@ -553,7 +565,9 @@ static void fota_downloading_run(void *o)
 	const struct main_state *state_object = (const struct main_state *)o;
 
 	if (state_object->chan == &FOTA_CHAN) {
-		switch (state_object->fota_status) {
+		enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+
+		switch (msg) {
 		case FOTA_SUCCESS_REBOOT_NEEDED:
 			smf_set_state(SMF_CTX(state_object),
 					      &states[STATE_FOTA_NETWORK_DISCONNECT]);
@@ -592,10 +606,13 @@ static void fota_network_disconnect_run(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
-	if (state_object->chan == &NETWORK_CHAN &&
-	    state_object->network_status == NETWORK_DISCONNECTED) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
-		return;
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		if (msg.type == NETWORK_DISCONNECTED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
+			return;
+		}
 	}
 }
 
@@ -623,22 +640,28 @@ static void fota_applying_image_run(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
-	if (state_object->chan == &NETWORK_CHAN &&
-	    state_object->network_status == NETWORK_DISCONNECTED) {
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-		int err;
-		enum fota_msg_type msg = FOTA_IMAGE_APPLY;
+		if (msg.type == NETWORK_DISCONNECTED) {
 
-		err = zbus_chan_pub(&FOTA_CHAN, &msg, K_SECONDS(1));
-		if (err) {
-			LOG_ERR("zbus_chan_pub, error: %d", err);
-			SEND_FATAL_ERROR();
+			int err;
+			enum fota_msg_type msg = FOTA_IMAGE_APPLY;
+
+			err = zbus_chan_pub(&FOTA_CHAN, &msg, K_SECONDS(1));
+			if (err) {
+				LOG_ERR("zbus_chan_pub, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
 		}
 
-	} else if (state_object->chan == &FOTA_CHAN &&
-		   state_object->fota_status == FOTA_SUCCESS_REBOOT_NEEDED) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
-		return;
+	} else if (state_object->chan == &FOTA_CHAN) {
+		enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+
+		if (msg == FOTA_SUCCESS_REBOOT_NEEDED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
+			return;
+		}
 	}
 }
 
@@ -669,7 +692,7 @@ int main(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	struct main_state main_state;
+	struct main_state main_state = { 0 };
 
 	main_state.interval_sec = CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS;
 
@@ -699,32 +722,6 @@ int main(void)
 			return err;
 		}
 
-		/* Copy corresponding data to the state object depending on the incoming channel */
-		if (&CONFIG_CHAN == main_state.chan) {
-			const struct configuration *config = zbus_chan_const_msg(main_state.chan);
-
-			if (config->update_interval_present) {
-				main_state.interval_sec = config->update_interval;
-			}
-		} else if (&CLOUD_CHAN == main_state.chan) {
-			const struct cloud_msg *cloud_msg = zbus_chan_const_msg(main_state.chan);
-
-			main_state.status = cloud_msg->type;
-		} else if (&FOTA_CHAN == main_state.chan) {
-			const enum fota_msg_type *status = zbus_chan_const_msg(main_state.chan);
-
-			main_state.fota_status = *status;
-		} else if (&NETWORK_CHAN == main_state.chan) {
-			const struct network_msg *msg = zbus_chan_const_msg(main_state.chan);
-
-			main_state.network_status = msg->type;
-		} else if (&LOCATION_CHAN == main_state.chan) {
-			const enum location_msg_type *msg = zbus_chan_const_msg(main_state.chan);
-
-			main_state.location_status = *msg;
-		}
-
-		/* State object updated, run SMF */
 		err = smf_run_state(SMF_CTX(&main_state));
 		if (err) {
 			LOG_ERR("smf_run_state(), error: %d", err);

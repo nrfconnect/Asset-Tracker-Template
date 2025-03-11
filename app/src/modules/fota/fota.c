@@ -62,7 +62,7 @@ enum fota_module_state {
 		/* The module is waiting for the event FOTA_IMAGE_APPLY to apply the image */
 		STATE_WAITING_FOR_IMAGE_APPLY,
 		/* The FOTA module is waiting for a reboot */
-		STATE_REBOOT_NEEDED,
+		STATE_REBOOT_PENDING,
 		/* The FOTA module is canceling the job */
 		STATE_CANCELING,
 };
@@ -100,7 +100,7 @@ static void state_downloading_update_run(void *o);
 static void state_waiting_for_image_apply_entry(void *o);
 static void state_waiting_for_image_apply_run(void *o);
 
-static void state_reboot_needed_entry(void *o);
+static void state_reboot_pending_entry(void *o);
 
 static void state_canceling_entry(void *o);
 static void state_canceling_run(void *o);
@@ -136,8 +136,8 @@ static const struct smf_state states[] = {
 				 NULL,
 				 &states[STATE_RUNNING],
 				 NULL),
-	[STATE_REBOOT_NEEDED] =
-		SMF_CREATE_STATE(state_reboot_needed_entry,
+	[STATE_REBOOT_PENDING] =
+		SMF_CREATE_STATE(state_reboot_pending_entry,
 				 NULL,
 				 NULL,
 				 &states[STATE_RUNNING],
@@ -375,7 +375,7 @@ static void state_downloading_update_run(void *o)
 					      &states[STATE_WAITING_FOR_IMAGE_APPLY]);
 			break;
 		case FOTA_SUCCESS_REBOOT_NEEDED:
-			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_NEEDED]);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_PENDING]);
 			break;
 		case FOTA_DOWNLOAD_CANCELED:
 			__fallthrough;
@@ -421,7 +421,7 @@ static void state_waiting_for_image_apply_run(void *o)
 
 			break;
 		case FOTA_SUCCESS_REBOOT_NEEDED:
-			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_NEEDED]);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_PENDING]);
 			break;
 		default:
 			/* Don't care */
@@ -430,7 +430,7 @@ static void state_waiting_for_image_apply_run(void *o)
 	}
 }
 
-static void state_reboot_needed_entry(void *o)
+static void state_reboot_pending_entry(void *o)
 {
 	ARG_UNUSED(o);
 
