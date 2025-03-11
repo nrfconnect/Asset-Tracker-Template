@@ -376,8 +376,6 @@ static void state_disconnected_entry(void *obj)
 
 	LOG_DBG("state_disconnected_entry");
 
-	network_status_notify(NETWORK_DISCONNECTED);
-
 	/* Resend connection status if the sample is built for Native Sim.
 	 * This is necessary because the network interface is automatically brought up
 	 * at SYS_INIT() before main() is called.

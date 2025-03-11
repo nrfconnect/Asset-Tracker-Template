@@ -61,8 +61,10 @@ enum fota_module_state {
 		STATE_DOWNLOADING_UPDATE,
 		/* The module is waiting for the event FOTA_IMAGE_APPLY to apply the image */
 		STATE_WAITING_FOR_IMAGE_APPLY,
+		/* The module is applying the image */
+		STATE_IMAGE_APPLYING,
 		/* The FOTA module is waiting for a reboot */
-		STATE_REBOOT_NEEDED,
+		STATE_REBOOT_PENDING,
 		/* The FOTA module is canceling the job */
 		STATE_CANCELING,
 };
@@ -100,7 +102,10 @@ static void state_downloading_update_run(void *o);
 static void state_waiting_for_image_apply_entry(void *o);
 static void state_waiting_for_image_apply_run(void *o);
 
-static void state_reboot_needed_entry(void *o);
+static void state_image_applying_entry(void *o);
+static void state_image_applying_run(void *o);
+
+static void state_reboot_pending_entry(void *o);
 
 static void state_canceling_entry(void *o);
 static void state_canceling_run(void *o);
@@ -136,8 +141,14 @@ static const struct smf_state states[] = {
 				 NULL,
 				 &states[STATE_RUNNING],
 				 NULL),
-	[STATE_REBOOT_NEEDED] =
-		SMF_CREATE_STATE(state_reboot_needed_entry,
+	[STATE_IMAGE_APPLYING] =
+		SMF_CREATE_STATE(state_image_applying_entry,
+				 state_image_applying_run,
+				 NULL,
+				 &states[STATE_RUNNING],
+				 NULL),
+	[STATE_REBOOT_PENDING] =
+		SMF_CREATE_STATE(state_reboot_pending_entry,
 				 NULL,
 				 NULL,
 				 &states[STATE_RUNNING],
@@ -247,8 +258,7 @@ static void state_running_entry(void *o)
 	err = nrf_cloud_fota_poll_process_pending(&state_object->fota_ctx);
 	if (err < 0) {
 		LOG_ERR("nrf_cloud_fota_poll_process_pending failed: %d", err);
-	} else if (err != NRF_CLOUD_FOTA_TYPE__INVALID) {
-		LOG_ERR("Processed pending FOTA job type: %d", err);
+		SEND_FATAL_ERROR();
 	}
 }
 
@@ -375,7 +385,7 @@ static void state_downloading_update_run(void *o)
 					      &states[STATE_WAITING_FOR_IMAGE_APPLY]);
 			break;
 		case FOTA_SUCCESS_REBOOT_NEEDED:
-			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_NEEDED]);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_PENDING]);
 			break;
 		case FOTA_DOWNLOAD_CANCELED:
 			__fallthrough;
@@ -406,31 +416,41 @@ static void state_waiting_for_image_apply_run(void *o)
 	if (&FOTA_CHAN == state_object->chan) {
 		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
-		switch (evt) {
-		case FOTA_IMAGE_APPLY:
-
-			LOG_DBG("Applying downloaded firmware image");
-
-			/* Apply the downloaded firmware image */
-			int err = nrf_cloud_fota_poll_update_apply(&state_object->fota_ctx);
-
-			if (err) {
-				LOG_ERR("nrf_cloud_fota_poll_update_apply, error: %d", err);
-				SEND_FATAL_ERROR();
-			}
-
-			break;
-		case FOTA_SUCCESS_REBOOT_NEEDED:
-			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_NEEDED]);
-			break;
-		default:
-			/* Don't care */
-			break;
+		if (evt == FOTA_IMAGE_APPLY) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_IMAGE_APPLYING]);
 		}
 	}
 }
 
-static void state_reboot_needed_entry(void *o)
+static void state_image_applying_entry(void *o)
+{
+	struct fota_state *state_object = o;
+
+	LOG_DBG("Applying downloaded firmware image");
+
+	/* Apply the downloaded firmware image */
+	int err = nrf_cloud_fota_poll_update_apply(&state_object->fota_ctx);
+
+	if (err) {
+		LOG_ERR("nrf_cloud_fota_poll_update_apply, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+static void state_image_applying_run(void *o)
+{
+	const struct fota_state *state_object = (const struct fota_state *)o;
+
+	if (&FOTA_CHAN == state_object->chan) {
+		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+
+		if (evt == FOTA_SUCCESS_REBOOT_NEEDED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_PENDING]);
+		}
+	}
+}
+
+static void state_reboot_pending_entry(void *o)
 {
 	ARG_UNUSED(o);
 
