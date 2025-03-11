@@ -75,7 +75,7 @@ struct configuration {
 	bool update_interval_present;
 };
 
-#define MSG_TO_CONFIGURATION(_msg) ((const struct configuration *)_msg)
+#define MSG_TO_CONFIGURATION(_msg) (*(const struct configuration *)_msg)
 
 ZBUS_CHAN_DECLARE(
 	CONFIG_CHAN,
