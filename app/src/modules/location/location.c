@@ -66,10 +66,10 @@ static void task_wdt_callback(int channel_id, void *user_data)
 
 static void status_send(enum location_msg_type status)
 {
+	int err;
 	enum location_msg_type location_status = status;
 
-	int err = zbus_chan_pub(&LOCATION_CHAN, &location_status, K_SECONDS(1));
-
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_status, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -79,10 +79,11 @@ static void status_send(enum location_msg_type status)
 
 void trigger_location_update(void)
 {
+	int err;
+
 	LOG_DBG("location library initialized");
 
-	int err = location_request(NULL);
-
+	err = location_request(NULL);
 	if (err == -EBUSY) {
 		LOG_WRN("Location request already in progress");
 	} else if (err) {
@@ -91,14 +92,15 @@ void trigger_location_update(void)
 	}
 }
 
-void handle_network_chan(struct network_msg msg) {
-	int err = 0;
-
+void handle_network_chan(struct network_msg msg)
+{
 	if (gnss_initialized) {
 		return;
 	}
 
 	if (msg.type == NETWORK_CONNECTED) {
+		int err;
+
 		/* GNSS has to be enabled after the modem is initialized and enabled */
 		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
 		if (err) {
@@ -144,9 +146,84 @@ static void location_print_data_details(enum location_method method,
 #endif
 }
 
-static void location_task(void)
+/* Take time from PVT data and apply it to system time. */
+static void apply_gnss_time(const struct nrf_modem_gnss_pvt_data_frame *pvt_data)
 {
-	int err = 0;
+	struct tm gnss_time = {
+		.tm_year = pvt_data->datetime.year - 1900,
+		.tm_mon = pvt_data->datetime.month - 1,
+		.tm_mday = pvt_data->datetime.day,
+		.tm_hour = pvt_data->datetime.hour,
+		.tm_min = pvt_data->datetime.minute,
+		.tm_sec = pvt_data->datetime.seconds,
+	};
+
+	date_time_set(&gnss_time);
+}
+
+static void location_event_handler(const struct location_event_data *event_data)
+{
+	switch (event_data->id) {
+	case LOCATION_EVT_LOCATION:
+		LOG_DBG("Got location: lat: %f, lon: %f, acc: %f, method: %s",
+			(double) event_data->location.latitude,
+			(double) event_data->location.longitude,
+			(double) event_data->location.accuracy,
+			location_method_str(event_data->method));
+
+		if (event_data->method == LOCATION_METHOD_GNSS) {
+			struct nrf_modem_gnss_pvt_data_frame pvt_data =
+				event_data->location.details.gnss.pvt_data;
+			if (event_data->location.datetime.valid) {
+				/* GNSS is the most accurate time source -  use it. */
+				apply_gnss_time(&pvt_data);
+			} else {
+				/* this should not happen */
+				LOG_WRN("Got GNSS location without valid time data");
+			}
+		}
+
+		status_send(LOCATION_SEARCH_DONE);
+		break;
+	case LOCATION_EVT_STARTED:
+		status_send(LOCATION_SEARCH_STARTED);
+		break;
+	case LOCATION_EVT_TIMEOUT:
+		LOG_DBG("Getting location timed out");
+		status_send(LOCATION_SEARCH_DONE);
+		break;
+	case LOCATION_EVT_ERROR:
+		LOG_WRN("Location request failed:");
+		LOG_WRN("Used method: %s (%d)", location_method_str(event_data->method),
+								    event_data->method);
+
+		location_print_data_details(event_data->method, &event_data->error.details);
+
+		status_send(LOCATION_SEARCH_DONE);
+		break;
+	case LOCATION_EVT_FALLBACK:
+		LOG_DBG("Location request fallback has occurred:");
+		LOG_DBG("Failed method: %s (%d)", location_method_str(event_data->method),
+								      event_data->method);
+		LOG_DBG("New method: %s (%d)", location_method_str(
+							event_data->fallback.next_method),
+							event_data->fallback.next_method);
+		LOG_DBG("Cause: %s",
+			(event_data->fallback.cause == LOCATION_EVT_TIMEOUT) ? "timeout" :
+			(event_data->fallback.cause == LOCATION_EVT_ERROR) ? "error" :
+			"unknown");
+
+		location_print_data_details(event_data->method, &event_data->fallback.details);
+		break;
+	default:
+		LOG_DBG("Getting location: Unknown event %d", event_data->id);
+		break;
+	}
+}
+
+static void location_module_thread(void)
+{
+	int err;
 	const struct zbus_channel *chan;
 	int task_wdt_id;
 	const uint32_t wdt_timeout_ms =
@@ -201,81 +278,6 @@ static void location_task(void)
 	}
 }
 
-K_THREAD_DEFINE(location_module_tid, CONFIG_APP_LOCATION_THREAD_STACK_SIZE,
-		location_task, NULL, NULL, NULL,
+K_THREAD_DEFINE(location_module_thread_id, CONFIG_APP_LOCATION_THREAD_STACK_SIZE,
+		location_module_thread, NULL, NULL, NULL,
 		K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
-
-/* Take time from PVT data and apply it to system time. */
-static void apply_gnss_time(const struct nrf_modem_gnss_pvt_data_frame *pvt_data)
-{
-	struct tm gnss_time = {
-		.tm_year = pvt_data->datetime.year - 1900,
-		.tm_mon = pvt_data->datetime.month - 1,
-		.tm_mday = pvt_data->datetime.day,
-		.tm_hour = pvt_data->datetime.hour,
-		.tm_min = pvt_data->datetime.minute,
-		.tm_sec = pvt_data->datetime.seconds,
-	};
-
-	date_time_set(&gnss_time);
-}
-
-static void location_event_handler(const struct location_event_data *event_data)
-{
-	switch (event_data->id) {
-	case LOCATION_EVT_LOCATION:
-		LOG_DBG("Got location: lat: %f, lon: %f, acc: %f, method: %s",
-			(double) event_data->location.latitude,
-			(double) event_data->location.longitude,
-			(double) event_data->location.accuracy,
-			location_method_str(event_data->method));
-
-		if (event_data->method == LOCATION_METHOD_GNSS) {
-			struct nrf_modem_gnss_pvt_data_frame pvt_data =
-				event_data->location.details.gnss.pvt_data;
-			if (event_data->location.datetime.valid) {
-				/* GNSS is the most accurate time source -  use it. */
-				apply_gnss_time(&pvt_data);
-			} else {
-				/* this should not happen */
-				LOG_WRN("Got GNSS location without valid time data");
-			}
-
-		}
-		status_send(LOCATION_SEARCH_DONE);
-		break;
-	case LOCATION_EVT_STARTED:
-		status_send(LOCATION_SEARCH_STARTED);
-		break;
-	case LOCATION_EVT_TIMEOUT:
-		LOG_DBG("Getting location timed out");
-		status_send(LOCATION_SEARCH_DONE);
-		break;
-	case LOCATION_EVT_ERROR:
-		LOG_WRN("Location request failed:");
-		LOG_WRN("Used method: %s (%d)", location_method_str(event_data->method),
-								    event_data->method);
-
-		location_print_data_details(event_data->method, &event_data->error.details);
-
-		status_send(LOCATION_SEARCH_DONE);
-		break;
-	case LOCATION_EVT_FALLBACK:
-		LOG_DBG("Location request fallback has occurred:");
-		LOG_DBG("Failed method: %s (%d)", location_method_str(event_data->method),
-								      event_data->method);
-		LOG_DBG("New method: %s (%d)", location_method_str(
-							event_data->fallback.next_method),
-							event_data->fallback.next_method);
-		LOG_DBG("Cause: %s",
-			(event_data->fallback.cause == LOCATION_EVT_TIMEOUT) ? "timeout" :
-			(event_data->fallback.cause == LOCATION_EVT_ERROR) ? "error" :
-			"unknown");
-
-		location_print_data_details(event_data->method, &event_data->fallback.details);
-		break;
-	default:
-		LOG_DBG("Getting location: Unknown event %d", event_data->id);
-		break;
-	}
-}

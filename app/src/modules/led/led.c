@@ -106,12 +106,18 @@ static int pwm_out(const struct led_msg *led_msg, bool force_off)
 /* Timer work handler for LED blinking */
 static void blink_timer_handler(struct k_work *work)
 {
+	int err;
+
 	ARG_UNUSED(work);
 
 	led_is_on = !led_is_on;
 
 	/* Update LED state */
-	pwm_out(&current_led_state, !led_is_on);
+	err = pwm_out(&current_led_state, !led_is_on);
+	if (err) {
+		LOG_ERR("pwm_out, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
 
 	/* If LED just turned off, we completed one cycle */
 	if (!led_is_on && remaining_cycles > 0) {
@@ -127,17 +133,22 @@ static void blink_timer_handler(struct k_work *work)
 		current_led_state.duration_on_msec :
 		current_led_state.duration_off_msec;
 
-	k_work_schedule(&blink_work, K_MSEC(next_delay));
+	err = k_work_schedule(&blink_work, K_MSEC(next_delay));
+	if (err < 0) {
+		LOG_ERR("k_work_schedule, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
 }
 
 /* Function called when there is a message received on a channel that the module listens to */
 static void led_callback(const struct zbus_channel *chan)
 {
 	if (&LED_CHAN == chan) {
+		int err;
 		const struct led_msg *led_msg = zbus_chan_const_msg(chan);
 
 		/* Cancel any existing blink timer */
-		k_work_cancel_delayable(&blink_work);
+		(void)k_work_cancel_delayable(&blink_work);
 
 		/* Store the new LED state */
 		memcpy(&current_led_state, led_msg, sizeof(struct led_msg));
@@ -147,11 +158,20 @@ static void led_callback(const struct zbus_channel *chan)
 
 		/* Start with LED on */
 		led_is_on = true;
-		pwm_out(led_msg, false);
+
+		err = pwm_out(led_msg, false);
+		if (err) {
+			LOG_ERR("pwm_out, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
 
 		/* Schedule first toggle if we have cycles to do */
 		if (remaining_cycles != 0 || led_msg->repetitions == -1) {
-			k_work_schedule(&blink_work, K_MSEC(led_msg->duration_on_msec));
+			err = k_work_schedule(&blink_work, K_MSEC(led_msg->duration_on_msec));
+			if (err < 0) {
+				LOG_ERR("k_work_schedule, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
 		}
 	}
 }
@@ -159,6 +179,7 @@ static void led_callback(const struct zbus_channel *chan)
 static int led_init(void)
 {
 	k_work_init_delayable(&blink_work, blink_timer_handler);
+
 	return 0;
 }
 

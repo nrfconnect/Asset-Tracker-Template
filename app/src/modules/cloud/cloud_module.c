@@ -400,13 +400,18 @@ static void state_connecting_attempt_entry(void *o)
 
 static void state_connecting_backoff_entry(void *o)
 {
+	int err;
 	struct cloud_state *state_object = o;
 
 	LOG_DBG("%s", __func__);
 
 	state_object->backoff_time = calculate_backoff_time(state_object->connection_attempts);
 
-	k_work_schedule(&backoff_timer_work, K_SECONDS(state_object->backoff_time));
+	err = k_work_schedule(&backoff_timer_work, K_SECONDS(state_object->backoff_time));
+	if (err < 0) {
+		LOG_ERR("k_work_schedule, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
 }
 
 static void state_connecting_backoff_run(void *o)
@@ -430,7 +435,7 @@ static void state_connecting_backoff_exit(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	k_work_cancel_delayable(&backoff_timer_work);
+	(void)k_work_cancel_delayable(&backoff_timer_work);
 }
 
 /* Handler for STATE_CLOUD_CONNECTED. */

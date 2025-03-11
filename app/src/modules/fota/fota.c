@@ -459,13 +459,14 @@ static void state_reboot_pending_entry(void *o)
 
 static void state_canceling_entry(void *o)
 {
+	int err;
+
 	ARG_UNUSED(o);
 
 	LOG_DBG("%s", __func__);
 	LOG_DBG("Canceling download");
 
-	int err = fota_download_cancel();
-
+	err = fota_download_cancel();
 	if (err) {
 		LOG_ERR("fota_download_cancel, error: %d", err);
 		SEND_FATAL_ERROR();
