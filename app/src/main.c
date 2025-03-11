@@ -669,7 +669,7 @@ int main(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	struct main_state main_state;
+	struct main_state main_state = { 0 };
 
 	main_state.interval_sec = CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS;
 

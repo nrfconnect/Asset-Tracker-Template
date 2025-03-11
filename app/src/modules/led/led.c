@@ -38,7 +38,7 @@ static const struct pwm_dt_spec pwm_led2 = PWM_DT_SPEC_GET(PWM_LED2);
 /* Register log module */
 LOG_MODULE_REGISTER(led, CONFIG_APP_LED_LOG_LEVEL);
 
-void led_callback(const struct zbus_channel *chan);
+static void led_callback(const struct zbus_channel *chan);
 
 /* Register listener - led_callback will be called everytime a channel that the module listens on
  * receives a new message.
@@ -131,7 +131,7 @@ static void blink_timer_handler(struct k_work *work)
 }
 
 /* Function called when there is a message received on a channel that the module listens to */
-void led_callback(const struct zbus_channel *chan)
+static void led_callback(const struct zbus_channel *chan)
 {
 	if (&LED_CHAN == chan) {
 		const struct led_msg *led_msg = zbus_chan_const_msg(chan);

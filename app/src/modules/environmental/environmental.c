@@ -151,7 +151,7 @@ static void environmental_task(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_ENVIRONMENTAL_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	struct environmental_state environmental_state;
+	struct environmental_state environmental_state = { 0 };
 
 	LOG_DBG("Environmental module task started");
 
