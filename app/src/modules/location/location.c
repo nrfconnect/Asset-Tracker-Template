@@ -144,7 +144,7 @@ static void location_print_data_details(enum location_method method,
 #endif
 }
 
-void location_task(void)
+static void location_task(void)
 {
 	int err = 0;
 	const struct zbus_channel *chan;
