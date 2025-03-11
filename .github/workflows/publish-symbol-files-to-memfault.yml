@@ -37,8 +37,8 @@ jobs:
           source venv/bin/activate
           memfault \
               --org-token ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }} \
-              --org ${{ secrets.MEMFAULT_ORGANIZATION_SLUG }} \
-              --project ${{ secrets.MEMFAULT_PROJECT_SLUG }} \
+              --org ${{ vars.MEMFAULT_ORGANIZATION_SLUG }} \
+              --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
               upload-mcu-symbols \
               --software-type asset-tracker-template \
               --software-version ${{ inputs.version }} \
@@ -49,8 +49,8 @@ jobs:
           source venv/bin/activate
           memfault \
               --org-token ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }} \
-              --org ${{ secrets.MEMFAULT_ORGANIZATION_SLUG }} \
-              --project ${{ secrets.MEMFAULT_PROJECT_SLUG }} \
+              --org ${{ vars.MEMFAULT_ORGANIZATION_SLUG }} \
+              --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
               upload-mcu-symbols \
               --software-type asset-tracker-template \
               --software-version ${{ inputs.version }}-debug \

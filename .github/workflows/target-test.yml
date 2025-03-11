@@ -100,8 +100,8 @@ jobs:
         run: |
           memfault \
               --org-token ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }} \
-              --org ${{ secrets.MEMFAULT_ORGANIZATION_SLUG }} \
-              --project ${{ secrets.MEMFAULT_PROJECT_SLUG }} \
+              --org ${{ vars.MEMFAULT_ORGANIZATION_SLUG }} \
+              --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
               upload-mcu-symbols \
               --software-type asset-tracker-template-ci \
               --software-version ${{ inputs.artifact_fw_version }} \
@@ -140,8 +140,8 @@ jobs:
           LOG_FILENAME: att_test_log
           TEST_REPORT_NAME: ATT Firwmare Test Report
           MEMFAULT_ORGANIZATION_TOKEN: ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }}
-          MEMFAULT_ORGANIZATION_SLUG: ${{ secrets.MEMFAULT_ORGANIZATION_SLUG }}
-          MEMFAULT_PROJECT_SLUG: ${{ secrets.MEMFAULT_PROJECT_SLUG }}
+          MEMFAULT_ORGANIZATION_SLUG: ${{ vars.MEMFAULT_ORGANIZATION_SLUG }}
+          MEMFAULT_PROJECT_SLUG: ${{ vars.MEMFAULT_PROJECT_SLUG }}
 
       - name: Commit and Push Badge File to gh-pages Branch
         if: always()
