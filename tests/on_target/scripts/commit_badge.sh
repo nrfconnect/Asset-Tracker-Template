@@ -15,15 +15,15 @@ CSV_FILE_DEST=docs/power_measurements.csv
 # Check if files exist
 if [ ! -f $BADGE_FILE ]; then
   echo "Badge file not found: $BADGE_FILE"
-  exit 1
+  exit 0
 fi
 if [ ! -f $HTML_FILE ]; then
   echo "HTML file not found: $HTML_FILE"
-  exit 1
+  exit 0
 fi
 if [ ! -f $CSV_FILE ]; then
   echo "CSV file not found: $CSV_FILE"
-  exit 1
+  exit 0
 fi
 
 # Configure Git

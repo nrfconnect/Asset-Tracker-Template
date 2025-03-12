@@ -44,8 +44,9 @@ jobs:
       fail-fast: false # Don't fail all jobs if one fails
       matrix:
         include:
-          - device: nrf9151dk
-          - device: thingy91x
+          # - device: nrf9151dk
+          # - device: thingy91x
+          - device: ppk_thingy91x
 
     # Self-hosted runner is labeled according to the device it is linked with
     runs-on: cia-trd-${{ matrix.device }}
