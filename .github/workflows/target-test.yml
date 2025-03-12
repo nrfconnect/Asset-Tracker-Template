@@ -45,8 +45,6 @@ jobs:
       matrix:
         include:
           - device: cia-trd-thingy91x
-          - device: ppk_thingy91x
-            if: ${{ inputs.pytest_marker == '' || inputs.pytest_marker == 'no_markers_flag' || inputs.pytest_marker == 'slow' }}
 
     # Self-hosted runner is labeled according to the device it is linked with
     runs-on: ${{ matrix.device }}
