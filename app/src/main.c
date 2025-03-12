@@ -10,7 +10,7 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
 
-#include "message_channel.h"
+#include "app_common.h"
 #include "button.h"
 #include "network.h"
 #include "cloud_module.h"
@@ -35,7 +35,7 @@
 /* Register log module */
 LOG_MODULE_REGISTER(main, CONFIG_APP_LOG_LEVEL);
 
-#define MAX_MSG_SIZE	(MAX(sizeof(struct configuration),					\
+#define MAX_MSG_SIZE	(MAX(sizeof(struct cloud_shadow_response),				\
 			 MAX(sizeof(struct cloud_payload),					\
 			 /* Button channel payload size */					\
 			 MAX(sizeof(uint8_t),							\
@@ -57,7 +57,6 @@ ZBUS_CHAN_DEFINE(TIMER_CHAN,
 );
 
 /* Observe channels */
-ZBUS_CHAN_ADD_OBS(CONFIG_CHAN, main_subscriber, 0);
 ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, main_subscriber, 0);
 ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, main_subscriber, 0);
 ZBUS_CHAN_ADD_OBS(FOTA_CHAN, main_subscriber, 0);
@@ -453,26 +452,19 @@ static void triggering_run(void *o)
 			smf_set_state(SMF_CTX(state_object), &states[STATE_IDLE]);
 			return;
 		}
-	}
 
-	if (state_object->chan == &CONFIG_CHAN) {
-		struct configuration config = MSG_TO_CONFIGURATION(state_object->msg_buf);
+		if (msg.type == CLOUD_SHADOW_RESPONSE) {
+			/* Missing: Parse the interval received in the shadow response,
+			 * write to state object and schedule new interval
+			 */
 
-		if (config.config_present) {
-			int err;
+			int err = k_work_reschedule(&trigger_work,
+						    K_SECONDS(state_object->interval_sec));
 
-			LOG_DBG("Configuration update, new interval: %lld", config.update_interval);
-
-			state_object->interval_sec = config.update_interval;
-
-			err = k_work_reschedule(&trigger_work,
-						K_SECONDS(state_object->interval_sec));
 			if (err < 0) {
 				LOG_ERR("k_work_reschedule, error: %d", err);
 				SEND_FATAL_ERROR();
 			}
-
-			return;
 		}
 	}
 }

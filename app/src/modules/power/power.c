@@ -20,7 +20,7 @@
 #include <zephyr/smf.h>
 
 #include "lp803448_model.h"
-#include "message_channel.h"
+#include "app_common.h"
 #include "power.h"
 
 /* Register log module */

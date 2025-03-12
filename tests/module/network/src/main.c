@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 #include <unity.h>
-
 #include <zephyr/fff.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/task_wdt/task_wdt.h>
@@ -13,7 +12,7 @@
 #include <modem/modem_info.h>
 #include <zephyr/net/net_mgmt.h>
 
-#include "message_channel.h"
+#include "app_common.h"
 #include "network.h"
 
 LOG_MODULE_REGISTER(network_module_test, 4);

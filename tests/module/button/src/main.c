@@ -4,16 +4,14 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 #include <unity.h>
-
 #include <zephyr/fff.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/logging/log.h>
-
-#include "message_channel.h"
-#include "button.h"
-
 #include <dk_buttons_and_leds.h>
 #include <date_time.h>
+
+#include "app_common.h"
+#include "button.h"
 
 DEFINE_FFF_GLOBALS;
 

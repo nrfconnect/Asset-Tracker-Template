@@ -21,7 +21,12 @@ ZBUS_CHAN_DECLARE(
 );
 
 struct cloud_payload {
-	uint8_t buffer[CONFIG_APP_PAYLOAD_CHANNEL_BUFFER_MAX_SIZE];
+	uint8_t buffer[CONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE];
+	size_t buffer_len;
+};
+
+struct cloud_shadow_response {
+	uint8_t buffer[CONFIG_APP_CLOUD_SHADOW_RESPONSE_BUFFER_MAX_SIZE];
 	size_t buffer_len;
 };
 
@@ -32,6 +37,7 @@ enum cloud_msg_type {
 	CLOUD_CONNECTION_ATTEMPT_COUNT_REACHED,
 	CLOUD_PAYLOAD_JSON,
 	CLOUD_POLL_SHADOW,
+	CLOUD_SHADOW_RESPONSE,
 };
 
 struct cloud_msg {
@@ -41,6 +47,7 @@ struct cloud_msg {
 
 #define MSG_TO_CLOUD_MSG(_msg)	(*(const struct cloud_msg *)_msg)
 #define MSG_TO_PAYLOAD(_msg)	((struct cloud_payload *)_msg)
+#define MSG_TO_SHADOW_RESPONSE(_msg)	(*(const struct cloud_shadow_response *)_msg)
 
 #ifdef __cplusplus
 }

@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 #include <unity.h>
-
 #include <zephyr/fff.h>
-#include "message_channel.h"
+#include <zephyr/task_wdt/task_wdt.h>
+
+#include "environmental.h"
 #include "cloud_module.h"
 #include "power.h"
 #include "network.h"
-#include "environmental.h"
-#include <zephyr/task_wdt/task_wdt.h>
+#include "app_common.h"
 
 DEFINE_FFF_GLOBALS;
 
@@ -53,7 +53,6 @@ FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_get, char *, size_t *, bool, int);
 /* Forward declarations */
 static void dummy_cb(const struct zbus_channel *chan);
 static void cloud_chan_cb(const struct zbus_channel *chan);
-static void error_cb(const struct zbus_channel *chan);
 
 /* Define unused subscribers */
 ZBUS_SUBSCRIBER_DEFINE(app, 1);
@@ -64,7 +63,6 @@ ZBUS_SUBSCRIBER_DEFINE(led, 1);
 ZBUS_SUBSCRIBER_DEFINE(location, 1);
 ZBUS_LISTENER_DEFINE(trigger, dummy_cb);
 ZBUS_LISTENER_DEFINE(cloud_test_listener, cloud_chan_cb);
-ZBUS_LISTENER_DEFINE(error, error_cb);
 
 #define FAKE_DEVICE_ID		"test_device"
 
@@ -72,7 +70,6 @@ static K_SEM_DEFINE(cloud_disconnected, 0, 1);
 static K_SEM_DEFINE(cloud_connected_ready, 0, 1);
 static K_SEM_DEFINE(cloud_connected_paused, 0, 1);
 static K_SEM_DEFINE(data_sent, 0, 1);
-static K_SEM_DEFINE(fatal_error_received, 0, 1);
 
 static int nrf_cloud_client_id_get_custom_fake(char *buf, size_t len)
 {
@@ -103,17 +100,6 @@ static void cloud_chan_cb(const struct zbus_channel *chan)
 	}
 }
 
-static void error_cb(const struct zbus_channel *chan)
-{
-	if (chan == &ERROR_CHAN) {
-		enum error_type type = *(enum error_type *)chan->message;
-
-		if (type == ERROR_FATAL) {
-			k_sem_give(&fatal_error_received);
-		}
-	}
-}
-
 void setUp(void)
 {
 	const struct zbus_channel *chan;
@@ -135,7 +121,6 @@ void setUp(void)
 	zbus_sub_wait(&battery, &chan, K_NO_WAIT);
 
 	zbus_chan_add_obs(&CLOUD_CHAN, &cloud_test_listener, K_NO_WAIT);
-	zbus_chan_add_obs(&ERROR_CHAN, &error, K_NO_WAIT);
 }
 
 void test_initial_transition_to_disconnected(void)

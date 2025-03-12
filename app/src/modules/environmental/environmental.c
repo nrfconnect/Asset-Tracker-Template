@@ -13,7 +13,7 @@
 #include <date_time.h>
 #include <zephyr/smf.h>
 
-#include "message_channel.h"
+#include "app_common.h"
 #include "environmental.h"
 
 /* Register log module */

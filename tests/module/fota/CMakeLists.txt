@@ -17,7 +17,6 @@ target_sources(app
 	PRIVATE
 	src/fota_module_test.c
 	${ASSET_TRACKER_TEMPLATE_DIR}/app/src/modules/fota/fota.c
-	${ASSET_TRACKER_TEMPLATE_DIR}/app/src/common/message_channel.c
 )
 
 zephyr_include_directories(${ASSET_TRACKER_TEMPLATE_DIR}/app/src/common)
@@ -35,7 +34,7 @@ target_link_options(app PRIVATE --whole-archive)
 
 # Options that cannot be passed through Kconfig fragments
 target_compile_definitions(app PRIVATE
-	-DCONFIG_APP_PAYLOAD_CHANNEL_BUFFER_MAX_SIZE=100
+	-DCONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE=100
 	-DCONFIG_APP_FOTA_LOG_LEVEL=0
 	-DCONFIG_APP_FOTA_THREAD_STACK_SIZE=2500
 	-DCONFIG_APP_FOTA_MESSAGE_QUEUE_SIZE=5

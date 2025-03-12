@@ -10,7 +10,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
 
-#include "message_channel.h"
+#include "app_common.h"
 #include "led.h"
 #include "location.h"
 #include "network.h"

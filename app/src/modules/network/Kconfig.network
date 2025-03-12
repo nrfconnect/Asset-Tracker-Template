@@ -7,6 +7,12 @@
 menu "Network"
 	depends on NRF_MODEM_LIB_NET_IF || (WIFI_NRF700X && WIFI_MGMT_EXT) || BOARD_NATIVE_POSIX
 
+config APP_NETWORK_SHELL
+	bool "Network module shell commands"
+	default y if SHELL
+	help
+	  Enable shell commands for the network module.
+
 config APP_NETWORK_THREAD_STACK_SIZE
 	int "Thread stack size"
 	default 2048

@@ -15,7 +15,6 @@ target_sources(app
   PRIVATE
   src/cloud_module_test.c
   ../../../app/src/modules/cloud/cloud_module.c
-  ../../../app/src/common/message_channel.c
 )
 
 zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)
@@ -32,7 +31,8 @@ target_link_options(app PRIVATE --whole-archive)
 
 # Options that cannot be passed through Kconfig fragments
 target_compile_definitions(app PRIVATE
-	-DCONFIG_APP_PAYLOAD_CHANNEL_BUFFER_MAX_SIZE=100
+	-DCONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE=100
+	-DCONFIG_APP_CLOUD_SHADOW_RESPONSE_BUFFER_MAX_SIZE=512
 	-DCONFIG_APP_CLOUD_LOG_LEVEL=0
 	-DCONFIG_APP_CLOUD_THREAD_STACK_SIZE=2048
 	-DCONFIG_APP_CLOUD_MESSAGE_QUEUE_SIZE=5

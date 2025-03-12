@@ -18,7 +18,6 @@ target_sources(app
   src/main.c
   src/redef.c
   ../../../app/src/modules/environmental/environmental.c
-  ../../../app/src/common/message_channel.c
 )
 
 zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)
@@ -30,7 +29,7 @@ zephyr_include_directories(../../../app/src/modules/environmental)
 target_link_options(app PRIVATE --whole-archive)
 # Options that cannot be passed through Kconfig fragments
 target_compile_definitions(app PRIVATE
-	-DCONFIG_APP_PAYLOAD_CHANNEL_BUFFER_MAX_SIZE=100
+	-DCONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE=100
 	-DCONFIG_APP_ENVIRONMENTAL_LOG_LEVEL=4
 	-DCONFIG_APP_ENVIRONMENTAL_THREAD_STACK_SIZE=1024
 	-DCONFIG_APP_ENVIRONMENTAL_MESSAGE_QUEUE_SIZE=5

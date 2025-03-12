@@ -15,7 +15,7 @@
 
 #include "modem/lte_lc.h"
 #include "modem/modem_info.h"
-#include "message_channel.h"
+#include "app_common.h"
 #include "network.h"
 
 /* Register log module */

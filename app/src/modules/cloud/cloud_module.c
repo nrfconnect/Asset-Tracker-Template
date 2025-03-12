@@ -18,7 +18,7 @@
 #endif /* CONFIG_MEMFAULT */
 
 #include "cloud_module.h"
-#include "message_channel.h"
+#include "app_common.h"
 #include "network.h"
 
 #if defined(CONFIG_APP_POWER)

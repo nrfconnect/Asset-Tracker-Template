@@ -7,6 +7,25 @@
 menu "Cloud module"
 	depends on NRF_CLOUD_COAP
 
+config APP_CLOUD_SHELL
+	bool "Enable cloud shell"
+	default y if SHELL
+	help
+	  Enable cloud shell commands.
+
+config APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE
+	int "Payload maximum buffer size"
+	default 128
+	help
+	  Maximum size of the buffer sent over the payload channel when sending RAW JSON messages
+	  to the cloud.
+
+config APP_CLOUD_SHADOW_RESPONSE_BUFFER_MAX_SIZE
+	int "Payload maximum buffer size"
+	default 512
+	help
+	  Maximum size of the buffer used to receive shadow responses from the cloud.
+
 config APP_CLOUD_CONFIRMABLE_MESSAGES
 	bool "Use confirmable messages"
 	help

@@ -10,7 +10,7 @@
 #include <dk_buttons_and_leds.h>
 #include <date_time.h>
 
-#include "message_channel.h"
+#include "app_common.h"
 #include "button.h"
 
 /* Register log module */
