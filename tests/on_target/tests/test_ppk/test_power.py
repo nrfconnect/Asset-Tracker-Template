@@ -22,7 +22,7 @@ from utils.logger import get_logger
 logger = get_logger()
 
 UART_TIMEOUT = 60 * 30
-POWER_TIMEOUT = 60 * 15
+POWER_TIMEOUT = 60 * 5
 MAX_CURRENT_PSM_UA = 10
 SAMPLING_INTERVAL = 0.01
 CSV_FILE = "power_measurements.csv"
@@ -88,7 +88,7 @@ def generate_time_series_html(csv_file, date_column, value_column, output_file="
     df = pd.read_csv(csv_file, parse_dates=[date_column])
 
     title = "Asset Tracket Template Current Consumption Plot\n\n"
-    note_text = "Note: application is still in development, not reaching target psm current yet"
+    note_text = "Note: Measures are taken with PPK2"
     title += f"<br><span style='font-size:12px;color:gray;'>{note_text}</span>"
 
     # Create an interactive Plotly line chart
@@ -130,24 +130,26 @@ def thingy91x_ppk2():
     else:
         pytest.skip("Failed to get ppk modifiers after 10 attempts")
 
-    ppk2_dev.set_source_voltage(3300)
     ppk2_dev.use_ampere_meter()  # set ampere meter mode
+    ppk2_dev.set_source_voltage(3300)
+    ppk2_dev.toggle_DUT_power("OFF")  # disable DUT power
+    time.sleep(2)
     ppk2_dev.toggle_DUT_power("ON")  # enable DUT power
+    ppk2_dev.start_measuring()
 
     time.sleep(10)
     for _ in range(10):
         try:
             all_uarts = get_uarts()
-            logger.warning(f"momo all uarts {all_uarts}")
             if not all_uarts:
                 logger.error("No UARTs found")
             log_uart_string = all_uarts[0]
             break
         except Exception as e:
             logger.warning(f"Exception: {e}")
-            ppk2_dev.toggle_DUT_power("OFF")  # disable DUT power
+            ppk2_dev.toggle_DUT_power("OFF")
             time.sleep(2)
-            ppk2_dev.toggle_DUT_power("ON")  # enable DUT power
+            ppk2_dev.toggle_DUT_power("ON")
             time.sleep(5)
             continue
     else:
@@ -160,6 +162,7 @@ def thingy91x_ppk2():
     t91x_uart.stop()
     recover_device(serial=SEGGER)
     ppk2_dev.stop_measuring()
+    ppk2_dev.toggle_DUT_power("OFF")
 
 @pytest.mark.slow
 def test_power(thingy91x_ppk2, hex_file):
@@ -176,10 +179,8 @@ def test_power(thingy91x_ppk2, hex_file):
         pytest.skip("Device unable to connect to cloud, skip ppk test")
 
     # Disable UART on the device
-    thingy91x_ppk2.t91x_uart.write("pm suspend uartuart@9000\r\n")
-    thingy91x_ppk2.t91x_uart.write("pm suspend uartuart@8000\r\n")
-
-    thingy91x_ppk2.ppk2_dev.start_measuring()
+    thingy91x_ppk2.t91x_uart.write("pm suspend uart@9000\r\n")
+    thingy91x_ppk2.t91x_uart.write("pm suspend uart@8000\r\n")
 
     start = time.time()
     min_rolling_average = float('inf')
@@ -235,3 +236,7 @@ def test_power(thingy91x_ppk2, hex_file):
     # Determine test result based on whether PSM was reached
     if not psm_reached:
         pytest.fail(f"PSM target not reached after {POWER_TIMEOUT / 60} minutes, only reached {min_rolling_average} uA")
+
+def test_dummy_placeholder():
+    ''' Placeholder to suppress exit code 5, see https://github.com/pytest-dev/pytest/issues/2393 '''
+    pass

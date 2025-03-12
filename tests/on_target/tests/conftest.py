@@ -23,6 +23,9 @@ UART_ID = os.getenv('UART_ID', SEGGER)
 DEVICE_UUID = os.getenv('UUID')
 NRFCLOUD_API_KEY = os.getenv('NRFCLOUD_API_KEY')
 DUT_DEVICE_TYPE = os.getenv('DUT_DEVICE_TYPE')
+if DUT_DEVICE_TYPE == "ppk_thingy91x":
+    DUT_DEVICE_TYPE = "thingy91x"
+
 
 def get_uarts():
     base_path = "/dev/serial/by-id"
