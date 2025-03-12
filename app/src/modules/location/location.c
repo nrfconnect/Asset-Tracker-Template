@@ -9,18 +9,16 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/init.h>
-
 #include <modem/location.h>
 #include <nrf_modem_gnss.h>
 #include <date_time.h>
+#include <net/nrf_cloud.h>
 
-#include "message_channel.h"
+#include "app_common.h"
 #include "modem/lte_lc.h"
 #include "location.h"
 #include "network.h"
 #include "cloud_module.h"
-
-#include <net/nrf_cloud.h>
 
 LOG_MODULE_REGISTER(location_module, CONFIG_APP_LOCATION_LOG_LEVEL);
 

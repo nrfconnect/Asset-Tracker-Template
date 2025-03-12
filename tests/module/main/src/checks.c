@@ -6,10 +6,10 @@
 #include <unity.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/logging/log.h>
-#include "message_channel.h"
+
+#include "app_common.h"
 #include "power.h"
 #include "network.h"
-
 #include "checks.h"
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(subscriber);

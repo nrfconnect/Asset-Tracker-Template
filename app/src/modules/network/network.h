@@ -9,11 +9,11 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
+#include <modem/lte_lc.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /* Channels provided by this module */
 ZBUS_CHAN_DECLARE(

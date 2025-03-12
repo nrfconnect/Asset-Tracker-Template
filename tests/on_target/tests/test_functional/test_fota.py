@@ -68,12 +68,12 @@ def run_fota_resumption(dut_fota, fota_type):
 
     # LTE disconnect
     dut_fota.uart.flush()
-    dut_fota.uart.write("zbus disconnect\r\n")
+    dut_fota.uart.write("att_network disconnect\r\n")
     dut_fota.uart.wait_for_str(patterns_lte_offline, timeout=20)
 
     # LTE reconnect
     dut_fota.uart.flush()
-    dut_fota.uart.write("zbus connect\r\n")
+    dut_fota.uart.write("att_network connect\r\n")
     dut_fota.uart.wait_for_str(patterns_lte_normal, timeout=120)
     dut_fota.uart.wait_for_str("fota_download: Refuse fragment, restart with offset")
     dut_fota.uart.wait_for_str("fota_download: Downloading from offset:")
@@ -103,7 +103,7 @@ def run_fota_reschedule(dut_fota, fota_type):
     for i in range(3):
         try:
             time.sleep(30)
-            dut_fota.uart.write("zbus button_press\r\n")
+            dut_fota.uart.write("att_button_press 1\r\n")
             dut_fota.uart.wait_for_str("nrf_cloud_fota_poll: Starting FOTA download")
             break
         except AssertionError:
@@ -143,7 +143,7 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
         for i in range(3):
             try:
                 time.sleep(10)
-                dut_fota.uart.write("zbus button_press\r\n")
+                dut_fota.uart.write("att_button_press 1\r\n")
                 dut_fota.uart.wait_for_str("nrf_cloud_fota_poll: Starting FOTA download")
                 break
             except AssertionError:

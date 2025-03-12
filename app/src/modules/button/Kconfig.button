@@ -6,6 +6,12 @@
 
 menu "Button"
 
+config APP_BUTTON_SHELL
+	bool "Button module shell"
+	default y if SHELL
+	help
+	  Enable shell for the button module.
+
 module = APP_BUTTON
 module-str = Button
 source "subsys/logging/Kconfig.template.log_config"

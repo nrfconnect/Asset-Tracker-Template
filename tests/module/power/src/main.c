@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 #include <unity.h>
-
 #include <zephyr/fff.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/logging/log.h>
-#include "message_channel.h"
+
+#include "app_common.h"
 #include "power.h"
 
 DEFINE_FFF_GLOBALS;

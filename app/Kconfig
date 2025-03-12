@@ -6,13 +6,6 @@
 
 menu "Asset Tracker Template"
 
-config APP_PAYLOAD_CHANNEL_BUFFER_MAX_SIZE
-	int "Payload maximum buffer size"
-	default 128
-	help
-	  Maximum size of the buffer sent over the payload channel.
-	  Contains encoded CBOR data sampled and encoded in the various modules.
-
 rsource "src/Kconfig.main"
 rsource "src/modules/power/Kconfig.power"
 rsource "src/modules/network/Kconfig.network"
@@ -21,7 +14,6 @@ rsource "src/modules/location/Kconfig.location"
 rsource "src/modules/led/Kconfig.led"
 rsource "src/modules/fota/Kconfig.fota"
 rsource "src/modules/environmental/Kconfig.environmental"
-rsource "src/modules/shell/Kconfig.shell"
 rsource "src/modules/button/Kconfig.button"
 
 endmenu

@@ -17,7 +17,7 @@
 #include <zephyr/smf.h>
 #include <net/fota_download.h>
 
-#include "message_channel.h"
+#include "app_common.h"
 #include "fota.h"
 
 /* Register log module */

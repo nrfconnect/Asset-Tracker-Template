@@ -18,7 +18,6 @@ target_sources(app
   src/main.c
   src/redef.c
   ${ASSET_TRACKER_TEMPLATE_DIR}/app/src/modules/power/power.c
-  ${ASSET_TRACKER_TEMPLATE_DIR}/app/src/common/message_channel.c
 )
 
 target_include_directories(app PRIVATE src)
@@ -35,7 +34,7 @@ zephyr_include_directories(${ASSET_TRACKER_TEMPLATE_DIR}/app/src/modules/power)
 target_compile_definitions(app PRIVATE
 	-DCONFIG_APP_POWER_LOG_LEVEL=4
 	-DCONFIG_APP_POWER_THREAD_STACK_SIZE=4096
-	-DCONFIG_APP_PAYLOAD_CHANNEL_BUFFER_MAX_SIZE=100
+	-DCONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE=100
   -DCONFIG_APP_POWER_MSG_PROCESSING_TIMEOUT_SECONDS=3
   -DCONFIG_APP_POWER_WATCHDOG_TIMEOUT_SECONDS=120
 )

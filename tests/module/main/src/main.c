@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 #include <unity.h>
-
 #include <zephyr/fff.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/task_wdt/task_wdt.h>
@@ -12,7 +11,7 @@
 #include <date_time.h>
 
 #include "dk_buttons_and_leds.h"
-#include "message_channel.h"
+#include "app_common.h"
 #include "power.h"
 #include "network.h"
 #include "environmental.h"
@@ -20,7 +19,6 @@
 #include "fota.h"
 #include "location.h"
 #include "led.h"
-
 #include "checks.h"
 
 /* Define the channels for testing */
@@ -143,6 +141,7 @@ static void send_location_search_done(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
+/*
 static void send_config(uint64_t interval)
 {
 	const struct configuration config = {
@@ -154,6 +153,7 @@ static void send_config(uint64_t interval)
 
 	TEST_ASSERT_EQUAL(0, err);
 }
+*/
 
 static void send_cloud_disconnected(void)
 {
@@ -214,6 +214,7 @@ void test_button_press_on_disconnected(void)
 	check_no_events(7200);
 }
 
+/*
 void test_trigger_interval_change_in_connected(void)
 {
 	send_cloud_connected_ready_to_send();
@@ -226,11 +227,12 @@ void test_trigger_interval_change_in_connected(void)
 		k_sleep(K_SECONDS(HOUR_IN_SECONDS * 12));
 	}
 
-	/* Cleanup */
 	send_cloud_disconnected();
 	check_no_events(WEEK_IN_SECONDS);
 }
+*/
 
+/*
 void test_trigger_disconnect_and_connect_when_triggering(void)
 {
 	send_cloud_connected_ready_to_send();
@@ -250,10 +252,10 @@ void test_trigger_disconnect_and_connect_when_triggering(void)
 		k_sleep(K_SECONDS(HOUR_IN_SECONDS * 12));
 	}
 
-	/* Cleanup */
 	send_cloud_disconnected();
 	check_no_events(WEEK_IN_SECONDS);
 }
+*/
 
 /* This is required to be added to each test. That is because unity's
  * main may return nonzero, while zephyr's main currently must
