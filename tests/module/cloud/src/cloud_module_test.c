@@ -6,6 +6,8 @@
 #include <unity.h>
 #include <zephyr/fff.h>
 #include <zephyr/task_wdt/task_wdt.h>
+#include <zephyr/net/coap.h>
+#include <zephyr/net/coap_client.h>
 
 #include "environmental.h"
 #include "cloud_module.h"
@@ -48,7 +50,11 @@ FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_device_status_update);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_bytes_send, uint8_t *, size_t, bool);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_sensor_send, const char *, double, int64_t, bool);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_json_message_send, const char *, bool, bool);
-FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_get, char *, size_t *, bool, int);
+FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_get, char *, size_t *, bool, enum coap_content_format);
+FAKE_VALUE_FUNC(int, nrf_cloud_coap_patch, const char *, const char *,
+		const uint8_t *, size_t,
+		enum coap_content_format, bool,
+		coap_client_response_cb_t, void *);
 
 /* Forward declarations */
 static void dummy_cb(const struct zbus_channel *chan);
@@ -176,20 +182,21 @@ void test_transition_disconnected_connected_ready(void)
 void test_sending_payload(void)
 {
 	int err;
-	struct cloud_payload payload = {
-		.buffer = "{\"test\": 1}",
-		.buffer_len = strlen(payload.buffer),
+	struct cloud_msg msg = {
+		.type = CLOUD_PAYLOAD_JSON,
+		.payload.buffer = "{\"test\": 1}",
+		.payload.buffer_data_len = strlen(msg.payload.buffer),
 	};
 
-	err = zbus_chan_pub(&PAYLOAD_CHAN, &payload, K_SECONDS(1));
+	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Transport module needs CPU to run state machine */
-	k_sleep(K_MSEC(10));
+	k_sleep(K_MSEC(100));
 
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_json_message_send_fake.call_count);
 	TEST_ASSERT_EQUAL(0, strncmp(nrf_cloud_coap_json_message_send_fake.arg0_val,
-				     payload.buffer, payload.buffer_len));
+				     msg.payload.buffer, msg.payload.buffer_data_len));
 	TEST_ASSERT_EQUAL(false, nrf_cloud_coap_json_message_send_fake.arg1_val);
 	TEST_ASSERT_EQUAL(false, nrf_cloud_coap_json_message_send_fake.arg2_val);
 }
@@ -212,9 +219,10 @@ void test_connected_paused_to_ready_send_payload(void)
 {
 	int err;
 	enum network_msg_type status = NETWORK_CONNECTED;
-	struct cloud_payload payload = {
-		.buffer = "{\"Another\": \"test\"}",
-		.buffer_len = strlen(payload.buffer),
+	struct cloud_msg msg = {
+		.type = CLOUD_PAYLOAD_JSON,
+		.payload.buffer = "{\"Another\": \"test\"}",
+		.payload.buffer_data_len = strlen(msg.payload.buffer),
 	};
 
 	/* Reset call count */
@@ -224,20 +232,20 @@ void test_connected_paused_to_ready_send_payload(void)
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Transport module needs CPU to run state machine */
-	k_sleep(K_MSEC(10));
+	k_sleep(K_MSEC(100));
 
 	err = k_sem_take(&cloud_connected_ready, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
-	err = zbus_chan_pub(&PAYLOAD_CHAN, &payload, K_NO_WAIT);
+	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_NO_WAIT);
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Transport module needs CPU to run state machine */
-	k_sleep(K_MSEC(10));
+	k_sleep(K_MSEC(100));
 
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_json_message_send_fake.call_count);
 	TEST_ASSERT_EQUAL(0, strncmp(nrf_cloud_coap_json_message_send_fake.arg0_val,
-				     payload.buffer, payload.buffer_len));
+				     msg.payload.buffer, msg.payload.buffer_data_len));
 	TEST_ASSERT_EQUAL(false, nrf_cloud_coap_json_message_send_fake.arg1_val);
 	TEST_ASSERT_EQUAL(false, nrf_cloud_coap_json_message_send_fake.arg2_val);
 }

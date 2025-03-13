@@ -25,7 +25,9 @@ static int cmd_publish(const struct shell *sh, size_t argc, char **argv)
 {
 	int err;
 	int64_t current_time;
-	struct cloud_payload payload = { 0 };
+	struct cloud_msg msg = {
+		.type = CLOUD_PAYLOAD_JSON,
+	 };
 
 	if (argc != 3) {
 		(void)shell_print(sh, "Invalid number of arguments (%d)", argc);
@@ -39,20 +41,20 @@ static int cmd_publish(const struct shell *sh, size_t argc, char **argv)
 		return 1;
 	}
 
-	err = snprintk(payload.buffer, sizeof(payload.buffer),
+	err = snprintk(msg.payload.buffer, sizeof(msg.payload.buffer),
 		       PAYLOAD_MSG_TEMPLATE,
 		       argv[1], argv[2], current_time);
-	if (err < 0 || err >= sizeof(payload.buffer)) {
+	if (err < 0 || err >= sizeof(msg.payload.buffer)) {
 		(void)shell_print(sh, "Failed to format payload, error: %d", err);
 		return 1;
 	}
 
-	payload.buffer_len = err;
+	msg.payload.buffer_data_len = err;
 
 	(void)shell_print(sh, "Sending on payload channel: %s (%d bytes)",
-			  payload.buffer, payload.buffer_len);
+			  msg.payload.buffer, msg.payload.buffer_data_len);
 
-	err = zbus_chan_pub(&PAYLOAD_CHAN, &payload, K_SECONDS(1));
+	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
 	if (err) {
 		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
 		return 1;

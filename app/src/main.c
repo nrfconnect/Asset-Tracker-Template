@@ -16,6 +16,7 @@
 #include "cloud_module.h"
 #include "fota.h"
 #include "location.h"
+#include "cbor_helper.h"
 
 #if defined(CONFIG_APP_LED)
 #include "led.h"
@@ -35,15 +36,14 @@
 /* Register log module */
 LOG_MODULE_REGISTER(main, CONFIG_APP_LOG_LEVEL);
 
-#define MAX_MSG_SIZE	(MAX(sizeof(struct cloud_shadow_response),				\
-			 MAX(sizeof(struct cloud_payload),					\
+#define MAX_MSG_SIZE	(MAX(sizeof(struct cloud_msg),						\
 			 /* Button channel payload size */					\
 			 MAX(sizeof(uint8_t),							\
 			 /* Timer channel payload size */					\
 			 MAX(sizeof(int),							\
 			 MAX(sizeof(enum fota_msg_type),					\
 			 MAX(sizeof(enum location_msg_type),					\
-			 MAX(sizeof(struct network_msg), POWER_MSG_SIZE))))))))
+			 MAX(sizeof(struct network_msg), POWER_MSG_SIZE)))))))
 
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
@@ -232,6 +232,7 @@ static const struct smf_state states[] = {
 };
 
 /* Static helper function */
+
 static void task_wdt_callback(int channel_id, void *user_data)
 {
 	LOG_ERR("Watchdog expired, Channel: %d, Thread: %s",
@@ -441,6 +442,7 @@ static void triggering_entry(void *o)
 
 static void triggering_run(void *o)
 {
+	int err;
 	struct main_state *state_object = o;
 
 	if (state_object->chan == &CLOUD_CHAN) {
@@ -454,13 +456,19 @@ static void triggering_run(void *o)
 		}
 
 		if (msg.type == CLOUD_SHADOW_RESPONSE) {
-			/* Missing: Parse the interval received in the shadow response,
-			 * write to state object and schedule new interval
-			 */
+			err = get_update_interval_from_cbor_response(msg.response.buffer,
+								     msg.response.buffer_data_len,
+								     &state_object->interval_sec);
+			if (err) {
+				LOG_ERR("json_parse, error: %d", err);
+				SEND_FATAL_ERROR();
+				return;
+			}
 
-			int err = k_work_reschedule(&trigger_work,
-						    K_SECONDS(state_object->interval_sec));
+			LOG_WRN("Received new interval: %lld seconds", state_object->interval_sec);
 
+			err = k_work_reschedule(&trigger_work,
+						K_SECONDS(state_object->interval_sec));
 			if (err < 0) {
 				LOG_ERR("k_work_reschedule, error: %d", err);
 				SEND_FATAL_ERROR();
