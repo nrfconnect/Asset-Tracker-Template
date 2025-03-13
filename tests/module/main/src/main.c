@@ -144,12 +144,13 @@ static void send_location_search_done(void)
 /*
 static void send_config(uint64_t interval)
 {
-	const struct configuration config = {
-		.update_interval_present = true,
-		.update_interval = interval,
+	const struct cloud_msg msg = {
+		.type = CLOUD_SHADOW_RESPONSE,
+		.response.buffer = "{\"update_interval\": 60}",
+		.response.buffer_data_len = strlen("{\"update_interval\": 60}"),
 	};
 
-	int err = zbus_chan_pub(&CONFIG_CHAN, &config, K_SECONDS(1));
+	int err = zbus_chan_pub(&CLOUD_CHAN, &shadow_response, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }

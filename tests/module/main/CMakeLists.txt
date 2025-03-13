@@ -18,6 +18,7 @@ target_sources(app
 	src/main.c
 	src/checks.c
 	${ASSET_TRACKER_TEMPLATE_DIR}/app/src/main.c
+	${ASSET_TRACKER_TEMPLATE_DIR}/app/src/cbor/cbor_helper.c
 )
 
 target_include_directories(app PRIVATE src)
@@ -25,6 +26,7 @@ target_include_directories(app PRIVATE src)
 zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)
 zephyr_include_directories(${ZEPHYR_BASE}/subsys/testsuite/include)
 zephyr_include_directories(../../../app/src/common)
+zephyr_include_directories(../../../app/src/cbor)
 zephyr_include_directories(../../../app/src/modules/cloud)
 zephyr_include_directories(../../../app/src/modules/power)
 zephyr_include_directories(../../../app/src/modules/button)
@@ -33,7 +35,6 @@ zephyr_include_directories(../../../app/src/modules/environmental)
 zephyr_include_directories(../../../app/src/modules/fota)
 zephyr_include_directories(../../../app/src/modules/location)
 zephyr_include_directories(../../../app/src/modules/led)
-
 
 target_link_options(app PRIVATE --whole-archive)
 
@@ -60,7 +61,6 @@ target_compile_definitions(app PRIVATE
 	-DCONFIG_LTE_LC_CONN_EVAL_MODULE=1
 	-DCONFIG_LTE_LC_EDRX_MODULE=1
 	-DCONFIG_LTE_LC_PSM_MODULE=1
-	-DCONFIG_APP_MODULE_RECV_BUFFER_SIZE=1024
 	-DCOAP_CONTENT_FORMAT_APP_JSON=50
 	-DCONFIG_APP_POWER=1
 	-DCONFIG_APP_ENVIRONMENTAL=1

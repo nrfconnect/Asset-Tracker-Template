@@ -16,18 +16,19 @@ extern "C" {
 
 /* Channels provided by this module */
 ZBUS_CHAN_DECLARE(
-	CLOUD_CHAN,
-	PAYLOAD_CHAN
+	CLOUD_CHAN
 );
 
 struct cloud_payload {
 	uint8_t buffer[CONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE];
-	size_t buffer_len;
+	/* Length of the data stored inside the buffer */
+	size_t buffer_data_len;
 };
 
 struct cloud_shadow_response {
 	uint8_t buffer[CONFIG_APP_CLOUD_SHADOW_RESPONSE_BUFFER_MAX_SIZE];
-	size_t buffer_len;
+	/* Length of the data stored inside the buffer */
+	size_t buffer_data_len;
 };
 
 enum cloud_msg_type {
@@ -43,11 +44,10 @@ enum cloud_msg_type {
 struct cloud_msg {
 	enum cloud_msg_type type;
 	struct cloud_payload payload;
+	struct cloud_shadow_response response;
 };
 
 #define MSG_TO_CLOUD_MSG(_msg)	(*(const struct cloud_msg *)_msg)
-#define MSG_TO_PAYLOAD(_msg)	((struct cloud_payload *)_msg)
-#define MSG_TO_SHADOW_RESPONSE(_msg)	(*(const struct cloud_shadow_response *)_msg)
 
 #ifdef __cplusplus
 }

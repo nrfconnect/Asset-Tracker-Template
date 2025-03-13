@@ -21,6 +21,7 @@ add_subdirectory(src/modules/cloud)
 add_subdirectory(src/modules/location)
 add_subdirectory(src/modules/fota)
 add_subdirectory(src/modules/button)
+add_subdirectory(src/cbor)
 
 # Optional modules
 add_subdirectory_ifdef(CONFIG_APP_POWER src/modules/power)

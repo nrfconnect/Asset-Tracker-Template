@@ -11,11 +11,9 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <net/nrf_cloud.h>
 #include <net/nrf_cloud_coap.h>
+#include <nrf_cloud_coap_transport.h>
+#include <zephyr/net/coap.h>
 #include <app_version.h>
-
-#if defined(CONFIG_MEMFAULT)
-#include <memfault/core/trace_event.h>
-#endif /* CONFIG_MEMFAULT */
 
 #include "cloud_module.h"
 #include "app_common.h"
@@ -47,7 +45,7 @@ LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 #define ENV_MSG_SIZE	0
 #endif /* CONFIG_APP_ENVIRONMENTAL) */
 
-#define MAX_MSG_SIZE	(MAX(sizeof(struct cloud_payload),					\
+#define MAX_MSG_SIZE	(MAX(sizeof(struct cloud_msg),						\
 			 MAX(sizeof(struct network_msg),					\
 			 MAX(BAT_MSG_SIZE, ENV_MSG_SIZE))))
 
@@ -59,7 +57,6 @@ BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
 ZBUS_MSG_SUBSCRIBER_DEFINE(cloud);
 
 /* Observe channels */
-ZBUS_CHAN_ADD_OBS(PAYLOAD_CHAN, cloud, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, cloud, 0);
 ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, cloud, 0);
 
@@ -72,14 +69,6 @@ ZBUS_CHAN_ADD_OBS(POWER_CHAN, cloud, 0);
 #endif /* CONFIG_APP_POWER */
 
 /* Define channels provided by this module */
-
-ZBUS_CHAN_DEFINE(PAYLOAD_CHAN,
-		 struct cloud_payload,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
 
 ZBUS_CHAN_DEFINE(CLOUD_CHAN,
 		 struct cloud_msg,
@@ -467,13 +456,19 @@ static void state_connected_exit(void *o)
 static void shadow_get(bool delta_only)
 {
 	int err;
-	uint8_t recv_buf[CONFIG_APP_MODULE_RECV_BUFFER_SIZE] = { 0 };
-	size_t recv_buf_len = sizeof(recv_buf);
+	struct cloud_msg msg = {
+		.type = CLOUD_SHADOW_RESPONSE,
+		.response = {
+			.buffer_data_len = sizeof(msg.response.buffer),
+		},
+	};
 
 	LOG_DBG("Requesting device shadow from the device");
 
-	err = nrf_cloud_coap_shadow_get(recv_buf, &recv_buf_len, delta_only,
-					COAP_CONTENT_FORMAT_APP_JSON);
+	err = nrf_cloud_coap_shadow_get(msg.response.buffer,
+					&msg.response.buffer_data_len,
+					delta_only,
+					COAP_CONTENT_FORMAT_APP_CBOR);
 	if (err == -EACCES) {
 		LOG_WRN("Not connected, error: %d", err);
 		return;
@@ -486,12 +481,46 @@ static void shadow_get(bool delta_only)
 	} else if (err > 0) {
 		LOG_WRN("Cloud error: %d", err);
 		return;
+	} else if (err == -E2BIG) {
+		LOG_WRN("The provided buffer is not large enough, error: %d", err);
+		return;
 	} else if (err) {
 		LOG_ERR("Failed to request shadow delta: %d", err);
 		return;
 	}
 
-	/* No further processing of shadow is implemented */
+	if (msg.response.buffer_data_len == 0) {
+		LOG_DBG("No shadow delta changes available");
+		return;
+	}
+
+	/* Workaroud: Sometimes nrf_cloud_coap_shadow_get() returns 0 even though obtaining
+	 * the shadow failed. Ignore the payload if the first 10 bytes are zero.
+	 */
+	if (!memcmp(msg.response.buffer, "\0\0\0\0\0\0\0\0\0\0", 10)) {
+		LOG_WRN("Returned buffeør is empty, ignore");
+		return;
+	}
+
+	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	/* Clear the shadow delta by reporting the same data back to the shadow reported state  */
+	err = nrf_cloud_coap_patch("state/reported", NULL,
+				   msg.response.buffer,
+				   msg.response.buffer_data_len,
+				   COAP_CONTENT_FORMAT_APP_CBOR,
+				   true,
+				   NULL,
+				   NULL);
+	if (err) {
+		LOG_ERR("Failed to patch the device shadow, error: %d", err);
+		return;
+	}
 }
 
 static void state_connected_ready_entry(void *o)
@@ -640,17 +669,20 @@ static void state_connected_ready_run(void *o)
 	}
 #endif /* CONFIG_APP_ENVIRONMENTAL */
 
-	if (state_object->chan == &PAYLOAD_CHAN) {
-		const struct cloud_payload *payload = MSG_TO_PAYLOAD(state_object->msg_buf);
+	if (state_object->chan == &CLOUD_CHAN) {
+		const struct cloud_msg msg = MSG_TO_CLOUD_MSG(state_object->msg_buf);
 
-		err = nrf_cloud_coap_json_message_send(payload->buffer, false, confirmable);
-		if (err == -ENETUNREACH) {
-			LOG_WRN("Network is unreachable, error: %d", err);
-			return;
-		} else if (err) {
-			LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-			SEND_FATAL_ERROR();
-			return;
+		if (msg.type == CLOUD_PAYLOAD_JSON) {
+			err = nrf_cloud_coap_json_message_send(msg.payload.buffer,
+							       false, confirmable);
+			if (err == -ENETUNREACH) {
+				LOG_WRN("Network is unreachable, error: %d", err);
+				return;
+			} else if (err) {
+				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+				SEND_FATAL_ERROR();
+				return;
+			}
 		}
 	}
 

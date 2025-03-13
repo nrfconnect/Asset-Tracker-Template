@@ -18,6 +18,7 @@ target_sources(app
 )
 
 zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)
+zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/net)
 zephyr_include_directories(${ZEPHYR_BASE}/subsys/testsuite/include)
 zephyr_include_directories(../../../app/src/modules/cloud)
 zephyr_include_directories(../../../app/src/common)
@@ -25,13 +26,14 @@ zephyr_include_directories(../../../app/src/modules/power)
 zephyr_include_directories(../../../app/src/modules/network)
 zephyr_include_directories(../../../app/src/modules/environmental)
 zephyr_include_directories(${NRF_DIR}/subsys/net/lib/nrf_cloud/include)
+zephyr_include_directories(${NRF_DIR}/subsys/net/lib/nrf_cloud/coap/include)
 zephyr_include_directories(${NRF_DIR}/../modules/lib/cjson)
 
 target_link_options(app PRIVATE --whole-archive)
 
 # Options that cannot be passed through Kconfig fragments
 target_compile_definitions(app PRIVATE
-	-DCONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE=100
+	-DCONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE=256
 	-DCONFIG_APP_CLOUD_SHADOW_RESPONSE_BUFFER_MAX_SIZE=512
 	-DCONFIG_APP_CLOUD_LOG_LEVEL=0
 	-DCONFIG_APP_CLOUD_THREAD_STACK_SIZE=2048
@@ -45,6 +47,10 @@ target_compile_definitions(app PRIVATE
 	-DCONFIG_LTE_LC_CONN_EVAL_MODULE=1
 	-DCONFIG_LTE_LC_EDRX_MODULE=1
 	-DCONFIG_LTE_LC_PSM_MODULE=1
-	-DCONFIG_APP_MODULE_RECV_BUFFER_SIZE=1024
-	-DCOAP_CONTENT_FORMAT_APP_JSON=50
+	-DCONFIG_COAP_CONTENT_FORMAT_APP_JSON=50
+	-DCONFIG_NRF_CLOUD_COAP=1
+	-DCONFIG_COAP_CLIENT_MESSAGE_HEADER_SIZE=1024
+	-DCONFIG_COAP_CLIENT_MESSAGE_SIZE=1024
+	-DCONFIG_COAP_CLIENT_MAX_REQUESTS=5
+	-DCONFIG_COAP_CLIENT_BLOCK_SIZE=1024
 )
