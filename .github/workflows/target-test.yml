@@ -106,7 +106,7 @@ jobs:
               upload-mcu-symbols \
               --software-type asset-tracker-template-ci-${{ matrix.device }} \
               --software-version ${{ inputs.artifact_fw_version }} \
-              asset-tracker-template-${{ inputs.artifact_fw_version }}-${{ matrix.device }}-nrf91.elf
+              asset-tracker-template-${{ inputs.artifact_fw_version }}-${{ vars.DUT_DEVICE_TYPE }}-nrf91.elf
 
       - name: Target Tests
         working-directory: asset-tracker-template/tests/on_target
@@ -136,7 +136,7 @@ jobs:
         shell: bash
         env:
           SEGGER: ${{ env.RUNNER_SERIAL_NUMBER }}
-          DUT_DEVICE_TYPE: ${{ matrix.device }}
+          DUT_DEVICE_TYPE: ${{ vars.DUT_DEVICE_TYPE }}
           UUID: ${{ env.UUID }}
           NRFCLOUD_API_KEY: ${{ secrets.NRF_CLOUD_API_KEY }}
           LOG_FILENAME: att_test_log
@@ -144,15 +144,16 @@ jobs:
           MEMFAULT_ORGANIZATION_TOKEN: ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }}
           MEMFAULT_ORGANIZATION_SLUG: ${{ vars.MEMFAULT_ORGANIZATION_SLUG }}
           MEMFAULT_PROJECT_SLUG: ${{ vars.MEMFAULT_PROJECT_SLUG }}
+          APP_BUNDLEID: ${{ env.APP_BUNDLEID }}
 
-      - name: Commit and Push Badge File to gh-pages Branch
-        if: always()
-        continue-on-error: true
-        working-directory: asset-tracker-template
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./tests/on_target/scripts/commit_badge.sh
-
+      #      - name: Commit and Push Badge File to gh-pages Branch
+      #        if: ${{ matrix.device }} == ppk_thingy91x
+      #        continue-on-error: true
+      #        working-directory: asset-tracker-template
+      #        env:
+      #          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #        run: ./tests/on_target/scripts/commit_badge.sh
+      #
       - name: Results
         if: always()
         uses: pmeier/pytest-results-action@v0.7.1
@@ -160,7 +161,7 @@ jobs:
           path: asset-tracker-template/tests/on_target/results/*.xml
           summary: true
           fail-on-empty: true
-          title: ATT FW Test Results
+          title: ATT FW Test Results - ${{ matrix.device }}
 
       - name: Create Report Artifact
         if: always()

@@ -8,7 +8,7 @@ import time
 import os
 import functools
 from utils.flash_tools import flash_device, reset_device
-from utils.nrfcloud_fota import FWType, NRFCloudFOTAError
+from utils.nrfcloud_fota import NRFCloudFOTAError
 import sys
 sys.path.append(os.getcwd())
 from utils.logger import get_logger
@@ -24,6 +24,8 @@ DELTA_MFW_BUNDLEID = "59cec896-c842-40fe-9a95-a4f3e88a4cdb"
 FULL_MFW_BUNDLEID = "d692915d-d978-4c77-ab02-f05f511971f9"
 NEW_MFW_DELTA_VERSION = "mfw_nrf91x1_2.0.2-FOTA-TEST"
 MFW_202_VERSION = "mfw_nrf91x1_2.0.2"
+
+APP_BUNDLEID = os.getenv("APP_BUNDLEID")
 
 TEST_APP_BIN = {
     "thingy91x": "artifacts/stable_version_jan_2025-update-signed.bin",
@@ -119,22 +121,8 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
         dut_fota.uart.flush()
         reset_device()
         dut_fota.uart.wait_for_str("Connected to Cloud")
-
-        time.sleep(60)
-        app_bin = TEST_APP_BIN[dut_fota.device_type]
-        if fota_type == "app":
-            bundle_id = dut_fota.fota.upload_firmware(
-                "nightly_test_app",
-                app_bin,
-                TEST_APP_VERSION,
-                "Bundle used for nightly test",
-                FWType.app,
-            )
-            logger.info(f"Uploaded file {app_bin}: bundleId: {bundle_id}")
-
         try:
             dut_fota.data['job_id'] = dut_fota.fota.create_fota_job(dut_fota.device_id, bundle_id)
-            dut_fota.data['bundle_id'] = bundle_id
         except NRFCloudFOTAError as e:
             pytest.skip(f"FOTA create_job REST API error: {e}")
         logger.info(f"Created FOTA Job (ID: {dut_fota.data['job_id']})")
@@ -195,7 +183,9 @@ def test_app_fota(run_fota_fixture):
     '''
     Test application FOTA from nightly version to stable version
     '''
-    run_fota_fixture()  # Uses default parameters for app FOTA
+    run_fota_fixture(
+        bundle_id=APP_BUNDLEID,
+    )
 
 def test_delta_mfw_fota(run_fota_fixture):
     '''
