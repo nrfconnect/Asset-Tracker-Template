@@ -460,7 +460,7 @@ static void triggering_run(void *o)
 								     msg.response.buffer_data_len,
 								     &state_object->interval_sec);
 			if (err) {
-				LOG_ERR("json_parse, error: %d", err);
+				LOG_ERR("get_update_interval_from_cbor_response, error: %d", err);
 				SEND_FATAL_ERROR();
 				return;
 			}
