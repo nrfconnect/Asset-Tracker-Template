@@ -14,7 +14,6 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
-      build_bl_update: true
       build_debug: true
       memfault_sw_type: "asset-tracker-template"
 
