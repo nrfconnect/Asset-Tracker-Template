@@ -155,7 +155,7 @@ jobs:
           echo CONFIG_MEMFAULT_NCS_FW_VERSION=\"${{ env.VERSION }}-debug\" >> overlay-memfault-debug.conf
           echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_SW_TYPE }}\" >> overlay-memfault-debug.conf
           echo CONFIG_APP_MEMFAULT_UPLOAD_METRICS_ON_CLOUD_READY=y >> overlay-memfault-debug.conf
-          west build -p -b thingy91x/nrf9151/ns -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-debug.conf;overlay-modemtrace-to-memfault.conf;overlay-etb.conf"
+          west build -p -b thingy91x/nrf9151/ns -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-debug.conf;overlay-etb.conf"
 
       - name: Rename debug artifacts
         if: ${{ inputs.build_debug }}
