@@ -84,7 +84,6 @@ def dut_fota(dut_board):
     device_id = FOTADEVICE_UUID
     data = {
         'job_id': '',
-        'bundle_id': ''
     }
     fota.cancel_incomplete_jobs(device_id)
 
@@ -95,8 +94,6 @@ def dut_fota(dut_board):
         data=data
     )
     fota.cancel_incomplete_jobs(device_id)
-    if data['bundle_id']:
-        fota.delete_bundle(data['bundle_id'])
 
 
 @pytest.fixture(scope="module")
