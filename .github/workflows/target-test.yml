@@ -104,7 +104,7 @@ jobs:
               --org ${{ vars.MEMFAULT_ORGANIZATION_SLUG }} \
               --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
               upload-mcu-symbols \
-              --software-type asset-tracker-template-ci \
+              --software-type asset-tracker-template-ci-${{ matrix.device }} \
               --software-version ${{ inputs.artifact_fw_version }} \
               asset-tracker-template-${{ inputs.artifact_fw_version }}-${{ matrix.device }}-nrf91.elf
 
