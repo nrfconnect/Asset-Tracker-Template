@@ -40,7 +40,7 @@ jobs:
               --org ${{ vars.MEMFAULT_ORGANIZATION_SLUG }} \
               --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
               upload-mcu-symbols \
-              --software-type asset-tracker-template \
+              --software-type asset-tracker-template-thingy91x \
               --software-version ${{ inputs.version }} \
               asset-tracker-template-${{ inputs.version }}-thingy91x-nrf91.elf
 
@@ -49,7 +49,7 @@ jobs:
               --org ${{ vars.MEMFAULT_ORGANIZATION_SLUG }} \
               --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
               upload-mcu-symbols \
-              --software-type asset-tracker-template \
+              --software-type asset-tracker-template-nrf9151dk \
               --software-version ${{ inputs.version }} \
               asset-tracker-template-${{ inputs.version }}-nrf9151dk-nrf91.elf
 
@@ -61,6 +61,6 @@ jobs:
               --org ${{ vars.MEMFAULT_ORGANIZATION_SLUG }} \
               --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
               upload-mcu-symbols \
-              --software-type asset-tracker-template \
+              --software-type asset-tracker-template-thingy91x \
               --software-version ${{ inputs.version }}-debug \
               asset-tracker-template-${{ inputs.version }}-debug-thingy91x-nrf91.elf

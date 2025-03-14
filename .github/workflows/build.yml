@@ -101,7 +101,7 @@ jobs:
           echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ secrets.MEMFAULT_PROJECT_KEY }}\"" >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION_STATIC=y >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION=\"${{ env.VERSION }}\" >> overlay-memfault-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_SW_TYPE }}\" >> overlay-memfault-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_SW_TYPE }}-thingy91x\" >> overlay-memfault-att.conf
           west build -b thingy91x/nrf9151/ns -d build -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf"
           cp build/merged.hex artifacts/asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.hex
           cp build/app/zephyr/.config artifacts/asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.config
@@ -122,7 +122,7 @@ jobs:
           echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ secrets.MEMFAULT_PROJECT_KEY }}\"" >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION_STATIC=y >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION=\"${{ env.VERSION }}\" >> overlay-memfault-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_SW_TYPE }}\" >> overlay-memfault-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_SW_TYPE }}-nrf9151dk\" >> overlay-memfault-att.conf
           west build -b nrf9151dk/nrf9151/ns -d build -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf"
           cp build/merged.hex artifacts/asset-tracker-template-${{ env.VERSION }}-nrf9151dk-nrf91.hex
           cp build/app/zephyr/.config artifacts/asset-tracker-template-${{ env.VERSION }}-nrf9151dk-nrf91.config
@@ -153,7 +153,7 @@ jobs:
           echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ secrets.MEMFAULT_PROJECT_KEY }}\"" >> overlay-memfault-debug.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION_STATIC=y >> overlay-memfault-debug.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION=\"${{ env.VERSION }}-debug\" >> overlay-memfault-debug.conf
-          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_SW_TYPE }}\" >> overlay-memfault-debug.conf
+          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_SW_TYPE }}-thingy91x\" >> overlay-memfault-debug.conf
           west build -p -b thingy91x/nrf9151/ns -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-debug.conf;overlay-etb.conf"
 
       - name: Rename debug artifacts
