@@ -3,8 +3,8 @@ import fs from "node:fs";
 import { Readable } from "stream";
 import { finished } from "stream/promises";
 
-const owner = process.env.OWNER ?? "asset-tracker-template";
-const repo = process.env.REPO ?? "firmware";
+const owner = process.env.OWNER ?? "nrfconnect";
+const repo = process.env.REPO ?? "Asset-Tracker-Template";
 const version = process.argv[process.argv.length - 1];
 
 console.log(`Release version`, version);
