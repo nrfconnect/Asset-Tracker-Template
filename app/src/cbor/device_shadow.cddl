@@ -1,53 +1,5 @@
-; Define the basic structure of the JSON object
-
-; The 'any' type is used in this schema to allow forward compatibility.
-; They are inserted into maps that may contain additional fields in the future.
-; This prevents cbor decoding from failing in the field when the cloud side has new fields.
-app-object = {
-    ? "nrfcloud_mqtt_topic_prefix": tstr,
-    ? "pairing": pairing-type,
-    ? "lwm2m": lwm2m-map,
-    * tstr => any
-}
-
-; Define the pairing object with nested topics
-pairing-type = {
-    "state": tstr,
-    "topics": {
-        "d2c": tstr,
-        "c2d": tstr,
-        * tstr => any
-    },
-    * any => any
-}
-
-lwm2m-map = {
-  ? "14240:1.0": led,
-  ? "14301:1.0": config,
-  * tstr => any
-}
-
-led = {
-  "0": led_inner_object,
-  * tstr => any
-}
-
-led_inner_object = {
-  ? "0": int .size 4,
-  ? "1": int .size 4,
-  ? "2": int .size 4,
-  "99": int .size 8,
-  * tstr => any
-}
-
-config = {
-  "0": config_inner_object,
-  * tstr => any
-}
-
-config_inner_object = {
-  ? "0": int .size 8,
-  ? "1": bool,
-  "99": int .size 8,
-  * tstr => any
+config-object = {
+    "config": {
+        "update_interval": uint .size 8
+    }
 }

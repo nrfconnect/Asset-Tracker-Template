@@ -30,7 +30,7 @@ ZBUS_CHAN_DEFINE(POWER_CHAN,
 		 ZBUS_MSG_INIT(0)
 );
 ZBUS_CHAN_DEFINE(BUTTON_CHAN,
-		 struct power_msg,
+		 uint8_t,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
@@ -141,20 +141,23 @@ static void send_location_search_done(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-/*
-static void send_config(uint64_t interval)
+static void twelve_hour_interval_set(void)
 {
+	int err;
 	const struct cloud_msg msg = {
 		.type = CLOUD_SHADOW_RESPONSE,
-		.response.buffer = "{\"update_interval\": 60}",
-		.response.buffer_data_len = strlen("{\"update_interval\": 60}"),
+		/* JSON equivalent string: "{"config":{"update_interval": 43200 }}" */
+		.response.buffer = {
+			0xA1, 0x66, 0x63, 0x6F, 0x6E, 0x66, 0x69, 0x67, 0xA1,
+			0x6F, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x5F, 0x69,
+			0x6E, 0x74, 0x65, 0x72, 0x76, 0x61, 0x6C, 0x19, 0xA8, 0x80
+		},
+		.response.buffer_data_len = 28,
 	};
 
-	int err = zbus_chan_pub(&CLOUD_CHAN, &shadow_response, K_SECONDS(1));
-
+	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 }
-*/
 
 static void send_cloud_disconnected(void)
 {
@@ -167,16 +170,15 @@ static void send_cloud_disconnected(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-void test_init_to_connected_state(void)
+void test_init_to_triggering_state(void)
 {
+	/* Transition the module into STATE_TRIGGERING */
 	send_cloud_connected_ready_to_send();
 
-	for (int i = 0; i < 10; i++) {
-		send_location_search_done();
-		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
-		k_sleep(K_SECONDS(CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS));
-	}
+	/* There's an initial transition to STATE_REQUESTING_LOCATION, where the entry function
+	 * sends a location search trigger.
+	 */
+	check_location_event(LOCATION_SEARCH_TRIGGER);
 
 	/* Cleanup */
 	send_cloud_disconnected();
@@ -185,20 +187,24 @@ void test_init_to_connected_state(void)
 
 void test_button_press_on_connected(void)
 {
-	/* Given */
+	/* Transition to STATE_REQUSTING_LOCATION */
 	send_cloud_connected_ready_to_send();
+	check_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Transistion to STATE_REQUESTING_SENSORS_AND_POLLING */
 	send_location_search_done();
+	check_location_event(LOCATION_SEARCH_DONE);
 
-	/* When */
-	button_handler(DK_BTN1_MSK, DK_BTN1_MSK);
-	k_sleep(K_SECONDS(5));
-
-	/* Then */
 	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
+	/* Transition back to STATE_REQUESTING_LOCATION */
+	button_handler(DK_BTN1_MSK, DK_BTN1_MSK);
+	check_location_event(LOCATION_SEARCH_TRIGGER);
+
 	/* Cleanup */
 	send_cloud_disconnected();
+
 	check_no_events(7200);
 }
 
@@ -215,11 +221,18 @@ void test_button_press_on_disconnected(void)
 	check_no_events(7200);
 }
 
-/*
 void test_trigger_interval_change_in_connected(void)
 {
+	/* Transition to STATE_REQUSTING_LOCATION */
 	send_cloud_connected_ready_to_send();
-	send_config(HOUR_IN_SECONDS * 12);
+	check_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Transition to STATE_REQUESTING_SENSORS_AND_POLLING where shasow is polled. */
+	send_location_search_done();
+	check_location_event(LOCATION_SEARCH_DONE);
+
+	/* As response to the shadow poll, the interval is set to 12 hours. */
+	twelve_hour_interval_set();
 
 	for (int i = 0; i < 10; i++) {
 		send_location_search_done();
@@ -228,16 +241,24 @@ void test_trigger_interval_change_in_connected(void)
 		k_sleep(K_SECONDS(HOUR_IN_SECONDS * 12));
 	}
 
+	purge_location_events();
+
 	send_cloud_disconnected();
 	check_no_events(WEEK_IN_SECONDS);
 }
-*/
 
-/*
 void test_trigger_disconnect_and_connect_when_triggering(void)
 {
+	/* Transition to STATE_REQUSTING_LOCATION */
 	send_cloud_connected_ready_to_send();
-	send_config(HOUR_IN_SECONDS * 12);
+	check_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Transition to STATE_REQUESTING_SENSORS_AND_POLLING where shasow is polled. */
+	send_location_search_done();
+	check_location_event(LOCATION_SEARCH_DONE);
+
+	/* As response to the shadow poll, the interval is set to 12 hours. */
+	twelve_hour_interval_set();
 
 	for (int i = 0; i < 10; i++) {
 
@@ -248,15 +269,16 @@ void test_trigger_disconnect_and_connect_when_triggering(void)
 		}
 
 		send_location_search_done();
+		k_sleep(K_MSEC(100));
 		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 		k_sleep(K_SECONDS(HOUR_IN_SECONDS * 12));
+		purge_location_events();
 	}
 
 	send_cloud_disconnected();
 	check_no_events(WEEK_IN_SECONDS);
 }
-*/
 
 /* This is required to be added to each test. That is because unity's
  * main may return nonzero, while zephyr's main currently must

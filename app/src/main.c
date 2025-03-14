@@ -106,14 +106,14 @@ static void fota_rebooting_entry(void *o);
 enum state {
 	/* Normal operation */
 	STATE_RUNNING,
+		/* Disconnected from the cloud, no triggers are sent */
+		STATE_IDLE,
 		/* Triggers are periodically sent at a configured interval */
 		STATE_TRIGGERING,
 			/* Requesting location from the location module */
 			STATE_REQUESTING_LOCATION,
 			/* Requesting sensor values and polling for downlink data */
 			STATE_REQUESTING_SENSORS_AND_POLLING,
-		/* Disconnected from the network, no triggers are sent */
-		STATE_IDLE,
 	/* Ongoing FOTA process, triggers are blocked */
 	STATE_FOTA,
 		/* FOTA image is being downloaded */
@@ -157,6 +157,13 @@ static const struct smf_state states[] = {
 		running_run,
 		NULL,
 		NULL,
+		&states[STATE_IDLE]
+	),
+	[STATE_IDLE] = SMF_CREATE_STATE(
+		idle_entry,
+		idle_run,
+		NULL,
+		&states[STATE_RUNNING],
 		NULL
 	),
 	[STATE_TRIGGERING] = SMF_CREATE_STATE(
@@ -178,13 +185,6 @@ static const struct smf_state states[] = {
 		requesting_sensors_and_polling_run,
 		requesting_sensors_and_polling_exit,
 		&states[STATE_TRIGGERING],
-		NULL
-	),
-	[STATE_IDLE] = SMF_CREATE_STATE(
-		idle_entry,
-		idle_run,
-		NULL,
-		&states[STATE_RUNNING],
 		NULL
 	),
 	[STATE_FOTA] = SMF_CREATE_STATE(
@@ -460,7 +460,7 @@ static void triggering_run(void *o)
 								     msg.response.buffer_data_len,
 								     &state_object->interval_sec);
 			if (err) {
-				LOG_ERR("json_parse, error: %d", err);
+				LOG_ERR("get_update_interval_from_cbor_response, error: %d", err);
 				SEND_FATAL_ERROR();
 				return;
 			}
