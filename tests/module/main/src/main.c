@@ -141,20 +141,25 @@ static void send_location_search_done(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-/*
-static void send_config(uint64_t interval)
+static void twelve_hour_interval_set(void)
 {
+	// MISSING: set interval for 12 hours, or even different intervals.
+
 	const struct cloud_msg msg = {
 		.type = CLOUD_SHADOW_RESPONSE,
-		.response.buffer = "{\"update_interval\": 60}",
-		.response.buffer_data_len = strlen("{\"update_interval\": 60}"),
+		/* JSON equivalent string: "{"config":{"update_interval": 60 }}" */
+		.response.buffer = {
+			0xA1, 0x66, 0x63, 0x6F, 0x6E, 0x66, 0x69, 0x67, 0xA1,
+			0x6F, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x5F, 0x69,
+			0x6E, 0x74, 0x65, 0x72, 0x76, 0x61, 0x6C, 0x18, 0x3C
+		},
+		.response.buffer_data_len = 27,
 	};
 
-	int err = zbus_chan_pub(&CLOUD_CHAN, &shadow_response, K_SECONDS(1));
+	int err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }
-*/
 
 static void send_cloud_disconnected(void)
 {
@@ -215,11 +220,10 @@ void test_button_press_on_disconnected(void)
 	check_no_events(7200);
 }
 
-/*
 void test_trigger_interval_change_in_connected(void)
 {
 	send_cloud_connected_ready_to_send();
-	send_config(HOUR_IN_SECONDS * 12);
+	twelve_hour_interval_set();
 
 	for (int i = 0; i < 10; i++) {
 		send_location_search_done();
@@ -231,13 +235,11 @@ void test_trigger_interval_change_in_connected(void)
 	send_cloud_disconnected();
 	check_no_events(WEEK_IN_SECONDS);
 }
-*/
 
-/*
 void test_trigger_disconnect_and_connect_when_triggering(void)
 {
 	send_cloud_connected_ready_to_send();
-	send_config(HOUR_IN_SECONDS * 12);
+	twelve_hour_interval_set();
 
 	for (int i = 0; i < 10; i++) {
 
@@ -256,7 +258,6 @@ void test_trigger_disconnect_and_connect_when_triggering(void)
 	send_cloud_disconnected();
 	check_no_events(WEEK_IN_SECONDS);
 }
-*/
 
 /* This is required to be added to each test. That is because unity's
  * main may return nonzero, while zephyr's main currently must
