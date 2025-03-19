@@ -27,19 +27,19 @@ Only "fast" targets tests are run. Avoiding excessively time-consuming tests.
 - Nightly schedule: build-target-test.yml
 Full set of target tests. Includes "slow" tests such as full-modem-fw fota test and power consumption test.
 
-### Testing
-
-#### Hardware Testing
+### Hardware Testing
 The project includes tests that run on real hardware devices, implemented in the `.github/workflows/target-test.yml` workflow. Key features include:
 
 Tests on target are performed on self-hosted runners.
-Read more here and how to set up your own instance for your project: https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/about-self-hosted-runners
+Read more here and how to set up your own instance for your project: [About Self Hosted](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/about-self-hosted-runners)
 
 
 - Tests run on multiple target devices:
   - nRF9151 DK
   - Thingy:91 X
 - Uses self-hosted runners labeled according to the connected device
+- Parallel orizontal execution across different device types
+- Parallel vertical execution on multiple same device jobs
 - Runs in a containerized environment with hardware access
 - pytest as test runner
 - Supports Memfault integration for symbol file uploads
@@ -48,7 +48,7 @@ Read more here and how to set up your own instance for your project: https://doc
 
 Try out tests locally: tests/on_target/README.md
 
-#### Emulation Testing
+### Emulation Testing
 Emulation tests are implemented as part of the SonarCloud workflow (`.github/workflows/sonarcloud.yml`). These tests:
 
 - Run on the native_sim platform using Twister
@@ -56,9 +56,7 @@ Emulation tests are implemented as part of the SonarCloud workflow (`.github/wor
 - Generate code coverage reports
 - Use build wrapper for accurate code analysis
 
-### Code Analysis
-
-#### SonarCloud Analysis
+### SonarCloud Analysis
 The SonarCloud integration (`.github/workflows/sonarcloud.yml`) provides:
 
 - Static code analysis for C/C++ files
@@ -67,7 +65,7 @@ The SonarCloud integration (`.github/workflows/sonarcloud.yml`) provides:
 - Continuous monitoring of code quality metrics
 - Separate analysis configurations for main branch and pull requests
 
-#### Compliance Testing
+### Compliance Testing
 Compliance checks are implemented in `.github/workflows/compliance.yml` and include:
 
 - Codeowners validation
