@@ -3,11 +3,18 @@
  *
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
+
+ /* Ensure 'strnlen' is available even with -std=c99. */
+#if !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include <unity.h>
 #include <zephyr/fff.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/net/coap.h>
 #include <zephyr/net/coap_client.h>
+#include <zephyr/zbus/zbus.h>
 
 #include "environmental.h"
 #include "cloud_module.h"
@@ -185,7 +192,7 @@ void test_sending_payload(void)
 	struct cloud_msg msg = {
 		.type = CLOUD_PAYLOAD_JSON,
 		.payload.buffer = "{\"test\": 1}",
-		.payload.buffer_data_len = strlen(msg.payload.buffer),
+		.payload.buffer_data_len = strnlen(msg.payload.buffer, sizeof(msg.payload.buffer)),
 	};
 
 	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
@@ -222,7 +229,7 @@ void test_connected_paused_to_ready_send_payload(void)
 	struct cloud_msg msg = {
 		.type = CLOUD_PAYLOAD_JSON,
 		.payload.buffer = "{\"Another\": \"test\"}",
-		.payload.buffer_data_len = strlen(msg.payload.buffer),
+		.payload.buffer_data_len = strnlen(msg.payload.buffer, sizeof(msg.payload.buffer)),
 	};
 
 	/* Reset call count */
