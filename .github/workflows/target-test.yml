@@ -58,7 +58,7 @@ jobs:
       packages: read
 
     container:
-      image: ghcr.io/nordicsemiconductor/asset-tracker-template:test-docker-v1.0.0
+      image: ghcr.io/nrfconnect/asset-tracker-template:test-docker-v1.0.1
       options: --privileged
       volumes:
         - /dev:/dev:rw
