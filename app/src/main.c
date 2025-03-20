@@ -77,12 +77,12 @@ static void running_run(void *o);
 static void triggering_entry(void *o);
 static void triggering_run(void *o);
 
-static void requesting_location_entry(void *o);
-static void requesting_location_run(void *o);
+static void sample_data_entry(void *o);
+static void sample_data_run(void *o);
 
-static void requesting_sensors_and_polling_entry(void *o);
-static void requesting_sensors_and_polling_run(void *o);
-static void requesting_sensors_and_polling_exit(void *o);
+static void wait_for_trigger_entry(void *o);
+static void wait_for_trigger_run(void *o);
+static void wait_for_trigger_exit(void *o);
 
 static void idle_entry(void *o);
 static void idle_run(void *o);
@@ -110,10 +110,13 @@ enum state {
 		STATE_IDLE,
 		/* Triggers are periodically sent at a configured interval */
 		STATE_TRIGGERING,
-			/* Requesting location from the location module */
-			STATE_REQUESTING_LOCATION,
-			/* Requesting sensor values and polling for downlink data */
-			STATE_REQUESTING_SENSORS_AND_POLLING,
+			/* Requesting data samples from relevant modules.
+			 * Location data is requested first, upon state entry.
+			 * After location data is received, the other modules are polled.
+			 */
+			STATE_SAMPLE_DATA,
+			/* Wait for timer or button press to trigger the next sample */
+			STATE_WAIT_FOR_TRIGGER,
 	/* Ongoing FOTA process, triggers are blocked */
 	STATE_FOTA,
 		/* FOTA image is being downloaded */
@@ -144,10 +147,15 @@ struct main_state {
 	uint8_t msg_buf[MAX_MSG_SIZE];
 
 	/* Trigger interval */
-	uint64_t interval_sec;
+	uint32_t interval_sec;
 
 	/* Cloud connection status */
 	bool connected;
+
+	/* Start time of the most recent sampling. This is used to calculate the correct
+	 * time when scheduling the next sampling trigger.
+	 */
+	uint32_t sample_start_time;
 };
 
 /* Construct state table */
@@ -171,19 +179,19 @@ static const struct smf_state states[] = {
 		triggering_run,
 		NULL,
 		&states[STATE_RUNNING],
-		&states[STATE_REQUESTING_LOCATION]
+		&states[STATE_SAMPLE_DATA]
 	),
-	[STATE_REQUESTING_LOCATION] = SMF_CREATE_STATE(
-		requesting_location_entry,
-		requesting_location_run,
+	[STATE_SAMPLE_DATA] = SMF_CREATE_STATE(
+		sample_data_entry,
+		sample_data_run,
 		NULL,
 		&states[STATE_TRIGGERING],
 		NULL
 	),
-	[STATE_REQUESTING_SENSORS_AND_POLLING] = SMF_CREATE_STATE(
-		requesting_sensors_and_polling_entry,
-		requesting_sensors_and_polling_run,
-		requesting_sensors_and_polling_exit,
+	[STATE_WAIT_FOR_TRIGGER] = SMF_CREATE_STATE(
+		wait_for_trigger_entry,
+		wait_for_trigger_run,
+		wait_for_trigger_exit,
 		&states[STATE_TRIGGERING],
 		NULL
 	),
@@ -290,18 +298,6 @@ static void sensor_and_poll_triggers_send(void)
 	err = zbus_chan_pub(&FOTA_CHAN, &fota_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub FOTA trigger, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
-
-	/* Send trigger for shadow polling */
-	struct cloud_msg cloud_msg = {
-		.type = CLOUD_POLL_SHADOW
-	};
-
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub shadow trigger, error: %d", err);
 		SEND_FATAL_ERROR();
 		return;
 	}
@@ -464,7 +460,7 @@ static void triggering_run(void *o)
 				return;
 			}
 
-			LOG_WRN("Received new interval: %lld seconds", state_object->interval_sec);
+			LOG_WRN("Received new interval: %d seconds", state_object->interval_sec);
 
 			err = k_work_reschedule(&trigger_work,
 						K_SECONDS(state_object->interval_sec));
@@ -476,16 +472,29 @@ static void triggering_run(void *o)
 	}
 }
 
-/* STATE_REQUESTING_LOCATION */
+/* STATE_SAMPLE_DATA */
 
-static void requesting_location_entry(void *o)
+static void sample_data_entry(void *o)
 {
 	int err;
 	enum location_msg_type location_msg = LOCATION_SEARCH_TRIGGER;
+	struct cloud_msg cloud_msg = {
+		.type = CLOUD_POLL_SHADOW
+	};
+	struct main_state *state_object = (struct main_state *)o;
 
-	ARG_UNUSED(o);
 
 	LOG_DBG("%s", __func__);
+
+	/* Record the start time of sampling */
+	state_object->sample_start_time = k_uptime_seconds();
+
+	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub shadow trigger, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 
 	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
 	if (err) {
@@ -495,7 +504,7 @@ static void requesting_location_entry(void *o)
 	}
 }
 
-static void requesting_location_run(void *o)
+static void sample_data_run(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
@@ -503,54 +512,69 @@ static void requesting_location_run(void *o)
 		enum location_msg_type msg = MSG_TO_LOCATION_TYPE(state_object->msg_buf);
 
 		if (msg == LOCATION_SEARCH_DONE) {
-			smf_set_state(SMF_CTX(state_object),
-					      &states[STATE_REQUESTING_SENSORS_AND_POLLING]);
+			sensor_and_poll_triggers_send();
+			smf_set_state(SMF_CTX(state_object), &states[STATE_WAIT_FOR_TRIGGER]);
 			return;
 		}
 	}
 
+	/* We are already sampling, ignore any new triggers */
 	if (state_object->chan == &BUTTON_CHAN) {
+		smf_set_handled(SMF_CTX(state_object));
+		return;
+	}
+
+	if (state_object->chan == &TIMER_CHAN) {
 		smf_set_handled(SMF_CTX(state_object));
 		return;
 	}
 }
 
-/* STATE_REQUESTING_SENSORS_AND_POLLING */
+/* STATE_WAIT_FOR_TRIGGER */
 
-static void requesting_sensors_and_polling_entry(void *o)
+static void wait_for_trigger_entry(void *o)
 {
 	int err;
 	const struct main_state *state_object = (const struct main_state *)o;
+	uint32_t time_elapsed = k_uptime_seconds() - state_object->sample_start_time;
+	uint32_t time_remaining;
+
+	if (time_elapsed > state_object->interval_sec) {
+		LOG_WRN("Sampling took longer than the interval, skipping next trigger");
+		time_remaining = 0;
+	} else {
+		time_remaining = state_object->interval_sec - time_elapsed;
+	}
 
 	LOG_DBG("%s", __func__);
 
-	sensor_and_poll_triggers_send();
+	LOG_DBG("Next trigger in %d seconds", time_remaining);
 
-	LOG_DBG("Next trigger in %lld seconds", state_object->interval_sec);
-
-	err = k_work_reschedule(&trigger_work, K_SECONDS(state_object->interval_sec));
+	(void)k_work_cancel_delayable(&trigger_work);
+	err = k_work_reschedule(&trigger_work, K_SECONDS(time_remaining));
 	if (err < 0) {
 		LOG_ERR("k_work_reschedule, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
 }
 
-static void requesting_sensors_and_polling_run(void *o)
+static void wait_for_trigger_run(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
 	if (state_object->chan == &TIMER_CHAN) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_REQUESTING_LOCATION]);
+		LOG_DBG("Timer trigger received");
+		smf_set_state(SMF_CTX(state_object), &states[STATE_SAMPLE_DATA]);
 		return;
 	}
 
 	if (state_object->chan == &BUTTON_CHAN) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_REQUESTING_LOCATION]);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_SAMPLE_DATA]);
 		return;
 	}
 }
 
-static void requesting_sensors_and_polling_exit(void *o)
+static void wait_for_trigger_exit(void *o)
 {
 	ARG_UNUSED(o);
 

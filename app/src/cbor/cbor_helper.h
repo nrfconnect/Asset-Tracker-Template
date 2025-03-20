@@ -20,4 +20,4 @@
  */
 int get_update_interval_from_cbor_response(const uint8_t *cbor,
 					   size_t len,
-					   uint64_t *interval_sec);
+					   uint32_t *interval_sec);
