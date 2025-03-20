@@ -461,7 +461,6 @@ static void triggering_run(void *o)
 								     &state_object->interval_sec);
 			if (err) {
 				LOG_ERR("get_update_interval_from_cbor_response, error: %d", err);
-				SEND_FATAL_ERROR();
 				return;
 			}
 
