@@ -20,7 +20,7 @@ ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, location_subscriber, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network_subscriber, 0);
 ZBUS_CHAN_ADD_OBS(POWER_CHAN, power_subscriber, 0);
 
-LOG_MODULE_REGISTER(trigger_module_checks, 4);
+LOG_MODULE_REGISTER(main_module_checks, 4);
 
 void check_location_event(enum location_msg_type expected_location_type)
 {
@@ -31,7 +31,7 @@ void check_location_event(enum location_msg_type expected_location_type)
 	/* Allow the test thread to sleep so that the DUT's thread is allowed to run. */
 	k_sleep(K_MSEC(100));
 
-	err = zbus_sub_wait_msg(&location_subscriber, &chan, &location_msg_type, K_MSEC(1000));
+	err = zbus_sub_wait_msg(&location_subscriber, &chan, &location_msg_type, K_MSEC(10000));
 	if (err == -ENOMSG) {
 		LOG_ERR("No location event received");
 		TEST_FAIL();
@@ -60,7 +60,7 @@ void check_network_event(enum network_msg_type expected_network_type)
 	/* Allow the test thread to sleep so that the DUT's thread is allowed to run. */
 	k_sleep(K_MSEC(100));
 
-	err = zbus_sub_wait_msg(&network_subscriber, &chan, &network_msg, K_MSEC(1000));
+	err = zbus_sub_wait_msg(&network_subscriber, &chan, &network_msg, K_MSEC(10000));
 	if (err == -ENOMSG) {
 		LOG_ERR("No network event received");
 		TEST_FAIL();
@@ -89,7 +89,7 @@ void check_power_event(enum power_msg_type expected_power_type)
 	/* Allow the test thread to sleep so that the DUT's thread is allowed to run. */
 	k_sleep(K_MSEC(100));
 
-	err = zbus_sub_wait_msg(&power_subscriber, &chan, &power_msg, K_MSEC(1000));
+	err = zbus_sub_wait_msg(&power_subscriber, &chan, &power_msg, K_MSEC(10000));
 	if (err == -ENOMSG) {
 		LOG_ERR("No power event received");
 		TEST_FAIL();
@@ -116,7 +116,7 @@ static void check_no_location_events(void)
 	const struct zbus_channel *chan;
 	enum location_msg_type location_msg_type;
 
-	err = zbus_sub_wait_msg(&location_subscriber, &chan, &location_msg_type, K_MSEC(1000));
+	err = zbus_sub_wait_msg(&location_subscriber, &chan, &location_msg_type, K_MSEC(10000));
 	if (err == -ENOMSG) {
 		return;
 	} else if (err) {
@@ -136,7 +136,7 @@ static void check_no_network_events(void)
 	const struct zbus_channel *chan;
 	struct network_msg network_msg;
 
-	err = zbus_sub_wait_msg(&network_subscriber, &chan, &network_msg, K_MSEC(1000));
+	err = zbus_sub_wait_msg(&network_subscriber, &chan, &network_msg, K_MSEC(10000));
 	if (err == -ENOMSG) {
 		return;
 	} else if (err) {
@@ -156,7 +156,7 @@ static void check_no_power_events(void)
 	const struct zbus_channel *chan;
 	struct power_msg power_msg;
 
-	err = zbus_sub_wait_msg(&power_subscriber, &chan, &power_msg, K_MSEC(1000));
+	err = zbus_sub_wait_msg(&power_subscriber, &chan, &power_msg, K_MSEC(10000));
 	if (err == -ENOMSG) {
 		return;
 	} else if (err) {
@@ -242,4 +242,40 @@ void purge_all_events(void)
 	purge_location_events();
 	purge_network_events();
 	purge_power_events();
+}
+
+int wait_for_location_event(enum location_msg_type expected_type, uint32_t timeout_sec)
+{
+	int err;
+	const struct zbus_channel *chan;
+	enum location_msg_type location_msg_type;
+	uint32_t start_time = k_uptime_seconds();
+	uint32_t elapsed_time;
+
+	err = zbus_sub_wait_msg(&location_subscriber, &chan, &location_msg_type,
+				K_SECONDS(timeout_sec));
+	if (err == -ENOMSG) {
+		return -ENOMSG;
+	} else if (err) {
+		LOG_ERR("zbus_sub_wait, error: %d", err);
+
+		return err;
+	}
+
+	if (chan != &LOCATION_CHAN) {
+		LOG_ERR("Received message from wrong channel, expected %s, got %s",
+			zbus_chan_name(&LOCATION_CHAN), zbus_chan_name(chan));
+		return -EINVAL;
+	}
+
+	if (location_msg_type != expected_type) {
+		LOG_ERR("Received unexpected location event: %d", location_msg_type);
+		return -EINVAL;
+	}
+
+	elapsed_time = k_uptime_seconds() - start_time;
+
+	LOG_DBG("Received expected location event: %d, wait: %d", location_msg_type, elapsed_time);
+
+	return elapsed_time;
 }

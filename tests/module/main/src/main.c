@@ -148,9 +148,15 @@ static void twelve_hour_interval_set(void)
 		.type = CLOUD_SHADOW_RESPONSE,
 		/* JSON equivalent string: "{"config":{"update_interval": 43200 }}" */
 		.response.buffer = {
-			0xA1, 0x66, 0x63, 0x6F, 0x6E, 0x66, 0x69, 0x67, 0xA1,
-			0x6F, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x5F, 0x69,
-			0x6E, 0x74, 0x65, 0x72, 0x76, 0x61, 0x6C, 0x19, 0xA8, 0x80
+		0xA1,  /* Map of 1 key-value pair */
+		0x66,  /* Text string of length 6 */
+		0x63, 0x6F, 0x6E, 0x66, 0x69, 0x67,  /* 'c', 'o', 'n', 'f', 'i', 'g' => "config" */
+		0xA1,  /* Nested map with 1 key-value pair */
+		0x6F,  /* Text string of length 15 */
+		0x75, 0x70, 0x64, 0x61, 0x74, 0x65, /* 'u', 'p', 'd', 'a', 't', 'e' => "update" */
+		0x5F, 0x69, 0x6E, 0x74, 0x65, 0x72, /* '_', 'i', 'n', 't', 'e', 'r' => "_inter" */
+		0x76, 0x61, 0x6C, /* 'v', 'a', 'l' => "val" */
+		0x19, 0xA8, 0xC0  /* Unsigned integer (uint16) with value 43200 */
 		},
 		.response.buffer_data_len = 28,
 	};
@@ -175,10 +181,18 @@ void test_init_to_triggering_state(void)
 	/* Transition the module into STATE_TRIGGERING */
 	send_cloud_connected_ready_to_send();
 
-	/* There's an initial transition to STATE_REQUESTING_LOCATION, where the entry function
+	/* There's an initial transition to STATE_SAMPLE_DATA, where the entry function
 	 * sends a location search trigger.
 	 */
 	check_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Complete location search */
+	send_location_search_done();
+	check_location_event(LOCATION_SEARCH_DONE);
+
+	/* Other sensors are now polled */
+	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	/* Cleanup */
 	send_cloud_disconnected();
@@ -187,23 +201,23 @@ void test_init_to_triggering_state(void)
 
 void test_button_press_on_connected(void)
 {
-	/* Transition to STATE_REQUSTING_LOCATION */
+	/* Transition to STATE_SAMPLE_DATA */
 	send_cloud_connected_ready_to_send();
 	check_location_event(LOCATION_SEARCH_TRIGGER);
 
-	/* Transistion to STATE_REQUESTING_SENSORS_AND_POLLING */
+	/* Transistion to STATE_WAIT_FOR_TRIGGER */
 	send_location_search_done();
 	check_location_event(LOCATION_SEARCH_DONE);
-
 	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
-	/* Transition back to STATE_REQUESTING_LOCATION */
+	/* Transition back to STATE_SAMPLE_DATA */
 	button_handler(DK_BTN1_MSK, DK_BTN1_MSK);
 	check_location_event(LOCATION_SEARCH_TRIGGER);
 
 	/* Cleanup */
 	send_cloud_disconnected();
+	purge_all_events();
 
 	check_no_events(7200);
 }
@@ -223,25 +237,35 @@ void test_button_press_on_disconnected(void)
 
 void test_trigger_interval_change_in_connected(void)
 {
-	/* Transition to STATE_REQUSTING_LOCATION */
+	/* Transition to STATE_SAMPLE_DATA */
 	send_cloud_connected_ready_to_send();
 	check_location_event(LOCATION_SEARCH_TRIGGER);
-
-	/* Transition to STATE_REQUESTING_SENSORS_AND_POLLING where shasow is polled. */
-	send_location_search_done();
-	check_location_event(LOCATION_SEARCH_DONE);
 
 	/* As response to the shadow poll, the interval is set to 12 hours. */
 	twelve_hour_interval_set();
 
+	/* Transition to STATE_TRIGGER_WAIT where shadow is polled. */
+	send_location_search_done();
+	check_location_event(LOCATION_SEARCH_DONE);
+	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+	/* Wait for the interval to alomost expire and ensure no events are triggered in
+	 * that time. Repeat this 10 times.
+	 */
 	for (int i = 0; i < 10; i++) {
+		int elapsed_time;
+
+		elapsed_time = wait_for_location_event(LOCATION_SEARCH_TRIGGER,
+						       HOUR_IN_SECONDS * 12);
+		TEST_ASSERT_INT_WITHIN(1, HOUR_IN_SECONDS * 12, elapsed_time);
+
 		send_location_search_done();
-		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
-		k_sleep(K_SECONDS(HOUR_IN_SECONDS * 12));
+		check_location_event(LOCATION_SEARCH_DONE);
 	}
 
-	purge_location_events();
+	/* Cleanup */
+	purge_all_events();
 
 	send_cloud_disconnected();
 	check_no_events(WEEK_IN_SECONDS);
@@ -249,32 +273,44 @@ void test_trigger_interval_change_in_connected(void)
 
 void test_trigger_disconnect_and_connect_when_triggering(void)
 {
-	/* Transition to STATE_REQUSTING_LOCATION */
-	send_cloud_connected_ready_to_send();
-	check_location_event(LOCATION_SEARCH_TRIGGER);
+	bool first_trigger_after_connect = true;
 
-	/* Transition to STATE_REQUESTING_SENSORS_AND_POLLING where shasow is polled. */
-	send_location_search_done();
-	check_location_event(LOCATION_SEARCH_DONE);
+	/* Transition to STATE_SAMPLE_DATA */
+	send_cloud_connected_ready_to_send();
 
 	/* As response to the shadow poll, the interval is set to 12 hours. */
 	twelve_hour_interval_set();
 
+	/* Wait for the interval to alomost expire and ensure no events are triggered in
+	 * that time. Repeat this 10 times. Every second iteration, disconnect and connect.
+	 */
 	for (int i = 0; i < 10; i++) {
+		int elapsed_time;
+		uint32_t timeout = first_trigger_after_connect ? 1 : HOUR_IN_SECONDS * 12;
 
-		if (i == 5) {
+		elapsed_time = wait_for_location_event(LOCATION_SEARCH_TRIGGER,
+						       HOUR_IN_SECONDS * 12);
+		TEST_ASSERT_INT_WITHIN(1, timeout, elapsed_time);
+
+		send_location_search_done();
+		check_location_event(LOCATION_SEARCH_DONE);
+		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+		first_trigger_after_connect = false;
+
+		/* Disconnect and connect every second iteration */
+		if (i % 2 == 0) {
 			send_cloud_disconnected();
 			check_no_events(7200);
 			send_cloud_connected_ready_to_send();
-		}
 
-		send_location_search_done();
-		k_sleep(K_MSEC(100));
-		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
-		k_sleep(K_SECONDS(HOUR_IN_SECONDS * 12));
-		purge_location_events();
+			first_trigger_after_connect = true;
+		}
 	}
+
+	/* Cleanup */
+	purge_all_events();
 
 	send_cloud_disconnected();
 	check_no_events(WEEK_IN_SECONDS);
