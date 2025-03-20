@@ -27,11 +27,6 @@ MFW_202_VERSION = "mfw_nrf91x1_2.0.2"
 
 APP_BUNDLEID = os.getenv("APP_BUNDLEID")
 
-TEST_APP_BIN = {
-    "thingy91x": "artifacts/stable_version_jan_2025-update-signed.bin",
-    "nrf9151dk": "artifacts/nrf9151dk_mar_2025_update_signed.bin"
-}
-
 DEVICE_MSG_TIMEOUT = 60 * 5
 APP_FOTA_TIMEOUT = 60 * 10
 FULL_MFW_FOTA_TIMEOUT = 60 * 30
@@ -113,9 +108,15 @@ def run_fota_reschedule(dut_fota, fota_type):
     else:
         raise AssertionError(f"Fota update not available after {i} attempts")
 
-@pytest.fixture
-def run_fota_fixture(dut_fota, hex_file, reschedule=False):
-    def _run_fota(bundle_id="", fota_type="app", fotatimeout=APP_FOTA_TIMEOUT, new_version=TEST_APP_VERSION, reschedule=False):
+def run_fota(
+    dut_fota,
+    hex_file,
+    bundle_id,
+    reschedule=False,
+    fota_type="app",
+    fotatimeout=APP_FOTA_TIMEOUT,
+    new_version=TEST_APP_VERSION,
+    ):
         flash_device(os.path.abspath(hex_file))
         dut_fota.uart.xfactoryreset()
         dut_fota.uart.flush()
@@ -177,23 +178,24 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
             logger.error(f"Version is not {new_version} after {DEVICE_MSG_TIMEOUT}s")
             raise e
 
-    return _run_fota
-
-
-def test_app_fota(run_fota_fixture):
+def test_app_fota(dut_fota, hex_file):
     '''
     Test application FOTA from nightly version to stable version
     '''
-    run_fota_fixture(
+    run_fota(
+        dut_fota,
+        hex_file,
         bundle_id=APP_BUNDLEID,
     )
 
-def test_delta_mfw_fota(run_fota_fixture):
+def test_delta_mfw_fota(dut_fota, hex_file):
     '''
     Test delta modem FOTA on nrf9151
     '''
     try:
-        run_fota_fixture(
+        run_fota(
+            dut_fota,
+            hex_file,
             bundle_id=DELTA_MFW_BUNDLEID,
             fota_type="delta",
             new_version=NEW_MFW_DELTA_VERSION
@@ -203,13 +205,14 @@ def test_delta_mfw_fota(run_fota_fixture):
         flash_device(os.path.abspath(MFW_202_FILEPATH))
 
 @pytest.mark.slow
-def test_full_mfw_fota(run_fota_fixture):
+def test_full_mfw_fota(dut_fota, hex_file):
     '''
     Test full modem FOTA on nrf9151
     '''
-
     try:
-        run_fota_fixture(
+        run_fota(
+            dut_fota,
+            hex_file,
             bundle_id=FULL_MFW_BUNDLEID,
             fota_type="full",
             new_version=MFW_202_VERSION,

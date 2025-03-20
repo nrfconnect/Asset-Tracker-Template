@@ -17,7 +17,7 @@ SEGGER = os.getenv('SEGGER')
 def reset_device(serial=SEGGER, reset_kind="RESET_SYSTEM"):
     logger.info(f"Resetting device, segger: {serial}")
     try:
-        result = subprocess.run(
+        subprocess.run(
             ['nrfutil', 'device', 'reset', '--serial-number', serial, '--reset-kind', reset_kind],
             check=True,
             text=True,
@@ -37,7 +37,7 @@ def flash_device(hexfile, serial=SEGGER, extra_args=[]):
         raise ValueError("hexfile cannot be None")
     logger.info(f"Flashing device, segger: {serial}, firmware: {hexfile}")
     try:
-        result = subprocess.run(['nrfutil', 'device', 'program', *extra_args, '--firmware', hexfile, '--serial-number', serial], check=True, text=True, capture_output=True)
+        subprocess.run(['nrfutil', 'device', 'program', *extra_args, '--firmware', hexfile, '--serial-number', serial], check=True, text=True, capture_output=True)
         logger.info("Command completed successfully.")
     except subprocess.CalledProcessError as e:
         # Handle errors in the command execution

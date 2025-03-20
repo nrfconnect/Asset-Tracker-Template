@@ -16,6 +16,11 @@ on:
         type: string
         required: false
         default: tests
+      matrix:
+        description: Matrix config
+        type: string
+        required: false
+        default: '["nrf9151dk"]'
 
   workflow_dispatch:
     inputs:
@@ -36,6 +41,11 @@ on:
         type: string
         required: false
         default: tests
+      matrix:
+        description: Matrix config
+        type: string
+        required: false
+        default: '["nrf9151dk"]'
 
 jobs:
   target_test:
@@ -43,10 +53,7 @@ jobs:
     strategy:
       fail-fast: false # Don't fail all jobs if one fails
       matrix:
-        include:
-          - device: nrf9151dk
-          - device: thingy91x
-
+        device: ${{ fromJSON(inputs.matrix) }}
     # Self-hosted runner is labeled according to the device it is linked with
     runs-on: cia-trd-${{ matrix.device }}
     environment: ${{ matrix.device }}
