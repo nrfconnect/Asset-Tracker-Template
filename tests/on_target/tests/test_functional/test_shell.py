@@ -16,7 +16,7 @@ CLOUD_TIMEOUT = 60 * 3
 
 def test_shell(dut_cloud, hex_file):
     '''
-    Test that the device is operating normally by checking UART output
+    Test that the device is operating normally using shell commands
     '''
     flash_device(os.path.abspath(hex_file))
     dut_cloud.uart.xfactoryreset()
