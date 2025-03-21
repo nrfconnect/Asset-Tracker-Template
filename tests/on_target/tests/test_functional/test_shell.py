@@ -12,7 +12,7 @@ from utils.logger import get_logger
 
 logger = get_logger()
 
-CLOUD_TIMEOUT = 60
+CLOUD_TIMEOUT = 60 * 3
 
 def test_shell(dut_cloud, hex_file):
     '''
@@ -23,10 +23,10 @@ def test_shell(dut_cloud, hex_file):
 
     patterns_boot = [
         "Connected to Cloud",
-        "main: requesting_sensors_and_polling_entry: Next trigger in"
+        "main: wait_for_trigger_entry: Next trigger in"
     ]
     patterns_button_press = [
-        "main: requesting_location_entry: requesting_location_entry",
+        "main: sample_data_entry: sample_data_entry",
     ]
     patterns_cloud_publish = [
         'Sending on payload channel: {"messageType":"DATA","appId":"donald","data":"duck"',
