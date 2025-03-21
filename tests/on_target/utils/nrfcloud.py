@@ -120,6 +120,22 @@ class NRFCloud():
         diff = timedelta(hours=hours, minutes=minutes, seconds=seconds)
         return datetime.now(timezone.utc) - message[0].replace(tzinfo=timezone.utc) < diff
 
+    def patch_update_interval(self, device_id: str, interval: int) -> None:
+        """
+        Update the device's update interval configuration
+
+        :param device_id: Device ID to update
+        :param interval: New update interval in seconds
+        """
+        data = json.dumps({
+            "desired": {
+                "config": {
+                    "update_interval": interval
+                }
+            }
+        })
+        return self._patch(f"/devices/{device_id}/state", data=data)
+
 class NRFCloudFOTA(NRFCloud):
     def upload_firmware(
         self, name: str, bin_file: str, version: str, description: str, fw_type: FWType, bin_file_2=None
