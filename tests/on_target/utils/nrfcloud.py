@@ -11,6 +11,7 @@ import time
 import requests
 from enum import Enum
 from typing import Union
+from datetime import datetime, timedelta, timezone
 from utils.logger import get_logger
 from requests.exceptions import HTTPError
 
@@ -24,7 +25,7 @@ class FWType(Enum):
 class NRFCloudFOTAError(Exception):
     pass
 
-class NRFCloudFOTA():
+class NRFCloud():
     def __init__(self, api_key: str, url: str="https://api.nrfcloud.com/v1", timeout: int=10) -> None:
         """ Initalizes the class """
         self.url = url
@@ -64,6 +65,62 @@ class NRFCloudFOTA():
         r.raise_for_status()
         return r
 
+    def get_devices(self, path: str="", params=None) -> dict:
+        return self._get(path=f"/devices{path}", params=params)
+
+    def get_device(self, device_id: str, params=None) -> dict:
+        """
+        Get all information about particular device on nrfcloud.com
+
+        :param device_id: Device ID
+        :return: Json structure of result from nrfcloud.com
+        """
+        return self.get_devices(path=f"/{device_id}", params=params)
+
+    def get_messages(self, device: str=None, appname: str="donald", max_records: int=50, max_age_hrs: int=24) -> list:
+        """
+        Get messages sent from asset_tracker to nrfcloud.com
+
+        :param device_id: Limit result to messages from particular device
+        :param max_records: Limit number of messages to fetch
+        :param max_age_hrs: Limit fetching messages by timestamp
+        :return: List of (timestamp, message)
+        """
+        end = datetime.now(timezone.utc).strftime(self.time_fmt)
+        start = (datetime.now(timezone.utc) - timedelta(
+            hours=max_age_hrs)).strftime(self.time_fmt)
+        params = {
+            'start': start,
+            'end': end,
+            'pageSort': 'desc',
+            'pageLimit': max_records
+        }
+
+        if device:
+            params['deviceId'] = device
+        if appname:
+            params['appId'] = appname
+
+        timestamp = lambda x: datetime.strptime(x['receivedAt'], self.time_fmt)
+        messages = self._get(path="/messages", params=params)
+
+        return [(timestamp(x), x['message'])
+            for x in messages['items']]
+
+    def check_message_age(self, message: dict, hours: int=0, minutes: int=0, seconds: int=0) -> bool:
+        """
+        Check age of message, return False if message older than parameters
+
+        :param messages: Single message
+        :param hours: Max message age hours
+        :param minutes: Max message age minutes
+        :param seconds: Max message age seconds
+        :return: bool True/False
+        """
+        diff = timedelta(hours=hours, minutes=minutes, seconds=seconds)
+        return datetime.now(timezone.utc) - message[0].replace(tzinfo=timezone.utc) < diff
+
+class NRFCloudFOTA(NRFCloud):
     def upload_firmware(
         self, name: str, bin_file: str, version: str, description: str, fw_type: FWType, bin_file_2=None
     ) -> str:
@@ -125,7 +182,6 @@ class NRFCloudFOTA():
         if m.group(1) == "firmware":
             return m.group(3)
         return m.group(2)
-
 
     def upload_zephyr_zip(self, zip_path: str, version: str, name: str=""):
         """
@@ -249,18 +305,6 @@ class NRFCloudFOTA():
                 self.cancel_fota_job(job_id)
             self.delete_fota_job(job_id)
         return None
-
-    def get_devices(self, path: str="", params=None) -> dict:
-        return self._get(path=f"/devices{path}", params=params)
-
-    def get_device(self, device_id: str, params=None) -> dict:
-        """
-        Get all information about particular device on nrfcloud.com
-
-        :param device_id: Device ID
-        :return: Json structure of result from nrfcloud.com
-        """
-        return self.get_devices(path=f"/{device_id}", params=params)
 
     def cancel_incomplete_jobs(self, uuid):
         fota_jobs = self.list_fota_jobs(pageLimit=100)

@@ -8,7 +8,7 @@ import time
 import os
 import functools
 from utils.flash_tools import flash_device, reset_device
-from utils.nrfcloud_fota import NRFCloudFOTAError
+from utils.nrfcloud import NRFCloudFOTAError
 import sys
 sys.path.append(os.getcwd())
 from utils.logger import get_logger
