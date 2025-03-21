@@ -12,7 +12,7 @@ from utils.uart import Uart, UartBinary
 import sys
 sys.path.append(os.getcwd())
 from utils.logger import get_logger
-from utils.nrfcloud_fota import NRFCloudFOTA
+from utils.nrfcloud import NRFCloud, NRFCloudFOTA
 
 logger = get_logger()
 
@@ -20,7 +20,7 @@ UART_TIMEOUT = 60 * 30
 
 SEGGER = os.getenv('SEGGER')
 UART_ID = os.getenv('UART_ID', SEGGER)
-FOTADEVICE_UUID = os.getenv('UUID')
+DEVICE_UUID = os.getenv('UUID')
 NRFCLOUD_API_KEY = os.getenv('NRFCLOUD_API_KEY')
 DUT_DEVICE_TYPE = os.getenv('DUT_DEVICE_TYPE')
 
@@ -74,14 +74,30 @@ def dut_board():
     scan_log_for_assertions(uart_log)
 
 @pytest.fixture(scope="function")
+def dut_cloud(dut_board):
+    if not NRFCLOUD_API_KEY:
+        pytest.skip("NRFCLOUD_API_KEY environment variable not set")
+    if not DEVICE_UUID:
+        pytest.skip("UUID environment variable not set")
+
+    cloud = NRFCloud(api_key=NRFCLOUD_API_KEY)
+    device_id = DEVICE_UUID
+
+    yield types.SimpleNamespace(
+        **dut_board.__dict__,
+        cloud=cloud,
+        device_id=device_id,
+    )
+
+@pytest.fixture(scope="function")
 def dut_fota(dut_board):
     if not NRFCLOUD_API_KEY:
         pytest.skip("NRFCLOUD_API_KEY environment variable not set")
-    if not FOTADEVICE_UUID:
+    if not DEVICE_UUID:
         pytest.skip("UUID environment variable not set")
 
     fota = NRFCloudFOTA(api_key=NRFCLOUD_API_KEY)
-    device_id = FOTADEVICE_UUID
+    device_id = DEVICE_UUID
     data = {
         'job_id': '',
     }

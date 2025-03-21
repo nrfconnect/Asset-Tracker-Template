@@ -17,10 +17,6 @@ logger = get_logger()
 def test_sampling(dut_board, hex_file):
     flash_device(os.path.abspath(hex_file))
     dut_board.uart.xfactoryreset()
-    patterns_cloud_connection = [
-        "Network connectivity established",
-        "Connected to Cloud"
-    ]
 
     # Log patterns
     pattern_location = "location_event_handler: Got location: lat:"
@@ -42,6 +38,7 @@ def test_sampling(dut_board, hex_file):
     # Cloud connection
     dut_board.uart.flush()
     reset_device()
+    dut_board.uart.wait_for_str("Connected to Cloud", timeout=120)
 
     # Sampling
     dut_board.uart.wait_for_str(pattern_list, timeout=120)
