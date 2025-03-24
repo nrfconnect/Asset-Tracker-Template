@@ -31,3 +31,4 @@ jobs:
       artifact_fw_version: ${{ needs.build.outputs.version }}
       artifact_run_id: ${{ needs.build.outputs.run_id }}
       pytest_marker: ${{ inputs.pytest_marker || (github.event_name == 'schedule' && 'no_markers_flag') || (github.event_name == 'push' && 'not slow') }}
+      is_scheduled: ${{ github.event_name == 'schedule' }}

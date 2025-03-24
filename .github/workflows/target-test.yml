@@ -16,6 +16,10 @@ on:
         type: string
         required: false
         default: tests
+      is_scheduled:
+        type: boolean
+        required: false
+        default: false
 
   workflow_dispatch:
     inputs:
@@ -145,13 +149,21 @@ jobs:
           MEMFAULT_PROJECT_SLUG: ${{ vars.MEMFAULT_PROJECT_SLUG }}
           APP_BUNDLEID: ${{ env.APP_BUNDLEID }}
 
-      - name: Commit and Push Badge File to gh-pages Branch
+      - name: Generate and Push Power Badge
         if: ${{ matrix.device }} == ppk_thingy91x
         continue-on-error: true
         working-directory: asset-tracker-template
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./tests/on_target/scripts/commit_badge.sh
+        run: ./tests/on_target/scripts/update_power_badge.sh
+
+      - name: Generate and Push RAM and FLASH Badges
+        if: ${{ matrix.device == 'thingy91x' && inputs.is_scheduled }}
+        continue-on-error: true
+        working-directory: asset-tracker-template
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./tests/on_target/scripts/update_memory_badges.sh tests/on_target/artifacts/build_output_thingy91x.log
 
       - name: Results
         if: always()
