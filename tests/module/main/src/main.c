@@ -262,11 +262,11 @@ void test_trigger_interval_change_in_connected(void)
 
 		send_location_search_done();
 		check_location_event(LOCATION_SEARCH_DONE);
+		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	}
 
 	/* Cleanup */
-	purge_all_events();
-
 	send_cloud_disconnected();
 	check_no_events(WEEK_IN_SECONDS);
 }
@@ -310,8 +310,6 @@ void test_trigger_disconnect_and_connect_when_triggering(void)
 	}
 
 	/* Cleanup */
-	purge_all_events();
-
 	send_cloud_disconnected();
 	check_no_events(WEEK_IN_SECONDS);
 }
