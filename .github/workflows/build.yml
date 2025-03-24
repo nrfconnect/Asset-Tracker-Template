@@ -109,7 +109,7 @@ jobs:
           echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_FW_TYPE }}\" >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"${{ env.MEMFAULT_FW_VERSION_PREFIX }}+\" >> overlay-memfault-att.conf
-          west build -b thingy91x/nrf9151/ns -d build -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf"
+          west build -b thingy91x/nrf9151/ns -d build -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf" 2>&1 | tee artifacts/build_output_thingy91x.log
           cp build/merged.hex artifacts/asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.hex
           cp build/app/zephyr/.config artifacts/asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.config
           cp build/app/zephyr/zephyr.signed.bin artifacts/asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91-update-signed.bin

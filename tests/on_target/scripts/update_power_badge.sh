@@ -12,6 +12,12 @@ BADGE_FILE_DEST=docs/power_badge.json
 HTML_FILE_DEST=docs/power_measurements_plot.html
 CSV_FILE_DEST=docs/power_measurements.csv
 
+# Function to handle errors
+handle_error() {
+    echo "Error: $1"
+    exit 0
+}
+
 # Check if files exist
 if [ ! -f $BADGE_FILE ]; then
   echo "Badge file not found: $BADGE_FILE"
@@ -32,8 +38,9 @@ git config --global user.email "github-actions@github.com"
 git config --global user.name "GitHub Actions"
 
 # Ensure the gh-pages branch exists and switch to it
-git fetch origin gh-pages || git checkout -b gh-pages
-git checkout gh-pages
+git fetch origin gh-pages
+git checkout gh-pages || handle_error "Not able to checkout gh-pages"
+git pull origin gh-pages || handle_error "Failed to pull latest gh-pages"
 
 # Stage, commit, and push changes to the branch
 cp $BADGE_FILE $BADGE_FILE_DEST
