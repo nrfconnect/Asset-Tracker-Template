@@ -20,6 +20,12 @@ The Asset Tracker can be configured remotely through nRF Cloud's device shadow m
 
 The device will receive the new configuration through its shadow and adjust its update interval accordingly.
 
+### Configuration through REST API
+
+Update interval using nrfcloud rest api [nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState)
+```
+curl -X PATCH   "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state"   -H "Authorization: Bearer $API_KEY"   -H "Content-Type: application/json"   -d '{ "desired": { "config": { "update_interval": <your_value> } } }'
+```
 
 ### Configuration Flow
 1. **Initial Setup**
