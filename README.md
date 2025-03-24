@@ -14,7 +14,7 @@ The application is built on nRF Connect SDK and uses a combination of state mach
 It is intended to be a framework for developing asset tracking applications, but can be customized for other use cases as well.
 We have not targeted a specific use-case with this template, but rather a set of features that are common in asset tracking applications, and left it up to the user to decide how to use, modify, or extend the template to fit their needs.
 The ``main.c`` file contains the main module of the application, where the business logic and control over the other modules is implemented, and is a good starting point for understanding how the application works.
-This is also the naural place to start when customizing the application for a specific use-case.
+This is also the natural place to start when customizing the application for a specific use-case.
 
 The template is open-source for a reason, and we encourage users to contribute back to the project with improvements, bug fixes, or new features.
 
