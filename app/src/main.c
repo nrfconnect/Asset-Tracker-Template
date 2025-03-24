@@ -252,6 +252,16 @@ static void task_wdt_callback(int channel_id, void *user_data)
 static void sensor_and_poll_triggers_send(void)
 {
 	int err;
+	struct cloud_msg cloud_msg = {
+		.type = CLOUD_POLL_SHADOW
+	};
+
+	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub shadow trigger, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 
 #if defined(CONFIG_APP_REQUEST_NETWORK_QUALITY)
 	struct network_msg network_msg = {
@@ -478,23 +488,12 @@ static void sample_data_entry(void *o)
 {
 	int err;
 	enum location_msg_type location_msg = LOCATION_SEARCH_TRIGGER;
-	struct cloud_msg cloud_msg = {
-		.type = CLOUD_POLL_SHADOW
-	};
 	struct main_state *state_object = (struct main_state *)o;
-
 
 	LOG_DBG("%s", __func__);
 
 	/* Record the start time of sampling */
 	state_object->sample_start_time = k_uptime_seconds();
-
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub shadow trigger, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
 
 	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
 	if (err) {
