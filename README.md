@@ -47,6 +47,5 @@ The template is open-source for a reason, and we encourage users to contribute b
 - [Button](docs/modules/button.md)
 - [Cloud](docs/modules/cloud.md)
 - [Environmental](docs/modules/environmental.md)
-- [Main](docs/modules/main.md)
 - [Network](docs/modules/network.md)
 - [Power](docs/modules/power.md)
