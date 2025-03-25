@@ -166,7 +166,7 @@ jobs:
         if: ${{ inputs.build_debug }}
         working-directory: asset-tracker-template/app/build
         run: |
-          cp merged.hex asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.hex
+          cp merged.hex asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91.hex
           cp app/zephyr/.config asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91.config
           cp app/zephyr/zephyr.signed.bin asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91-update-signed.bin
           cp app/zephyr/zephyr.signed.hex asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91-update-signed.hex
