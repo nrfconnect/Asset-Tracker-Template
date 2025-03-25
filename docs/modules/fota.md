@@ -43,6 +43,7 @@ The following Kconfig options can be used to customize the FOTA module’s behav
   Watchdog timeout for the FOTA operation to ensure timely completion.
 
 ## State diagram
+
 ```mermaid
 stateDiagram-v2
     [*] --> STATE_RUNNING
@@ -62,10 +63,11 @@ stateDiagram-v2
         STATE_WAITING_FOR_IMAGE_APPLY --> STATE_IMAGE_APPLYING : FOTA_IMAGE_APPLY
 
         STATE_IMAGE_APPLYING --> STATE_REBOOT_PENDING : FOTA_SUCCESS_REBOOT_NEEDED
+
+        STATE_CANCELING --> STATE_WAITING_FOR_POLL_REQUEST : FOTA_DOWNLOAD_CANCELED
     }
 
     STATE_RUNNING --> STATE_CANCELING : FOTA_DOWNLOAD_CANCEL
-    STATE_CANCELING --> STATE_WAITING_FOR_POLL_REQUEST : FOTA_DOWNLOAD_CANCELED
 
     STATE_REBOOT_PENDING --> [*] : System reboot
 ```
