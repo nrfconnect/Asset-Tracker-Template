@@ -15,7 +15,7 @@ jobs:
     secrets: inherit
     with:
       build_debug: true
-      memfault_sw_type: "asset-tracker-template"
+      memfault_fw_type: "asset-tracker-template"
 
   attach-assets:
     runs-on: ubuntu-24.04
