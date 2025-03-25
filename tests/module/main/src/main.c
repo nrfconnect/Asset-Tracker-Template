@@ -102,6 +102,8 @@ void setUp(void)
 	RESET_FAKE(sys_reboot);
 
 	FFF_RESET_HISTORY();
+
+	purge_all_events();
 }
 
 static void button_handler(uint32_t button_states, uint32_t has_changed)
@@ -141,6 +143,16 @@ static void send_location_search_done(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
+static void send_fota_msg(enum fota_msg_type msg)
+{
+	int err;
+
+	err = zbus_chan_pub(&FOTA_CHAN, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	k_sleep(K_MSEC(100));
+}
+
 static void twelve_hour_interval_set(void)
 {
 	int err;
@@ -176,6 +188,17 @@ static void send_cloud_disconnected(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
+static void send_network_disconnected(void)
+{
+	struct network_msg network_msg = {
+		.type = NETWORK_DISCONNECTED,
+	};
+
+	int err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
 void test_init_to_triggering_state(void)
 {
 	/* Transition the module into STATE_TRIGGERING */
@@ -184,42 +207,44 @@ void test_init_to_triggering_state(void)
 	/* There's an initial transition to STATE_SAMPLE_DATA, where the entry function
 	 * sends a location search trigger.
 	 */
-	check_location_event(LOCATION_SEARCH_TRIGGER);
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
 	/* Complete location search */
 	send_location_search_done();
-	check_location_event(LOCATION_SEARCH_DONE);
+	expect_location_event(LOCATION_SEARCH_DONE);
 
-	/* Other sensors are now polled */
-	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	/* FOTA and other sensors are now polled */
+	expect_fota_event(FOTA_POLL_REQUEST);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	/* Cleanup */
 	send_cloud_disconnected();
-	check_no_events(7200);
+	expect_no_events(7200);
 }
 
 void test_button_press_on_connected(void)
 {
 	/* Transition to STATE_SAMPLE_DATA */
 	send_cloud_connected_ready_to_send();
-	check_location_event(LOCATION_SEARCH_TRIGGER);
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
 	/* Transistion to STATE_WAIT_FOR_TRIGGER */
 	send_location_search_done();
-	check_location_event(LOCATION_SEARCH_DONE);
-	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_fota_event(FOTA_POLL_REQUEST);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	/* Transition back to STATE_SAMPLE_DATA */
 	button_handler(DK_BTN1_MSK, DK_BTN1_MSK);
-	check_location_event(LOCATION_SEARCH_TRIGGER);
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
 	/* Cleanup */
 	send_cloud_disconnected();
 	purge_all_events();
 
-	check_no_events(7200);
+	expect_no_events(7200);
 }
 
 void test_button_press_on_disconnected(void)
@@ -232,23 +257,24 @@ void test_button_press_on_disconnected(void)
 	k_sleep(K_SECONDS(5));
 
 	/* Then */
-	check_no_events(7200);
+	expect_no_events(7200);
 }
 
 void test_trigger_interval_change_in_connected(void)
 {
 	/* Transition to STATE_SAMPLE_DATA */
 	send_cloud_connected_ready_to_send();
-	check_location_event(LOCATION_SEARCH_TRIGGER);
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
 	/* As response to the shadow poll, the interval is set to 12 hours. */
 	twelve_hour_interval_set();
 
 	/* Transition to STATE_TRIGGER_WAIT where shadow is polled. */
 	send_location_search_done();
-	check_location_event(LOCATION_SEARCH_DONE);
-	check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_fota_event(FOTA_POLL_REQUEST);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	/* Wait for the interval to alomost expire and ensure no events are triggered in
 	 * that time. Repeat this 10 times.
@@ -261,14 +287,15 @@ void test_trigger_interval_change_in_connected(void)
 		TEST_ASSERT_INT_WITHIN(1, HOUR_IN_SECONDS * 12, elapsed_time);
 
 		send_location_search_done();
-		check_location_event(LOCATION_SEARCH_DONE);
-		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+		expect_location_event(LOCATION_SEARCH_DONE);
+		expect_fota_event(FOTA_POLL_REQUEST);
+		expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+		expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	}
 
 	/* Cleanup */
 	send_cloud_disconnected();
-	check_no_events(WEEK_IN_SECONDS);
+	expect_no_events(WEEK_IN_SECONDS);
 }
 
 void test_trigger_disconnect_and_connect_when_triggering(void)
@@ -293,16 +320,17 @@ void test_trigger_disconnect_and_connect_when_triggering(void)
 		TEST_ASSERT_INT_WITHIN(1, timeout, elapsed_time);
 
 		send_location_search_done();
-		check_location_event(LOCATION_SEARCH_DONE);
-		check_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+		expect_location_event(LOCATION_SEARCH_DONE);
+		expect_fota_event(FOTA_POLL_REQUEST);
+		expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+		expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 		first_trigger_after_connect = false;
 
 		/* Disconnect and connect every second iteration */
 		if (i % 2 == 0) {
 			send_cloud_disconnected();
-			check_no_events(7200);
+			expect_no_events(7200);
 			send_cloud_connected_ready_to_send();
 
 			first_trigger_after_connect = true;
@@ -311,7 +339,91 @@ void test_trigger_disconnect_and_connect_when_triggering(void)
 
 	/* Cleanup */
 	send_cloud_disconnected();
-	check_no_events(WEEK_IN_SECONDS);
+	expect_no_events(WEEK_IN_SECONDS);
+}
+
+void test_fota_downloading(void)
+{
+	/* Transition to STATE_FOTA_DOWNLOADING */
+	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
+	expect_fota_event(FOTA_DOWNLOADING_UPDATE);
+
+	/* A cloud ready message and button trigger should now cause no action */
+	send_cloud_connected_ready_to_send();
+	expect_no_events(7200);
+	button_handler(DK_BTN1_MSK, DK_BTN1_MSK);
+	expect_no_events(7200);
+
+	/* Cleanup */
+	send_fota_msg(FOTA_DOWNLOAD_CANCELED);
+	expect_fota_event(FOTA_DOWNLOAD_CANCELED);
+
+	expect_no_events(7200);
+}
+
+void test_fota_waiting_for_network_disconnect(void)
+{
+	/* Transition to STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT */
+	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
+	expect_fota_event(FOTA_DOWNLOADING_UPDATE);
+	send_fota_msg(FOTA_SUCCESS_REBOOT_NEEDED);
+	expect_fota_event(FOTA_SUCCESS_REBOOT_NEEDED);
+
+	/* Veriy that the module sends NETWORK_DISCONNECT */
+	expect_network_event(NETWORK_DISCONNECT);
+
+	expect_no_events(10);
+
+	/* Send a NETWORK_DISCONNECTED event to trigger transition to STATE_FOTA_REBOOTING */
+	send_network_disconnected();
+	expect_network_event(NETWORK_DISCONNECTED);
+
+	/* Give the system time to reboot */
+	k_sleep(K_SECONDS(10));
+
+	TEST_ASSERT_EQUAL(1, sys_reboot_fake.call_count);
+
+	/* Cleanup */
+	send_fota_msg(FOTA_DOWNLOAD_CANCELED);
+	expect_fota_event(FOTA_DOWNLOAD_CANCELED);
+
+	expect_no_events(7200);
+}
+
+void test_fota_waiting_for_network_disconnect_to_apply_image(void)
+{
+	/* Transition to STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE */
+	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
+	expect_fota_event(FOTA_DOWNLOADING_UPDATE);
+	send_fota_msg(FOTA_IMAGE_APPLY_NEEDED);
+	expect_fota_event(FOTA_IMAGE_APPLY_NEEDED);
+
+	/* Veriy that the module sends NETWORK_DISCONNECT */
+	expect_network_event(NETWORK_DISCONNECT);
+
+	expect_no_events(10);
+
+	/* Send a NETWORK_DISCONNECTED event to trigger transition to STATE_FOTA_APPLYING_IMAGE */
+	send_network_disconnected();
+	expect_network_event(NETWORK_DISCONNECTED);
+
+	/* Verify that the module sends FOTA_IMAGE_APPLY */
+	expect_fota_event(FOTA_IMAGE_APPLY);
+
+	/* Trigger reboot */
+	send_fota_msg(FOTA_SUCCESS_REBOOT_NEEDED);
+	expect_fota_event(FOTA_SUCCESS_REBOOT_NEEDED);
+
+	/* Give the system time to reboot */
+	k_sleep(K_SECONDS(10));
+
+	TEST_ASSERT_EQUAL(1, sys_reboot_fake.call_count);
+
+	/* Cleanup */
+	send_fota_msg(FOTA_DOWNLOAD_CANCELED);
+	expect_fota_event(FOTA_DOWNLOAD_CANCELED);
+
+	expect_no_events(7200);
 }
 
 /* This is required to be added to each test. That is because unity's

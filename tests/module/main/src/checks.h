@@ -7,14 +7,17 @@
 #include "location.h"
 #include "network.h"
 #include "power.h"
+#include "fota.h"
 
-void check_location_event(enum location_msg_type expected_location_type);
+void expect_location_event(enum location_msg_type expected_location_type);
 
-void check_network_event(enum network_msg_type expected_network_type);
+void expect_network_event(enum network_msg_type expected_network_type);
 
-void check_power_event(enum power_msg_type expected_power_type);
+void expect_power_event(enum power_msg_type expected_power_type);
 
-void check_no_events(uint32_t timeout_sec);
+void expect_fota_event(enum fota_msg_type expected_fota_type);
+
+void expect_no_events(uint32_t timeout_sec);
 
 void purge_location_events(void);
 
