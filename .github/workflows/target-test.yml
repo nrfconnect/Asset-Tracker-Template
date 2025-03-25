@@ -104,8 +104,7 @@ jobs:
               --org ${{ vars.MEMFAULT_ORGANIZATION_SLUG }} \
               --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
               upload-mcu-symbols \
-              --software-type asset-tracker-template-ci-${{ matrix.device }} \
-              --software-version ${{ inputs.artifact_fw_version }} \
+              --check-uploaded \
               asset-tracker-template-${{ inputs.artifact_fw_version }}-${{ vars.DUT_DEVICE_TYPE }}-nrf91.elf
 
       - name: Target Tests
@@ -146,14 +145,14 @@ jobs:
           MEMFAULT_PROJECT_SLUG: ${{ vars.MEMFAULT_PROJECT_SLUG }}
           APP_BUNDLEID: ${{ env.APP_BUNDLEID }}
 
-      #      - name: Commit and Push Badge File to gh-pages Branch
-      #        if: ${{ matrix.device }} == ppk_thingy91x
-      #        continue-on-error: true
-      #        working-directory: asset-tracker-template
-      #        env:
-      #          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #        run: ./tests/on_target/scripts/commit_badge.sh
-      #
+      - name: Commit and Push Badge File to gh-pages Branch
+        if: ${{ matrix.device }} == ppk_thingy91x
+        continue-on-error: true
+        working-directory: asset-tracker-template
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./tests/on_target/scripts/commit_badge.sh
+
       - name: Results
         if: always()
         uses: pmeier/pytest-results-action@v0.7.1
