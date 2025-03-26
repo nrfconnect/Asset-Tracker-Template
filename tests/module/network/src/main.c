@@ -361,9 +361,9 @@ void test_light_search_done(void)
 
 	send_mdmev_evt(LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE);
 
-	wait_for_and_check_msg(&msg, NETWORK_LIGHT_SERACH_DONE);
+	wait_for_and_check_msg(&msg, NETWORK_LIGHT_SEARCH_DONE);
 
-	TEST_ASSERT_EQUAL(NETWORK_LIGHT_SERACH_DONE, msg.type);
+	TEST_ASSERT_EQUAL(NETWORK_LIGHT_SEARCH_DONE, msg.type);
 }
 
 void test_modem_reset_loop(void)
