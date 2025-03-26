@@ -44,7 +44,7 @@ enum network_msg_type {
 	 * attach to without finding a suitable cell according to 3GPP selection rules.
 	 * The modem will continue with a more thorough search unless it is explicitly stopped.
 	 */
-	NETWORK_LIGHT_SERACH_DONE,
+	NETWORK_LIGHT_SEARCH_DONE,
 
 	/* A network attach request has been rejected by the network. */
 	NETWORK_ATTACH_REJECTED,

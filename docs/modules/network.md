@@ -31,7 +31,7 @@ The following messages are supported:
 - **NETWORK_CONNECTED**: The device is connected to the network and has an IP address.
 - **NETWORK_MODEM_RESET_LOOP**: The modem has detected a reset loop with too many attach requests within a short time.
 - **NETWORK_UICC_FAILURE**: The modem has detected an error with the SIM card. Confirm that it is installed correctly.
-- **NETWORK_LIGHT_SERACH_DONE**: The modem has completed a light search based on previous cell history without finding a suitable cell. This message can be used to stop the search to save power.
+- **NETWORK_LIGHT_SEARCH_DONE**: The modem has completed a light search based on previous cell history without finding a suitable cell. This message can be used to stop the search to save power.
 - **NETWORK_ATTACH_REJECTED**: A network attach request has been rejected by the network.
 - **NETWORK_PSM_PARAMS**: PSM parameters have been received (in the `.psm_cfg` field of the message).
 - **NETWORK_EDRX_PARAMS**: eDRX parameters have been received (in `.edrx_cfg` field).
