@@ -682,13 +682,7 @@ static void state_connected_ready_run(void *o)
 				SEND_FATAL_ERROR();
 				return;
 			}
-		}
-	}
-
-	if (state_object->chan == &CLOUD_CHAN) {
-		const enum cloud_msg_type msg_type = MSG_TO_CLOUD_MSG(state_object->msg_buf).type;
-
-		if (msg_type == CLOUD_POLL_SHADOW) {
+		} else if (msg.type == CLOUD_POLL_SHADOW) {
 			LOG_DBG("Poll shadow trigger received");
 
 			shadow_get(true);
