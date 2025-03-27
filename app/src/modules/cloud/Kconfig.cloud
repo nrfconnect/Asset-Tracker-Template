@@ -87,12 +87,6 @@ config APP_CLOUD_MESSAGE_QUEUE_SIZE
 	help
 	  ZBus subscriber message queue size.
 
-config APP_CLOUD_POLL_INTERVAL_SECONDS
-	int "Poll interval in seconds"
-	default 10
-	help
-	  Interval in seconds between polling nRF Cloud CoAP.
-
 config APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout"
 	default 180
