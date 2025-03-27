@@ -127,28 +127,27 @@ static void state_connected_ready_run(void *o);
 static void state_connected_paused_entry(void *o);
 static void state_connected_paused_run(void *o);
 
-/* Defining the hierarchical cloud  module states:
- *
- *   STATE_RUNNING: The cloud  module has started and is running
- *      - STATE_DISCONNECTED: Cloud connection is not established
- *	- STATE_CONNECTING: The module is connecting to cloud
- *		- STATE_CONNECTING_ATTEMPT: The module is trying to connect to cloud
- *		- STATE_CONNECTING_BACKOFF: The module is waiting before trying to connect again
- *	- STATE_CONNECTED: Cloud connection has been established. Note that because of
- *			    connection ID being used, the connection is valid even though
- *			    network connection is intermittently lost (and socket is closed)
- *		- STATE_CONNECTED_READY: Connected to cloud and network connection, ready to send
- *		- STATE_CONNECTED_PAUSED: Connected to cloud, but not network connection
- */
+/* Defining the hierarchical cloud  module states: */
 enum cloud_module_state {
+	/* The cloud module has started and is running */
 	STATE_RUNNING,
-	STATE_DISCONNECTED,
-	STATE_CONNECTING,
-	STATE_CONNECTING_ATTEMPT,
-	STATE_CONNECTING_BACKOFF,
-	STATE_CONNECTED,
-	STATE_CONNECTED_READY,
-	STATE_CONNECTED_PAUSED,
+		/* Cloud connection is not established */
+		STATE_DISCONNECTED,
+		/* The module is connecting to cloud */
+		STATE_CONNECTING,
+			/* The module is trying to connect to cloud */
+			STATE_CONNECTING_ATTEMPT,
+			/* The module is waiting before trying to connect again */
+			STATE_CONNECTING_BACKOFF,
+		/* Cloud connection has been established. Note that because of
+		 * connection ID being used, the connection is valid even though
+		 * network connection is intermittently lost (and socket is closed)
+		 */
+		STATE_CONNECTED,
+			/* Connected to cloud and network connection, ready to send data */
+			STATE_CONNECTED_READY,
+			/* Connected to cloud, but not network connection */
+			STATE_CONNECTED_PAUSED,
 };
 
 /* Construct state table */
@@ -163,21 +162,21 @@ static const struct smf_state states[] = {
 				 &states[STATE_RUNNING],
 				 NULL),
 
-	[STATE_CONNECTING] = SMF_CREATE_STATE(
-				state_connecting_entry, NULL, NULL,
-				&states[STATE_RUNNING],
-				&states[STATE_CONNECTING_ATTEMPT]),
+	[STATE_CONNECTING] =
+		SMF_CREATE_STATE(state_connecting_entry, NULL, NULL,
+				 &states[STATE_RUNNING],
+				 &states[STATE_CONNECTING_ATTEMPT]),
 
-	[STATE_CONNECTING_ATTEMPT] = SMF_CREATE_STATE(
-				state_connecting_attempt_entry, NULL, NULL,
-				&states[STATE_CONNECTING],
-				NULL),
+	[STATE_CONNECTING_ATTEMPT] =
+		SMF_CREATE_STATE(state_connecting_attempt_entry, NULL, NULL,
+				 &states[STATE_CONNECTING],
+				 NULL),
 
-	[STATE_CONNECTING_BACKOFF] = SMF_CREATE_STATE(
-				state_connecting_backoff_entry, state_connecting_backoff_run,
-				state_connecting_backoff_exit,
-				&states[STATE_CONNECTING],
-				NULL),
+	[STATE_CONNECTING_BACKOFF] =
+		SMF_CREATE_STATE(state_connecting_backoff_entry, state_connecting_backoff_run,
+				 state_connecting_backoff_exit,
+				 &states[STATE_CONNECTING],
+				 NULL),
 
 	[STATE_CONNECTED] =
 		SMF_CREATE_STATE(state_connected_entry, NULL, state_connected_exit,
@@ -327,7 +326,7 @@ static void state_running_run(void *o)
 	}
 }
 
-/* Handlers for STATE_CLOUD_DISCONNECTED. */
+/* Handlers for STATE_DISCONNECTED. */
 static void state_disconnected_entry(void *o)
 {
 	int err;
@@ -427,7 +426,7 @@ static void state_connecting_backoff_exit(void *o)
 	(void)k_work_cancel_delayable(&backoff_timer_work);
 }
 
-/* Handler for STATE_CLOUD_CONNECTED. */
+/* Handler for STATE_CONNECTED. */
 static void state_connected_entry(void *o)
 {
 	ARG_UNUSED(o);
