@@ -27,9 +27,3 @@ add_subdirectory(src/cbor)
 add_subdirectory_ifdef(CONFIG_APP_POWER src/modules/power)
 add_subdirectory_ifdef(CONFIG_APP_ENVIRONMENTAL src/modules/environmental)
 add_subdirectory_ifdef(CONFIG_APP_LED src/modules/led)
-
-if (CONFIG_NRF_CLOUD_COAP_SEC_TAG GREATER_EQUAL 2147483648 AND CONFIG_NRF_CLOUD_COAP_SEC_TAG LESS_EQUAL 2147483667)
-	message(WARNING "CONFIG_NRF_CLOUD_COAP_SEC_TAG is set to a developer security tag. "
-			"TLS traffic can now be decrypted with Nordic tools. "
-			"This should only be used during development and testing.")
-endif()
