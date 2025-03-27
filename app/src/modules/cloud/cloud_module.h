@@ -42,8 +42,10 @@ enum cloud_msg_type {
 
 struct cloud_msg {
 	enum cloud_msg_type type;
-	struct cloud_payload payload;
-	struct cloud_shadow_response response;
+	union  {
+		struct cloud_payload payload;
+		struct cloud_shadow_response response;
+	};
 };
 
 #define MSG_TO_CLOUD_MSG(_msg)	(*(const struct cloud_msg *)_msg)
