@@ -28,13 +28,12 @@ jobs:
           # Openai
           AI_PROVIDER: "openai"
           AI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          AI_MODEL: "gpt-4o"
-          AI_TEMPERATURE: 0.3
+          AI_MODEL: "o1"
 
           # Optional configurations
           APPROVE_REVIEWS: true
           MAX_COMMENTS: 10
           PROJECT_CONTEXT: "This is a real-time configurable ultra-low \
                             power capable asset tracking application firmware for the nRF91 Series" # Project context for better reviews
-          CONTEXT_FILES: "README.md, docs/ARCHITECTURE.md" # Files to include in review (comma-separated)
+          CONTEXT_FILES: "README.md" # Files to include in review (comma-separated)
           EXCLUDE_PATTERNS: "**/*.lock,**/*.json,**/*.md" # Files to exclude (glob patterns, comma-separated)
