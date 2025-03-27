@@ -400,7 +400,7 @@ static void idle_run(void *o)
 	if (state_object->chan == &CLOUD_CHAN) {
 		struct cloud_msg msg = MSG_TO_CLOUD_MSG(state_object->msg_buf);
 
-		if (msg.type == CLOUD_CONNECTED_READY_TO_SEND) {
+		if (msg.type == CLOUD_CONNECTED) {
 			state_object->connected = true;
 			smf_set_state(SMF_CTX(state_object), &states[STATE_TRIGGERING]);
 			return;
@@ -454,8 +454,7 @@ static void triggering_run(void *o)
 	if (state_object->chan == &CLOUD_CHAN) {
 		struct cloud_msg msg = MSG_TO_CLOUD_MSG(state_object->msg_buf);
 
-		if ((msg.type == CLOUD_CONNECTED_PAUSED) ||
-		    (msg.type == CLOUD_DISCONNECTED)) {
+		if (msg.type == CLOUD_DISCONNECTED) {
 			state_object->connected = false;
 			smf_set_state(SMF_CTX(state_object), &states[STATE_IDLE]);
 			return;

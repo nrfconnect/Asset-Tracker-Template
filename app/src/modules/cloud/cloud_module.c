@@ -527,7 +527,7 @@ static void state_connected_ready_entry(void *o)
 {
 	int err;
 	struct cloud_msg cloud_msg = {
-		.type = CLOUD_CONNECTED_READY_TO_SEND,
+		.type = CLOUD_CONNECTED,
 	};
 
 	ARG_UNUSED(o);
@@ -703,7 +703,7 @@ static void state_connected_paused_entry(void *o)
 {
 	int err;
 	struct cloud_msg cloud_msg = {
-		.type = CLOUD_CONNECTED_PAUSED,
+		.type = CLOUD_DISCONNECTED,
 	};
 
 	ARG_UNUSED(o);
