@@ -80,8 +80,7 @@ ZBUS_LISTENER_DEFINE(cloud_test_listener, cloud_chan_cb);
 #define FAKE_DEVICE_ID		"test_device"
 
 static K_SEM_DEFINE(cloud_disconnected, 0, 1);
-static K_SEM_DEFINE(cloud_connected_ready, 0, 1);
-static K_SEM_DEFINE(cloud_connected_paused, 0, 1);
+static K_SEM_DEFINE(cloud_connected, 0, 1);
 static K_SEM_DEFINE(data_sent, 0, 1);
 
 static int nrf_cloud_client_id_get_custom_fake(char *buf, size_t len)
@@ -105,10 +104,8 @@ static void cloud_chan_cb(const struct zbus_channel *chan)
 
 		if (status == CLOUD_DISCONNECTED) {
 			k_sem_give(&cloud_disconnected);
-		} else if (status == CLOUD_CONNECTED_READY_TO_SEND) {
-			k_sem_give(&cloud_connected_ready);
-		} else if (status == CLOUD_CONNECTED_PAUSED) {
-			k_sem_give(&cloud_connected_paused);
+		} else if (status == CLOUD_CONNECTED) {
+			k_sem_give(&cloud_connected);
 		}
 	}
 }
@@ -162,7 +159,7 @@ void test_connecting_backoff(void)
 	/* Transport module needs CPU to run state machine */
 	k_sleep(K_MSEC(10));
 
-	err = k_sem_take(&cloud_connected_ready, K_SECONDS(60));
+	err = k_sem_take(&cloud_connected, K_SECONDS(60));
 	TEST_ASSERT_EQUAL(-EAGAIN, err);
 
 	connect_duration_sec = k_uptime_delta(&connect_start_time) / MSEC_PER_SEC;
@@ -182,7 +179,7 @@ void test_transition_disconnected_connected_ready(void)
 
 	zbus_chan_pub(&NETWORK_CHAN, &status, K_NO_WAIT);
 
-	err = k_sem_take(&cloud_connected_ready, K_SECONDS(1));
+	err = k_sem_take(&cloud_connected, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 }
 
@@ -208,7 +205,7 @@ void test_sending_payload(void)
 	TEST_ASSERT_EQUAL(false, nrf_cloud_coap_json_message_send_fake.arg2_val);
 }
 
-void test_connected_ready_to_paused(void)
+void test_connected_to_disconnected(void)
 {
 	int err;
 	enum network_msg_type status = NETWORK_DISCONNECTED;
@@ -218,17 +215,17 @@ void test_connected_ready_to_paused(void)
 	/* Transport module needs CPU to run state machine */
 	k_sleep(K_MSEC(100));
 
-	err = k_sem_take(&cloud_connected_paused, K_SECONDS(1));
+	err = k_sem_take(&cloud_disconnected, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-void test_connected_paused_to_ready_send_payload(void)
+void test_connected_disconnected_to_connected_send_payload(void)
 {
 	int err;
 	enum network_msg_type status = NETWORK_CONNECTED;
 	struct cloud_msg msg = {
 		.type = CLOUD_PAYLOAD_JSON,
-		.payload.buffer = "{\"Another\": \"test\"}",
+		.payload.buffer = "{\"Another\": \"1\"}",
 		.payload.buffer_data_len = strnlen(msg.payload.buffer, sizeof(msg.payload.buffer)),
 	};
 
@@ -241,7 +238,7 @@ void test_connected_paused_to_ready_send_payload(void)
 	/* Transport module needs CPU to run state machine */
 	k_sleep(K_MSEC(100));
 
-	err = k_sem_take(&cloud_connected_ready, K_SECONDS(1));
+	err = k_sem_take(&cloud_connected, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_NO_WAIT);

@@ -123,10 +123,10 @@ static void button_handler(uint32_t button_states, uint32_t has_changed)
 	}
 }
 
-static void send_cloud_connected_ready_to_send(void)
+static void send_cloud_connected(void)
 {
 	struct cloud_msg cloud_msg = {
-		.type = CLOUD_CONNECTED_READY_TO_SEND,
+		.type = CLOUD_CONNECTED,
 	};
 
 	int err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
@@ -202,7 +202,7 @@ static void send_network_disconnected(void)
 void test_init_to_triggering_state(void)
 {
 	/* Transition the module into STATE_TRIGGERING */
-	send_cloud_connected_ready_to_send();
+	send_cloud_connected();
 
 	/* There's an initial transition to STATE_SAMPLE_DATA, where the entry function
 	 * sends a location search trigger.
@@ -226,7 +226,7 @@ void test_init_to_triggering_state(void)
 void test_button_press_on_connected(void)
 {
 	/* Transition to STATE_SAMPLE_DATA */
-	send_cloud_connected_ready_to_send();
+	send_cloud_connected();
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
 	/* Transistion to STATE_WAIT_FOR_TRIGGER */
@@ -263,7 +263,7 @@ void test_button_press_on_disconnected(void)
 void test_trigger_interval_change_in_connected(void)
 {
 	/* Transition to STATE_SAMPLE_DATA */
-	send_cloud_connected_ready_to_send();
+	send_cloud_connected();
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
 	/* As response to the shadow poll, the interval is set to 12 hours. */
@@ -303,7 +303,7 @@ void test_trigger_disconnect_and_connect_when_triggering(void)
 	bool first_trigger_after_connect = true;
 
 	/* Transition to STATE_SAMPLE_DATA */
-	send_cloud_connected_ready_to_send();
+	send_cloud_connected();
 
 	/* As response to the shadow poll, the interval is set to 12 hours. */
 	twelve_hour_interval_set();
@@ -331,7 +331,7 @@ void test_trigger_disconnect_and_connect_when_triggering(void)
 		if (i % 2 == 0) {
 			send_cloud_disconnected();
 			expect_no_events(7200);
-			send_cloud_connected_ready_to_send();
+			send_cloud_connected();
 
 			first_trigger_after_connect = true;
 		}
@@ -349,7 +349,7 @@ void test_fota_downloading(void)
 	expect_fota_event(FOTA_DOWNLOADING_UPDATE);
 
 	/* A cloud ready message and button trigger should now cause no action */
-	send_cloud_connected_ready_to_send();
+	send_cloud_connected();
 	expect_no_events(7200);
 	button_handler(DK_BTN1_MSK, DK_BTN1_MSK);
 	expect_no_events(7200);
