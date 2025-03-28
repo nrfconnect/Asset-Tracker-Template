@@ -3,9 +3,12 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-menu "Location"
-	depends on LOCATION
-	depends on LOCATION_DATA_DETAILS
+menuconfig APP_LOCATION
+	bool "Location"
+	default y if LOCATION
+	select LOCATION_DATA_DETAILS
+
+if APP_LOCATION
 
 config APP_LOCATION_THREAD_STACK_SIZE
 	int "Thread stack size"
@@ -35,4 +38,4 @@ module = APP_LOCATION
 module-str = Location
 source "subsys/logging/Kconfig.template.log_config"
 
-endmenu # Network
+endif # APP_LOCATION
