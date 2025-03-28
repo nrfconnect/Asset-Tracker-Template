@@ -9,7 +9,6 @@
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/task_wdt/task_wdt.h>
-#include <drivers/bme68x_iaq.h>
 #include <date_time.h>
 #include <zephyr/smf.h>
 
