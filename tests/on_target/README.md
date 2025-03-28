@@ -56,3 +56,24 @@ pytest -s -v -m "slow" tests/test_functional/test_fota.py::test_full_mfw_fota
 
 JLINK_VERSION=V794i
 GO_VERSION=1.20.5
+
+
+## Experimental: docker etb-decode
+```shell
+docker pull ghcr.io/dematteisgiacomo/etb_decoder:latest
+docker run --rm -it \
+  ghcr.io/dematteisgiacomo/etb_decoder:latest \
+  nrfutil toolchain-manager launch --shell
+```
+
+then in the docker:
+```shell
+etb-decode -h
+```
+
+try example files:
+```shell
+etb-decode -d etb_trace_decoder/example_etb_coredump.elf -s etb_trace_decoder/example_elf_file.elf -o decoded.txt
+```
+
+mount your own files and try it out
