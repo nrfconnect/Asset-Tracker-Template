@@ -6,8 +6,9 @@
 
 menuconfig APP_FOTA
 	bool "FOTA"
-	select FOTA
-	default y if !BOARD_NATIVE_POSIX
+	default y if (!BOARD_NATIVE_POSIX && NRF_CLOUD_FOTA_POLL)
+
+if APP_FOTA
 
 config APP_FOTA_THREAD_STACK_SIZE
 	int "Thread stack size"
@@ -32,8 +33,6 @@ config APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS
 	help
 	  Maximum time allowed for processing a single message in the module's state machine.
 	  The value must be smaller than CONFIG_APP_FOTA_WATCHDOG_TIMEOUT_SECONDS.
-
-if APP_FOTA
 
 module = APP_FOTA
 module-str = FOTA

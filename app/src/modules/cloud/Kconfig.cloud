@@ -4,8 +4,11 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-menu "Cloud module"
-	depends on NRF_CLOUD_COAP
+menuconfig APP_CLOUD
+	bool "Cloud module"
+	default y if NRF_CLOUD_COAP
+
+if APP_CLOUD
 
 config APP_CLOUD_SHELL
 	bool "Enable cloud shell"
@@ -112,4 +115,4 @@ module = APP_CLOUD
 module-str = Cloud
 source "subsys/logging/Kconfig.template.log_config"
 
-endmenu # Cloud
+endif # APP_CLOUD
