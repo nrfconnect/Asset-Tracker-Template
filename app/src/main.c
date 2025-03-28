@@ -398,9 +398,9 @@ static void idle_run(void *o)
 	struct main_state *state_object = o;
 
 	if (state_object->chan == &CLOUD_CHAN) {
-		struct cloud_msg msg = MSG_TO_CLOUD_MSG(state_object->msg_buf);
+		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
 
-		if (msg.type == CLOUD_CONNECTED) {
+		if (msg->type == CLOUD_CONNECTED) {
 			state_object->connected = true;
 			smf_set_state(SMF_CTX(state_object), &states[STATE_TRIGGERING]);
 			return;
@@ -452,17 +452,17 @@ static void triggering_run(void *o)
 	struct main_state *state_object = o;
 
 	if (state_object->chan == &CLOUD_CHAN) {
-		struct cloud_msg msg = MSG_TO_CLOUD_MSG(state_object->msg_buf);
+		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
 
-		if (msg.type == CLOUD_DISCONNECTED) {
+		if (msg->type == CLOUD_DISCONNECTED) {
 			state_object->connected = false;
 			smf_set_state(SMF_CTX(state_object), &states[STATE_IDLE]);
 			return;
 		}
 
-		if (msg.type == CLOUD_SHADOW_RESPONSE) {
-			err = get_update_interval_from_cbor_response(msg.response.buffer,
-								     msg.response.buffer_data_len,
+		if (msg->type == CLOUD_SHADOW_RESPONSE) {
+			err = get_update_interval_from_cbor_response(msg->response.buffer,
+								     msg->response.buffer_data_len,
 								     &state_object->interval_sec);
 			if (err) {
 				LOG_ERR("get_update_interval_from_cbor_response, error: %d", err);

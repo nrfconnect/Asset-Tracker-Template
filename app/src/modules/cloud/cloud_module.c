@@ -669,10 +669,10 @@ static void state_connected_ready_run(void *o)
 #endif /* CONFIG_APP_ENVIRONMENTAL */
 
 	if (state_object->chan == &CLOUD_CHAN) {
-		const struct cloud_msg msg = MSG_TO_CLOUD_MSG(state_object->msg_buf);
+		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
 
-		if (msg.type == CLOUD_PAYLOAD_JSON) {
-			err = nrf_cloud_coap_json_message_send(msg.payload.buffer,
+		if (msg->type == CLOUD_PAYLOAD_JSON) {
+			err = nrf_cloud_coap_json_message_send(msg->payload.buffer,
 							       false, confirmable);
 			if (err == -ENETUNREACH) {
 				LOG_WRN("Network is unreachable, error: %d", err);
@@ -682,7 +682,7 @@ static void state_connected_ready_run(void *o)
 				SEND_FATAL_ERROR();
 				return;
 			}
-		} else if (msg.type == CLOUD_POLL_SHADOW) {
+		} else if (msg->type == CLOUD_POLL_SHADOW) {
 			LOG_DBG("Poll shadow trigger received");
 
 			shadow_get(true);
