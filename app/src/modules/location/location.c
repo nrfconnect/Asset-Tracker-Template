@@ -9,6 +9,7 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/init.h>
+#include <zephyr/smf.h>
 #include <modem/location.h>
 #include <nrf_modem_gnss.h>
 #include <date_time.h>
@@ -48,7 +49,44 @@ ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, location, 0);
 		 (MAX(sizeof(struct cloud_msg), \
 		      sizeof(struct network_msg)))))
 
-static bool gnss_initialized;
+/* State machine definitions */
+static const struct smf_state states[];
+
+/* Forward declarations */
+static void state_running_entry(void *o);
+static void state_running_run(void *o);
+
+/* Single state for the location module */
+enum location_module_state {
+	STATE_RUNNING,
+};
+
+/* Construct state table */
+static const struct smf_state states[] = {
+	[STATE_RUNNING] =
+		SMF_CREATE_STATE(state_running_entry,
+				 state_running_run,
+				 NULL,
+				 NULL,
+				 NULL),
+};
+
+/* Location module state object.
+ * Used to transfer data between state changes.
+ */
+struct location_state {
+	/* This must be first */
+	struct smf_ctx ctx;
+
+	/* Last channel type that a message was received on */
+	const struct zbus_channel *chan;
+
+	/* Last received message */
+	uint8_t msg_buf[MAX_MSG_SIZE];
+
+	/* GNSS initialization status */
+	bool gnss_initialized;
+};
 
 static void location_event_handler(const struct location_event_data *event_data);
 
@@ -90,9 +128,9 @@ void trigger_location_update(void)
 	}
 }
 
-void handle_network_chan(struct network_msg msg)
+void handle_network_chan(struct network_msg msg, struct location_state *state)
 {
-	if (gnss_initialized) {
+	if (state->gnss_initialized) {
 		return;
 	}
 
@@ -105,7 +143,7 @@ void handle_network_chan(struct network_msg msg)
 			LOG_ERR("Unable to init GNSS: %d", err);
 			SEND_FATAL_ERROR();
 		} else {
-			gnss_initialized = true;
+			state->gnss_initialized = true;
 			LOG_DBG("GNSS initialized");
 		}
 	}
@@ -116,6 +154,38 @@ void handle_location_chan(enum location_msg_type location_msg_type)
 	if (location_msg_type == LOCATION_SEARCH_TRIGGER) {
 		LOG_DBG("Location search trigger received, getting location");
 		trigger_location_update();
+	}
+}
+
+/* State machine handlers */
+static void state_running_entry(void *o)
+{
+	int err;
+	struct location_state *state = (struct location_state *)o;
+
+	LOG_DBG("%s", __func__);
+
+	err = location_init(location_event_handler);
+	if (err) {
+		LOG_ERR("Unable to init location library: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	LOG_DBG("Location library initialized");
+	state->gnss_initialized = false;
+}
+
+static void state_running_run(void *o)
+{
+	struct location_state *state = (struct location_state *)o;
+
+	if (state->chan == &NETWORK_CHAN) {
+		handle_network_chan(MSG_TO_NETWORK_MSG(state->msg_buf), state);
+	}
+
+	if (state->chan == &LOCATION_CHAN) {
+		handle_location_chan(MSG_TO_LOCATION_TYPE(state->msg_buf));
 	}
 }
 
@@ -222,14 +292,13 @@ static void location_event_handler(const struct location_event_data *event_data)
 static void location_module_thread(void)
 {
 	int err;
-	const struct zbus_channel *chan;
 	int task_wdt_id;
 	const uint32_t wdt_timeout_ms =
 		(CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	uint8_t msg_buf[MAX_MSG_SIZE];
+	struct location_state location_state = { 0 };
 
 	LOG_DBG("Location module task started");
 
@@ -240,14 +309,8 @@ static void location_module_thread(void)
 		return;
 	}
 
-	err = location_init(location_event_handler);
-	if (err) {
-		LOG_ERR("Unable to init location library: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
-
-	LOG_DBG("location library initialized");
+	/* Initialize the state machine */
+	smf_set_initial(SMF_CTX(&location_state), &states[STATE_RUNNING]);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
@@ -257,7 +320,8 @@ static void location_module_thread(void)
 			return;
 		}
 
-		err = zbus_sub_wait_msg(&location, &chan, &msg_buf, zbus_wait_ms);
+		err = zbus_sub_wait_msg(&location, &location_state.chan,
+				       location_state.msg_buf, zbus_wait_ms);
 		if (err == -ENOMSG) {
 			continue;
 		} else if (err) {
@@ -266,12 +330,11 @@ static void location_module_thread(void)
 			return;
 		}
 
-		if (&NETWORK_CHAN == chan) {
-			handle_network_chan(MSG_TO_NETWORK_MSG(&msg_buf));
-		}
-
-		if (&LOCATION_CHAN == chan) {
-			handle_location_chan(MSG_TO_LOCATION_TYPE(&msg_buf));
+		err = smf_run_state(SMF_CTX(&location_state));
+		if (err) {
+			LOG_ERR("smf_run_state(), error: %d", err);
+			SEND_FATAL_ERROR();
+			return;
 		}
 	}
 }
