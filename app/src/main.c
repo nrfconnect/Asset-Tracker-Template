@@ -28,23 +28,19 @@
 
 #if defined(CONFIG_APP_POWER)
 #include "power.h"
-#define POWER_MSG_SIZE	sizeof(struct power_msg)
-#else
-#define POWER_MSG_SIZE	0
 #endif /* CONFIG_APP_POWER */
 
 /* Register log module */
 LOG_MODULE_REGISTER(main, CONFIG_APP_LOG_LEVEL);
 
-#define MAX_MSG_SIZE	(MAX(sizeof(struct cloud_msg),						\
-			 /* Button channel payload size */					\
-			 MAX(sizeof(uint8_t),							\
-			 /* Timer channel payload size */					\
-			 MAX(sizeof(int),							\
-			 MAX(sizeof(enum fota_msg_type),					\
-			 MAX(sizeof(enum location_msg_type),					\
-			 MAX(sizeof(struct network_msg), POWER_MSG_SIZE)))))))
-
+#define MAX_MSG_SIZE	(MAX_N(sizeof(struct cloud_msg),					\
+			       /* Button channel payload size */				\
+			       sizeof(uint8_t),							\
+			       /* Timer channel payload size */					\
+			       sizeof(int),							\
+			       sizeof(enum fota_msg_type),					\
+			       sizeof(enum location_msg_type),					\
+			       sizeof(struct network_msg)))
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
 
