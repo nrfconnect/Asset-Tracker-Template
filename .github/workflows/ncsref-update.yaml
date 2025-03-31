@@ -1,0 +1,79 @@
+name: Ncsref Update
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  build:
+    name: Build on latest NCS
+    runs-on: build_self_hosted
+    container: ghcr.io/zephyrproject-rtos/ci:v0.27.4
+    env:
+      CMAKE_PREFIX_PATH: /opt/toolchains
+    outputs:
+      run_id: ${{ github.run_id }}
+      version: ${{ env.VERSION }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: asset-tracker-template
+
+      - name: Initialize latest NCS
+        working-directory: asset-tracker-template
+        run: |
+          if [ ! -d "../.west" ]; then
+            west init -l .
+          else
+            echo ".west folder already exists, skipping west init."
+          fi
+          LATEST_NCS=$(git ls-remote https://github.com/nrfconnect/sdk-nrf main | awk '{print $1}')
+          sed -i "/revision:/s/\( *revision: *\).*/\1${LATEST_NCS}/" west.yml
+          echo Configuring build on NCS rev ${LATEST_NCS}
+          west update -o=--depth=1 -n
+          west blobs fetch hal_nordic
+
+          cat west.yml
+
+      - name: Install dependencies
+        run: |
+          pip install -r nrf/scripts/requirements-build.txt
+
+      - name: Set VERSION environment variable
+        shell: bash
+        run: |
+          if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+          else
+            echo "VERSION=${{ github.sha }}" >> $GITHUB_ENV
+          fi
+
+      - name: Set MEMFAULT_FW_TYPE and MEMFAULT_FW_VERSION_PREFIX
+        shell: bash
+        run: |
+          echo "MEMFAULT_FW_TYPE=asset-tracker-template-dev" >> $GITHUB_ENV
+          echo "MEMFAULT_FW_VERSION_PREFIX=0.0.0-dev" >> $GITHUB_ENV
+
+      - name: Build thingy91x firmware
+        working-directory: asset-tracker-template/app
+        run: |
+          mkdir -p artifacts
+          cp overlay-memfault.conf overlay-memfault-att.conf
+          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"dummykey\"" >> overlay-memfault-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"dummytype\" >> overlay-memfault-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"0.0.0-dev\" >> overlay-memfault-att.conf
+          west build -b thingy91x/nrf9151/ns -d build -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf" 2>&1 | tee artifacts/build_output_thingy91x.log
+
+      - name: Build nrf9151dk firmware
+        working-directory: asset-tracker-template/app
+        run: |
+          mkdir -p artifacts
+          cp overlay-memfault.conf overlay-memfault-att.conf
+          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"dummykey\"" >> overlay-memfault-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"dummytype\" >> overlay-memfault-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"0.0.0-dev\" >> overlay-memfault-att.conf
+          west build -b nrf9151dk/nrf9151/ns -d build -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf"
