@@ -55,8 +55,8 @@ def parse_memory_stats(log_file):
     ram_badge_file = os.path.join(badge_dir, "ram_badge.json")
     flash_badge_file = os.path.join(badge_dir, "flash_badge.json")
 
-    create_badge_json("RAM Usage", ram_used, ram_total, ram_percent, ram_badge_file)
-    create_badge_json("Flash Usage", flash_used, flash_total, flash_percent, flash_badge_file)
+    create_badge_json("RAM Usage thingy91x", ram_used, ram_total, ram_percent, ram_badge_file)
+    create_badge_json("Flash Usage thingy91x", flash_used, flash_total, flash_percent, flash_badge_file)
 
     print("Memory Usage Statistics:")
     print(f"FLASH: {flash_used:,} B / {flash_total:,} B ({flash_percent:.2f}%)")
