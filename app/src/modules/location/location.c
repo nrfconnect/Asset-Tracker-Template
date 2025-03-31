@@ -19,7 +19,6 @@
 #include "modem/lte_lc.h"
 #include "location.h"
 #include "network.h"
-#include "cloud_module.h"
 
 LOG_MODULE_REGISTER(location_module, CONFIG_APP_LOCATION_LOG_LEVEL);
 
@@ -41,13 +40,11 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(location);
 
 /* Observe channels */
 ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, location, 0);
-ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, location, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, location, 0);
 
 #define MAX_MSG_SIZE \
 	(MAX(sizeof(enum location_msg_type), \
-		 (MAX(sizeof(struct cloud_msg), \
-		      sizeof(struct network_msg)))))
+		 (sizeof(struct network_msg))))
 
 /* State machine definitions */
 static const struct smf_state states[];
