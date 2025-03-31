@@ -30,29 +30,14 @@ jobs:
             echo ".west folder already exists, skipping west init."
           fi
           LATEST_NCS=$(git ls-remote https://github.com/nrfconnect/sdk-nrf main | awk '{print $1}')
-          sed "/revision:/s/\( *revision: *\).*/\1${LATEST_NCS}/" west.yml
-          echo Building on NCS rev ${LATEST_NCS}
+          sed -i "/revision:/s/\( *revision: *\).*/\1${LATEST_NCS}/" west.yml
+          echo Configuring build on NCS rev ${LATEST_NCS}
           west update -o=--depth=1 -n
           west blobs fetch hal_nordic
 
       - name: Install dependencies
         run: |
           pip install -r nrf/scripts/requirements-build.txt
-
-      - name: Set VERSION environment variable
-        shell: bash
-        run: |
-          if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
-            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
-          else
-            echo "VERSION=${{ github.sha }}" >> $GITHUB_ENV
-          fi
-
-      - name: Set MEMFAULT_FW_TYPE and MEMFAULT_FW_VERSION_PREFIX
-        shell: bash
-        run: |
-          echo "MEMFAULT_FW_TYPE=asset-tracker-template-dev" >> $GITHUB_ENV
-          echo "MEMFAULT_FW_VERSION_PREFIX=0.0.0-dev" >> $GITHUB_ENV
 
       - name: Build thingy91x firmware
         working-directory: asset-tracker-template/app
