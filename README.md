@@ -45,8 +45,8 @@ The template is open-source for a reason, and we encourage users to contribute b
 
 ### Modules
 - [Main](docs/modules/main.md)
-- [Location]((docs/modules/location.md))
-- [LED]((docs/modules/led.md))
+- [Location](docs/modules/location.md)
+- [LED](docs/modules/led.md)
 - [FOTA](docs/modules/fota.md)
 - [Button](docs/modules/button.md)
 - [Cloud](docs/modules/cloud.md)
