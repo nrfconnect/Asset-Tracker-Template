@@ -33,8 +33,6 @@ on:
       - "README.md"
       - ".github/workflows/*.yml"
       - "!.github/workflows/build.yml"
-  schedule:
-    - cron: "0 0 * * *"
 
 jobs:
   build:
@@ -59,8 +57,6 @@ jobs:
           else
           echo ".west folder already exists, skipping west init."
           fi
-          west config manifest.group-filter +bsec
-          west config build.sysbuild True
           west update -o=--depth=1 -n
           west blobs fetch hal_nordic
 
