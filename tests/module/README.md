@@ -20,11 +20,8 @@ cd work/asset-tracker-template/
 west init -l .
 west update -o=--depth=1 -n
 
-cd ..
-pip install -r nrf/scripts/requirements-build.txt
-apt-get update
-apt install -y curl ruby-full
+pip install -r ../nrf/scripts/requirements-build.txt
+apt-get update && apt install -y curl ruby-full
 
-cd asset-tracker-template/
 west twister -T . -C --coverage-platform=native_sim -v --inline-logs --integration
 ```
