@@ -8,10 +8,8 @@
 #define _APP_COMMON_H_
 
 #include <zephyr/kernel.h>
-#include <zephyr/sys/reboot.h>
 #include <zephyr/logging/log_ctrl.h>
-#include <zephyr/zbus/zbus.h>
-#include <modem/lte_lc.h>
+#include <zephyr/sys/util.h>  /* For Zephyr's utility macros, including MAX */
 #if defined(CONFIG_MEMFAULT)
 #include <memfault/panics/assert.h>
 #endif
@@ -37,6 +35,31 @@ extern "C" {
 
 /** @brief Macro used to handle watchdog timeouts. */
 #define SEND_FATAL_ERROR_WATCHDOG_TIMEOUT() FATAL_ERROR_HANDLE(1)
+
+/* Helper macros for computing MAX with different numbers of arguments */
+#define MAX_1(a1) (a1)
+#define MAX_2(a1, a2) MAX(a1, a2)
+#define MAX_3(a1, a2, a3) MAX(MAX(a1, a2), a3)
+#define MAX_4(a1, a2, a3, a4) MAX(MAX(MAX(a1, a2), a3), a4)
+#define MAX_5(a1, a2, a3, a4, a5) MAX(MAX(MAX(MAX(a1, a2), a3), a4), a5)
+#define MAX_6(a1, a2, a3, a4, a5, a6) \
+    MAX(MAX(MAX(MAX(MAX(a1, a2), a3), a4), a5), a6)
+#define MAX_7(a1, a2, a3, a4, a5, a6, a7) \
+    MAX(MAX(MAX(MAX(MAX(MAX(a1, a2), a3), a4), a5), a6), a7)
+#define MAX_8(a1, a2, a3, a4, a5, a6, a7, a8) \
+    MAX(MAX(MAX(MAX(MAX(MAX(MAX(a1, a2), a3), a4), a5), a6), a7), a8)
+#define MAX_9(a1, a2, a3, a4, a5, a6, a7, a8, a9) \
+    MAX(MAX(MAX(MAX(MAX(MAX(MAX(MAX(a1, a2), a3), a4), a5), a6), a7), a8), a9)
+#define MAX_10(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
+    MAX(MAX(MAX(MAX(MAX(MAX(MAX(MAX(MAX(a1, a2), a3), a4), a5), a6), a7), a8), a9), a10)
+#define NUM_ARGS(...) NUM_VA_ARGS(__VA_ARGS__)
+#define SELECT_MAX_N(N) CONCAT(MAX_, N)
+
+/**
+ * @brief Macro to compute the maximum of a list of numbers.
+ * @param ... List of numbers to compute the maximum of.
+ */
+#define MAX_N(...) SELECT_MAX_N(NUM_ARGS(__VA_ARGS__))(__VA_ARGS__)
 
 #ifdef __cplusplus
 }
