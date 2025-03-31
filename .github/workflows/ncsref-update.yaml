@@ -55,7 +55,7 @@ jobs:
           echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"dummytype\" >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"0.0.0-dev\" >> overlay-memfault-att.conf
-          #west build -b thingy91x/nrf9151/ns -d build -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf" 2>&1 | tee artifacts/build_output_thingy91x.log
+          west build -b thingy91x/nrf9151/ns -d build -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf" 2>&1 | tee artifacts/build_output_thingy91x.log
 
       - name: Build nrf9151dk firmware
         working-directory: asset-tracker-template/app
@@ -66,7 +66,7 @@ jobs:
           echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"dummytype\" >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"0.0.0-dev\" >> overlay-memfault-att.conf
-          #west build -b nrf9151dk/nrf9151/ns -d build -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf"
+          west build -b nrf9151dk/nrf9151/ns -d build -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf"
 
       - name: Day checker
         id: day
@@ -81,7 +81,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add west.yml
           git commit -m "manifest: Auto update west.yml"
-          git push origin HEAD:auto-branch
-          gh pr create --title "manifest: Auto update west.yml" --body "Created by GitHub Action" --base main --head auto-branch
+          git push origin HEAD:auto-branch --force
+          gh pr create --title "manifest: Auto update west.yml" --body "Created by GitHub Action" --base main --head auto-branch || true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
