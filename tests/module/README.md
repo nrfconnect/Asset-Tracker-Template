@@ -18,10 +18,7 @@ docker run --rm -it \
 ```shell
 cd work/asset-tracker-template/
 west init -l .
-west config manifest.group-filter +bsec
-west config build.sysbuild True
 west update -o=--depth=1 -n
-west blobs fetch hal_nordic
 
 cd ..
 pip install -r nrf/scripts/requirements-build.txt
