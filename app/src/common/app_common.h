@@ -56,9 +56,35 @@ extern "C" {
 
 /**
  * @brief Macro to compute the maximum of a list of numbers.
+ *
  * @param ... List of numbers to compute the maximum of.
  */
-#define MAX_N(...) SELECT_MAX_N(NUM_VA_ARGS(__VA_ARGS__))(__VA_ARGS__)
+#define MAX_N(...)			SELECT_MAX_N(NUM_VA_ARGS(__VA_ARGS__))(__VA_ARGS__)
+
+/**
+ * @brief Helper macro for computing the size of a type.
+ * The intended use is with X macros to generate a list of sizes for each type in a list of types.
+ *
+ * @param _chan Channel to compute the size of the type for.
+ * @param _type Type to compute the size of.
+ *
+ * @return Size of the type.
+ */
+#define SIZE_OF_TYPE(_chan, _type)	sizeof(_type),
+
+/**
+ * @brief Macro to compute the maximum message size from a list of channel date types.
+ *	  The macro expands to a list of sizeof(type) for each channel's type, followed by a 0 to
+ *	  account for the trailing comma when expanding SIZE_OF_TYPE
+ *	  The MAX_N macro is used to find the maximum value in the list.
+ *	  Example: MAX_N(sizeof(struct cloud_msg), sizeof(enum fota_msg_type), 0)
+
+ * @param _CHAN_LIST List of channels to compute the maximum message size from.
+ *		     The list should be in the format: (CHANNEL_NAME, type)
+ *
+ * @return Maximum message size from the list of channels
+ */
+#define MAX_MSG_SIZE_FROM_LIST(_CHAN_LIST)	MAX_N(_CHAN_LIST(SIZE_OF_TYPE) 0)
 
 #ifdef __cplusplus
 }
