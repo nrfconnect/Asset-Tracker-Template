@@ -33,6 +33,7 @@
 
 /* Register log module */
 LOG_MODULE_REGISTER(main, CONFIG_APP_LOG_LEVEL);
+
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
 
@@ -56,21 +57,17 @@ ZBUS_CHAN_DEFINE(TIMER_CHAN,
 	X(LOCATION_CHAN,	enum location_msg_type)		\
 	X(TIMER_CHAN,		int)
 
-/* Calculate the maximum message size from the list of channels
- * The macro expands to a list of sizeof(type) for each channel's type, followed by a 0 to account
- * for the trailing comma when expanding SIZE_OF_TYPE
- * The MAX_N macro is used to find the maximum value in the list.
- * Example: MAX_N(sizeof(struct cloud_msg), sizeof(enum fota_msg_type), 0)
- */
-#define SIZE_OF_TYPE(chan, type)		sizeof(type),
-#define MAX_MSG_SIZE				MAX_N(CHANNEL_LIST(SIZE_OF_TYPE) 0)
+/* Calculate the maximum message size from the list of channels */
+#define MAX_MSG_SIZE				MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
 
-/* Add main_subscriber as observer to all the channels in the list.
- * This expands to a call to ZBUS_CHAN_ADD_OBS for each channel in the list.
+/* Add main_subscriber as observer to all the channels in the list. */
+#define ADD_OBSERVERS(_chan, _type)		ZBUS_CHAN_ADD_OBS(_chan, main_subscriber, 0);
+
+/*
+ * Expand to a call to ZBUS_CHAN_ADD_OBS for each channel in the list.
  * Example: ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, main_subscriber, 0);
  */
-#define ADD_OBSERVERS(_chan, _type)		ZBUS_CHAN_ADD_OBS(_chan, main_subscriber, 0);
-	CHANNEL_LIST(ADD_OBSERVERS)
+CHANNEL_LIST(ADD_OBSERVERS)
 
 /* Forward declarations */
 static void timer_work_fn(struct k_work *work);
