@@ -33,42 +33,35 @@ LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 #define CUSTOM_JSON_APPID_VAL_CONEVAL "CONEVAL"
 #define CUSTOM_JSON_APPID_VAL_BATTERY "BATTERY"
 
-#if defined(CONFIG_APP_POWER)
-#define BAT_MSG_SIZE	sizeof(struct power_msg)
-#else
-#define BAT_MSG_SIZE	0
-#endif /* CONFIG_APP_POWER */
-
-#if defined(CONFIG_APP_ENVIRONMENTAL)
-#define ENV_MSG_SIZE	sizeof(struct environmental_msg)
-#else
-#define ENV_MSG_SIZE	0
-#endif /* CONFIG_APP_ENVIRONMENTAL) */
-
-#define MAX_MSG_SIZE	(MAX(sizeof(struct cloud_msg),						\
-			 MAX(sizeof(struct network_msg),					\
-			 MAX(BAT_MSG_SIZE, ENV_MSG_SIZE))))
-
 BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
 	     CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS,
 	     "Watchdog timeout must be greater than maximum message processing time");
 
-/* Register subscriber */
-ZBUS_MSG_SUBSCRIBER_DEFINE(cloud);
+/* Register zbus subscriber */
+ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
 
-/* Observe channels */
-ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, cloud, 0);
-ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, cloud, 0);
+/* Define the channels that the module subscribes to, their associated message types
+ * and the subscriber that will receive the messages on the channel.
+ * ENVIRONMENTAL_CHAN and POWER_CHAN are optional and are only included if the
+ * corresponding module is enabled.
+ */
+#define CHANNEL_LIST(X)										\
+					 X(NETWORK_CHAN,	struct network_msg)		\
+					 X(CLOUD_CHAN,		struct cloud_msg)		\
+IF_ENABLED(CONFIG_APP_ENVIRONMENTAL,	(X(ENVIRONMENTAL_CHAN,	struct environmental_msg)))	\
+IF_ENABLED(CONFIG_APP_POWER,		(X(POWER_CHAN,		struct power_msg)))
 
-#if defined(CONFIG_APP_ENVIRONMENTAL)
-ZBUS_CHAN_ADD_OBS(ENVIRONMENTAL_CHAN, cloud, 0);
-#endif /* CONFIG_APP_ENVIRONMENTAL */
+/* Calculate the maximum message size from the list of channels */
+#define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
 
-#if defined(CONFIG_APP_POWER)
-ZBUS_CHAN_ADD_OBS(POWER_CHAN, cloud, 0);
-#endif /* CONFIG_APP_POWER */
+/* Add the cloud_subscriber as observer to all the channels in the list. */
+#define ADD_OBSERVERS(_chan, _type)	ZBUS_CHAN_ADD_OBS(_chan, cloud_subscriber, 0);
 
-/* Define channels provided by this module */
+/*
+ * Expand to a call to ZBUS_CHAN_ADD_OBS for each channel in the list.
+ * Example: ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, cloud_subscriber, 0);
+ */
+CHANNEL_LIST(ADD_OBSERVERS)
 
 ZBUS_CHAN_DEFINE(CLOUD_CHAN,
 		 struct cloud_msg,
@@ -92,7 +85,7 @@ ZBUS_CHAN_DEFINE(PRIV_CLOUD_CHAN,
 		 enum priv_cloud_msg,
 		 NULL,
 		 NULL,
-		 ZBUS_OBSERVERS(cloud),
+		 ZBUS_OBSERVERS(cloud_subscriber),
 		 CLOUD_BACKOFF_EXPIRED
 );
 
@@ -752,7 +745,7 @@ static void cloud_module_thread(void)
 			return;
 		}
 
-		err = zbus_sub_wait_msg(&cloud, &cloud_state.chan, cloud_state.msg_buf,
+		err = zbus_sub_wait_msg(&cloud_subscriber, &cloud_state.chan, cloud_state.msg_buf,
 					zbus_wait_ms);
 		if (err == -ENOMSG) {
 			continue;
