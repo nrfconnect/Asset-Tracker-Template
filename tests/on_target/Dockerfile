@@ -36,6 +36,7 @@ RUN <<EOT
     mv nrfutil /usr/local/bin
     chmod +x /usr/local/bin/nrfutil
     nrfutil install device
+    nrfutil install trace
 EOT
 
 # Install Go

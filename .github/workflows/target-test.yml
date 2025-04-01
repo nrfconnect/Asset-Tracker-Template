@@ -125,6 +125,7 @@ jobs:
         working-directory: asset-tracker-template/tests/on_target
         run: |
           pip install -r requirements.txt --break-system-packages
+          nrfutil install trace
 
       - name: Upload symbol file to Memfault
         if: ${{ matrix.device != 'ppk_thingy91x' }}
