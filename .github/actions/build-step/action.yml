@@ -46,10 +46,15 @@ runs:
           echo "VERSION=${{ inputs.version }}" >> $GITHUB_OUTPUT
           echo "UPLOAD_ID=${{ inputs.short_board }}" >> $GITHUB_OUTPUT
         fi
+        if [[ -z "${{ inputs.memfault_fw_type }}" ]]; then
+          FW_TYPE=asset-tracker-template-dev
+        else
+          FW_TYPE=${{ inputs.memfault_fw_type }}
+        fi
         cd ${{ inputs.path }}
         cp overlay-memfault.conf overlay-memfault-att.conf
         echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ inputs.memfault_project_key }}\"" >> overlay-memfault-att.conf
-        echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ inputs.memfault_fw_type }}\" >> overlay-memfault-att.conf
+        echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"$FW_TYPE\" >> overlay-memfault-att.conf
         echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-att.conf
         echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"${{ inputs.memfault_fw_version_prefix }}+\" >> overlay-memfault-att.conf
 
@@ -81,4 +86,4 @@ runs:
     - name: Generate Partition Manager Report
       shell: bash
       run: |
-        sed '1d' ${{ inputs.path }}/build/partition_manager_report.txt > artifacts/pmr-${{ inputs.short_board }}-nrf91-default-${{ env.VERSION }}.txt
+        sed '1d' ${{ inputs.path }}/build/partition_manager_report.txt > artifacts/pmr-${{ inputs.short_board }}-nrf91-default-${{ steps.setup.outputs.VERSION }}.txt
