@@ -20,6 +20,10 @@ on:
         type: boolean
         required: false
         default: false
+      nrfsdk_sha_update:
+        type: boolean
+        required: false
+        default: false
 
   workflow_dispatch:
     inputs:
@@ -54,12 +58,13 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             matrix="${{ github.event.inputs.devices }}"
+          elif [[ "${{ inputs.is_scheduled }}" == "true" ]]; then
+              matrix='["thingy91x","nrf9151dk"]'
           else
-            if [[ "${{ inputs.is_scheduled }}" == "true" ]]; then
-              matrix='["thingy91x","nrf9151dk","ppk_thingy91x"]'
-            else
-              matrix='["thingy91x"]'
-            fi
+            matrix='["thingy91x"]'
+          fi
+          if [[ -z "$matrix" ]]; then
+            matrix='["thingy91x"]'
           fi
 
           echo "Matrix as string: $matrix"
@@ -80,12 +85,10 @@ jobs:
     runs-on: cia-trd-${{ matrix.device }}
     environment: ${{ matrix.device }}
     name: Target Test - ${{ matrix.device }}
-
     permissions:
       actions: read
       contents: write
       packages: read
-
     container:
       image: ghcr.io/nrfconnect/asset-tracker-template:test-docker-v1.0.1
       options: --privileged
@@ -108,8 +111,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: firmware-*
-          merge-multiple: true
+          name: firmware-artifacts-att
           path: asset-tracker-template/tests/on_target/artifacts
           run-id: ${{ inputs.artifact_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}

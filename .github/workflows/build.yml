@@ -7,6 +7,10 @@ on:
         type: boolean
         required: false
         default: false
+      memfault_fw_type:
+        type: string
+        required: false
+        default: "asset-tracker-template-dev"
   workflow_call:
     inputs:
       memfault_fw_type:
@@ -28,6 +32,9 @@ on:
       version:
         description: The version of the firmware built on this run_id
         value: ${{ jobs.build.outputs.version }}
+      ncsupdate_pr:
+        description: Pull request id for west ncs pointer
+        value: ${{ jobs.build.outputs.ncsupdate_pr }}
 
   pull_request:
     paths-ignore:
@@ -47,6 +54,7 @@ jobs:
     outputs:
       run_id: ${{ github.run_id }}
       version: ${{ env.VERSION }}
+      ncsupdate_pr: ${{ steps.pr.outputs.pull-request-number }}
     permissions:
       contents: write
       pull-requests: write
@@ -78,9 +86,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r nrf/scripts/requirements-build.txt
-          apt update
-          apt install -y --no-install-recommends gh
-
           rm -rf artifacts
           mkdir -p artifacts
 
@@ -105,8 +110,10 @@ jobs:
         run: |
           if [[ -z "${{ inputs.memfault_fw_type }}" ]]; then
             echo "MEMFAULT_FW_TYPE=asset-tracker-template-dev" >> $GITHUB_ENV
+            echo "MEMFAULT_FW_TYPE=asset-tracker-template-dev"
           else
             echo "MEMFAULT_FW_TYPE=${{ inputs.memfault_fw_type }}" >> $GITHUB_ENV
+            echo "MEMFAULT_FW_TYPE=${{ inputs.memfault_fw_type }}"
           fi
 
           if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
@@ -132,7 +139,7 @@ jobs:
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           memfault_project_key: ${{ secrets.MEMFAULT_PROJECT_KEY }}
-          memfault_fw_type:  ${{ inputs.memfault_fw_type }}
+          memfault_fw_type: ${{ env.MEMFAULT_FW_TYPE }}
           memfault_fw_version_prefix: ${{ env.MEMFAULT_FW_VERSION_PREFIX }}
           board: nrf9151dk/nrf9151/ns
           short_board: nrf9151dk
@@ -145,13 +152,13 @@ jobs:
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           memfault_project_key: ${{ secrets.MEMFAULT_PROJECT_KEY }}
-          memfault_fw_type:  ${{ inputs.memfault_fw_type }}
+          memfault_fw_type: ${{ inputs.memfault_fw_type }}
           memfault_fw_version_prefix: ${{ env.MEMFAULT_FW_VERSION_PREFIX }}
           board: nrf9151dk/nrf9151/ns
           short_board: nrf9151dk
           version: ${{ env.VERSION }}
           path: asset-tracker-template/app
-      
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -163,18 +170,18 @@ jobs:
           echo Run id: ${{ github.run_id }}
           echo Version: ${{ env.VERSION }}
 
-      - name: Auto PR update NCS reference
+      - name: Create update PR
         if: ${{ inputs.nrfsdk_sha_update }}
-        working-directory: asset-tracker-template
+        uses: peter-evans/create-pull-request@v7
+        id: pr
+        with:
+          path: asset-tracker-template
+          add-paths: west.yml
+          commit-message: "manifest: auto: Update nrf-sdk SHA"
+          branch: nrf-manifest-auto-branch
+          base: main
+          title: "manifest: auto: Update nrf-sdk SHA"
+
+      - name: Check outputs
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add west.yml
-          git commit -m "manifest: auto: Update nrf-sdk SHA"
-          git push origin HEAD:nrf-manifest-auto-branch --force
-          gh pr create --title "manifest: auto: Update nrf-sdk SHA" \
-            --body "Created by GitHub Action" \
-            --base main \
-            --head nrf-manifest-auto-branch || true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo PR created: ${{ steps.pr.outputs.pull-request-number }}
