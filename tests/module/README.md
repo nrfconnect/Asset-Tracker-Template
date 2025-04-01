@@ -23,5 +23,5 @@ west update -o=--depth=1 -n
 pip install -r ../nrf/scripts/requirements-build.txt
 apt-get update && apt install -y curl ruby-full
 
-west twister -T . -C --coverage-platform=native_sim -v --inline-logs --integration
+west twister -T tests/ -C --coverage-platform=native_sim -v --inline-logs --integration
 ```

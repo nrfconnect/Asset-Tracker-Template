@@ -58,7 +58,7 @@ jobs:
       - name: Build and test
         working-directory: asset-tracker-template
         run: |
-          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} west twister -T . -C --coverage-platform=native_sim -v --inline-logs --integration
+          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} west twister -T tests/ -C --coverage-platform=native_sim -v --inline-logs --integration
 
       - name: Extract coverage into sonarqube xml format
         working-directory: asset-tracker-template
