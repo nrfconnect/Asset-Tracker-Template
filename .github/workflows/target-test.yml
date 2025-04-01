@@ -40,16 +40,41 @@ on:
         type: string
         required: false
         default: tests
+      devices:
+        description: JSON array of devices. e.g. [\"thingy91x\",\"nrf9151dk\"]
+        type: string
+        required: false
+        default: '[\"thingy91x\"]'
 
 jobs:
+  set-matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - id: set-matrix
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            matrix="${{ github.event.inputs.devices }}"
+          else
+            if [[ "${{ inputs.is_scheduled }}" == "true" ]]; then
+              matrix='["thingy91x","nrf9151dk"]'
+            else
+              matrix='["thingy91x"]'
+            fi
+          fi
+
+          echo "Matrix as string: $matrix"
+          echo "device_matrix=$matrix" >> $GITHUB_OUTPUT
+
+    outputs:
+      device_matrix: ${{ steps.set-matrix.outputs.device_matrix }}
+
   target_test:
     # This will create multiple jobs, one for each target defined in the matrix
+    needs: set-matrix
     strategy:
       fail-fast: false # Don't fail all jobs if one fails
       matrix:
-        include:
-          - device: nrf9151dk
-          - device: thingy91x
+        device: ${{ fromJson(needs.set-matrix.outputs.device_matrix) }}
 
     # Self-hosted runner is labeled according to the device it is linked with
     runs-on: cia-trd-${{ matrix.device }}
