@@ -212,6 +212,7 @@ jobs:
           echo Version: ${{ env.VERSION }}
 
       - name: Auto PR update NCS reference
+        if: ${{ inputs.nrfsdk_sha_update }}
         working-directory: asset-tracker-template
         run: |
           git config user.name "github-actions[bot]"
