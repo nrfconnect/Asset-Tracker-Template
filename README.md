@@ -34,6 +34,7 @@ The template is open-source for a reason, and we encourage users to contribute b
 ## Table of Contents
 
 ### Common
+- [Getting Started](docs/common/getting_started.md)
 - [Business Logic](docs/common/business_logic.md)
 - [Configurability](docs/common/configurability.md)
 - [Customization](docs/common/customization.md)
