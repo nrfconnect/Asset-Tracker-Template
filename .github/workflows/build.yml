@@ -135,6 +135,7 @@ jobs:
           sed -i '1d' ../artifacts/pmr-thingy91x-nrf91-default-${{ env.VERSION }}.txt
 
       - name: Build nrf9151dk firmware
+        if: ${{ github.event_name != 'pull_request' }}
         working-directory: asset-tracker-template/app
         run: |
           mkdir -p artifacts
