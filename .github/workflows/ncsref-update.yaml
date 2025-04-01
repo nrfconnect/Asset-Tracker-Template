@@ -1,4 +1,4 @@
-name: Ncsref Update
+name: Nrf-sdk Update, Build and Test
 
 on:
   workflow_dispatch:
@@ -7,81 +7,20 @@ on:
 
 jobs:
   build:
-    name: Build on latest NCS
-    runs-on: build_self_hosted
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    with:
+      nrfsdk_sha_update: true
+  test:
     permissions:
+      actions: read
       contents: write
-      pull-requests: write
-    container: ghcr.io/zephyrproject-rtos/ci:v0.27.4
-    env:
-      CMAKE_PREFIX_PATH: /opt/toolchains
-    outputs:
-      run_id: ${{ github.run_id }}
-      version: ${{ env.VERSION }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          path: asset-tracker-template
-
-      - name: Initialize latest NCS
-        working-directory: asset-tracker-template
-        run: |
-          if [ ! -d "../.west" ]; then
-            west init -l .
-          else
-            echo ".west folder already exists, skipping west init."
-          fi
-          LATEST_NCS=$(git ls-remote https://github.com/nrfconnect/sdk-nrf main | awk '{print $1}')
-          sed -i "/revision:/s/\( *revision: *\).*/\1${LATEST_NCS}/" west.yml
-          echo Configuring build on NCS rev ${LATEST_NCS}
-          west update -o=--depth=1 -n
-          west blobs fetch hal_nordic
-
-      - name: Install dependencies
-        run: |
-          pip install -r nrf/scripts/requirements-build.txt
-          apt update
-          apt install -y --no-install-recommends gh
-        env:
-          DEBIAN_FRONTEND: noninteractive
-
-      - name: Build thingy91x firmware
-        working-directory: asset-tracker-template/app
-        run: |
-          mkdir -p artifacts
-          cp overlay-memfault.conf overlay-memfault-att.conf
-          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"dummykey\"" >> overlay-memfault-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"dummytype\" >> overlay-memfault-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"0.0.0-dev\" >> overlay-memfault-att.conf
-          west build -b thingy91x/nrf9151/ns -d build -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf" 2>&1 | tee artifacts/build_output_thingy91x.log
-
-      - name: Build nrf9151dk firmware
-        working-directory: asset-tracker-template/app
-        run: |
-          mkdir -p artifacts
-          cp overlay-memfault.conf overlay-memfault-att.conf
-          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"dummykey\"" >> overlay-memfault-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"dummytype\" >> overlay-memfault-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"0.0.0-dev\" >> overlay-memfault-att.conf
-          west build -b nrf9151dk/nrf9151/ns -d build -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf"
-
-      - name: Day checker
-        id: day
-        run: |
-          echo "day=$(date +%a)" >> $GITHUB_OUTPUT
-
-      - name: Auto PR update NCS reference
-        working-directory: asset-tracker-template
-        #        if: ${{ steps.day.outputs.day == 'Sun' }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add west.yml
-          git commit -m "manifest: Auto update west.yml"
-          git push origin HEAD:auto-branch --force
-          gh pr create --title "manifest: Auto update west.yml" --body "Created by GitHub Action" --base main --head auto-branch || true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      packages: read
+    uses: ./.github/workflows/target-test.yml
+    needs: build
+    secrets: inherit
+    with:
+      artifact_fw_version: ${{ needs.build.outputs.version }}
+      artifact_run_id: ${{ needs.build.outputs.run_id }}
+      pytest_marker: not slow
+      is_scheduled: false

@@ -17,6 +17,10 @@ on:
         type: boolean
         required: false
         default: false
+      nrfsdk_sha_update:
+        type: boolean
+        required: false
+        default: false
     outputs:
       run_id:
         description: The run ID of the workflow to fetch artifacts from
@@ -43,6 +47,9 @@ jobs:
     outputs:
       run_id: ${{ github.run_id }}
       version: ${{ env.VERSION }}
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,16 +60,26 @@ jobs:
         working-directory: asset-tracker-template
         run: |
           if [ ! -d "../.west" ]; then
-          west init -l .
+            west init -l .
           else
-          echo ".west folder already exists, skipping west init."
+            echo ".west folder already exists, skipping west init."
+          fi
+          if [ "$NRFSDK_SHA_UPDATE" = "true" ]; then
+            NRFSDK_SHA=$(git ls-remote https://github.com/nrfconnect/sdk-nrf main | awk '{print $1}')
+            sed -i "/revision:/s/\( *revision: *\).*/\1${NRFSDK_SHA}/" west.yml
+            echo Configuring build on NCS rev ${NRFSDK_SHA}
+            echo "NRFSDK_SHA=${NRFSDK_SHA}" >> $GITHUB_ENV
           fi
           west update -o=--depth=1 -n
           west blobs fetch hal_nordic
+        env:
+          NRFSDK_SHA_UPDATE: ${{ inputs.nrfsdk_sha_update }}
 
       - name: Install dependencies
         run: |
           pip install -r nrf/scripts/requirements-build.txt
+          apt update
+          apt install -y --no-install-recommends gh
 
       - name: Set VERSION environment variable
         shell: bash
@@ -193,3 +210,18 @@ jobs:
         run: |
           echo Run id: ${{ github.run_id }}
           echo Version: ${{ env.VERSION }}
+
+      - name: Auto PR update NCS reference
+        working-directory: asset-tracker-template
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add west.yml
+          git commit -m "manifest: auto: Update nrf-sdk SHA"
+          git push origin HEAD:nrf-manifest-auto-branch --force
+          gh pr create --title "manifest: auto: Update nrf-sdk SHA" \
+            --body "Created by GitHub Action" \
+            --base main \
+            --head nrf-manifest-auto-branch || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
