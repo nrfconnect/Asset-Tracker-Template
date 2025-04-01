@@ -17,6 +17,9 @@
 ### Keep it simple - small functions, pass by reference, readability and maintainability
 - Explanation of keeping it simple with small functions, passing by reference, readability, and maintainability.
 
+###
+- Document uploading modem traces to memfault and how the device can be setup with a custom data recording upload and setup with sec tags to dump TLS traffic.
+
 ## Useful links
 
 [nRF Cloud CoAP](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/networking/nrf_cloud_coap.html)

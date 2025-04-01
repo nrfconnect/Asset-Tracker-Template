@@ -117,7 +117,7 @@ jobs:
         working-directory: asset-tracker-template/app
         run: |
           mkdir -p artifacts
-          cp overlay-memfault.conf overlay-memfault-att.conf
+          cat overlay-memfault.conf overlay-upload-modem-traces-to-memfault.conf > overlay-memfault-att.conf
           echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ secrets.MEMFAULT_PROJECT_KEY }}\"" >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_FW_TYPE }}\" >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-att.conf
@@ -139,7 +139,7 @@ jobs:
         working-directory: asset-tracker-template/app
         run: |
           mkdir -p artifacts
-          cp overlay-memfault.conf overlay-memfault-att.conf
+          cat overlay-memfault.conf overlay-upload-modem-traces-to-memfault.conf > overlay-memfault-att.conf
           echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ secrets.MEMFAULT_PROJECT_KEY }}\"" >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_FW_TYPE }}\" >> overlay-memfault-att.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-att.conf
@@ -170,7 +170,7 @@ jobs:
         if: ${{ inputs.build_debug }}
         working-directory: asset-tracker-template/app
         run: |
-          cp overlay-memfault.conf overlay-memfault-debug.conf
+          cat overlay-memfault.conf overlay-upload-modem-traces-to-memfault.conf > overlay-memfault-att.conf
           echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ secrets.MEMFAULT_PROJECT_KEY }}\"" >> overlay-memfault-debug.conf
           echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_FW_TYPE }}\" >> overlay-memfault-debug.conf
           echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-debug.conf
