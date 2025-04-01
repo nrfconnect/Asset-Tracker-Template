@@ -38,7 +38,7 @@ cd asset-tracker-template
 
 2. To build the application, run the following command:
 ```shell
-west build -b thingy91x/nrf9151/ns app
+west build -p -b thingy91x/nrf9151/ns app
 ```
 
 3. When using the serial bootloader, you can update the application using the following command:
@@ -53,10 +53,15 @@ west flash --erase
 
 ### Build with memfault
 ```shell
-west build -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.conf"
+west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.conf" -DCONFIG_MEMFAULT_NCS_PROJECT_KEY=\"memfault-project-key\"
 ```
 
 ### Build with memfault and etb traces overlay
 ```shell
-west build -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault-debug.conf;overlay-etb.conf"
+west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.conf;overlay-etb.conf"
+```
+
+### Build with memfault and uploading of modem traces to memfault on coredumps
+```shell
+west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.conf;overlay-upload-modem-traces-to-memfault.conf" -DCONFIG_MEMFAULT_NCS_PROJECT_KEY=\"memfault-project-key\"
 ```

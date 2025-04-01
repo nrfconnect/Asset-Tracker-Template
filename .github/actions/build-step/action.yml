@@ -52,7 +52,7 @@ runs:
           FW_TYPE=${{ inputs.memfault_fw_type }}
         fi
         cd ${{ inputs.path }}
-        cp overlay-memfault.conf overlay-memfault-att.conf
+        cat overlay-memfault.conf overlay-upload-modem-traces-to-memfault.conf > overlay-memfault-att.conf
         echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ inputs.memfault_project_key }}\"" >> overlay-memfault-att.conf
         echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"$FW_TYPE\" >> overlay-memfault-att.conf
         echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-att.conf
