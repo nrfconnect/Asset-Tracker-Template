@@ -9,6 +9,7 @@
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
+#include <zephyr/sys/reboot.h>
 
 #include "app_common.h"
 #include "button.h"
@@ -32,15 +33,6 @@
 
 /* Register log module */
 LOG_MODULE_REGISTER(main, CONFIG_APP_LOG_LEVEL);
-
-#define MAX_MSG_SIZE	(MAX_N(sizeof(struct cloud_msg),					\
-			       /* Button channel payload size */				\
-			       sizeof(uint8_t),							\
-			       /* Timer channel payload size */					\
-			       sizeof(int),							\
-			       sizeof(enum fota_msg_type),					\
-			       sizeof(enum location_msg_type),					\
-			       sizeof(struct network_msg)))
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
 
@@ -52,13 +44,33 @@ ZBUS_CHAN_DEFINE(TIMER_CHAN,
 		 ZBUS_MSG_INIT(0)
 );
 
-/* Observe channels */
-ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, main_subscriber, 0);
-ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, main_subscriber, 0);
-ZBUS_CHAN_ADD_OBS(FOTA_CHAN, main_subscriber, 0);
-ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, main_subscriber, 0);
-ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, main_subscriber, 0);
-ZBUS_CHAN_ADD_OBS(TIMER_CHAN, main_subscriber, 0);
+/* Define the channels that the module subscribes to, their associated message types
+ * and the subscriber that will receive the messages on the channel.
+ * We use the X-macros to make the code more maintainable.
+ */
+#define CHANNEL_LIST(X)						\
+	X(CLOUD_CHAN,		struct cloud_msg)		\
+	X(BUTTON_CHAN,		uint8_t)			\
+	X(FOTA_CHAN,		enum fota_msg_type)		\
+	X(NETWORK_CHAN,		struct network_msg)		\
+	X(LOCATION_CHAN,	enum location_msg_type)		\
+	X(TIMER_CHAN,		int)
+
+/* Calculate the maximum message size from the list of channels
+ * The macro expands to a list of sizeof(type) for each channel's type, followed by a 0 to account
+ * for the trailing comma when expanding SIZE_OF_TYPE
+ * The MAX_N macro is used to find the maximum value in the list.
+ * Example: MAX_N(sizeof(struct cloud_msg), sizeof(enum fota_msg_type), 0)
+ */
+#define SIZE_OF_TYPE(chan, type)		sizeof(type),
+#define MAX_MSG_SIZE				MAX_N(CHANNEL_LIST(SIZE_OF_TYPE) 0)
+
+/* Add main_subscriber as observer to all the channels in the list.
+ * This expands to a call to ZBUS_CHAN_ADD_OBS for each channel in the list.
+ * Example: ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, main_subscriber, 0);
+ */
+#define ADD_OBSERVERS(_chan, _type)		ZBUS_CHAN_ADD_OBS(_chan, main_subscriber, 0);
+	CHANNEL_LIST(ADD_OBSERVERS)
 
 /* Forward declarations */
 static void timer_work_fn(struct k_work *work);
