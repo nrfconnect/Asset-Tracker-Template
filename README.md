@@ -35,7 +35,7 @@ The template is open-source for a reason, and we encourage users to contribute b
 
 ### Common
 - [Getting Started](docs/common/getting_started.md)
-- [Business Logic](docs/common/business_logic.md)
+- [Architecture](docs/common/architecture.md)
 - [Configurability](docs/common/configurability.md)
 - [Customization](docs/common/customization.md)
 - [Location Services](docs/common/location_services.md)
