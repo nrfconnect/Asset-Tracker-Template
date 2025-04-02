@@ -180,6 +180,7 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
     return _run_fota
 
 
+@pytest.mark.slow
 def test_app_fota(run_fota_fixture):
     '''
     Test application FOTA from nightly version to stable version
