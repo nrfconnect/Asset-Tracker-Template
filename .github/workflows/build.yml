@@ -81,6 +81,9 @@ jobs:
           apt update
           apt install -y --no-install-recommends gh
 
+          rm -rf artifacts
+          mkdir -p artifacts
+
       - name: Set VERSION environment variable
         shell: bash
         run: |
@@ -114,98 +117,46 @@ jobs:
 
       # Asset Tracker Template firmware build
       - name: Build thingy91x firmware
-        working-directory: asset-tracker-template/app
-        run: |
-          mkdir -p artifacts
-          cp overlay-memfault.conf overlay-memfault-att.conf
-          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ secrets.MEMFAULT_PROJECT_KEY }}\"" >> overlay-memfault-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_FW_TYPE }}\" >> overlay-memfault-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"${{ env.MEMFAULT_FW_VERSION_PREFIX }}+\" >> overlay-memfault-att.conf
-          west build -b thingy91x/nrf9151/ns -d build -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf" 2>&1 | tee artifacts/build_output_thingy91x.log
-          cp build/merged.hex artifacts/asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.hex
-          cp build/app/zephyr/.config artifacts/asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.config
-          cp build/app/zephyr/zephyr.signed.bin artifacts/asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91-update-signed.bin
-          cp build/app/zephyr/zephyr.signed.hex artifacts/asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91-update-signed.hex
-          cp build/app/zephyr/zephyr.elf artifacts/asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.elf
-          cp build/dfu_application.zip artifacts/asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91-dfu.zip
-          cd build
-          ninja partition_manager_report
-          ninja partition_manager_report > ../artifacts/pmr-thingy91x-nrf91-default-${{ env.VERSION }}.txt
-          sed -i '1d' ../artifacts/pmr-thingy91x-nrf91-default-${{ env.VERSION }}.txt
+        uses: ./asset-tracker-template/.github/actions/build-step
+        with:
+          memfault_project_key: ${{ secrets.MEMFAULT_PROJECT_KEY }}
+          memfault_fw_type: ${{ inputs.memfault_fw_type }}
+          memfault_fw_version_prefix: ${{ env.MEMFAULT_FW_VERSION_PREFIX }}
+          board: thingy91x/nrf9151/ns
+          short_board: thingy91x
+          version: ${{ env.VERSION }}
+          path: asset-tracker-template/app
 
       - name: Build nrf9151dk firmware
         if: ${{ github.event_name != 'pull_request' }}
-        working-directory: asset-tracker-template/app
-        run: |
-          mkdir -p artifacts
-          cp overlay-memfault.conf overlay-memfault-att.conf
-          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ secrets.MEMFAULT_PROJECT_KEY }}\"" >> overlay-memfault-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_FW_TYPE }}\" >> overlay-memfault-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"${{ env.MEMFAULT_FW_VERSION_PREFIX }}+\" >> overlay-memfault-att.conf
-          west build -b nrf9151dk/nrf9151/ns -d build -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf"
-          cp build/merged.hex artifacts/asset-tracker-template-${{ env.VERSION }}-nrf9151dk-nrf91.hex
-          cp build/app/zephyr/.config artifacts/asset-tracker-template-${{ env.VERSION }}-nrf9151dk-nrf91.config
-          cp build/app/zephyr/zephyr.signed.bin artifacts/asset-tracker-template-${{ env.VERSION }}-nrf9151dk-nrf91-update-signed.bin
-          cp build/app/zephyr/zephyr.signed.hex artifacts/asset-tracker-template-${{ env.VERSION }}-nrf9151dk-nrf91-update-signed.hex
-          cp build/app/zephyr/zephyr.elf artifacts/asset-tracker-template-${{ env.VERSION }}-nrf9151dk-nrf91.elf
-          cp build/dfu_application.zip artifacts/asset-tracker-template-${{ env.VERSION }}-nrf9151dk-nrf91-dfu.zip
-          cd build
-          ninja partition_manager_report
-          ninja partition_manager_report > ../artifacts/pmr-nrf9151dk-nrf91-default-${{ env.VERSION }}.txt
-          sed -i '1d' ../artifacts/pmr-nrf9151dk-nrf91-default-${{ env.VERSION }}.txt
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        id: artifact-upload-att
+        uses: ./asset-tracker-template/.github/actions/build-step
         with:
-          name: firmware-att
-          if-no-files-found: error
-          path: |
-            asset-tracker-template/app/artifacts/*
+          memfault_project_key: ${{ secrets.MEMFAULT_PROJECT_KEY }}
+          memfault_fw_type:  ${{ inputs.memfault_fw_type }}
+          memfault_fw_version_prefix: ${{ env.MEMFAULT_FW_VERSION_PREFIX }}
+          board: nrf9151dk/nrf9151/ns
+          short_board: nrf9151dk
+          version: ${{ env.VERSION }}
+          path: asset-tracker-template/app
 
       # Asset Tracker Template debug firmware build
       - name: Build thingy91x debug firmware
         if: ${{ inputs.build_debug }}
-        working-directory: asset-tracker-template/app
-        run: |
-          cp overlay-memfault.conf overlay-memfault-debug.conf
-          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ secrets.MEMFAULT_PROJECT_KEY }}\"" >> overlay-memfault-debug.conf
-          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ env.MEMFAULT_FW_TYPE }}\" >> overlay-memfault-debug.conf
-          echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-debug.conf
-          echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"${{ env.MEMFAULT_FW_VERSION_PREFIX }}-debug+\" >> overlay-memfault-debug.conf
-          west build -p -b thingy91x/nrf9151/ns -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-debug.conf;overlay-etb.conf"
-
-      - name: Rename debug artifacts
-        if: ${{ inputs.build_debug }}
-        working-directory: asset-tracker-template/app/build
-        run: |
-          cp merged.hex asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91.hex
-          cp app/zephyr/.config asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91.config
-          cp app/zephyr/zephyr.signed.bin asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91-update-signed.bin
-          cp app/zephyr/zephyr.signed.hex asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91-update-signed.hex
-          cp app/zephyr/zephyr.elf asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91.elf
-          cp dfu_application.zip asset-tracker-template-${{ env.VERSION }}-debug-thingy91x-nrf91-dfu.zip
-
-      - name: Create partition manager report for nRF91 debug firmware
-        if: ${{ inputs.build_debug }}
-        working-directory: asset-tracker-template/app/build
-        run: |
-          ninja partition_manager_report
-          ninja partition_manager_report > pmr-nrf91-debug-${{ env.VERSION }}.txt
-          sed -i '1d' pmr-nrf91-debug-${{ env.VERSION }}.txt
-
-      - name: Upload debug artifact
-        if: ${{ inputs.build_debug }}
-        uses: actions/upload-artifact@v4
-        id: artifact-upload-att-debug
+        uses: ./asset-tracker-template/.github/actions/build-step
         with:
-          name: firmware-att-debug
-          if-no-files-found: error
-          path: |
-            asset-tracker-template/app/build/asset-tracker-template-*.*
-            asset-tracker-template/app/build/pmr-nrf91-*.txt
+          memfault_project_key: ${{ secrets.MEMFAULT_PROJECT_KEY }}
+          memfault_fw_type:  ${{ inputs.memfault_fw_type }}
+          memfault_fw_version_prefix: ${{ env.MEMFAULT_FW_VERSION_PREFIX }}
+          board: nrf9151dk/nrf9151/ns
+          short_board: nrf9151dk
+          version: ${{ env.VERSION }}
+          path: asset-tracker-template/app
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-artifacts-att
+          path: artifacts/*
 
       - name: Print run-id and fw version
         run: |
