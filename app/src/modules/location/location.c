@@ -114,8 +114,6 @@ void trigger_location_update(void)
 {
 	int err;
 
-	LOG_DBG("location library initialized");
-
 	err = location_request(NULL);
 	if (err == -EBUSY) {
 		LOG_WRN("Location request already in progress");
