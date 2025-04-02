@@ -109,12 +109,15 @@ static const struct smf_state states[] = {
 		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
 				 NULL,	/* No parent state */
 				 &states[STATE_DISCONNECTED]),
+#if defined(CONFIG_APP_NETWORK_SEARCH_NETWORK_ON_STARTUP)
 	[STATE_DISCONNECTED] =
 		SMF_CREATE_STATE(state_disconnected_entry, state_disconnected_run, NULL,
 				 &states[STATE_RUNNING],
-#if defined(CONFIG_APP_NETWORK_SEARCH_NETWORK_ON_STARTUP)
 				 &states[STATE_DISCONNECTED_SEARCHING]),
 #else
+	[STATE_DISCONNECTED] =
+		SMF_CREATE_STATE(state_disconnected_entry, state_disconnected_run, NULL,
+				 &states[STATE_RUNNING],
 				 &states[STATE_DISCONNECTED_IDLE]),
 #endif /* CONFIG_APP_NETWORK_SEARCH_NETWORK_ON_STARTUP */
 	[STATE_DISCONNECTED_IDLE] =
