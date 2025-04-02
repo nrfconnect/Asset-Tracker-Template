@@ -53,6 +53,15 @@ FAKE_VALUE_FUNC(int, date_time_set, const struct tm *);
 FAKE_VALUE_FUNC(const char *, location_method_str, enum location_method);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_location_send, const struct nrf_cloud_gnss_data *, bool);
 
+/* Helper function to verify location status messages */
+static void verify_location_status(enum location_msg_type expected_status)
+{
+	enum location_msg_type received_status;
+	int err = zbus_chan_read(&LOCATION_CHAN, &received_status, K_MSEC(100));
+
+	TEST_ASSERT_EQUAL(0, err);
+	TEST_ASSERT_EQUAL(expected_status, received_status);
+}
 
 /* Define FFF globals */
 DEFINE_FFF_GLOBALS;
@@ -126,6 +135,33 @@ void test_location_search_trigger(void)
 	/* Verify location request was made */
 	TEST_ASSERT_EQUAL(1, location_request_fake.call_count);
 	TEST_ASSERT_NULL(location_request_fake.arg0_val); /* No config provided */
+}
+
+/* Test location event handler with basic location event */
+void test_location_event_handler_basic(void)
+{
+	/* Wait for module initialization */
+	k_sleep(K_MSEC(100));
+
+	/* Set up location_method_str fake to return a dummy string */
+	location_method_str_fake.return_val = "TEST_METHOD";
+
+	/* Create a simple location event */
+	struct location_event_data mock_event = {
+		.id = LOCATION_EVT_LOCATION,
+		.method = LOCATION_METHOD_CELLULAR,
+		.location = {
+			.latitude = 60.123,
+			.longitude = 10.456,
+			.accuracy = 5.0
+			}
+		};
+
+	/* Call the real handler through our stored reference */
+	registered_handler(&mock_event);
+
+	/* Verify correct status message was published */
+	verify_location_status(LOCATION_SEARCH_DONE);
 }
 
 /* Unity requirement */
