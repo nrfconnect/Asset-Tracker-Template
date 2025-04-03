@@ -2,8 +2,16 @@
 
 Before getting started, make sure you have a proper nRF Connect SDK development environment. Follow the official [Getting started guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation.html)
 
+## Supported boards:
+```
+thingy91x/nrf9151/ns
+nrf9151dk/nrf9151/ns
+```
 
-## Initialization
+## Provision device to nrfcloud
+Follow these steps to provision your device with [nRF Cloud Provisioni Service](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/samples/cellular/nrf_cloud_multi_service/README.html#nrf-cloud-multi-service-provisioning-service)
+
+## Workspace Initialization
 Before initializing, start the toolchain environment:
 ```shell
 nrfutil toolchain-manager launch --
@@ -20,12 +28,6 @@ cd asset-tracker-template
 west update
 ```
 
-## Supported boards:
-```shell
-thingy91x/nrf9151/ns
-nrf9151dk/nrf9151/ns
-```
-
 ## Building and running
 Complete the following steps for building and running:
 
@@ -39,7 +41,7 @@ cd asset-tracker-template
 west build -b thingy91x/nrf9151/ns app
 ```
 
-3. When using an external debugger, you can program using the following command:
+3. When using the serial bootloader, you can update the application using the following command:
 ```shell
 west thingy91x-dfu
 ```
