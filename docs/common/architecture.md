@@ -134,3 +134,161 @@ zbus_chan_pub(LED_CHAN, &msg);
 ```
 
 The above code will send a message to the `LED_CHAN` channel with the message type `LED_RGB_SET` and the specified parameters. The LED module will receive the message and call the `led_callback` function with the message data, as described in [Listeners](#listeners).
+
+## State Machine Framework
+
+The State Machine Framework (SMF) is a Zephyr library that provides a way to implement hierarchical state machines. The Asset Tracker Template uses SMF extensively to manage module behavior and state transitions. Several key modules including Network, Cloud, FOTA, and the Main module implement state machines using SMF.
+
+The [documentation on SMF](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html) provides a good introduction, and this section will only cover the parts that are relevant for the Asset Tracker Template.
+
+### Key SMF features
+
+The Asset Tracker Template uses most of the features that SMF offers.
+
+#### State definition
+
+States are defined using the `SMF_CREATE_STATE` macro, which allows specifying:
+
+- **Entry function:** Called when entering the state
+- **Run function:** Called while in the state
+- **Exit function:** Called when leaving the state
+- **Parent state:** For hierarchical state machines
+- **Initial transition:** A state may transition to a sub-state upon entry.
+
+Example from the Cloud module:
+
+```c
+[STATE_CONNECTED] =
+    SMF_CREATE_STATE(state_connected_entry,             /* Entry function */
+                     NULL,                              /* Run function */
+                     state_connected_exit,              /* Exit function */
+                     &states[STATE_RUNNING],            /* Parent state */
+                     &states[STATE_CONNECTED_READY]),   /* Initial transition */
+```
+
+### State machine context
+
+Each module that uses SMF maintains a context structure, which is usually embedded within a state structure for the module that contains other relevant data for the module's operation.
+Example from the cloud module:
+
+```c
+struct cloud_state {
+        /* This must be first */
+        struct smf_ctx ctx;
+
+        /* Last channel type that a message was received on */
+        const struct zbus_channel *chan;
+
+        /* Last received message */
+        uint8_t msg_buf[MAX_MSG_SIZE];
+
+        /* Network status */
+        enum network_msg_type nw_status;
+
+        /* Connection attempt counter. Reset when entering STATE_CONNECTING */
+        uint32_t connection_attempts;
+
+        /* Connection backoff time */
+        uint32_t backoff_time;
+};
+```
+
+The SMF context struct member is used to track the current state and manage state transitions. It is passed to all SMF function calls.
+
+### State machine initialization
+
+State machines are initialized to an initial state using `smf_set_initial()`:
+
+```c
+smf_set_initial(SMF_CTX(&module_state), &states[STATE_RUNNING]);
+```
+
+This has to be done before the state machine is executed the first time.
+
+### State machine execution
+
+The state machine is run using `smf_run_state()`, which:
+
+- Executes the run function of the current state if it is defined
+- Executes the run function of parent states unless:
+        - A state transition happens
+        - A child state marks the message as handled using `smf_state_handled()`
+- Executes the exit function of the current and parent states when leaving a state
+
+### State eransitions
+
+Transitions between states are handled using `smf_set_state()`:
+
+```c
+smf_set_state(SMF_CTX(state_object), &states[NEW_STATE]);
+```
+
+A transition to another state has to be the last thing happening in a state handler. This is to ensure correct order of execution of parent state handlers.
+Transitions may happen to any state in the hierarchy, and SMF handles all the exit and entry function executions on the way to the new state.
+
+## Practical use of SMF
+
+### Hierarchical states
+
+The framework supports parent-child state relationships, allowing common behavior to be implemented in parent states. For example, in the Network module:
+
+- `STATE_RUNNING` is the top-level state
+- `STATE_DISCONNECTED` and `STATE_CONNECTED` are child states of `STATE_RUNNING`
+- `STATE_DISCONNECTED_IDLE` is a child state of `STATE_DISCONNECTED`
+
+This hierarchy allows for shared behavior and clean state organization.
+
+Here is the full state machine of the network module, both graphically and SMF implementation:
+
+![Network module state diagram](../images/network_module_state_machine.png)
+
+```c
+static const struct smf_state states[] = {
+        [STATE_RUNNING] =
+                SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
+                                 NULL,	/* No parent state */
+                                 &states[STATE_DISCONNECTED]),
+        [STATE_DISCONNECTED] =
+                SMF_CREATE_STATE(state_disconnected_entry, state_disconnected_run, NULL,
+                                 &states[STATE_RUNNING],
+                                 &states[STATE_DISCONNECTED_SEARCHING]),
+        [STATE_DISCONNECTED_IDLE] =
+                SMF_CREATE_STATE(NULL, state_disconnected_idle_run, NULL,
+                                 &states[STATE_DISCONNECTED],
+                                 NULL), /* No initial transition */
+        [STATE_DISCONNECTED_SEARCHING] =
+                SMF_CREATE_STATE(state_disconnected_searching_entry,
+                                 state_disconnected_searching_run, NULL,
+                                 &states[STATE_DISCONNECTED],
+                                 NULL), /* No initial transition */
+        [STATE_CONNECTED] =
+                SMF_CREATE_STATE(state_connected_entry, state_connected_run, NULL,
+                                 &states[STATE_RUNNING],
+                                 NULL), /* No initial transition */
+        [STATE_DISCONNECTING] =
+                SMF_CREATE_STATE(state_disconnecting_entry, state_disconnecting_run, NULL,
+                                 &states[STATE_RUNNING],
+                                 NULL), /* No initial transition */
+};
+```
+
+In the image above, the black dots and arrow indicate initial transitions.
+In this case, the initial state is set to `STATE_RUNNING`. In the state machine definition, intial transitions are configured, such that the state machine will end up in `STATE_DISCONNECTED_SEARCHING` when entering `STATE_RUNNING`.
+
+### Message handling
+
+Modules combine SMF with zbus to handle events and trigger state transitions. For example, the Network module transitions between states based on network connectivity events:
+
+- Network connected → STATE_CONNECTED
+- Network disconnected → STATE_DISCONNECTED
+- Network searching → STATE_DISCONNECTED_SEARCHING
+
+### Run-to-completion
+
+The state machine implementation follows a run-to-completion model where:
+
+- Message processing and state machine execution, including transitions, complete fully before processing new messages
+- Entry and exit functions are called in the correct order when transitioning states
+- Parent state transitions are handled automatically when transitioning between child states
+
+This ensures predictable behavior and proper state cleanup during transitions, as there is no mechanism for interrupting or changing the state machine execution from the outside.
