@@ -56,7 +56,7 @@ jobs:
             matrix="${{ github.event.inputs.devices }}"
           else
             if [[ "${{ inputs.is_scheduled }}" == "true" ]]; then
-              matrix='["thingy91x","nrf9151dk"]'
+              matrix='["thingy91x","nrf9151dk","ppk_thingy91x"]'
             else
               matrix='["thingy91x"]'
             fi
