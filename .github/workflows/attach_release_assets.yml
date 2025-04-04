@@ -12,6 +12,9 @@ on:
 jobs:
   build:
     uses: ./.github/workflows/build.yml
+    permissions:
+      contents: write
+      pull-requests: write
     secrets: inherit
     with:
       build_debug: true
