@@ -24,3 +24,18 @@ jobs:
       artifact_run_id: ${{ needs.build.outputs.run_id }}
       pytest_marker: not slow
       is_scheduled: false
+  update-pr-state:
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+      packages: read
+      pull-requests: write
+    steps:
+      - name: Update PR state
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ needs.build.outputs.ncsupdate_pr }}
+          body: |
+            Tests PASSED on latest ncs SHA :white_check_mark:
