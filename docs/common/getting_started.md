@@ -9,7 +9,7 @@ nrf9151dk/nrf9151/ns
 ```
 
 ## Provision device to nrfcloud
-Follow these steps to provision your device with [nRF Cloud Provisioni Service](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/samples/cellular/nrf_cloud_multi_service/README.html#nrf-cloud-multi-service-provisioning-service)
+Follow these steps to provision your device with [nRF Cloud Provisioning Service](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/samples/cellular/nrf_cloud_multi_service/README.html#nrf-cloud-multi-service-provisioning-service)
 
 ## Workspace Initialization
 Before initializing, start the toolchain environment:
