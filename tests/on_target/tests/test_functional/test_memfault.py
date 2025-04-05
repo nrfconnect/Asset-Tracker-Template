@@ -22,6 +22,40 @@ logger = get_logger()
 url = "https://api.memfault.com/api/v0"
 auth = ("", MEMFAULT_ORG_TOKEN)
 
+def fetch_recent_modem_trace(device_id, time_span_minutes):
+    """
+    Fetch the ID of the most recent modem trace job from the device if its start time
+    is within the specified time span.
+
+    Parameters:
+        device_id (str): The serial ID of the device.
+        time_span_minutes (int): The time span in minutes within which the modem trace should have started.
+
+    Returns:
+        int or None: The ID of the modem trace job if the conditions are met, otherwise None.
+    """
+
+    r = requests.get(
+        f"{url}/organizations/{MEMFAULT_ORG}/projects/{MEMFAULT_PROJ}/devices/{device_id}/custom-data-recordings?page=1&per_page=1",
+        auth=auth
+    )
+    r.raise_for_status()
+    response = r.json()
+
+    # Extract relevant data from the response
+    data = response.get("data", [])
+    for recording in data:
+        # Verify that the start time and other conditions are met
+        start_time_str = recording.get("start_time")
+        if start_time_str:
+            start_time = datetime.fromisoformat(start_time_str.replace("Z", "+00:00"))  # Process ISO 8601 UTC time
+            valid_time_threshold = datetime.utcnow() - timedelta(minutes=time_span_minutes)
+
+            if start_time >= valid_time_threshold:  # Check if start time is within the given time span
+                return recording.get("id")  # Return the ID of the job
+
+    # Return None if no recording met the conditions
+    return None
 
 def get_traces(family, device_id):
     r = requests.get(
@@ -42,7 +76,6 @@ def timestamp(event):
     return datetime.datetime.strptime(
         event["captured_date"], "%Y-%m-%dT%H:%M:%S.%f%z"
     )
-
 
 def test_memfault(dut_board, hex_file):
     # Save timestamp of latest coredump
@@ -81,3 +114,15 @@ def test_memfault(dut_board, hex_file):
                 break
     else:
         raise RuntimeError("No new coredump observed")
+
+    # Wait for modem trace to be reported to memfault api
+    start = time.time()
+
+    while time.time() - start < MEMFAULT_TIMEOUT:
+        modem_trace_id = fetch_recent_modem_trace(IMEI, 5)
+        if modem_trace_id:
+            print(f"Found modem trace with ID {modem_trace_id}")
+            break
+        time.sleep(5)
+    else:
+        raise RuntimeError("No modem trace observed")
