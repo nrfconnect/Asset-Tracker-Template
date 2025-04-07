@@ -195,14 +195,14 @@ static int uart_disable(void)
 	k_busy_wait(100 * USEC_PER_MSEC);
 
 	err = pm_device_action_run(uart1_dev, PM_DEVICE_ACTION_SUSPEND);
-	if (err) {
+	if (err && (err != -EALREADY)) {
 		LOG_ERR("pm_device_action_run, error: %d", err);
 		return err;
 	}
 
 	err = pm_device_action_run(uart0_dev, PM_DEVICE_ACTION_SUSPEND);
-	if (err) {
-		LOG_ERR("pm_device_actiöon_run, error: %d", err);
+	if (err && (err != -EALREADY)) {
+		LOG_ERR("pm_device_action_run, error: %d", err);
 		return err;
 	}
 
@@ -220,13 +220,13 @@ static int uart_enable(void)
 	}
 
 	err = pm_device_action_run(uart0_dev, PM_DEVICE_ACTION_RESUME);
-	if (err) {
+	if (err && (err != -EALREADY)) {
 		LOG_ERR("pm_device_action_run, error: %d", err);
 		return err;
 	}
 
 	err = pm_device_action_run(uart1_dev, PM_DEVICE_ACTION_RESUME);
-	if (err) {
+	if (err && (err != -EALREADY)) {
 		LOG_ERR("pm_device_action_run, error: %d", err);
 		return err;
 	}
