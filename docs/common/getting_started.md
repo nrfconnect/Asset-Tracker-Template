@@ -8,9 +8,6 @@ thingy91x/nrf9151/ns
 nrf9151dk/nrf9151/ns
 ```
 
-## Provision device to nrfcloud
-Follow these steps to provision your device with [nRF Cloud Provisioning Service](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/samples/cellular/nrf_cloud_multi_service/README.html#nrf-cloud-multi-service-provisioning-service)
-
 ## Workspace Initialization
 Before initializing, start the toolchain environment:
 ```shell
@@ -41,12 +38,12 @@ cd asset-tracker-template
 west build -p -b thingy91x/nrf9151/ns app
 ```
 
-3. When using the serial bootloader, you can update the application using the following command:
+3. When using the serial bootloader on thingy91x, you can update the application using the following command:
 ```shell
 west thingy91x-dfu
 ```
 
-4. When using an external debugger, you can program using the following command:
+4. When using nrf9151dk or an external debugger on thingy91x, you can program using the following command:
 ```shell
 west flash --erase
 ```
@@ -65,3 +62,43 @@ west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.con
 ```shell
 west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.conf;overlay-upload-modem-traces-to-memfault.conf" -DCONFIG_MEMFAULT_NCS_PROJECT_KEY=\"memfault-project-key\"
 ```
+
+## Provision device to nrfcloud
+Provisioning steps based on [nRF Cloud Utils](https://github.com/nRFCloud/utils/tree/main).
+
+### Requirements
+Do you already have an nRF Cloud account? If not, please visit nrfcloud.com and register. Then, click on the burger on the top-right to get to your user account. Take note of your API key, you will need it soon. Note that if you are part of multiple teams on nRF Cloud, the API key will be different for each one.
+
+Flash device with Asset Tracker Template firmware.
+
+### Steps
+
+Open device shell via serial and set network disconnect mode:
+```shell
+att_network disconnect
+```
+
+Close serial and run following commands
+
+Install nrfcloud-utils package
+```shell
+pip3 install nrfcloud-utils
+```
+
+Create a local certificate authority (CA)
+```shell
+create_ca_cert
+```
+Now, you should have three .pem files containing the key pair and the CA certificate of your CA.
+
+Install credentials onto the device
+```shell
+device_credentials_installer -d --ca *_ca.pem --ca-key *_prv.pem --coap --cmd-type at_shell
+```
+
+Upon success, you can find an onboard.csv file with information about your device. We need this file to register the certificate with your account.
+```shell
+nrf_cloud_onboard --api-key $NRFCLOUD_API_KEY --csv onboard.csv
+```
+
+Your device should now be registered to Nrfcloud. You can reset device and wait for cloud connection.
