@@ -274,7 +274,6 @@ class NRFCloudFOTA(NRFCloud):
         data = json.dumps({"deviceIds": [device_id], "bundleId": bundle_id})
         return self._post("/fota-jobs", data=data).json()["jobId"]
 
-    #Similiar to get_fota_job in utils/fota_softbank/lib/nrfcloud.py
     def get_fota_status(self, job_id: str) -> str:
         """Get status of a FOTA job
 

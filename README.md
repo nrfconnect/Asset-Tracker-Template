@@ -42,6 +42,7 @@ The template is open-source for a reason, and we encourage users to contribute b
 - [Test and CI Setup](docs/common/test_and_ci_setup.md)
 - [Tooling](docs/common/tooling.md)
 - [Optimizations](docs/common/optimizations.md)
+- [nRFCloud FOTA](docs/common/nrfcloud_fota.md)
 - [Advanced](docs/common/advanced.md)
 
 ### Modules
