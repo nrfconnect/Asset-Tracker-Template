@@ -36,50 +36,44 @@ runs:
   using: "composite"
   steps:
     - name: Set up environment
+      working-directory: ${{ inputs.path }}
       id: setup
       shell: bash
       run: |
+        cp overlay-memfault.conf overlay-memfault-att.conf
         if [[ "${{ inputs.debug }}" == "true" ]]; then
-          echo "VERSION=${{ inputs.version }}-debug" >> $GITHUB_OUTPUT
-          echo "UPLOAD_ID=${{ inputs.short_board }}-debug" >> $GITHUB_OUTPUT
-        else
-          echo "VERSION=${{ inputs.version }}" >> $GITHUB_OUTPUT
-          echo "UPLOAD_ID=${{ inputs.short_board }}" >> $GITHUB_OUTPUT
+          cat overlay-etb.conf >> overlay-memfault-att.conf
         fi
-        if [[ -z "${{ inputs.memfault_fw_type }}" ]]; then
-          FW_TYPE=asset-tracker-template-dev
-        else
-          FW_TYPE=${{ inputs.memfault_fw_type }}
-        fi
-        cd ${{ inputs.path }}
-        cat overlay-memfault.conf overlay-upload-modem-traces-to-memfault.conf > overlay-memfault-att.conf
-        echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ inputs.memfault_project_key }}\"" >> overlay-memfault-att.conf
-        echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"$FW_TYPE\" >> overlay-memfault-att.conf
+        echo CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ inputs.memfault_project_key }}\" >> overlay-memfault-att.conf
         echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-att.conf
         echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"${{ inputs.memfault_fw_version_prefix }}+\" >> overlay-memfault-att.conf
+        echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ inputs.memfault_fw_type }}\" >> overlay-memfault-att.conf
 
     - name: Build firmware
+      working-directory: ${{ inputs.path }}
       shell: bash
       run: |
-        cd ${{ inputs.path }}
-        west build -b ${{ inputs.board }} -d build -p --sysbuild -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf" > /dev/null
+        west build -b ${{ inputs.board }} \
+          -d build \
+          -p --sysbuild \
+          -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf" 2>&1 | tee ../../artifacts/build_output_${{ inputs.short_board }}.log
 
     - name: Copy artifacts
       shell: bash
       run: |
         mkdir -p artifacts
         cp ${{ inputs.path }}/build/merged.hex \
-          artifacts/asset-tracker-template-${{ steps.setup.outputs.VERSION }}-${{ inputs.short_board }}-nrf91.hex
+          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-nrf91.hex
         cp ${{ inputs.path }}/build/app/zephyr/.config \
-          artifacts/asset-tracker-template-${{ steps.setup.outputs.VERSION }}-${{ inputs.short_board }}-nrf91.config
+          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-nrf91.config
         cp ${{ inputs.path }}/build/app/zephyr/zephyr.signed.bin \
-          artifacts/asset-tracker-template-${{ steps.setup.outputs.VERSION }}-${{ inputs.short_board }}-nrf91-update-signed.bin
+          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-nrf91-update-signed.bin
         cp ${{ inputs.path }}/build/app/zephyr/zephyr.signed.hex \
-          artifacts/asset-tracker-template-${{ steps.setup.outputs.VERSION }}-${{ inputs.short_board }}-nrf91-update-signed.hex
+          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-nrf91-update-signed.hex
         cp ${{ inputs.path }}/build/app/zephyr/zephyr.elf \
-          artifacts/asset-tracker-template-${{ steps.setup.outputs.VERSION }}-${{ inputs.short_board }}-nrf91.elf
+          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-nrf91.elf
         cp ${{ inputs.path }}/build/dfu_application.zip \
-          artifacts/asset-tracker-template-${{ steps.setup.outputs.VERSION }}-${{ inputs.short_board }}-nrf91-dfu.zip
+          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-nrf91-dfu.zip
         cd ${{ inputs.path }}/build
         ninja partition_manager_report > partition_manager_report.txt
 
