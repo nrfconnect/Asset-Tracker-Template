@@ -110,10 +110,8 @@ jobs:
         run: |
           if [[ -z "${{ inputs.memfault_fw_type }}" ]]; then
             echo "MEMFAULT_FW_TYPE=asset-tracker-template-dev" >> $GITHUB_ENV
-            echo "MEMFAULT_FW_TYPE=asset-tracker-template-dev"
           else
             echo "MEMFAULT_FW_TYPE=${{ inputs.memfault_fw_type }}" >> $GITHUB_ENV
-            echo "MEMFAULT_FW_TYPE=${{ inputs.memfault_fw_type }}"
           fi
 
           if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
@@ -127,7 +125,7 @@ jobs:
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           memfault_project_key: ${{ secrets.MEMFAULT_PROJECT_KEY }}
-          memfault_fw_type: ${{ inputs.memfault_fw_type }}
+          memfault_fw_type: ${{ env.MEMFAULT_FW_TYPE }}
           memfault_fw_version_prefix: ${{ env.MEMFAULT_FW_VERSION_PREFIX }}
           board: thingy91x/nrf9151/ns
           short_board: thingy91x
@@ -152,12 +150,13 @@ jobs:
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           memfault_project_key: ${{ secrets.MEMFAULT_PROJECT_KEY }}
-          memfault_fw_type: ${{ inputs.memfault_fw_type }}
-          memfault_fw_version_prefix: ${{ env.MEMFAULT_FW_VERSION_PREFIX }}
-          board: nrf9151dk/nrf9151/ns
-          short_board: nrf9151dk
-          version: ${{ env.VERSION }}
+          memfault_fw_type: ${{ env.MEMFAULT_FW_TYPE }}
+          memfault_fw_version_prefix: ${{ env.MEMFAULT_FW_VERSION_PREFIX }}-debug
+          board: thingy91x/nrf9151/ns
+          short_board: thingy91x
+          version: ${{ env.VERSION }}-debug
           path: asset-tracker-template/app
+          debug: true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
