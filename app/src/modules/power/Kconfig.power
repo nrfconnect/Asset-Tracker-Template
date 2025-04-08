@@ -19,7 +19,7 @@ config APP_POWER_DISABLE_UART_ON_VBUS_REMOVED
 
 config APP_POWER_THREAD_STACK_SIZE
 	int "Thread stack size"
-	default 1536
+	default 1344
 
 config APP_POWER_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout"

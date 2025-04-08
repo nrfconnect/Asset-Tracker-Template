@@ -13,7 +13,7 @@ if APP_ENVIRONMENTAL
 
 config APP_ENVIRONMENTAL_THREAD_STACK_SIZE
 	int "Thread stack size"
-	default 1280
+	default 768
 
 config APP_ENVIRONMENTAL_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout"
