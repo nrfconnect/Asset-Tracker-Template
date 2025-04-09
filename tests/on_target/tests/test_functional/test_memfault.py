@@ -89,14 +89,17 @@ def timestamp(event):
         event["captured_date"], "%Y-%m-%dT%H:%M:%S.%f%z"
     )
 
-def test_memfault(dut_board, hex_file):
+def test_memfault(dut_board, debug_hex_file):
+    if dut_board.device_type != 'thingy91x':
+        pytest.skip("Memfault testing requires debug build which is only available for thingy91x")
+
     # Save timestamp of latest coredump
     coredumps = get_latest_coredump_traces(IMEI)
     logger.debug(f"Found coredumps: {coredumps}")
     timestamp_old_coredump = timestamp(coredumps[0]) if coredumps else  None
     logger.debug(f"Timestamp old coredump: {timestamp_old_coredump}")
 
-    flash_device(os.path.abspath(hex_file))
+    flash_device(os.path.abspath(debug_hex_file))
     dut_board.uart.xfactoryreset()
     dut_board.uart.flush()
     reset_device()

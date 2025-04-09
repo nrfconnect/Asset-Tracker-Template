@@ -128,7 +128,7 @@ jobs:
           nrfutil install trace
 
       - name: Upload symbol file to Memfault
-        if: ${{ matrix.device != 'ppk_thingy91x' }}
+        if: ${{ matrix.device == 'thingy91x' }}
         working-directory: asset-tracker-template/tests/on_target/artifacts
         run: |
           memfault \
@@ -137,7 +137,7 @@ jobs:
               --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
               upload-mcu-symbols \
               --check-uploaded \
-              asset-tracker-template-${{ inputs.artifact_fw_version }}-${{ vars.DUT_DEVICE_TYPE }}-nrf91.elf
+              asset-tracker-template-${{ inputs.artifact_fw_version }}-debug-${{ vars.DUT_DEVICE_TYPE }}-nrf91.elf
 
       - name: Generate and Push RAM and FLASH Badges
         if: ${{ matrix.device == 'thingy91x' && inputs.is_scheduled }}

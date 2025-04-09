@@ -32,26 +32,7 @@ jobs:
 
       - run: node .github/workflows/fetch-release-assets.mjs ${{ inputs.version }}
 
-      - name: Publish symbol files
-        run: |
-          source venv/bin/activate
-          memfault \
-              --org-token ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }} \
-              --org ${{ vars.MEMFAULT_ORGANIZATION_SLUG }} \
-              --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
-              upload-mcu-symbols \
-              --check-uploaded \
-              asset-tracker-template-${{ inputs.version }}-thingy91x-nrf91.elf
-
-          memfault \
-              --org-token ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }} \
-              --org ${{ vars.MEMFAULT_ORGANIZATION_SLUG }} \
-              --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
-              upload-mcu-symbols \
-              --check-uploaded \
-              asset-tracker-template-${{ inputs.version }}-nrf9151dk-nrf91.elf
-
-      - name: Publish debug symbol files
+      - name: Publish Memfault debug symbols
         run: |
           source venv/bin/activate
           memfault \
