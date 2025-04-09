@@ -35,28 +35,33 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Set up environment
+    - name: Set up debug build overlays
       working-directory: ${{ inputs.path }}
-      id: setup
+      if: ${{ inputs.debug }}
       shell: bash
       run: |
-        cp overlay-memfault.conf overlay-memfault-att.conf
-        if [[ "${{ inputs.debug }}" == "true" ]]; then
-          cat overlay-etb.conf >> overlay-memfault-att.conf
-        fi
-        echo CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ inputs.memfault_project_key }}\" >> overlay-memfault-att.conf
-        echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-memfault-att.conf
-        echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"${{ inputs.memfault_fw_version_prefix }}+\" >> overlay-memfault-att.conf
-        echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ inputs.memfault_fw_type }}\" >> overlay-memfault-att.conf
+        cp overlay-memfault.conf overlay-debug-att.conf
+        cat overlay-upload-modem-traces-to-memfault.conf >> overlay-debug-att.conf
+        cat overlay-etb.conf >> overlay-debug-att.conf
+        echo CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ inputs.memfault_project_key }}\" >> overlay-debug-att.conf
+        echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-debug-att.conf
+        echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"${{ inputs.memfault_fw_version_prefix }}+\" >> overlay-debug-att.conf
+        echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ inputs.memfault_fw_type }}\" >> overlay-debug-att.conf
 
     - name: Build firmware
       working-directory: ${{ inputs.path }}
       shell: bash
       run: |
-        west build -b ${{ inputs.board }} \
-          -d build \
-          -p --sysbuild \
-          -- -DEXTRA_CONF_FILE="overlay-memfault-att.conf" 2>&1 | tee ../../artifacts/build_output_${{ inputs.short_board }}.log
+        if [[ "${{ inputs.debug }}" == "true" ]]; then
+          west build -b ${{ inputs.board }} \
+            -d build \
+            -p --sysbuild \
+            -- -DEXTRA_CONF_FILE="overlay-debug-att.conf" 2>&1 | tee ../../artifacts/build_output_${{ inputs.short_board }}_debug.log
+        else
+          west build -b ${{ inputs.board }} \
+            -d build \
+            -p --sysbuild 2>&1 | tee ../../artifacts/build_output_${{ inputs.short_board }}.log
+        fi
 
     - name: Copy artifacts
       shell: bash
@@ -80,4 +85,4 @@ runs:
     - name: Generate Partition Manager Report
       shell: bash
       run: |
-        sed '1d' ${{ inputs.path }}/build/partition_manager_report.txt > artifacts/pmr-${{ inputs.short_board }}-nrf91-default-${{ steps.setup.outputs.VERSION }}.txt
+        sed '1d' ${{ inputs.path }}/build/partition_manager_report.txt > artifacts/pmr-${{ inputs.short_board }}-nrf91-default-${{ inputs.version }}.txt
