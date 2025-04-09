@@ -3,10 +3,6 @@ name: Build
 on:
   workflow_dispatch:
     inputs:
-      build_debug:
-        type: boolean
-        required: false
-        default: false
       memfault_fw_type:
         type: string
         required: false
@@ -17,10 +13,6 @@ on:
         type: string
         required: false
         default: "asset-tracker-template-dev"
-      build_debug:
-        type: boolean
-        required: false
-        default: false
       nrfsdk_sha_update:
         type: boolean
         required: false
@@ -146,7 +138,7 @@ jobs:
 
       # Asset Tracker Template debug firmware build
       - name: Build thingy91x debug firmware
-        if: ${{ inputs.build_debug }}
+        if: ${{ github.event_name != 'pull_request' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           memfault_project_key: ${{ secrets.MEMFAULT_PROJECT_KEY }}

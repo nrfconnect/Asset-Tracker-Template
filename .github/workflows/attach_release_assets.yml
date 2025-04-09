@@ -17,7 +17,6 @@ jobs:
       pull-requests: write
     secrets: inherit
     with:
-      build_debug: true
       memfault_fw_type: "asset-tracker-template"
 
   attach-assets:
@@ -39,6 +38,7 @@ jobs:
             fail_on_unmatched_files: true
             files: |
               asset-tracker-template-*.*
+              pmr-*-nrf91-*.txt
 
         - name: Trigger workflow that publishes symbol files to Memfault
           working-directory: .github/workflows
