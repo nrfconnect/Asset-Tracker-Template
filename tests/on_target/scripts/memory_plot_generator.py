@@ -55,11 +55,12 @@ def generate_memory_plots(output_dir):
         y_min_ram = 0  # Start from 0
         y_max_ram = df_ram['Total (B)'].max() * 1.1  # 10% margin above max total
 
-        fig_ram = px.scatter(df_ram, x='Date', y=['Used (B)', 'Total (B)'],
+        fig_ram = px.line(df_ram, x='Date', y=['Used (B)', 'Total (B)'],
                            title='RAM Usage History - Asset Tracker Template',
                            labels={'value': 'Bytes', 'variable': 'Metric'})
-        # Add markers
-        fig_ram.update_traces(mode='markers', marker=dict(size=10))
+        # Update traces: line only for Total, line+markers for Used
+        fig_ram.update_traces(mode='lines', selector=dict(name='Total (B)'))
+        fig_ram.update_traces(mode='lines+markers', selector=dict(name='Used (B)'), marker=dict(size=8))
         # Set y-axis range
         fig_ram.update_layout(yaxis=dict(range=[y_min_ram, y_max_ram]))
         fig_ram.write_html(os.path.join(output_dir, "ram_history_plot.html"))
@@ -74,11 +75,12 @@ def generate_memory_plots(output_dir):
         y_min_flash = 0  # Start from 0
         y_max_flash = df_flash['Total (B)'].max() * 1.1  # 10% margin above max total
 
-        fig_flash = px.scatter(df_flash, x='Date', y=['Used (B)', 'Total (B)'],
+        fig_flash = px.line(df_flash, x='Date', y=['Used (B)', 'Total (B)'],
                              title='Flash Usage History - Asset Tracker Template',
                              labels={'value': 'Bytes', 'variable': 'Metric'})
-        # Add markers
-        fig_flash.update_traces(mode='markers', marker=dict(size=10))
+        # Update traces: line only for Total, line+markers for Used
+        fig_flash.update_traces(mode='lines', selector=dict(name='Total (B)'))
+        fig_flash.update_traces(mode='lines+markers', selector=dict(name='Used (B)'), marker=dict(size=8))
         # Set y-axis range
         fig_flash.update_layout(yaxis=dict(range=[y_min_flash, y_max_flash]))
         fig_flash.write_html(os.path.join(output_dir, "flash_history_plot.html"))
