@@ -59,7 +59,7 @@ def generate_memory_plots(output_dir):
                            title='RAM Usage History - Asset Tracker Template',
                            labels={'value': 'Bytes', 'variable': 'Metric'})
         # Update traces: line only for Total, line+markers for Used
-        fig_ram.update_traces(mode='lines', selector=dict(name='Total (B)'))
+        fig_ram.update_traces(mode='lines+markers', selector=dict(name='Total (B)'))
         fig_ram.update_traces(mode='lines+markers', selector=dict(name='Used (B)'), marker=dict(size=8))
         # Set y-axis range
         fig_ram.update_layout(yaxis=dict(range=[y_min_ram, y_max_ram]))
@@ -79,7 +79,7 @@ def generate_memory_plots(output_dir):
                              title='Flash Usage History - Asset Tracker Template',
                              labels={'value': 'Bytes', 'variable': 'Metric'})
         # Update traces: line only for Total, line+markers for Used
-        fig_flash.update_traces(mode='lines', selector=dict(name='Total (B)'))
+        fig_flash.update_traces(mode='lines+markers', selector=dict(name='Total (B)'))
         fig_flash.update_traces(mode='lines+markers', selector=dict(name='Used (B)'), marker=dict(size=8))
         # Set y-axis range
         fig_flash.update_layout(yaxis=dict(range=[y_min_flash, y_max_flash]))
