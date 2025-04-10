@@ -30,12 +30,12 @@ Complete the following steps for building and running:
 
 1. Navigate to the project folder:
 ```shell
-cd asset-tracker-template
+cd asset-tracker-template/app
 ```
 
 2. To build the application, run the following command:
 ```shell
-west build -p -b thingy91x/nrf9151/ns app
+west build -p -b thingy91x/nrf9151/ns
 ```
 
 3. When using the serial bootloader on thingy91x, you can update the application using the following command:
@@ -48,19 +48,9 @@ west thingy91x-dfu
 west flash --erase
 ```
 
-### Build with memfault
+### Debug build with memfault, modem traces to memfault and etb traces to memfault overlays
 ```shell
-west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.conf" -DCONFIG_MEMFAULT_NCS_PROJECT_KEY=\"memfault-project-key\"
-```
-
-### Build with memfault and etb traces overlay
-```shell
-west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.conf;overlay-etb.conf"
-```
-
-### Build with memfault and uploading of modem traces to memfault on coredumps
-```shell
-west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.conf;overlay-upload-modem-traces-to-memfault.conf" -DCONFIG_MEMFAULT_NCS_PROJECT_KEY=\"memfault-project-key\"
+west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.conf;overlay-upload-modem-traces-to-memfault.conf;overlay-etb.conf" -DCONFIG_MEMFAULT_NCS_PROJECT_KEY=\"memfault-project-key\"
 ```
 
 ## Provision device to nrfcloud
