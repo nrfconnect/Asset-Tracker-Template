@@ -39,8 +39,6 @@ BUILD_ASSERT(CONFIG_APP_ENVIRONMENTAL_WATCHDOG_TIMEOUT_SECONDS >
 	     CONFIG_APP_ENVIRONMENTAL_MSG_PROCESSING_TIMEOUT_SECONDS,
 	     "Watchdog timeout must be greater than maximum message processing time");
 
-static const struct device *const sensor_dev = DEVICE_DT_GET(DT_NODELABEL(bme680));
-
 /* State machine */
 
 /* Defininig the module states.
@@ -64,13 +62,14 @@ struct environmental_state {
 	/* Buffer for last zbus message */
 	uint8_t msg_buf[MAX_MSG_SIZE];
 
+	/* Pointer to the BME680 sensor device */
+	const struct device *const bme680;
+
+	/* Sensor values */
 	double temperature;
-
 	double pressure;
-
 	double humidity;
 };
-
 
 /* Forward declarations of state handlers */
 static void state_running_run(void *o);
@@ -80,21 +79,40 @@ static const struct smf_state states[] = {
 		SMF_CREATE_STATE(NULL, state_running_run, NULL, NULL, NULL),
 };
 
-static void sample(void)
+static void sample_sensors(const struct device *const bme680)
 {
 	int err;
 	struct sensor_value temp = { 0 };
 	struct sensor_value press = { 0 };
 	struct sensor_value humidity = { 0 };
 
-	err = sensor_sample_fetch(sensor_dev);
-	__ASSERT_NO_MSG(err == 0);
-	err = sensor_channel_get(sensor_dev, SENSOR_CHAN_AMBIENT_TEMP, &temp);
-	__ASSERT_NO_MSG(err == 0);
-	err = sensor_channel_get(sensor_dev, SENSOR_CHAN_PRESS, &press);
-	__ASSERT_NO_MSG(err == 0);
-	err = sensor_channel_get(sensor_dev, SENSOR_CHAN_HUMIDITY, &humidity);
-	__ASSERT_NO_MSG(err == 0);
+	err = sensor_sample_fetch(bme680);
+	if (err) {
+		LOG_ERR("sensor_sample_fetch, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	err = sensor_channel_get(bme680, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+	if (err) {
+		LOG_ERR("sensor_channel_get, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	err = sensor_channel_get(bme680, SENSOR_CHAN_PRESS, &press);
+	if (err) {
+		LOG_ERR("sensor_channel_get, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	err = sensor_channel_get(bme680, SENSOR_CHAN_HUMIDITY, &humidity);
+	if (err) {
+		LOG_ERR("sensor_channel_get, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 
 	struct environmental_msg msg = {
 		.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE,
@@ -134,7 +152,7 @@ static void state_running_run(void *o)
 
 		if (msg.type == ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST) {
 			LOG_DBG("Environmental values sample request received, getting data");
-			sample();
+			sample_sensors(state_object->bme680);
 		}
 	}
 }
@@ -150,7 +168,9 @@ static void environmental_task(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_ENVIRONMENTAL_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	struct environmental_state environmental_state = { 0 };
+	struct environmental_state environmental_state = {
+		.bme680 = DEVICE_DT_GET(DT_NODELABEL(bme680)),
+	};
 
 	LOG_DBG("Environmental module task started");
 
