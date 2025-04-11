@@ -6,13 +6,13 @@ on:
       memfault_fw_type:
         type: string
         required: false
-        default: "asset-tracker-template-dev"
+        default: "att-dev"
   workflow_call:
     inputs:
       memfault_fw_type:
         type: string
         required: false
-        default: "asset-tracker-template-dev"
+        default: "att-dev"
       nrfsdk_sha_update:
         type: boolean
         required: false
@@ -101,7 +101,7 @@ jobs:
         shell: bash
         run: |
           if [[ -z "${{ inputs.memfault_fw_type }}" ]]; then
-            echo "MEMFAULT_FW_TYPE=asset-tracker-template-dev" >> $GITHUB_ENV
+            echo "MEMFAULT_FW_TYPE=att-dev" >> $GITHUB_ENV
           else
             echo "MEMFAULT_FW_TYPE=${{ inputs.memfault_fw_type }}" >> $GITHUB_ENV
           fi
@@ -116,9 +116,6 @@ jobs:
       - name: Build thingy91x firmware
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
-          memfault_project_key: ${{ secrets.MEMFAULT_PROJECT_KEY }}
-          memfault_fw_type: ${{ env.MEMFAULT_FW_TYPE }}
-          memfault_fw_version_prefix: ${{ env.MEMFAULT_FW_VERSION_PREFIX }}
           board: thingy91x/nrf9151/ns
           short_board: thingy91x
           version: ${{ env.VERSION }}
@@ -128,9 +125,6 @@ jobs:
         if: ${{ github.event_name != 'pull_request' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
-          memfault_project_key: ${{ secrets.MEMFAULT_PROJECT_KEY }}
-          memfault_fw_type: ${{ env.MEMFAULT_FW_TYPE }}
-          memfault_fw_version_prefix: ${{ env.MEMFAULT_FW_VERSION_PREFIX }}
           board: nrf9151dk/nrf9151/ns
           short_board: nrf9151dk
           version: ${{ env.VERSION }}
@@ -143,7 +137,7 @@ jobs:
         with:
           memfault_project_key: ${{ secrets.MEMFAULT_PROJECT_KEY }}
           memfault_fw_type: ${{ env.MEMFAULT_FW_TYPE }}
-          memfault_fw_version_prefix: ${{ env.MEMFAULT_FW_VERSION_PREFIX }}-debug
+          memfault_fw_version_prefix: ${{ env.MEMFAULT_FW_VERSION_PREFIX }}
           board: thingy91x/nrf9151/ns
           short_board: thingy91x
           version: ${{ env.VERSION }}-debug

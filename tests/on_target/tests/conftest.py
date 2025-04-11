@@ -142,6 +142,10 @@ def hex_file():
 
 @pytest.fixture(scope="session")
 def debug_hex_file():
+    # Skip if not thingy91x since debug build is only available for thingy91x
+    if DUT_DEVICE_TYPE != 'thingy91x':
+        pytest.skip("Debug build is only available for thingy91x")
+
     # Search for the debug firmware hex file in the artifacts folder
     artifacts_dir = "artifacts/"
     hex_pattern = f"asset-tracker-template-{r'[0-9a-z\.]+'}-debug-{DUT_DEVICE_TYPE}-nrf91.hex"
