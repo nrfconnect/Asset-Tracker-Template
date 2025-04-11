@@ -90,9 +90,6 @@ def timestamp(event):
     )
 
 def test_memfault(dut_board, debug_hex_file):
-    if dut_board.device_type != 'thingy91x':
-        pytest.skip("Memfault testing requires debug build which is only available for thingy91x")
-
     # Save timestamp of latest coredump
     coredumps = get_latest_coredump_traces(IMEI)
     logger.debug(f"Found coredumps: {coredumps}")
