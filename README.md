@@ -13,6 +13,8 @@
 
 ## Overview
 
+**NOTE** If you are not familiar with the nRF91 series SiPs and cellular in general it's recommended to go throught the [Nordic Developer Academy Cellular Fundaments Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals)
+
 The Asset Tracker Template implements a modular application framework for nRF91-based IoT devices.
 The application is built on nRF Connect SDK and uses a combination of state machines and message-based inter-module communication.
 It is intended to be a framework for developing asset tracking applications, but can be customized for other use cases as well.
@@ -40,10 +42,8 @@ The template is open-source for a reason, and we encourage users to contribute b
 - [Customization](docs/common/customization.md)
 - [Location Services](docs/common/location_services.md)
 - [Test and CI Setup](docs/common/test_and_ci_setup.md)
-- [Tooling](docs/common/tooling.md)
-- [Optimizations](docs/common/optimizations.md)
 - [nRFCloud FOTA](docs/common/nrfcloud_fota.md)
-- [Advanced](docs/common/advanced.md)
+- [Tooling and Troubleshooting](docs/common/tooling_troubleshooting.md)
 
 ### Modules
 - [Main](docs/modules/main.md)
