@@ -130,6 +130,24 @@ jobs:
           version: ${{ env.VERSION }}
           path: asset-tracker-template/app
 
+      - name: Build nrf9160dk firmware
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: ./asset-tracker-template/.github/actions/build-step
+        with:
+          board: nrf9160dk/nrf9160/ns
+          short_board: nrf9160dk
+          version: ${{ env.VERSION }}
+          path: asset-tracker-template/app
+
+      - name: Build nrf9161dk firmware
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: ./asset-tracker-template/.github/actions/build-step
+        with:
+          board: nrf9161dk/nrf9161/ns
+          short_board: nrf9161dk
+          version: ${{ env.VERSION }}
+          path: asset-tracker-template/app
+
       # Asset Tracker Template debug firmware build
       - name: Build thingy91x debug firmware
         if: ${{ github.event_name != 'pull_request' }}
