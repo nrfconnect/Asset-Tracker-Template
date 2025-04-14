@@ -9,7 +9,6 @@
 	chosen {
 		nordic,pm-ext-flash = &gd25wb256;
 	};
-
 	aliases {
 		ext-flash = &gd25wb256;
 	};
