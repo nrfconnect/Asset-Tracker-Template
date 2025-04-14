@@ -1,0 +1,37 @@
+#
+# Copyright (c) 2024 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menuconfig APP_DUMMY
+    bool "Dummy module"
+    default y
+    help
+        Enable the dummy module.
+
+if APP_DUMMY
+
+config APP_DUMMY_THREAD_STACK_SIZE
+    int "Dummy module thread stack size"
+    default 2048
+    help
+        Stack size for the dummy module thread.
+
+config APP_DUMMY_WATCHDOG_TIMEOUT_SECONDS
+    int "Dummy module watchdog timeout in seconds"
+    default 30
+    help
+        Watchdog timeout for the dummy module.
+
+config APP_DUMMY_MSG_PROCESSING_TIMEOUT_SECONDS
+    int "Dummy module message processing timeout in seconds"
+    default 5
+    help
+        Maximum time allowed for processing a single message in the dummy module.
+
+module = APP_DUMMY
+module-str = DUMMY
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # APP_DUMMY
