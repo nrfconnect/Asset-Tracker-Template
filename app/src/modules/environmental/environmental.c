@@ -65,10 +65,16 @@ struct environmental_state {
 	/* Pointer to the BME680 sensor device */
 	const struct device *const bme680;
 
+	/* Pointer to the BMM350 sensor device */
+	const struct device *const bmm350;
+
 	/* Sensor values */
 	double temperature;
 	double pressure;
 	double humidity;
+
+	/* Magnetic field values */
+	double magnetic_field[3];
 };
 
 /* Forward declarations of state handlers */
@@ -79,12 +85,13 @@ static const struct smf_state states[] = {
 		SMF_CREATE_STATE(NULL, state_running_run, NULL, NULL, NULL),
 };
 
-static void sample_sensors(const struct device *const bme680)
+static void sample_sensors(const struct device *const bme680, const struct device *const bmm350)
 {
 	int err;
 	struct sensor_value temp = { 0 };
 	struct sensor_value press = { 0 };
 	struct sensor_value humidity = { 0 };
+	struct sensor_value magnetic_field[3];
 
 	err = sensor_sample_fetch(bme680);
 	if (err) {
@@ -114,11 +121,33 @@ static void sample_sensors(const struct device *const bme680)
 		return;
 	}
 
+	err = sensor_sample_fetch(bmm350);
+	if (err) {
+		LOG_ERR("sensor_sample_fetch, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	err = sensor_channel_get(bmm350, SENSOR_CHAN_MAGN_XYZ, &magnetic_field);
+	if (err) {
+		LOG_ERR("sensor_channel_get, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	LOG_DBG("Magnetic field data: X: %.2f µT, Y: %.2f µT, Z: %.2f µT",
+		sensor_value_to_double(&magnetic_field[0]),
+		sensor_value_to_double(&magnetic_field[1]),
+		sensor_value_to_double(&magnetic_field[2]));
+
 	struct environmental_msg msg = {
 		.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE,
 		.temperature = sensor_value_to_double(&temp),
 		.pressure = sensor_value_to_double(&press),
 		.humidity = sensor_value_to_double(&humidity),
+		.magnetic_field[0] = sensor_value_to_double(&magnetic_field[0]),
+		.magnetic_field[1] = sensor_value_to_double(&magnetic_field[1]),
+		.magnetic_field[2] = sensor_value_to_double(&magnetic_field[2]),
 	};
 
 	/* Log the environmental values and limit to 2 decimals */
@@ -152,7 +181,7 @@ static void state_running_run(void *o)
 
 		if (msg.type == ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST) {
 			LOG_DBG("Environmental values sample request received, getting data");
-			sample_sensors(state_object->bme680);
+			sample_sensors(state_object->bme680, state_object->bmm350);
 		}
 	}
 }
@@ -170,6 +199,7 @@ static void environmental_task(void)
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	struct environmental_state environmental_state = {
 		.bme680 = DEVICE_DT_GET(DT_NODELABEL(bme680)),
+		.bmm350 = DEVICE_DT_GET(DT_NODELABEL(magnetometer)),
 	};
 
 	LOG_DBG("Environmental module task started");

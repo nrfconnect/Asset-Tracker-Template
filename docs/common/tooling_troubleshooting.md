@@ -1,19 +1,22 @@
 # Troubleshooting
 General overview of tools used to troubleshoot the template and/or modem/network behavior.
-It's recommended to complete the Nordic Developer Academy lesson: [Debugging and troubleshooting](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/) for tips in general how to debug applications based on [nRF Connect SDK](https://github.com/nrfconnect/sdk-nrf).
 
-# Shell
-To control and get information about certain aspects of the template, shell can be used.
-To use shell, connect to the devices UART interface either via your own terminal or the [nRF Connect for Desktop](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) Serial terminal application.
-Here is an example of how shell can be used to send a message to [nRF Cloud](https://nrfcloud.com):
+## Prerequisites
+It's recommended to complete the Nordic Developer Academy lessons:
+- [Debugging and troubleshooting](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/)
+- [Cellular IoT Fundamentals](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals/)
 
-```
-uart:~$ att_cloud_publish TEMP "24"
-Sending on payload channel: {"messageType":"DATA","appId":"TEMP","data":"24","ts":1744359144653} (68 bytes)
-```
+For more information about debugging applications based on [nRF Connect SDK](https://github.com/nrfconnect/sdk-nrf), refer to:
+- [nRF Connect SDK Debugging Guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/test_and_optimize/debugging.html)
+- [Zephyr Debugging Guide](https://docs.zephyrproject.org/latest/develop/debug/index.html)
 
-The following command "help" lists all the available commands in the template:
+# Shell Commands
+The template provides several shell commands for controlling and monitoring device behavior. Connect to the device's UART interface using either:
+- Your preferred terminal application (e.g., `screen`, `minicom`, `terraterm`)
+- [nRF Connect for Desktop](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) Serial terminal application
 
+## Available Commands
+Run `help` to list all available commands:
 ```
 uart:~$ help
 Available commands:
@@ -25,48 +28,81 @@ Available commands:
   ...
 ```
 
-The commands prefixed *att* are commands that are specific to the template.
-These shell commands are implemented in shell modules corresponding to the aspect of the template they control.
-For example, the network module implements the file `network_shell.c` and is located in the module folder.
+### Common Shell Commands Examples
 
-# Low Power Profiling
-The Power consumption of the device can be profiled using PPK.
-
-# Debugging using West (GDB)
-The template can be easily debugged using GDB via the west commands `west attach`.
-The following example shows how GDB can be used to set a breakpoint and print a backtrace once the breakpoint is hit:
-
+#### Cloud Publishing
 ```
-Insert terminal session showing how its used here.
+uart:~$ att_cloud_publish TEMP "24"
+Sending on payload channel: {"messageType":"DATA","appId":"TEMP","data":"24","ts":1744359144653} (68 bytes)
 ```
 
-Fore more information about debugging with west, see [West debugging](https://docs.zephyrproject.org/latest/develop/west/build-flash-debug.html#debugging-west-debug-west-debugserver)
+#### AT Command Execution
+```
+uart:~$ at AT+CGSN
++CGSN: "123456789012345"
+OK
+```
 
-# Debugging using SEGGER SystemView
-[Segger SystemView](https://www.segger.com/products/development-tools/systemview/) is a real-time analysis tool that can be used to analyse thread execution and scheduling in the device.
-To build the template with RTT tracing to Segger SystemView set the following options in your build configuration:
+# Debugging Tools
 
+## Low Power Profiling
+Profile power consumption using the Power Profiler Kit (PPK):
+1. Connect PPK to your device
+2. Use [nRF Connect for Desktop](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) Power Profiler application
+3. Configure sampling rate and capture duration
+4. Analyze power consumption patterns
+
+For detailed power profiling guidance:
+- [Power Profiler Kit User Guide](https://docs.nordicsemi.com/bundle/ug_ppk2/page/UG/ppk/PPK_user_guide_Intro.html)
+
+## GDB Debugging
+Debug the template using GDB via west commands:
+
+```bash
+# Attach GDB, skip rebuilding application
+west attach --skip-rebuild
+```
+
+Common GDB commands:
+```
+(gdb) tui enable
+(gdb) break main
+(gdb) continue
+(gdb) backtrace
+(gdb) print variable_name
+(gdb) next
+(gdb) step
+```
+
+For more information, see:
+- [West Debugging Guide](https://docs.zephyrproject.org/latest/develop/west/build-flash-debug.html#debugging-west-debug-west-debugserver)
+- [nRF Connect SDK Debugging](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/ug_debugging.html)
+- [GDB Manual](https://man7.org/linux/man-pages/man1/gdb.1.html)
+
+## SEGGER SystemView
+Analyze thread execution and scheduling using [SEGGER SystemView](https://www.segger.com/products/development-tools/systemview/).
+
+### Configuration
+Add to `prj.conf`:
 ```
 CONFIG_TRACING=y
 CONFIG_USE_SEGGER_RTT=y
 CONFIG_SEGGER_SYSTEMVIEW=y
 CONFIG_SEGGER_SYSTEMVIEW_BOOT_ENABLE=n
 CONFIG_SEGGER_SYSVIEW_POST_MORTEM_MODE=n
-
 ```
 
-Or build with the predefined RTT trace snippet:
-
-```
+Or build with predefined configuration:
+```bash
 west build -p -b <board> -S rtt-tracing
 ```
 
-Note that this snippet disables debug optimizations and that it may not be enough space in your application to use it as disabling optimizations increases the overall memory use of the application.
+Note: Disabling optimizations increases memory usage. Ensure sufficient space in your application.
 
-# Thread Analyser
-The Trace analyzer subsystem is useful when optimizing the applications stack sizes.
-Add the following options to your build configurations to get stack information printed every 30 seconds:
+## Thread Analysis
+Monitor and optimize stack sizes using the Thread Analyzer:
 
+Add to `prj.conf`:
 ```
 CONFIG_THREAD_ANALYZER=y
 CONFIG_THREAD_ANALYZER_USE_LOG=y
@@ -76,66 +112,87 @@ CONFIG_THREAD_ANALYZER_AUTO_STACK_SIZE=1024
 CONFIG_THREAD_NAME=y
 ```
 
-# TF-M logging
-To get logs from the secure image TF-M of the application forwarded to UART0 (application UART output) you can build with the following snippet:
+[Zephyr Thread Analyzer](https://docs.zephyrproject.org/latest/services/debugging/thread-analyzer.html)
 
-```
+## TF-M Logging
+Enable secure image logging by building with:
+```bash
 west build -p -b <board> -S tfm-enable-share-uart
 ```
 
-In case of secure faults, the fault frame information will be printed with accompanied information of the violating non-secure SP and LR registers.
+Secure faults will display:
+- Fault frame information
+- Non-secure SP and LR registers
+- Violation details
 
-# Debugging using Memfault (Remote debugging)
-The template implements overlays to enable remote debugging to [Memfault](https://memfault.com/).
-To get familiar with Memfault and how to do remote debugging, its recommended to go through the Nordic Developer Academy excersise: [Remote Debugging with Memfault](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/exercise-4-remote-debugging-with-memfault/)
+For more information:
+- [TF-M Documentation](https://tf-m-user-guide.trustedfirmware.org/)
+- [nRF Connect SDK TF-M Guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/security/tfm/index.html)
 
-Refer to the [Getting Started](getting_started.md) section to see how the template can be built with overlays enabling Memfault functionality.
-If you want to test/simulate faults on the device to test Memfault, the template implements Memfault shell commands that can be used to trigger typical faults.
-Here is an example of triggering a usagefault:
+## Memfault Remote Debugging
+Prerequisites:
+ - Registered to Memfault
+ - Memfault project setup and project key retrieved
 
+The template supports remote debugging via [Memfault](https://memfault.com/).
+
+Remote debugging enables the device to send metrics suchs as LTE, GNSS and memory statistics as well as coredump captures on crashes to analyse problems across single or fleet of devices once they occur.
+
+To build the application with support for Memfault you need to build with the Memfault overlay `overlay-memfault.conf`. If you want to capture and send modem traces to Memfault on coredumps, you can include the overlay `overlay-publish-modem-traces-to-memfault.conf`.
+
+**Important Note on Data Usage**: Enabling Memfault will increase your device's data usage. This is especially true when using the modem trace upload feature, which can send upwards of 1MB of modem trace data in case of application crashes. Consider this when planning your data usage and costs.
+
+For detailed build instructions and how to supply the project key, refer to the [Getting Started Guide](getting_started.md).
+
+**IMPORTANT** In order to properly use Memfault and be able to decode metrics and coredumps sent from the device, you need to upload the ELF file located in the build folder of the template once you have built the application.
+
+### Setup
+1. Register at [Memfault](https://app.memfault.com/register-nordic)
+2. Complete the [Remote Debugging with Memfault](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/exercise-4-remote-debugging-with-memfault/) exercise
+
+### Testing Faults
+Trigger test faults using shell commands:
 ```
-insert example here
+uart:~$ mflt_nrf test hardfault
+uart:~$ mflt_nrf test assert
+uart:~$ mflt_nrf test usagefault
 ```
 
-Fore more information on NCSs Memfault implementation, refer to the Memfault NCS sample documentation, integration as well as the templates CI Memfault on-target tests:
+For more information:
+- [Memfault Sample](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/samples/debug/memfault/README.html)
+- [Memfault Integration](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/debug/memfault_ncs.html)
 
-* [Memfault sample](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/samples/debug/memfault/README.html)
-* [Memfault integration](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/debug/memfault_ncs.html)
-* [CI tests](Asset-Tracker-Template/tests/on_target/tests/test_functional/test_memfault.py)
+## Modem Tracing
+Capture and analyze modem behavior for LTE, IP, modem issues.
 
-To use Memfault, you will need to register and setup a project.
-This can be done via the following link, [Memfault registration page](https://app.memfault.com/register-nordic)
-
-# Debugging using Modem traces
-Modem traces can be captured over UART to debug LTE, IP, and modem issues.
-This can be done by including a snippet in the build command specifying which medium you want to trace to.
-This build command enables modem tracing over UART1:
-
-```
+### UART Tracing
+Build with:
+```bash
 west build -p -b <board> -S nrf91-modem-trace-uart
 ```
 
-This build commands enables modem tracing over RTT:
-
-```
-west build -p -b <board> -S nrf91-modem-trace-uart
-```
-
-To capture modem traces over UART on a host computer either [nRF Connect for Desktop](https://www.nordicsemi.com/Products/Development-tools/) Cellular Monitor application can be used nRFUtil CLI:
-
-```
+Capture traces using:
+```bash
+# Using nRF Connect for Desktop Cellular Monitor
+# or
 nrfutil trace lte --input-serialport /dev/ttyACM1 --output-pcapng trace
 ```
 
-for RTT traces you can use the RTT logger to capture the modem traces and later convert them to PCAP using nRF Util or the Cellular Monitor:
-
+### RTT Tracing
+Build with:
+```bash
+west build -p -b <board> -S nrf91-modem-trace-rtt
 ```
+
+Capture traces:
+```bash
 JLinkRTTLogger -Device NRF9160_XXAA -If SWD -RTTChannel 1 modem_trace.bin
 ```
 
-If you also want to route logging via RTT you can capture both modem traces and application logs at the same time using debuggers RTT multichannel functionality.
-To do so you build the application with the RTT modem trace snippet and add the following options to the project configurations:
+### Combined RTT Logging
+For simultaneous modem traces and application logs:
 
+Add to `prj.conf`:
 ```
 CONFIG_USE_SEGGER_RTT=y
 CONFIG_LOG_BACKEND_RTT=y
@@ -143,39 +200,40 @@ CONFIG_SHELL_BACKEND_RTT=y
 CONFIG_SHELL_BACKEND_RTT_BUFFER=1
 ```
 
-This will split RTT tracing and logging into two channels, the you can call two separate commands to trace on both channels:
-
-Terminal 1:
-
-```
+Capture in separate terminals:
+```bash
+# Terminal 1 - Modem traces
 JLinkRTTLogger -Device NRF9160_XXAA -If SWD -RTTChannel 1 modem_trace.bin
+
+# Terminal 2 - Application logs
+JLinkRTTLogger -Device NRF9160_XXAA -If SWD -RTTChannel 0 terminal.txt
 ```
 
-Terminal 2:
-
-```
-JLinkRTTLogger -Device NRF9160_XXAA -If SWD -Speed 50000 -RTTChannel 0 terminal.txt
-```
-
-Just remember that the modem trace is captured in a binary format that needs to be converted by either nRF Util or the Cellular Monitor application.
-To convert a binary modem trace using nRF Util you can use the following command:
-
-```
+Convert binary traces:
+```bash
 nrfutil trace lte --input-file modemtraces.bin --output-wireshark
 ```
 
-Its recommended to go through the [Nordic Developer Academy Debugging with a Modem Trace excersise](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals/lessons/lesson-7-cellular-fundamentals/) to familiarize yourself with modem tracing on the nRF91 Series.
+For more information:
+- [nRF Connect SDK Modem Tracing](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrfxlib/nrf_modem/doc/modem_trace.html)
 
-# Common issues
+# Common Issues and Solutions
 
-## Not getting connected to network
-- problem (description, UART/trace output)  -
-- suggested tooling/debuggin to find the source of the issue - (modem trace / memfault)
-- Suggested fixes -
-- Link to similar devzone cases -
+## Network Connection Issues
 
-## Cloud connection timeout
-- problem (description, UART/trace output)  -
-- suggested tooling/debuggin to find the source of the issue - (modem trace / memfault)
-- Suggested fixes -
-- Link to similar devzone cases -
+### Symptoms
+- Device fails to connect to network
+- Frequent disconnections
+- Poor signal strength
+
+### Debugging Steps
+1. Check modem traces for connection attempts
+2. Verify SIM card status
+3. Monitor signal strength using `att_network status`
+4. Check for proper antenna connection
+
+### Common Solutions
+- Ensure proper antenna connection
+- Verify SIM card is active and valid
+- Check network coverage in your area
+- Reset modem using AT commands if needed

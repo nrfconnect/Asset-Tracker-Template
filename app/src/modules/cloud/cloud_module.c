@@ -32,6 +32,7 @@ LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 
 #define CUSTOM_JSON_APPID_VAL_CONEVAL "CONEVAL"
 #define CUSTOM_JSON_APPID_VAL_BATTERY "BATTERY"
+#define CUSTOM_JSON_APPID_VAL_MAGNETIC "MAGNETIC_FIELD"
 
 BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
 	     CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS,
@@ -652,6 +653,33 @@ static void state_connected_ready_run(void *o)
 				return;
 			} else if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+				SEND_FATAL_ERROR();
+				return;
+			}
+
+			char message[100] = { 0 };
+
+			err = snprintk(message, sizeof(message),
+				       "%.2f %.2f %.2f",
+				       msg.magnetic_field[0],
+				       msg.magnetic_field[1],
+				       msg.magnetic_field[2]);
+			if (err < 0 || err >= sizeof(message)) {
+				LOG_ERR("snprintk, error: %d", err);
+				SEND_FATAL_ERROR();
+				return;
+			}
+
+			err = nrf_cloud_coap_message_send(CUSTOM_JSON_APPID_VAL_MAGNETIC,
+							  message,
+							  false,
+							  NRF_CLOUD_NO_TIMESTAMP,
+							  confirmable);
+			if (err == -ENETUNREACH) {
+				LOG_WRN("Network is unreachable, error: %d", err);
+				return;
+			} else if (err) {
+				LOG_ERR("nrf_cloud_coap_message_send, error: %d", err);
 				SEND_FATAL_ERROR();
 				return;
 			}

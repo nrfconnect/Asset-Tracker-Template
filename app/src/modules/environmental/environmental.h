@@ -47,6 +47,9 @@ struct environmental_msg {
 
 	/** Contains the current pressure in Pa. */
 	double pressure;
+
+	/** Contains the current magnetic field values in microtesla. */
+	double magnetic_field[3];
 };
 
 #define MSG_TO_ENVIRONMENTAL_MSG(_msg)	(*(const struct environmental_msg *)_msg)
