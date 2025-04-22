@@ -777,6 +777,11 @@ int main(void)
 	LOG_DBG("Main has started");
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
+	if (task_wdt_id < 0) {
+		LOG_ERR("Failed to add task to watchdog: %d", task_wdt_id);
+		SEND_FATAL_ERROR();
+		return -EFAULT;
+	}
 
 	smf_set_initial(SMF_CTX(&main_state), &states[STATE_RUNNING]);
 

@@ -13,24 +13,14 @@
 
 #include "app_common.h"
 #include "location.h"
-#include "network.h"
 
 LOG_MODULE_REGISTER(location_module_test, LOG_LEVEL_DBG);
 
 /* Define subscriber for this module */
 ZBUS_MSG_SUBSCRIBER_DEFINE(test_subscriber);
 
-ZBUS_CHAN_DEFINE(NETWORK_CHAN,
-	 struct network_msg,
-	 NULL,
-	 NULL,
-	 ZBUS_OBSERVERS_EMPTY,
-	 ZBUS_MSG_INIT(.type = NETWORK_DISCONNECTED)
-);
-
 /* Add observers for the channels */
 ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, test_subscriber, 0);
-ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, test_subscriber, 0);
 
 /* Create fakes for required functions */
 FAKE_VALUE_FUNC(int, location_init, location_event_handler_t);
@@ -96,25 +86,6 @@ void test_module_init(void)
 
 	/* Verify location_init was called by the module */
 	TEST_ASSERT_EQUAL(1, location_init_fake.call_count);
-}
-
-/* Test GNSS initialization when network connects */
-void test_gnss_init_on_network_connect(void)
-{
-	struct network_msg msg = {
-		.type = NETWORK_CONNECTED
-	};
-
-	/* Publish network connected message */
-	zbus_chan_pub(&NETWORK_CHAN, &msg, K_NO_WAIT);
-
-	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
-
-	/* Verify GNSS was initialized */
-	TEST_ASSERT_EQUAL(1, lte_lc_func_mode_set_fake.call_count);
-	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_ACTIVATE_GNSS,
-	 lte_lc_func_mode_set_fake.arg0_val);
 }
 
 /* Test location search trigger handling */

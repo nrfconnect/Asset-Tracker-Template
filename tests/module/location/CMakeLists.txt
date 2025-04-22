@@ -21,7 +21,6 @@ target_sources(app
 
 zephyr_include_directories(${ASSET_TRACKER_TEMPLATE_DIR}/app/src/common)
 zephyr_include_directories(${ASSET_TRACKER_TEMPLATE_DIR}/app/src/modules/location)
-zephyr_include_directories(${ASSET_TRACKER_TEMPLATE_DIR}/app/src/modules/network)
 
 zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)
 zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/net)
@@ -47,6 +46,5 @@ target_compile_definitions(app PRIVATE
   -DCONFIG_LOCATION_REQUEST_DEFAULT_TIMEOUT=120000
   -DCONFIG_LOCATION_REQUEST_DEFAULT_CELLULAR_CELL_COUNT=3
   -DCONFIG_LOCATION_REQUEST_DEFAULT_GNSS_VISIBILITY_DETECTION=y
-  -DCONFIG_LTE_NETWORK_MODE_LTE_M_NBIOT_GPS=y
   -DCONFIG_NRF_CLOUD_AGNSS=y
 )
