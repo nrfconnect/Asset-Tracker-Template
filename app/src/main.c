@@ -95,6 +95,7 @@ static void idle_run(void *o);
 static void fota_entry(void *o);
 static void fota_run(void *o);
 
+static void fota_downloading_entry(void *o);
 static void fota_downloading_run(void *o);
 
 static void fota_waiting_for_network_disconnect_entry(void *o);
@@ -208,7 +209,7 @@ static const struct smf_state states[] = {
 		&states[STATE_FOTA_DOWNLOADING]
 	),
 	[STATE_FOTA_DOWNLOADING] = SMF_CREATE_STATE(
-		NULL,
+		fota_downloading_entry,
 		fota_downloading_run,
 		NULL,
 		&states[STATE_FOTA],
@@ -423,26 +424,6 @@ static void triggering_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 
-#if defined(CONFIG_APP_LED)
-	/* Blink Green */
-	struct led_msg led_msg = {
-		.type = LED_RGB_SET,
-		.red = 0,
-		.green = 255,
-		.blue = 0,
-		.duration_on_msec = 250,
-		.duration_off_msec = 2000,
-		.repetitions = 10,
-	};
-
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
-#endif /* CONFIG_APP_LED */
-
 	err = k_work_reschedule(&trigger_work, K_NO_WAIT);
 	if (err < 0) {
 		LOG_ERR("k_work_reschedule, error: %d", err);
@@ -495,6 +476,26 @@ static void sample_data_entry(void *o)
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
+
+#if defined(CONFIG_APP_LED)
+	/* Green pattern during active sampling */
+	struct led_msg led_msg = {
+		.type = LED_RGB_SET,
+		.red = 0,
+		.green = 55,
+		.blue = 0,
+		.duration_on_msec = 250,
+		.duration_off_msec = 2000,
+		.repetitions = 10,
+	};
+
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+#endif /* CONFIG_APP_LED */
 
 	/* Record the start time of sampling */
 	state_object->sample_start_time = k_uptime_seconds();
@@ -559,6 +560,28 @@ static void wait_for_trigger_entry(void *o)
 		LOG_ERR("k_work_reschedule, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
+
+#if defined(CONFIG_APP_LED)
+	/* Light green pattern for wait state */
+	struct led_msg led_msg = {
+		.type = LED_RGB_SET,
+		.red = 0,
+		.green = 255,
+		.blue = 8,
+		.duration_on_msec = 250,
+		.duration_off_msec = 2000,
+		.repetitions = 10,
+	};
+
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+#endif /* CONFIG_APP_LED */
+
+
 }
 
 static void wait_for_trigger_run(void *o)
@@ -620,6 +643,35 @@ static void fota_run(void *o)
 }
 
 /* STATE_FOTA_DOWNLOADING */
+
+static void fota_downloading_entry(void *o)
+{
+	ARG_UNUSED(o);
+
+	LOG_DBG("%s", __func__);
+
+#if defined(CONFIG_APP_LED)
+	int err;
+
+	/* Purple pattern during download - indefinite for ongoing process */
+	struct led_msg led_msg = {
+		.type = LED_RGB_SET,
+		.red = 160,
+		.green = 32,
+		.blue = 240,
+		.duration_on_msec = 250,
+		.duration_off_msec = 2000,
+		.repetitions = -1,
+	};
+
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+#endif /* CONFIG_APP_LED */
+}
 
 static void fota_downloading_run(void *o)
 {
