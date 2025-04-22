@@ -15,6 +15,12 @@
 #include <zephyr/net/coap.h>
 #include <app_version.h>
 
+#if defined(CONFIG_MEMFAULT)
+#include <memfault/ports/zephyr/http.h>
+#include <memfault/metrics/metrics.h>
+#include <memfault/panics/coredump.h>
+#endif /* CONFIG_MEMFAULT */
+
 #include "cloud_module.h"
 #include "app_common.h"
 #include "network.h"
@@ -92,9 +98,6 @@ ZBUS_CHAN_DEFINE(PRIV_CLOUD_CHAN,
 /* Connection attempt backoff timer is run as a delayable work on the system workqueue */
 static void backoff_timer_work_fn(struct k_work *work);
 static K_WORK_DELAYABLE_DEFINE(backoff_timer_work, backoff_timer_work_fn);
-
-/* State machine definitions */
-static const struct smf_state states[];
 
 /* Forward declarations of state handlers */
 static void state_running_entry(void *o);
@@ -745,6 +748,11 @@ static void cloud_module_thread(void)
 	LOG_DBG("cloud  module task started");
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
+	if (task_wdt_id < 0) {
+		LOG_ERR("Failed to add task to watchdog: %d", task_wdt_id);
+		SEND_FATAL_ERROR();
+		return;
+	}
 
 	/* Initialize the state machine to STATE_RUNNING, which will also run its entry function */
 	smf_set_initial(SMF_CTX(&cloud_state), &states[STATE_RUNNING]);

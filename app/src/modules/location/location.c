@@ -14,11 +14,11 @@
 #include <nrf_modem_gnss.h>
 #include <date_time.h>
 #include <net/nrf_cloud.h>
+#include <modem/nrf_modem_lib.h>
 
 #include "app_common.h"
 #include "modem/lte_lc.h"
 #include "location.h"
-#include "network.h"
 
 LOG_MODULE_REGISTER(location_module, CONFIG_APP_LOCATION_LOG_LEVEL);
 
@@ -40,16 +40,12 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(location);
 
 /* Observe channels */
 ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, location, 0);
-ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, location, 0);
 
-#define MAX_MSG_SIZE \
-	(MAX(sizeof(enum location_msg_type), \
-		 (sizeof(struct network_msg))))
-
-/* State machine definitions */
-static const struct smf_state states[];
+#define MAX_MSG_SIZE sizeof(enum location_msg_type)
 
 /* Forward declarations */
+static void location_event_handler(const struct location_event_data *event_data);
+
 static void state_running_entry(void *o);
 static void state_running_run(void *o);
 
@@ -80,14 +76,41 @@ struct location_state {
 
 	/* Last received message */
 	uint8_t msg_buf[MAX_MSG_SIZE];
-
-	/* GNSS initialization status */
-	bool gnss_initialized;
 };
 
-static void location_event_handler(const struct location_event_data *event_data);
+static void on_cfun(int mode, void *ctx)
+{
+	ARG_UNUSED(ctx);
 
-int nrf_cloud_coap_location_send(const struct nrf_cloud_gnss_data *gnss, bool confirmable);
+	int err;
+	static bool inited;
+
+	/* Don't activate GNSS if modem is powered off or put into offline mode. */
+	if (mode == 0 || mode == 4) {
+		/* Set init guard to false if modem is disabled or turned off.
+		 * This makes it possible to reactivate GNSS when modem is turned on.
+		 */
+		inited = false;
+		return;
+	}
+
+	/* Use initialization guard to avoid an infinite loop. */
+	if (inited) {
+		return;
+	}
+
+	inited = true;
+
+	LOG_DBG("Modem CFUN mode: %d", mode);
+
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
+	if (err) {
+		LOG_ERR("Activating GNSS in the modem failed: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+NRF_MODEM_LIB_ON_CFUN(att_location_init_hook, on_cfun, NULL);
 
 static void task_wdt_callback(int channel_id, void *user_data)
 {
@@ -123,27 +146,6 @@ void trigger_location_update(void)
 	}
 }
 
-void handle_network_chan(struct network_msg msg, struct location_state *state)
-{
-	if (state->gnss_initialized) {
-		return;
-	}
-
-	if (msg.type == NETWORK_CONNECTED) {
-		int err;
-
-		/* GNSS has to be enabled after the modem is initialized and enabled */
-		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
-		if (err) {
-			LOG_ERR("Unable to init GNSS: %d", err);
-			SEND_FATAL_ERROR();
-		} else {
-			state->gnss_initialized = true;
-			LOG_DBG("GNSS initialized");
-		}
-	}
-}
-
 void handle_location_chan(enum location_msg_type location_msg_type)
 {
 	if (location_msg_type == LOCATION_SEARCH_TRIGGER) {
@@ -155,8 +157,9 @@ void handle_location_chan(enum location_msg_type location_msg_type)
 /* State machine handlers */
 static void state_running_entry(void *o)
 {
+	ARG_UNUSED(o);
+
 	int err;
-	struct location_state *state = (struct location_state *)o;
 
 	LOG_DBG("%s", __func__);
 
@@ -168,16 +171,11 @@ static void state_running_entry(void *o)
 	}
 
 	LOG_DBG("Location library initialized");
-	state->gnss_initialized = false;
 }
 
 static void state_running_run(void *o)
 {
-	struct location_state *state = (struct location_state *)o;
-
-	if (state->chan == &NETWORK_CHAN) {
-		handle_network_chan(MSG_TO_NETWORK_MSG(state->msg_buf), state);
-	}
+	const struct location_state *state = (const struct location_state *)o;
 
 	if (state->chan == &LOCATION_CHAN) {
 		handle_location_chan(MSG_TO_LOCATION_TYPE(state->msg_buf));

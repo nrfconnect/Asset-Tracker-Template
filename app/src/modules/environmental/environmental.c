@@ -175,6 +175,11 @@ static void environmental_task(void)
 	LOG_DBG("Environmental module task started");
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
+	if (task_wdt_id < 0) {
+		LOG_ERR("Failed to add task to watchdog: %d", task_wdt_id);
+		SEND_FATAL_ERROR();
+		return;
+	}
 
 	smf_set_initial(SMF_CTX(&environmental_state), &states[STATE_RUNNING]);
 

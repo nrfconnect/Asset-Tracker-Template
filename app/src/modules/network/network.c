@@ -577,6 +577,11 @@ static void network_module_thread(void)
 	struct network_state_object network_state;
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, network_wdt_callback, (void *)k_current_get());
+	if (task_wdt_id < 0) {
+		LOG_ERR("Failed to add task to watchdog: %d", task_wdt_id);
+		SEND_FATAL_ERROR();
+		return;
+	}
 
 	smf_set_initial(SMF_CTX(&network_state), &states[STATE_RUNNING]);
 
