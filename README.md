@@ -33,15 +33,15 @@ If you are not familiar with the nRF91 series SiPs and cellular in general, it's
 
 The template consists of the following modules:
 
-* ***Main Module**: Central coordinator implementing business logic and control flow
-* ***Network Module**: Manages LTE connectivity and tracks network status
-* ***Cloud Module**: Handles communication with nRF Cloud using CoAP
-* ***Location Module**: Provides location services using GNSS, Wi-Fi and cellular positioning
-* ***LED Module**: Controls RGB LED for visual feedback on Thingy:91 X
-* ***Button Module**: Handles button input for user interaction
-* ***FOTA Module**: Manages firmware over-the-air updates
-* ***Environmental Module**: Collects environmental sensor data
-* ***Power Module**: Monitors battery status and provides power management
+* **Main Module**: Central coordinator implementing business logic and control flow
+* **Network Module**: Manages LTE connectivity and tracks network status
+* **Cloud Module**: Handles communication with nRF Cloud using CoAP
+* **Location Module**: Provides location services using GNSS, Wi-Fi and cellular positioning
+* **LED Module**: Controls RGB LED for visual feedback on Thingy:91 X
+* **Button Module**: Handles button input for user interaction
+* **FOTA Module**: Manages firmware over-the-air updates
+* **Environmental Module**: Collects environmental sensor data
+* **Power Module**: Monitors battery status and provides power management
 
 The image below illustrates the system architecture and the interaction between the modules.
 The zbus channels are indicated with colored arrows showing the direction of communication, with the arrows pointing in to the module that is subscribing to the respective channel.
