@@ -14,15 +14,21 @@
 
 ## Overview
 
-The Asset Tracker Template is a modular application framework designed for nRF91-based IoT devices. It is built on the nRF Connect SDK and leverages Zephyr's features to provide a structured, event-driven system. The framework is intended for battery-powered IoT applications and supports features like cloud connectivity, location tracking, and sensor data collection.
+The Asset Tracker Template is a framework for developing IoT applications on nRF91-based devices. Built on the [nRF Connect SDK](https://www.nordicsemi.com/Products/Development-software/nRF-Connect-SDK) and [Zephyr RTOS](https://docs.zephyrproject.org/latest/), it provides a modular, event-driven architecture suitable for battery-powered IoT use cases. The framework supports features such as cloud connectivity, location tracking, and sensor data collection.
 
-The template is organized into independent modules, each responsible for a specific functionality, such as managing network connectivity, handling cloud communication, or collecting environmental data. These modules communicate through a message-based system, ensuring loose coupling and maintainability.
+The system is organized into independent modules, each responsible for a specific functionality, such as managing network connectivity, handling cloud communication, or collecting environmental data. Modules communicate through zbus channels, ensuring loose coupling and maintainability.
 
-The template is suitable for use cases such as asset tracking, environmental monitoring, and other IoT applications requiring modularity, configurability, and efficient power management.
+This template is suitable for applications like asset tracking, environmental monitoring, and other IoT use cases requiring modularity, configurability, and efficient power management. It includes a testing infrastructure with GitHub Actions for automated testing and continuous integration.
 
-It is designed to be easily customizable and extensible, allowing developers to adapt it to their specific needs. The framework includes tests and testing infrastructure, enabling automated testing and continuous integration using GitHub Actions.
+The framework is designed for customization, allowing developers to:
 
-**Supported Hardware**:
+* Modify the central business logic in the `main.c` file.
+* Enable, disable and configure modules via Kconfig options.
+* Add new modules following the established patterns.
+* Modify existing modules to suit specific requirements.
+* Contribute to the open-source project by submitting improvements, bug fixes, or new features.
+
+**Supported and verified hardware**:
 
 * [Thingy:91 X](https://www.nordicsemi.com/Products/Development-hardware/Nordic-Thingy-91-X)
 * [nRF9151 DK](https://www.nordicsemi.com/Products/Development-hardware/nRF9151-DK)
@@ -68,7 +74,7 @@ The zbus channels are indicated with colored arrows showing the direction of com
 
 ### Customization and Extension
 
-The framework is designed to be customizable and intended for developers to adapt it to their specific needs. Key points for customization include:
+The template is customizable and extensible, enabling developers to adapt it to specific requirements. Key points for customization include:
 
 * The `main.c` file contains the central business logic and is the primary customization point
 * Modules can be enabled/disabled via Kconfig options
@@ -101,7 +107,7 @@ west update
 
 ```shell
 west build -p -b thingy91x/nrf9151/ns
-west thingy91x-dfu  # For Thingy91X serial bootloader
+west thingy91x-dfu  # For Thingy:91 X serial bootloader
 # Or if you use an external debugger (ensure that nRF9151 is selected with the switch on the Thingy:91 X)
 west flash --erase
 ```
