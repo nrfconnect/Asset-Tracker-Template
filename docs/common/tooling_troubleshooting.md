@@ -1,5 +1,17 @@
 # Tooling and Troubleshooting
 
+## Table of Contents
+
+- [Shell Commands](#shell-commands)
+  - [Available Commands](#available-commands)
+  - [Shell Command Examples](#shell-command-examples)
+- [Debugging Tools](#debugging-tools)
+  - [Low Power Profiling](#low-power-profiling)
+  - [GDB Debugging](#gdb-debugging)
+  - [SEGGER SystemView](#segger-systemview)
+  - [Thread Analysis](#thread-analysis)
+  - [Hardfaults](#hardfaults)
+
 General overview of tools used to troubleshoot the template code and/or modem/network behavior.
 For more knowledge on debugging and troubleshooting [nRF Connect SDK](https://github.com/nrfconnect/sdk-nrf) based applications in general, refer to these links:
 
@@ -87,15 +99,17 @@ OK
 
 ## Debugging Tools
 
-## Low Power Profiling
+### Low Power Profiling
 
-To get a rough estimate of the power consumption of the device and what you should expect depending on your network configuration and data transmission you can use the [Online Power Profiler for LTE](https://devzone.nordicsemi.com/power/w/opp/3/online-power-profiler-for-lte).
-For exact measurement its recommended to use a Power Analyzer or the [PPK: Power Profiler Kit 2](https://www.nordicsemi.com/Products/Development-hardware/Power-Profiler-Kit-2)
+To get a rough estimate of the power consumption of the device and what you should expect depending on your network configuration and data transmission, you can use the [Online Power Profiler for LTE](https://devzone.nordicsemi.com/power/w/opp/3/online-power-profiler-for-lte).
+
+For exact measurements, it's recommended to use a Power Analyzer or the [PPK: Power Profiler Kit 2](https://www.nordicsemi.com/Products/Development-hardware/Power-Profiler-Kit-2).
+
 For detailed guidance on how the PPK can be used to profile and measure power, see:
 
 - [Power Profiler Kit User Guide](https://docs.nordicsemi.com/bundle/ug_ppk2/page/UG/ppk/PPK_user_guide_Intro.html)
 
-## GDB Debugging
+### GDB Debugging
 
 Debug the template using GDB via west commands:
 
@@ -123,13 +137,13 @@ For more information, see:
 - [nRF Connect SDK VS Code Debugging](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/debugging-in-vs-code/)
 - [GDB Manual](https://man7.org/linux/man-pages/man1/gdb.1.html)
 
-## SEGGER SystemView
+### SEGGER SystemView
 
 Analyze thread execution and scheduling using [SEGGER SystemView](https://www.segger.com/products/development-tools/systemview/).
 
 ![Segger Systemview](../gifs/sysview-ui.gif)
 
-### Configuration
+#### Configuration
 
 Add to `prj.conf`:
 
@@ -142,7 +156,7 @@ And build/flash the template for the respective board.
 Or build with the necessary configurations passed in via the west build command:
 
 ```bash
- west build -p -b <board> -- -DCONFIG_TRACING=y -DCONFIG_SEGGER_SYSTEMVIEW=y
+west build -p -b <board> -- -DCONFIG_TRACING=y -DCONFIG_SEGGER_SYSTEMVIEW=y
 ```
 
 Or RTT tracing snippet:
@@ -151,7 +165,7 @@ Or RTT tracing snippet:
 west build -p -b <board> -- -Dapp_SNIPPET=rtt-tracing
 ```
 
-## Thread Analysis
+### Thread Analysis
 
 Monitor and optimize stack sizes using the Thread Analyzer:
 
@@ -166,7 +180,7 @@ CONFIG_THREAD_ANALYZER_AUTO_STACK_SIZE=1024
 CONFIG_THREAD_NAME=y
 ```
 
-The listed configurations configures the thread analyzer to print thread information every 30 seconds:
+The listed configurations configure the thread analyzer to print thread information every 30 seconds:
 
 ```bash
 [00:00:30.725,463] <inf> thread_analyzer:  location_api_workq  : STACK: unused 376 usage 3720 / 4096 (90 %); CPU: 0 %
@@ -218,16 +232,16 @@ The listed configurations configures the thread analyzer to print thread informa
 [00:00:30.728,759] <inf> thread_analyzer:  ISR0                : STACK: unused 1736 usage 312 / 2048 (15 %)
 ```
 
-For more information see [Zephyr Thread Analyzer](https://docs.zephyrproject.org/latest/services/debugging/thread-analyzer.html)
+For more information, see [Zephyr Thread Analyzer](https://docs.zephyrproject.org/latest/services/debugging/thread-analyzer.html)
 
-## Hardfaults
+### Hardfaults
 
 When a hardfault occurs, the [LR and PC](https://stackoverflow.com/questions/8236959/what-are-sp-stack-and-lr-in-arm) registers can be looked up in order to find the offending instruction.
 For example, in this fault frame the PC is `0x00002681`, thread is `main` and type of error is a stack overflow.
 So in this case, there is no need to look up the PC or LR to understand the issue.
 The main stack size needs to be increased.
 
-For more information on how to debug hardfaults see [Memfault Cortex Hardfault debug](https://interrupt.memfault.com/blog/cortex-m-hardfault-debug)
+For more information on how to debug hardfaults, see [Memfault Cortex Hardfault debug](https://interrupt.memfault.com/blog/cortex-m-hardfault-debug)
 
 ```bash
 *** Using Zephyr OS v4.0.99-7607c6585566 ***
