@@ -14,7 +14,7 @@ test_runner_generate(src/cloud_module_test.c)
 target_sources(app
   PRIVATE
   src/cloud_module_test.c
-  ../../../app/src/modules/cloud/cloud_module.c
+  ../../../app/src/modules/cloud/cloud.c
 )
 
 zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)

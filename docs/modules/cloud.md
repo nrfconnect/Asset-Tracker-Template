@@ -12,11 +12,11 @@ The module's responsibilities include:
 
 nRF Cloud over CoAP utilizes DTLS connection ID which allows the device to quickly re-establish a secure connection with the cloud after a network disconnection without the need for a full DTLS handshake. The module uses the nRF Cloud CoAP library to handle the CoAP communication and DTLS connection management.
 
-Below, the module’s main messages, configurations, and state machine are covered. Refer to the source files (`cloud_module.c`, `cloud_module.h`, and `Kconfig.cloud`) for implementation details.
+Below, the module’s main messages, configurations, and state machine are covered. Refer to the source files (`cloud.c`, `cloud.h`, and `Kconfig.cloud`) for implementation details.
 
 ## Messages
 
-The cloud module publishes and receives messages over the zbus channel `CLOUD_CHAN`. All module message types are defined in `cloud_module.h` and used within `cloud_module.c`.
+The cloud module publishes and receives messages over the zbus channel `CLOUD_CHAN`. All module message types are defined in `cloud.h` and used within `cloud.c`.
 
 ### Input Messages
 
@@ -37,7 +37,7 @@ The cloud module publishes and receives messages over the zbus channel `CLOUD_CH
 - **CLOUD_SHADOW_RESPONSE**
   Returns shadow data or a shadow delta received from nRF Cloud.
 
-The message structure used by the cloud module is defined in `cloud_module.h`:
+The message structure used by the cloud module is defined in `cloud.h`:
 
 ```c
 struct cloud_msg {
@@ -101,7 +101,7 @@ For more details on these and other configurations, refer to `Kconfig.cloud`.
 
 ## State diagram
 
-Below is a simplified representation of the state machine implemented in `cloud_module.c`. The module starts in the **STATE_RUNNING** context, which immediately transitions to **STATE_DISCONNECTED** upon initialization. From there, network events and internal conditions drive state transitions.
+Below is a simplified representation of the state machine implemented in `cloud.c`. The module starts in the **STATE_RUNNING** context, which immediately transitions to **STATE_DISCONNECTED** upon initialization. From there, network events and internal conditions drive state transitions.
 
 ```mermaid
 stateDiagram-v2

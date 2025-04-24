@@ -11,7 +11,7 @@
 #include <net/nrf_cloud_defs.h>
 #include <date_time.h>
 
-#include "cloud_module.h"
+#include "cloud.h"
 
 LOG_MODULE_DECLARE(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 

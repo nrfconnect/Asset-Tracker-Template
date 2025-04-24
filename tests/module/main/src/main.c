@@ -15,7 +15,7 @@
 #include "power.h"
 #include "network.h"
 #include "environmental.h"
-#include "cloud_module.h"
+#include "cloud.h"
 #include "fota.h"
 #include "location.h"
 #include "led.h"

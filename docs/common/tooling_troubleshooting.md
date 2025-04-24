@@ -201,7 +201,7 @@ The listed configurations configure the thread analyzer to print thread informat
 [00:00:30.726,593] <inf> thread_analyzer:                      : Total CPU cycles used: 37
 [00:00:30.726,715] <inf> thread_analyzer:  coap_client_recv_thread: STACK: unused 592 usage 688 / 1280 (53 %); CPU: 0 %
 [00:00:30.726,745] <inf> thread_analyzer:                      : Total CPU cycles used: 273
-[00:00:30.726,867] <inf> thread_analyzer:  cloud_module_thread_id: STACK: unused 328 usage 3000 / 3328 (90 %); CPU: 0 %
+[00:00:30.726,867] <inf> thread_analyzer:  cloud_thread_id: STACK: unused 328 usage 3000 / 3328 (90 %); CPU: 0 %
 [00:00:30.726,898] <inf> thread_analyzer:                      : Total CPU cycles used: 1081
 [00:00:30.726,959] <inf> thread_analyzer:  date_time_work_q    : STACK: unused 80 usage 368 / 448 (82 %); CPU: 0 %
 [00:00:30.726,989] <inf> thread_analyzer:                      : Total CPU cycles used: 11

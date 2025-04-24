@@ -14,7 +14,7 @@
 #include "app_common.h"
 #include "button.h"
 #include "network.h"
-#include "cloud_module.h"
+#include "cloud.h"
 #include "fota.h"
 #include "location.h"
 #include "cbor_helper.h"
