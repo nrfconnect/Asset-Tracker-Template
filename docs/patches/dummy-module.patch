@@ -1,0 +1,281 @@
+diff --git a/app/CMakeLists.txt b/app/CMakeLists.txt
+index e1948cc..8d20bcd 100644
+--- a/app/CMakeLists.txt
++++ b/app/CMakeLists.txt
+@@ -27,3 +27,4 @@ add_subdirectory_ifdef(CONFIG_APP_LED src/modules/led)
+ add_subdirectory_ifdef(CONFIG_APP_LOCATION src/modules/location)
+ add_subdirectory_ifdef(CONFIG_APP_CLOUD src/modules/cloud)
+ add_subdirectory_ifdef(CONFIG_APP_FOTA src/modules/fota)
++add_subdirectory_ifdef(CONFIG_APP_DUMMY src/modules/dummy)
+diff --git a/app/src/modules/dummy/CMakeLists.txt b/app/src/modules/dummy/CMakeLists.txt
+new file mode 100644
+index 0000000..a299b3b
+--- /dev/null
++++ b/app/src/modules/dummy/CMakeLists.txt
+@@ -0,0 +1,8 @@
++#
++# Copyright (c) 2025 Nordic Semiconductor ASA
++#
++# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
++#
++
++target_sources_ifdef(CONFIG_APP_DUMMY app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/dummy.c)
++target_include_directories(app PRIVATE .)
+diff --git a/app/src/modules/dummy/Kconfig.dummy b/app/src/modules/dummy/Kconfig.dummy
+new file mode 100644
+index 0000000..2319814
+--- /dev/null
++++ b/app/src/modules/dummy/Kconfig.dummy
+@@ -0,0 +1,37 @@
++#
++# Copyright (c) 2024 Nordic Semiconductor
++#
++# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
++#
++
++menuconfig APP_DUMMY
++    bool "Dummy module"
++    default y
++    help
++        Enable the dummy module.
++
++if APP_DUMMY
++
++config APP_DUMMY_THREAD_STACK_SIZE
++    int "Dummy module thread stack size"
++    default 2048
++    help
++        Stack size for the dummy module thread.
++
++config APP_DUMMY_WATCHDOG_TIMEOUT_SECONDS
++    int "Dummy module watchdog timeout in seconds"
++    default 30
++    help
++        Watchdog timeout for the dummy module.
++
++config APP_DUMMY_MSG_PROCESSING_TIMEOUT_SECONDS
++    int "Dummy module message processing timeout in seconds"
++    default 5
++    help
++        Maximum time allowed for processing a single message in the dummy module.
++
++module = APP_DUMMY
++module-str = DUMMY
++source "subsys/logging/Kconfig.template.log_config"
++
++endif # APP_DUMMY
+diff --git a/app/src/modules/dummy/dummy.c b/app/src/modules/dummy/dummy.c
+new file mode 100644
+index 0000000..8c2450a
+--- /dev/null
++++ b/app/src/modules/dummy/dummy.c
+@@ -0,0 +1,162 @@
++/*
++ * Copyright (c) 2025 Nordic Semiconductor ASA
++ *
++ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
++ */
++
++#include <zephyr/kernel.h>
++#include <zephyr/logging/log.h>
++#include <zephyr/zbus/zbus.h>
++#include <zephyr/task_wdt/task_wdt.h>
++#include <zephyr/smf.h>
++
++#include "app_common.h"
++#include "dummy.h"
++
++/* Register log module */
++LOG_MODULE_REGISTER(dummy_module, CONFIG_APP_DUMMY_LOG_LEVEL);
++
++/* Define module's zbus channel */
++ZBUS_CHAN_DEFINE(DUMMY_CHAN,
++		struct dummy_msg,
++		NULL,
++		NULL,
++		ZBUS_OBSERVERS_EMPTY,
++		ZBUS_MSG_INIT(0)
++);
++
++/* Register zbus subscriber */
++ZBUS_MSG_SUBSCRIBER_DEFINE(dummy);
++
++/* Add subscriber to channel */
++ZBUS_CHAN_ADD_OBS(DUMMY_CHAN, dummy, 0);
++
++#define MAX_MSG_SIZE sizeof(struct dummy_msg)
++
++BUILD_ASSERT(CONFIG_APP_DUMMY_WATCHDOG_TIMEOUT_SECONDS >
++	     CONFIG_APP_DUMMY_MSG_PROCESSING_TIMEOUT_SECONDS,
++	     "Watchdog timeout must be greater than maximum message processing time");
++
++/* State machine states */
++enum dummy_module_state {
++	STATE_RUNNING,
++};
++
++/* Module state structure */
++struct dummy_state {
++	/* State machine context (must be first) */
++	struct smf_ctx ctx;
++
++	/* Last received zbus channel */
++	const struct zbus_channel *chan;
++
++	/* Message buffer */
++	uint8_t msg_buf[MAX_MSG_SIZE];
++
++	/* Current counter value */
++	int32_t current_value;
++};
++
++/* Forward declarations */
++static void state_running_run(void *o);
++
++/* State machine definition */
++static const struct smf_state states[] = {
++	[STATE_RUNNING] = SMF_CREATE_STATE(NULL, state_running_run, NULL, NULL, NULL),
++};
++
++/* Watchdog callback */
++static void task_wdt_callback(int channel_id, void *user_data)
++{
++	LOG_ERR("Watchdog expired, Channel: %d, Thread: %s",
++			channel_id, k_thread_name_get((k_tid_t)user_data));
++
++	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
++}
++
++/* State machine handlers */
++static void state_running_run(void *o)
++{
++	const struct dummy_state *state_object = (const struct dummy_state *)o;
++
++	if (&DUMMY_CHAN == state_object->chan) {
++		struct dummy_msg msg = MSG_TO_DUMMY_MSG(state_object->msg_buf);
++
++		if (msg.type == DUMMY_SAMPLE_REQUEST) {
++			LOG_DBG("Received sample request");
++			state_object->current_value++;
++
++			struct dummy_msg response = {
++				.type = DUMMY_SAMPLE_RESPONSE,
++				.value = state_object->current_value
++			};
++
++			int err = zbus_chan_pub(&DUMMY_CHAN, &response, K_NO_WAIT);
++			if (err) {
++				LOG_ERR("Failed to publish response: %d", err);
++				SEND_FATAL_ERROR();
++				return;
++			}
++		}
++	}
++}
++
++/* Module task function */
++static void dummy_task(void)
++{
++	int err;
++	int task_wdt_id;
++	const uint32_t wdt_timeout_ms =
++		(CONFIG_APP_DUMMY_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
++	const uint32_t execution_time_ms =
++		(CONFIG_APP_DUMMY_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
++	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
++	struct dummy_state dummy_state = {
++		.current_value = 0
++	};
++
++	LOG_DBG("Starting dummy module task");
++
++	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
++	if (task_wdt_id < 0) {
++		LOG_ERR("Failed to add task to watchdog: %d", task_wdt_id);
++		SEND_FATAL_ERROR();
++		return;
++	}
++
++	smf_set_initial(SMF_CTX(&dummy_state), &states[STATE_RUNNING]);
++
++	while (true) {
++		err = task_wdt_feed(task_wdt_id);
++		if (err) {
++			LOG_ERR("Failed to feed watchdog: %d", err);
++			SEND_FATAL_ERROR();
++			return;
++		}
++
++		err = zbus_sub_wait_msg(&dummy,
++					&dummy_state.chan,
++					dummy_state.msg_buf,
++					zbus_wait_ms);
++		if (err == -ENOMSG) {
++			continue;
++		} else if (err) {
++			LOG_ERR("Failed to wait for message: %d", err);
++			SEND_FATAL_ERROR();
++			return;
++		}
++
++		err = smf_run_state(SMF_CTX(&dummy_state));
++		if (err) {
++			LOG_ERR("Failed to run state machine: %d", err);
++			SEND_FATAL_ERROR();
++			return;
++		}
++	}
++}
++
++/* Define module thread */
++K_THREAD_DEFINE(dummy_task_id,
++		CONFIG_APP_DUMMY_THREAD_STACK_SIZE,
++		dummy_task, NULL, NULL, NULL,
++		K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+diff --git a/app/src/modules/dummy/dummy.h b/app/src/modules/dummy/dummy.h
+new file mode 100644
+index 0000000..4d3816e
+--- /dev/null
++++ b/app/src/modules/dummy/dummy.h
+@@ -0,0 +1,41 @@
++/*
++ * Copyright (c) 2025 Nordic Semiconductor ASA
++ *
++ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
++ */
++
++#ifndef _DUMMY_H_
++#define _DUMMY_H_
++
++#include <zephyr/kernel.h>
++#include <zephyr/zbus/zbus.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++/* Module's zbus channel */
++ZBUS_CHAN_DECLARE(DUMMY_CHAN);
++
++/* Module message types */
++enum dummy_msg_type {
++    /* Output message types */
++    DUMMY_SAMPLE_RESPONSE = 0x1,
++
++    /* Input message types */
++    DUMMY_SAMPLE_REQUEST,
++};
++
++/* Module message structure */
++struct dummy_msg {
++    enum dummy_msg_type type;
++    int32_t value;
++};
++
++#define MSG_TO_DUMMY_MSG(_msg) (*(const struct dummy_msg *)_msg)
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif /* _DUMMY_H_ */
