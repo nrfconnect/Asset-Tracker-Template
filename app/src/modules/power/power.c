@@ -18,6 +18,7 @@
 #include <math.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
+#include <modem/nrf_modem_lib_trace.h>
 
 #include "lp803448_model.h"
 #include "app_common.h"
