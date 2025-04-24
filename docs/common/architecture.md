@@ -4,21 +4,9 @@ The Asset Tracker Template application leverages Zephyr features to create a mod
 
 This document provides an overview of the architecture and explains how the different modules interact with each other, with a focus on the zbus messaging bus and the State Machine Framework.
 
-- [System Overview](#system-overview)
-  - [Module Architecture](#module-architecture)
-  - [Module Interactions](#module-interactions)
+- [System overview](#system-overview)
 - [Zbus](#zbus)
-  - [Channels and messages](#channels-and-messages)
-  - [Observers](#observers)
-  - [Message sending](#message-sending)
 - [State Machine Framework](#state-machine-framework)
-  - [Run-to-completion](#run-to-completion)
-  - [State definition](#state-definition)
-  - [Hierarchical state machine](#hierarchical-state-machine)
-  - [State machine context](#state-machine-context)
-  - [State machine initialization](#state-machine-initialization)
-  - [State machine execution](#state-machine-execution)
-  - [State transitions](#state-transitions)
 
 ## System Overview
 
@@ -42,8 +30,8 @@ Here's a simplified flow of a typical operation:
 
 1. The Main module schedules periodic triggers or responds to button presses reported on the `BUTTON_CHAN` channel
 2. When triggered either by timeout or button press, it requests location data from the Location module on the `LOCATION_CHAN` channel
-3. After location search is completed and reported on the `LOCATION_CHAN`, the main module requests sensor data from the Environmental module on the `ENVIRONMENTAL_CHAN` channel
-4. Throughout the operation, the main module controls the LED module over the `LED_CHAN` channel to provide visual feedback about the system state
+3. After location search is completed and reported on the `LOCATION_CHAN`, the Main module requests sensor data from the Environmental module on the `ENVIRONMENTAL_CHAN` channel
+4. Throughout the operation, the Main module controls the LED module over the `LED_CHAN` channel to provide visual feedback about the system state
 
 ### Module Architecture
 
@@ -54,7 +42,8 @@ Each module follows a similar pattern:
 3. **Thread**: Modules that need to perform blocking operations have their own thread
 4. **Initialization**: Modules are initialized at system startup, either through SYS_INIT() or in its dedicated thread
 
-As a rule of thumb, modules in the Asset Tracker Template should, when possible, not be aware of each other, and should not have any dependencies between them. This is not always possible, but it is a good practice to strive for. Some modules will have to be aware of each other, such as the Main module, which is the central module that controls the system. The Main module will have to be aware of other modules in the system to implement the business logic of the application.
+Modules in the Asset Tracker Template should avoid dependencies and remain unaware of each other whenever possible. This decoupling improves maintainability and extensibility. However, some exceptions exist, such as the Main module, which must interact with other modules to implement the application's business logic.
+Another example is the cloud module that needs to be aware of the network module to know when it is connected to the network and when it is not.
 
 ## Zbus
 
@@ -119,7 +108,7 @@ ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network_subscriber, 0);
 
 #### Listeners
 
-Used by modules that do not have their own thread and that does not block when processing messages. A listener will receive a message synchronously in the sender's context. For example, the LED module listens for messages on the `LED_CHAN` channel. When it receives an `LED_RGB_SET` message from the main module, it will immediately set the RGB LED color without blocking. This happens in the main module's context. The LED module does not have its own thread and does not block when processing messages, so it can be a listener.
+Used by modules that do not have their own thread and that does not block when processing messages. A listener will receive a message synchronously in the sender's context. For example, the LED module listens for messages on the `LED_CHAN` channel. When it receives an `LED_RGB_SET` message from the Main module, it will immediately set the RGB LED color without blocking. This happens in the Main module's context. The LED module does not have its own thread and does not block when processing messages, so it can be a listener.
 
 A listener is defined using `ZBUS_LISTENER_DEFINE`, and the listener is added to a channel using `ZBUS_CHAN_ADD_LISTENER`. For example, in the LED module it listens for messages on its own channel like this:
 
@@ -152,7 +141,7 @@ If the LED module observer were a message subscriber, the message would be queue
 
 ## State Machine Framework
 
-The State Machine Framework (SMF) is a Zephyr library that provides a way to implement hierarchical state machines. The Asset Tracker Template uses SMF extensively to manage module behavior and state transitions. Several key modules including Network, Cloud, FOTA, and the Main module implement state machines using SMF.
+The State Machine Framework (SMF) is a Zephyr library that provides a way to implement hierarchical state machines in a structured manner. The Asset Tracker Template uses SMF extensively to manage module behavior and state transitions. Several key modules including Network, Cloud, FOTA, and the Main module implement state machines using SMF.
 
 The [documentation on SMF](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html) provides a good introduction, and this section will only cover the parts that are relevant for the Asset Tracker Template.
 

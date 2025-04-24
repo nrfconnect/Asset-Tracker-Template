@@ -122,7 +122,7 @@ For detailed setup including nRF Cloud provisioning and advanced build configura
 * [Customization](docs/common/customization.md)
 * [Location Services](docs/common/location_services.md)
 * [Test and CI Setup](docs/common/test_and_ci_setup.md)
-* [nRFCloud FOTA](docs/common/nrfcloud_fota.md)
+* [nRF Cloud FOTA](docs/common/nrfcloud_fota.md)
 * [Tooling and Troubleshooting](docs/common/tooling_troubleshooting.md)
 
 ### Modules
