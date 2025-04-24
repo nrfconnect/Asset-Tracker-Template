@@ -13,10 +13,10 @@ index e68d98b..1901eca 100644
  / {
  	chosen {
  		zephyr,wifi = &nordic_wlan0;
-diff --git a/app/src/modules/cloud/cloud_module.c b/app/src/modules/cloud/cloud_module.c
+diff --git a/app/src/modules/cloud/cloud.c b/app/src/modules/cloud/cloud.c
 index 9696914..a701140 100644
---- a/app/src/modules/cloud/cloud_module.c
-+++ b/app/src/modules/cloud/cloud_module.c
+--- a/app/src/modules/cloud/cloud.c
++++ b/app/src/modules/cloud/cloud.c
 @@ -38,6 +38,7 @@ LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 
  #define CUSTOM_JSON_APPID_VAL_CONEVAL "CONEVAL"

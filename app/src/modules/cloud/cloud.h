@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#ifndef _CLOUD_MODULE_H_
-#define _CLOUD_MODULE_H_
+#ifndef _CLOUD_H_
+#define _CLOUD_H_
 
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
@@ -55,4 +55,4 @@ struct cloud_msg {
 }
 #endif
 
-#endif /* _CLOUD_MODULE_H_ */
+#endif /* _CLOUD_H_ */

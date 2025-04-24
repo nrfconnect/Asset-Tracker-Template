@@ -17,7 +17,7 @@
 #include <zephyr/zbus/zbus.h>
 
 #include "environmental.h"
-#include "cloud_module.h"
+#include "cloud.h"
 #include "power.h"
 #include "network.h"
 #include "app_common.h"

@@ -21,7 +21,7 @@
 #include <memfault/panics/coredump.h>
 #endif /* CONFIG_MEMFAULT */
 
-#include "cloud_module.h"
+#include "cloud.h"
 #include "app_common.h"
 #include "network.h"
 
@@ -735,7 +735,7 @@ static void state_connected_paused_run(void *o)
 
 /* End of state handlers */
 
-static void cloud_module_thread(void)
+static void cloud_thread(void)
 {
 	int err;
 	int task_wdt_id;
@@ -787,6 +787,6 @@ static void cloud_module_thread(void)
 	}
 }
 
-K_THREAD_DEFINE(cloud_module_thread_id,
+K_THREAD_DEFINE(cloud_thread_id,
 		CONFIG_APP_CLOUD_THREAD_STACK_SIZE,
-		cloud_module_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+		cloud_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
