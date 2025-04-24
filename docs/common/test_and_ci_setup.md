@@ -6,32 +6,27 @@ Code analysis is performed through compliance checks and SonarCloud analysis.
 ## CI Pipeline Structure
 
 The CI pipeline is composed by the following workflows:
-- .github/workflows/build.yml: for building the devices firmware.
-- .github/workflows/target-test.yml: for running tests on real hardware.
-- .github/workflows/build-target-test.yml: workflow that glues together build.yml and target-test.yml.
-- .github/workflows/sonarcloud.yml: for building and running tests on emulation, and run Sonarcloud analysis.
-- .github/workflows/compliance.yml: for static compliance checks.
+- [.github/workflows/build.yml](../../.github/workflows/build.yml): for building the devices firmware.
+- [.github/workflows/target-test.yml](../../.github/workflows/target-test.yml): for running tests on real hardware.
+- [.github/workflows/build-target-test.yml](../../.github/workflows/build-target-test.yml): workflow that glues together build.yml and target-test.yml.
+- [.github/workflows/sonarcloud.yml](../../.github/workflows/sonarcloud.yml): for building and running tests on emulation, and run Sonarcloud analysis.
+- [.github/workflows/compliance.yml](../../.github/workflows/compliance.yml): for static compliance checks.
 
-Additionally we are using AI assistant in .github/workflows/ai-review.yaml. It's an AI reviewer that runs on pull request.
+Additionally we are using AI assistant in [.github/workflows/ai-review.yaml](../../.github/workflows/ai-review.yaml). It's an AI reviewer that runs on pull request.
 Developer can choose to run it or not with a label.
 
 
 The CI pipeline is triggered as follows:
-- On pull request: build.yml, sonarcloud.yml, compliance.yml
-The goal initially was to have a CI faster than ~5 minuts on PR. Current CI takes ~4minuts, with sonarcloud being bottleneck.
-No target tests are run on PR to avoid instabilities.
+- Pull Request: build.yml, sonarcloud.yml, compliance.yml. No target tests are run on PR to avoid instabilities.
 
-- Direct pushes to the main branch when merge: build-target-test.yml, sonarcloud.yml
-Only "fast" targets tests are run. Avoiding excessively time-consuming tests.
+- Push to main: build-target-test.yml, sonarcloud.yml. Only "fast" targets tests are run. Avoiding excessively time-consuming tests.
 
-- Nightly schedule: build-target-test.yml
-Full set of target tests. Includes "slow" tests such as full-modem-fw fota test and power consumption test.
+- Nightly: build-target-test.yml. Full set of target tests. Includes "slow" tests such as full-modem-fw fota test and power consumption test.
 
-### Hardware Testing
-The project includes tests that run on real hardware devices, implemented in the `.github/workflows/target-test.yml` workflow. Key features include:
+### Hardware Tests
+Run by [.github/workflows/target-test.yml](../../.github/workflows/target-test.yml) workflow, implementation details in [tests/on_target](../../tests/on_target) folder.
 
-Tests on target are performed on self-hosted runners.
-Read more here and how to set up your own instance for your project: [About Self Hosted](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/about-self-hosted-runners)
+Tests on target are performed using self-hosted runners. How to set up your own instance for your project: [About Self Hosted](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/about-self-hosted-runners)
 
 
 - Tests run on multiple target devices:
@@ -46,10 +41,10 @@ Read more here and how to set up your own instance for your project: [About Self
 - Generates detailed test reports and logs
 - Flexible test execution with support for specific test markers and paths
 
-Try out tests locally: tests/on_target/README.md
+Try out tests locally: [tests/on_target/README.md](../../tests/on_target/README.md)
 
-### Emulation Testing
-Emulation tests are implemented as part of the SonarCloud workflow (`.github/workflows/sonarcloud.yml`). These tests:
+### Emulation Tests
+Emulation tests are implemented as part of the SonarCloud workflow ([.github/workflows/sonarcloud.yml](../../.github/workflows/sonarcloud.yml)). These tests:
 
 - Run on the native_sim platform using Twister
 - Execute integration tests in an emulated environment
@@ -57,7 +52,7 @@ Emulation tests are implemented as part of the SonarCloud workflow (`.github/wor
 - Use build wrapper for accurate code analysis
 
 ### SonarCloud Analysis
-The SonarCloud integration (`.github/workflows/sonarcloud.yml`) provides:
+The SonarCloud integration ([.github/workflows/sonarcloud.yml](../../.github/workflows/sonarcloud.yml)) provides:
 
 - Static code analysis for C/C++ files
 - Code coverage reporting
@@ -66,7 +61,7 @@ The SonarCloud integration (`.github/workflows/sonarcloud.yml`) provides:
 - Separate analysis configurations for main branch and pull requests
 
 ### Compliance Testing
-Compliance checks are implemented in `.github/workflows/compliance.yml` and include:
+Compliance checks are implemented in [.github/workflows/compliance.yml](../../.github/workflows/compliance.yml) and include:
 
 - Codeowners validation
 - Devicetree compliance

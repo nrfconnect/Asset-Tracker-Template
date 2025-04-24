@@ -55,6 +55,7 @@ pytest -s -v -m "slow" tests/test_functional/test_fota.py::test_full_mfw_fota
 ## Test docker image version control
 
 JLINK_VERSION=V794i
+
 GO_VERSION=1.20.5
 
 
