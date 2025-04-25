@@ -16,7 +16,7 @@ To upload an application firmware to nRF Cloud, you'll need your compiled applic
 
 ```bash
 # Set path to your application binary
-export BIN_FILE="build/app/zephyr/app_signed.bin"  # Or path to your compiled binary
+export BIN_FILE="build/app/zephyr/zephyr.signed.bin"  # Or path to your compiled binary
 
 # Create manifest.json with firmware details
 cat > manifest.json << EOF
