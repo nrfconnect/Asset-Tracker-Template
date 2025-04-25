@@ -7,12 +7,24 @@ index e1948cc..8d20bcd 100644
  add_subdirectory_ifdef(CONFIG_APP_CLOUD src/modules/cloud)
  add_subdirectory_ifdef(CONFIG_APP_FOTA src/modules/fota)
 +add_subdirectory_ifdef(CONFIG_APP_DUMMY src/modules/dummy)
+diff --git a/app/Kconfig b/app/Kconfig
+index dad4070..684fe73 100644
+--- a/app/Kconfig
++++ b/app/Kconfig
+@@ -15,6 +15,7 @@ rsource "src/modules/led/Kconfig.led"
+ rsource "src/modules/fota/Kconfig.fota"
+ rsource "src/modules/environmental/Kconfig.environmental"
+ rsource "src/modules/button/Kconfig.button"
++rsource "src/modules/dummy/Kconfig.dummy"
+ 
+ endmenu
+ 
 diff --git a/app/src/modules/dummy/CMakeLists.txt b/app/src/modules/dummy/CMakeLists.txt
 new file mode 100644
-index 0000000..a299b3b
+index 0000000..8b69448
 --- /dev/null
 +++ b/app/src/modules/dummy/CMakeLists.txt
-@@ -0,0 +1,8 @@
+@@ -0,0 +1,9 @@
 +#
 +# Copyright (c) 2025 Nordic Semiconductor ASA
 +#
@@ -20,6 +32,7 @@ index 0000000..a299b3b
 +#
 +
 +target_sources_ifdef(CONFIG_APP_DUMMY app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/dummy.c)
++target_sources_ifdef(CONFIG_APP_DUMMY app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/dummy_shell.c)
 +target_include_directories(app PRIVATE .)
 diff --git a/app/src/modules/dummy/Kconfig.dummy b/app/src/modules/dummy/Kconfig.dummy
 new file mode 100644
@@ -66,7 +79,7 @@ index 0000000..2319814
 +endif # APP_DUMMY
 diff --git a/app/src/modules/dummy/dummy.c b/app/src/modules/dummy/dummy.c
 new file mode 100644
-index 0000000..8c2450a
+index 0000000..c2733b5
 --- /dev/null
 +++ b/app/src/modules/dummy/dummy.c
 @@ -0,0 +1,162 @@
@@ -149,7 +162,7 @@ index 0000000..8c2450a
 +/* State machine handlers */
 +static void state_running_run(void *o)
 +{
-+	const struct dummy_state *state_object = (const struct dummy_state *)o;
++	struct dummy_state *state_object = (struct dummy_state *)o;
 +
 +	if (&DUMMY_CHAN == state_object->chan) {
 +		struct dummy_msg msg = MSG_TO_DUMMY_MSG(state_object->msg_buf);
@@ -279,3 +292,69 @@ index 0000000..4d3816e
 +#endif
 +
 +#endif /* _DUMMY_H_ */
+diff --git a/app/src/modules/dummy/dummy_shell.c b/app/src/modules/dummy/dummy_shell.c
+new file mode 100644
+index 0000000..9a82441
+--- /dev/null
++++ b/app/src/modules/dummy/dummy_shell.c
+@@ -0,0 +1,60 @@
++/*
++ * Copyright (c) 2025 Nordic Semiconductor ASA
++ *
++ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
++ */
++
++#include <zephyr/kernel.h>
++#include <zephyr/shell/shell.h>
++#include <zephyr/zbus/zbus.h>
++#include <zephyr/logging/log.h>
++
++#include "dummy.h"
++
++/* Register log module */
++LOG_MODULE_REGISTER(dummy_shell_module, CONFIG_APP_DUMMY_LOG_LEVEL);
++
++/* Forward declarations */
++static void dummy_shell_callback(const struct zbus_channel *chan);
++
++/* Register zbus callback */
++ZBUS_LISTENER_DEFINE(dummy_shell, dummy_shell_callback);
++
++/* Add subscriber to channel */
++ZBUS_CHAN_ADD_OBS(DUMMY_CHAN, dummy_shell, 0);
++
++/* Static variable to store shell reference */
++static const struct shell *dummy_shell_ref;
++
++/* Shell command handler for sending dummy request */
++static int cmd_dummy_request(const struct shell *shell, size_t argc, char **argv)
++{
++	struct dummy_msg request = {
++		.type = DUMMY_SAMPLE_REQUEST,
++	};
++
++	/* Store the shell reference */
++	dummy_shell_ref = shell;
++
++	int err = zbus_chan_pub(&DUMMY_CHAN, &request, K_SECONDS(1));
++	if (err) {
++		shell_error(shell, "Failed to send request: %d", err);
++		return err;
++	}
++
++	shell_print(shell, "Dummy request sent");
++	return 0;
++}
++
++/* Shell command handler for receiving dummy response */
++static void dummy_shell_callback(const struct zbus_channel *chan)
++{
++	const struct dummy_msg *response = zbus_chan_const_msg(chan);
++
++	if (response->type == DUMMY_SAMPLE_RESPONSE) {
++		shell_print(dummy_shell_ref, "Response received: %d", response->value);
++	}
++}
++
++/* Register shell command */
++SHELL_CMD_REGISTER(att_dummy_request, NULL, "Asset Tracker Template Dummy CMDs", cmd_dummy_request);

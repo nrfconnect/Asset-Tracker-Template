@@ -157,23 +157,6 @@ jobs:
           version: ${{ env.VERSION }}
           path: asset-tracker-template/app
 
-    # Asset Tracker Template firmware build with patches for Thingy91x
-      - name: Apply patches for Thingy91x firmware
-        if: ${{ github.event_name != 'pull_request' }}
-        run: |
-          git apply docs/patches/magnetometer.patch
-          git apply docs/patches/dummy-module.patch
-        working-directory: asset-tracker-template/app
-
-      - name: Build patched thingy91x firmware
-        if: ${{ github.event_name != 'pull_request' }}
-        uses: ./asset-tracker-template/.github/actions/build-step
-        with:
-          board: thingy91x/nrf9151/ns
-          short_board: thingy91x
-          version: ${{ env.VERSION }}-patched
-          path: asset-tracker-template/app
-
       # Asset Tracker Template debug firmware build
       - name: Build thingy91x debug firmware
         if: ${{ github.event_name != 'pull_request' }}
@@ -187,6 +170,23 @@ jobs:
           version: ${{ env.VERSION }}-debug
           path: asset-tracker-template/app
           debug: true
+
+      # Asset Tracker Template firmware build with patches for Thingy91x
+      - name: Apply patches for Thingy91x firmware
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          git apply docs/patches/magnetometer.patch
+          git apply docs/patches/dummy-module.patch
+        working-directory: asset-tracker-template
+
+      - name: Build patched thingy91x firmware
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: ./asset-tracker-template/.github/actions/build-step
+        with:
+          board: thingy91x/nrf9151/ns
+          short_board: thingy91x
+          version: ${{ env.VERSION }}-patched
+          path: asset-tracker-template/app
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
