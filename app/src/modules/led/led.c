@@ -57,9 +57,15 @@ ZBUS_CHAN_DEFINE(LED_CHAN,
 ZBUS_CHAN_ADD_OBS(LED_CHAN, led, 0);
 
 static struct k_work_delayable blink_work;
-static struct led_msg current_led_state;
-static bool led_is_on;
-static int repetitions;
+
+/* Structure to hold all LED state variables */
+struct led_state {
+	struct led_msg current_state;
+	bool is_on;
+	int repetitions;
+};
+
+static struct led_state led_state;
 static void blink_timer_handler(struct k_work *work);
 
 static int pwm_out(const struct led_msg *led_msg, bool force_off)
@@ -109,28 +115,28 @@ static void blink_timer_handler(struct k_work *work)
 
 	ARG_UNUSED(work);
 
-	led_is_on = !led_is_on;
+	led_state.is_on = !led_state.is_on;
 
 	/* Update LED state */
-	err = pwm_out(&current_led_state, !led_is_on);
+	err = pwm_out(&led_state.current_state, !led_state.is_on);
 	if (err) {
 		LOG_ERR("pwm_out, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
 
 	/* If LED just turned off, we completed one cycle */
-	if (!led_is_on && repetitions > 0) {
-		repetitions--;
-		if (repetitions == 0) {
+	if (!led_state.is_on && led_state.repetitions > 0) {
+		led_state.repetitions--;
+		if (led_state.repetitions == 0) {
 			/* We're done, don't schedule next toggle */
 			return;
 		}
 	}
 
 	/* Schedule next toggle */
-	uint32_t next_delay = led_is_on ?
-		current_led_state.duration_on_msec :
-		current_led_state.duration_off_msec;
+	uint32_t next_delay = led_state.is_on ?
+		led_state.current_state.duration_on_msec :
+		led_state.current_state.duration_off_msec;
 
 	err = k_work_schedule(&blink_work, K_MSEC(next_delay));
 	if (err < 0) {
@@ -150,22 +156,22 @@ static void led_callback(const struct zbus_channel *chan)
 		(void)k_work_cancel_delayable(&blink_work);
 
 		/* Store the new LED state */
-		memcpy(&current_led_state, led_msg, sizeof(struct led_msg));
+		memcpy(&led_state.current_state, led_msg, sizeof(struct led_msg));
 
 		/* Set up repetitions */
-		repetitions = led_msg->repetitions;
+		led_state.repetitions = led_msg->repetitions;
 
 		/* If repetitions is 0, turn LED off. Otherwise LED on */
-		led_is_on = (repetitions != 0);
+		led_state.is_on = (led_state.repetitions != 0);
 
-		err = pwm_out(led_msg, !led_is_on);
+		err = pwm_out(led_msg, !led_state.is_on);
 		if (err) {
 			LOG_ERR("pwm_out, error: %d", err);
 			SEND_FATAL_ERROR();
 		}
 
 		/* Schedule first toggle if LED should be blinking */
-		if (led_is_on) {
+		if (led_state.is_on) {
 			err = k_work_schedule(&blink_work, K_MSEC(led_msg->duration_on_msec));
 			if (err < 0) {
 				LOG_ERR("k_work_schedule, error: %d", err);
