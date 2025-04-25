@@ -167,3 +167,15 @@ def bin_file():
             return os.path.join(artifacts_dir, file)
 
     pytest.fail("No matching firmware .bin file found in the artifacts directory")
+
+@pytest.fixture(scope="session")
+def hex_file_patched():
+    # Search for the firmware hex file in the artifacts folder
+    artifacts_dir = "artifacts/"
+    hex_pattern = f"asset-tracker-template-{r"[0-9a-z\.]+"}-patched-{DUT_DEVICE_TYPE}-nrf91.hex"
+
+    for file in os.listdir(artifacts_dir):
+        if re.match(hex_pattern, file):
+            return os.path.join(artifacts_dir, file)
+
+    pytest.fail("No matching firmware .hex file found in the artifacts directory")

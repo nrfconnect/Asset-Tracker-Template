@@ -14,7 +14,7 @@ from utils.logger import get_logger
 
 logger = get_logger()
 
-def test_patched_firmware(dut_board, hex_file):
+def test_patched_firmware(dut_board, hex_file_patched):
     """Test the patched firmware with magnetometer functionality."""
     # Only run this test for thingy91x devices
     devicetype = os.getenv("DUT_DEVICE_TYPE")
@@ -22,7 +22,7 @@ def test_patched_firmware(dut_board, hex_file):
         pytest.skip("This test is only for thingy91x devices")
 
     # Flash the patched firmware
-    flash_device(os.path.abspath(hex_file))
+    flash_device(os.path.abspath(hex_file_patched))
     dut_board.uart.xfactoryreset()
 
     # Log patterns to check
@@ -53,3 +53,7 @@ def test_patched_firmware(dut_board, hex_file):
     assert -1000 <= x <= 1000, f"Magnetometer X value {x} out of expected range"
     assert -1000 <= y <= 1000, f"Magnetometer Y value {y} out of expected range"
     assert -1000 <= z <= 1000, f"Magnetometer Z value {z} out of expected range"
+
+    dut_board.uart.write("att_dummy_request\r\n")
+    dut_board.uart.wait_for_str("Dummy request sent", timeout=10)
+    dut_board.uart.wait_for_str("Response received", timeout=10)
