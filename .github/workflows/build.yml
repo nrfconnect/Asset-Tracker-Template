@@ -171,6 +171,17 @@ jobs:
           path: asset-tracker-template/app
           debug: true
 
+      # Asset Tracker Template firmware build with MQTT cloud moduel for Thingy91x
+      - name: Build thingy91x firmware with MQTT cloud module
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: ./asset-tracker-template/.github/actions/build-step
+        with:
+          board: thingy91x/nrf9151/ns
+          short_board: thingy91x
+          version: ${{ env.VERSION }}-mqtt
+          path: asset-tracker-template/app
+          mqtt: true
+
       # Asset Tracker Template firmware build with patches for Thingy91x
       - name: Apply patches for Thingy91x firmware
         if: ${{ github.event_name != 'pull_request' }}

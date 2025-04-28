@@ -31,6 +31,10 @@ inputs:
     type: boolean
     required: false
     default: false
+  mqtt:
+    type: boolean
+    required: false
+    default: false
 
 runs:
   using: "composite"
@@ -57,6 +61,11 @@ runs:
             -d build \
             -p --sysbuild \
             -- -DEXTRA_CONF_FILE="overlay-debug-att.conf" 2>&1 | tee ../../artifacts/build_output_${{ inputs.short_board }}_debug.log
+        elif [[ "${{ inputs.mqtt }}" == "true" ]]; then
+          west build -b ${{ inputs.board }} \
+            -d build \
+            -p --sysbuild \
+            -- -DEXTRA_CONF_FILE="$(pwd)/../examples/modules/cloud/overlay-mqtt.conf" 2>&1 | tee ../../artifacts/build_output_${{ inputs.short_board }}_mqtt.log
         else
           west build -b ${{ inputs.board }} \
             -d build \
