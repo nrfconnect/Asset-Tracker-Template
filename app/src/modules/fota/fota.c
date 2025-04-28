@@ -46,10 +46,9 @@ ZBUS_CHAN_ADD_OBS(FOTA_CHAN, fota, 0);
 
 #define MAX_MSG_SIZE sizeof(enum fota_msg_type)
 
-/* FOTA support context */
-static void fota_reboot(enum nrf_cloud_fota_reboot_status status);
-static void fota_status(enum nrf_cloud_fota_status status, const char *const status_details);
+/* State machine */
 
+/* FOTA module states */
 enum fota_module_state {
 	/* The module is initialized and running */
 	STATE_RUNNING,
@@ -69,10 +68,10 @@ enum fota_module_state {
 		STATE_CANCELING,
 };
 
-/* User defined state object.
- * Used to transfer data between state changes.
+/* State object.
+ * Used to transfer context data between state changes.
  */
-struct fota_state {
+struct fota_state_object {
 	/* This must be first */
 	struct smf_ctx ctx;
 
@@ -86,29 +85,22 @@ struct fota_state {
 	struct nrf_cloud_fota_poll_ctx fota_ctx;
 };
 
-/* Forward declarations */
-static void state_running_entry(void *o);
-static void state_running_run(void *o);
-
-static void state_waiting_for_poll_request_entry(void *o);
-static void state_waiting_for_poll_request_run(void *o);
-
-static void state_polling_for_update_entry(void *o);
-static void state_polling_for_update_run(void *o);
-
-static void state_downloading_update_entry(void *o);
-static void state_downloading_update_run(void *o);
-
-static void state_waiting_for_image_apply_entry(void *o);
-static void state_waiting_for_image_apply_run(void *o);
-
-static void state_image_applying_entry(void *o);
-static void state_image_applying_run(void *o);
-
-static void state_reboot_pending_entry(void *o);
-
-static void state_canceling_entry(void *o);
-static void state_canceling_run(void *o);
+/* Forward declarations of state handlers */
+static void state_running_entry(void *obj);
+static void state_running_run(void *obj);
+static void state_waiting_for_poll_request_entry(void *obj);
+static void state_waiting_for_poll_request_run(void *obj);
+static void state_polling_for_update_entry(void *obj);
+static void state_polling_for_update_run(void *obj);
+static void state_downloading_update_entry(void *obj);
+static void state_downloading_update_run(void *obj);
+static void state_waiting_for_image_apply_entry(void *obj);
+static void state_waiting_for_image_apply_run(void *obj);
+static void state_image_applying_entry(void *obj);
+static void state_image_applying_run(void *obj);
+static void state_reboot_pending_entry(void *obj);
+static void state_canceling_entry(void *obj);
+static void state_canceling_run(void *obj);
 
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
@@ -161,7 +153,7 @@ static const struct smf_state states[] = {
 				 NULL),
 };
 
-/* Private functions */
+/* FOTA support functions */
 
 static void fota_reboot(enum nrf_cloud_fota_reboot_status status)
 {
@@ -230,7 +222,7 @@ static void fota_status(enum nrf_cloud_fota_status status, const char *const sta
 	}
 }
 
-static void task_wdt_callback(int channel_id, void *user_data)
+static void fota_wdt_callback(int channel_id, void *user_data)
 {
 	LOG_ERR("Watchdog expired, Channel: %d, Thread: %s",
 		channel_id, k_thread_name_get((k_tid_t)user_data));
@@ -240,10 +232,10 @@ static void task_wdt_callback(int channel_id, void *user_data)
 
 /* State handlers */
 
-static void state_running_entry(void *o)
+static void state_running_entry(void *obj)
 {
 	int err;
-	struct fota_state *state_object = o;
+	struct fota_state_object *state_object = obj;
 
 	LOG_DBG("%s", __func__);
 
@@ -262,9 +254,9 @@ static void state_running_entry(void *o)
 	}
 }
 
-static void state_running_run(void *o)
+static void state_running_run(void *obj)
 {
-	const struct fota_state *state_object = (const struct fota_state *)o;
+	struct fota_state_object const *state_object = obj;
 
 	if (&FOTA_CHAN == state_object->chan) {
 		const enum fota_msg_type msg_type = MSG_TO_FOTA_TYPE(state_object->msg_buf);
@@ -275,16 +267,16 @@ static void state_running_run(void *o)
 	}
 }
 
-static void state_waiting_for_poll_request_entry(void *o)
+static void state_waiting_for_poll_request_entry(void *obj)
 {
-	ARG_UNUSED(o);
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 }
 
-static void state_waiting_for_poll_request_run(void *o)
+static void state_waiting_for_poll_request_run(void *obj)
 {
-	const struct fota_state *state_object = (const struct fota_state *)o;
+	struct fota_state_object const *state_object = obj;
 
 	if (&FOTA_CHAN == state_object->chan) {
 		const enum fota_msg_type msg_type = MSG_TO_FOTA_TYPE(state_object->msg_buf);
@@ -299,9 +291,9 @@ static void state_waiting_for_poll_request_run(void *o)
 	}
 }
 
-static void state_polling_for_update_entry(void *o)
+static void state_polling_for_update_entry(void *obj)
 {
-	struct fota_state *state_object = o;
+	struct fota_state_object *state_object = obj;
 
 	LOG_DBG("%s", __func__);
 
@@ -338,9 +330,9 @@ static void state_polling_for_update_entry(void *o)
 	}
 }
 
-static void state_polling_for_update_run(void *o)
+static void state_polling_for_update_run(void *obj)
 {
-	const struct fota_state *state_object = (const struct fota_state *)o;
+	struct fota_state_object const *state_object = obj;
 
 	if (&FOTA_CHAN == state_object->chan) {
 		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
@@ -365,16 +357,16 @@ static void state_polling_for_update_run(void *o)
 	}
 }
 
-static void state_downloading_update_entry(void *o)
+static void state_downloading_update_entry(void *obj)
 {
-	ARG_UNUSED(o);
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 }
 
-static void state_downloading_update_run(void *o)
+static void state_downloading_update_run(void *obj)
 {
-	const struct fota_state *state_object = (const struct fota_state *)o;
+	struct fota_state_object const *state_object = obj;
 
 	if (&FOTA_CHAN == state_object->chan) {
 		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
@@ -402,16 +394,16 @@ static void state_downloading_update_run(void *o)
 	}
 }
 
-static void state_waiting_for_image_apply_entry(void *o)
+static void state_waiting_for_image_apply_entry(void *obj)
 {
-	ARG_UNUSED(o);
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 }
 
-static void state_waiting_for_image_apply_run(void *o)
+static void state_waiting_for_image_apply_run(void *obj)
 {
-	struct fota_state *state_object = o;
+	struct fota_state_object *state_object = obj;
 
 	if (&FOTA_CHAN == state_object->chan) {
 		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
@@ -422,9 +414,9 @@ static void state_waiting_for_image_apply_run(void *o)
 	}
 }
 
-static void state_image_applying_entry(void *o)
+static void state_image_applying_entry(void *obj)
 {
-	struct fota_state *state_object = o;
+	struct fota_state_object *state_object = obj;
 
 	LOG_DBG("Applying downloaded firmware image");
 
@@ -437,9 +429,9 @@ static void state_image_applying_entry(void *o)
 	}
 }
 
-static void state_image_applying_run(void *o)
+static void state_image_applying_run(void *obj)
 {
-	const struct fota_state *state_object = (const struct fota_state *)o;
+	struct fota_state_object const *state_object = obj;
 
 	if (&FOTA_CHAN == state_object->chan) {
 		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
@@ -450,18 +442,18 @@ static void state_image_applying_run(void *o)
 	}
 }
 
-static void state_reboot_pending_entry(void *o)
+static void state_reboot_pending_entry(void *obj)
 {
-	ARG_UNUSED(o);
+	ARG_UNUSED(obj);
 
 	LOG_DBG("Waiting for the application to reboot in order to apply the update");
 }
 
-static void state_canceling_entry(void *o)
+static void state_canceling_entry(void *obj)
 {
 	int err;
 
-	ARG_UNUSED(o);
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 	LOG_DBG("Canceling download");
@@ -473,9 +465,9 @@ static void state_canceling_entry(void *o)
 	}
 }
 
-static void state_canceling_run(void *o)
+static void state_canceling_run(void *obj)
 {
-	const struct fota_state *state_object = (const struct fota_state *)o;
+	struct fota_state_object const *state_object = obj;
 
 	if (&FOTA_CHAN == state_object->chan) {
 		const enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
@@ -487,9 +479,7 @@ static void state_canceling_run(void *o)
 	}
 }
 
-/* End of state handlers */
-
-static void fota_task(void)
+static void fota_module_thread(void)
 {
 	int err;
 	int task_wdt_id;
@@ -497,14 +487,14 @@ static void fota_task(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	struct fota_state fota_state = {
+	struct fota_state_object fota_state = {
 		.fota_ctx.reboot_fn = fota_reboot,
 		.fota_ctx.status_fn = fota_status,
 	};
 
 	LOG_DBG("FOTA module task started");
 
-	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
+	task_wdt_id = task_wdt_add(wdt_timeout_ms, fota_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {
 		LOG_ERR("Failed to add task to watchdog: %d", task_wdt_id);
 		SEND_FATAL_ERROR();
@@ -539,6 +529,6 @@ static void fota_task(void)
 	}
 }
 
-K_THREAD_DEFINE(fota_task_id,
+K_THREAD_DEFINE(fota_module_thread_id,
 		CONFIG_APP_FOTA_THREAD_STACK_SIZE,
-		fota_task, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+		fota_module_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);

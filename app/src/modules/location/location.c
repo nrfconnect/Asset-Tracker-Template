@@ -46,28 +46,19 @@ ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, location, 0);
 /* Forward declarations */
 static void location_event_handler(const struct location_event_data *event_data);
 
-static void state_running_entry(void *o);
-static void state_running_run(void *o);
+/* State machine */
 
-/* Single state for the location module */
+/* Location module states.
+ */
 enum location_module_state {
+	/* The module is running */
 	STATE_RUNNING,
 };
 
-/* Construct state table */
-static const struct smf_state states[] = {
-	[STATE_RUNNING] =
-		SMF_CREATE_STATE(state_running_entry,
-				 state_running_run,
-				 NULL,
-				 NULL,
-				 NULL),
-};
-
-/* Location module state object.
- * Used to transfer data between state changes.
+/* State object.
+ * Used to transfer context data between state changes.
  */
-struct location_state {
+struct location_state_object {
 	/* This must be first */
 	struct smf_ctx ctx;
 
@@ -76,6 +67,21 @@ struct location_state {
 
 	/* Last received message */
 	uint8_t msg_buf[MAX_MSG_SIZE];
+};
+
+/* Forward declarations of state handlers */
+static void state_running_entry(void *obj);
+static void state_running_run(void *obj);
+
+/* State machine definition */
+/* States are defined in the state object */
+static const struct smf_state states[] = {
+	[STATE_RUNNING] =
+		SMF_CREATE_STATE(state_running_entry,
+				 state_running_run,
+				 NULL,
+				 NULL,
+				 NULL),
 };
 
 static void on_cfun(int mode, void *ctx)
@@ -112,7 +118,7 @@ static void on_cfun(int mode, void *ctx)
 
 NRF_MODEM_LIB_ON_CFUN(att_location_init_hook, on_cfun, NULL);
 
-static void task_wdt_callback(int channel_id, void *user_data)
+static void location_wdt_callback(int channel_id, void *user_data)
 {
 	LOG_ERR("Watchdog expired, Channel: %d, Thread: %s",
 		channel_id, k_thread_name_get((k_tid_t)user_data));
@@ -154,10 +160,10 @@ void handle_location_chan(enum location_msg_type location_msg_type)
 	}
 }
 
-/* State machine handlers */
-static void state_running_entry(void *o)
+/* State handlers */
+static void state_running_entry(void *obj)
 {
-	ARG_UNUSED(o);
+	ARG_UNUSED(obj);
 
 	int err;
 
@@ -173,12 +179,12 @@ static void state_running_entry(void *o)
 	LOG_DBG("Location library initialized");
 }
 
-static void state_running_run(void *o)
+static void state_running_run(void *obj)
 {
-	const struct location_state *state = (const struct location_state *)o;
+	struct location_state_object const *state_object = obj;
 
-	if (state->chan == &LOCATION_CHAN) {
-		handle_location_chan(MSG_TO_LOCATION_TYPE(state->msg_buf));
+	if (state_object->chan == &LOCATION_CHAN) {
+		handle_location_chan(MSG_TO_LOCATION_TYPE(state_object->msg_buf));
 	}
 }
 
@@ -291,11 +297,11 @@ static void location_module_thread(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	struct location_state location_state = { 0 };
+	struct location_state_object location_state = { 0 };
 
 	LOG_DBG("Location module task started");
 
-	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
+	task_wdt_id = task_wdt_add(wdt_timeout_ms, location_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {
 		LOG_ERR("Failed to add task to watchdog: %d", task_wdt_id);
 		SEND_FATAL_ERROR();
