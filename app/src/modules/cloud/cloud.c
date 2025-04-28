@@ -99,31 +99,9 @@ ZBUS_CHAN_DEFINE(PRIV_CLOUD_CHAN,
 static void backoff_timer_work_fn(struct k_work *work);
 static K_WORK_DELAYABLE_DEFINE(backoff_timer_work, backoff_timer_work_fn);
 
-/* Forward declarations of state handlers */
-static void state_running_entry(void *o);
-static void state_running_run(void *o);
+/* State machine */
 
-static void state_disconnected_entry(void *o);
-static void state_disconnected_run(void *o);
-
-static void state_connecting_entry(void *o);
-
-static void state_connecting_attempt_entry(void *o);
-
-static void state_connecting_backoff_entry(void *o);
-static void state_connecting_backoff_run(void *o);
-static void state_connecting_backoff_exit(void *o);
-
-static void state_connected_entry(void *o);
-static void state_connected_exit(void *o);
-
-static void state_connected_ready_entry(void *o);
-static void state_connected_ready_run(void *o);
-
-static void state_connected_paused_entry(void *o);
-static void state_connected_paused_run(void *o);
-
-/* Defining the hierarchical cloud  module states: */
+/* Cloud module states */
 enum cloud_module_state {
 	/* The cloud module has started and is running */
 	STATE_RUNNING,
@@ -146,7 +124,47 @@ enum cloud_module_state {
 			STATE_CONNECTED_PAUSED,
 };
 
-/* Construct state table */
+/* State object.
+ * Used to transfer context data between state changes.
+ */
+struct cloud_state_object {
+	/* This must be first */
+	struct smf_ctx ctx;
+
+	/* Last channel type that a message was received on */
+	const struct zbus_channel *chan;
+
+	/* Last received message */
+	uint8_t msg_buf[MAX_MSG_SIZE];
+
+	/* Network status */
+	enum network_msg_type nw_status;
+
+	/* Connection attempt counter. Reset when entering STATE_CONNECTING */
+	uint32_t connection_attempts;
+
+	/* Connection backoff time */
+	uint32_t backoff_time;
+};
+
+/* Forward declarations of state handlers */
+static void state_running_entry(void *obj);
+static void state_running_run(void *obj);
+static void state_disconnected_entry(void *obj);
+static void state_disconnected_run(void *obj);
+static void state_connecting_entry(void *obj);
+static void state_connecting_attempt_entry(void *obj);
+static void state_connecting_backoff_entry(void *obj);
+static void state_connecting_backoff_run(void *obj);
+static void state_connecting_backoff_exit(void *obj);
+static void state_connected_entry(void *obj);
+static void state_connected_exit(void *obj);
+static void state_connected_ready_entry(void *obj);
+static void state_connected_ready_run(void *obj);
+static void state_connected_paused_entry(void *obj);
+static void state_connected_paused_run(void *obj);
+
+/* State machine definition */
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
 		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
@@ -190,31 +208,7 @@ static const struct smf_state states[] = {
 				 NULL),
 };
 
-/* Cloud module state object.
- * Used to transfer data between state changes.
- */
-struct cloud_state {
-	/* This must be first */
-	struct smf_ctx ctx;
-
-	/* Last channel type that a message was received on */
-	const struct zbus_channel *chan;
-
-	/* Last received message */
-	uint8_t msg_buf[MAX_MSG_SIZE];
-
-	/* Network status */
-	enum network_msg_type nw_status;
-
-	/* Connection attempt counter. Reset when entering STATE_CONNECTING */
-	uint32_t connection_attempts;
-
-	/* Connection backoff time */
-	uint32_t backoff_time;
-};
-
-/* Static helper function */
-static void task_wdt_callback(int channel_id, void *user_data)
+static void cloud_wdt_callback(int channel_id, void *user_data)
 {
 	LOG_ERR("Watchdog expired, Channel: %d, Thread: %s",
 		channel_id, k_thread_name_get((k_tid_t)user_data));
@@ -222,7 +216,7 @@ static void task_wdt_callback(int channel_id, void *user_data)
 	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
 }
 
-static void connect_to_cloud(const struct cloud_state *state_object)
+static void connect_to_cloud(const struct cloud_state_object *state_object)
 {
 	int err;
 	char buf[NRF_CLOUD_CLIENT_ID_MAX_LEN];
@@ -286,15 +280,13 @@ static void backoff_timer_work_fn(struct k_work *work)
 	}
 }
 
-/* Zephyr State Machine Framework handlers */
+/* State handlers */
 
-/* Handler for STATE_RUNNING */
-
-static void state_running_entry(void *o)
+static void state_running_entry(void *obj)
 {
 	int err;
 
-	ARG_UNUSED(o);
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 
@@ -307,9 +299,9 @@ static void state_running_entry(void *o)
 	}
 }
 
-static void state_running_run(void *o)
+static void state_running_run(void *obj)
 {
-	const struct cloud_state *state_object = (const struct cloud_state *)o;
+	struct cloud_state_object const *state_object = obj;
 
 	if (state_object->chan == &NETWORK_CHAN) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
@@ -322,15 +314,14 @@ static void state_running_run(void *o)
 	}
 }
 
-/* Handlers for STATE_DISCONNECTED. */
-static void state_disconnected_entry(void *o)
+static void state_disconnected_entry(void *obj)
 {
 	int err;
 	struct cloud_msg cloud_msg = {
 		.type = CLOUD_DISCONNECTED,
 	};
 
-	ARG_UNUSED(o);
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 
@@ -343,9 +334,9 @@ static void state_disconnected_entry(void *o)
 	}
 }
 
-static void state_disconnected_run(void *o)
+static void state_disconnected_run(void *obj)
 {
-	const struct cloud_state *state_object = (const struct cloud_state *)o;
+	struct cloud_state_object const *state_object = obj;
 	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
@@ -355,23 +346,19 @@ static void state_disconnected_run(void *o)
 	}
 }
 
-/* Handlers for STATE_CONNECTING */
-
-static void state_connecting_entry(void *o)
+static void state_connecting_entry(void *obj)
 {
 	/* Reset connection attempts counter */
-	struct cloud_state *state_object = o;
+	struct cloud_state_object *state_object = obj;
 
 	LOG_DBG("%s", __func__);
 
 	state_object->connection_attempts = 0;
 }
 
-/* Handler for STATE_CONNECTING_ATTEMPT */
-
-static void state_connecting_attempt_entry(void *o)
+static void state_connecting_attempt_entry(void *obj)
 {
-	struct cloud_state *state_object = o;
+	struct cloud_state_object *state_object = obj;
 
 	LOG_DBG("%s", __func__);
 
@@ -380,12 +367,10 @@ static void state_connecting_attempt_entry(void *o)
 	connect_to_cloud(state_object);
 }
 
-/* Handler for STATE_CONNECTING_BACKOFF */
-
-static void state_connecting_backoff_entry(void *o)
+static void state_connecting_backoff_entry(void *obj)
 {
 	int err;
-	struct cloud_state *state_object = o;
+	struct cloud_state_object *state_object = obj;
 
 	LOG_DBG("%s", __func__);
 
@@ -398,9 +383,9 @@ static void state_connecting_backoff_entry(void *o)
 	}
 }
 
-static void state_connecting_backoff_run(void *o)
+static void state_connecting_backoff_run(void *obj)
 {
-	const struct cloud_state *state_object = (const struct cloud_state *)o;
+	struct cloud_state_object const *state_object = obj;
 
 	if (state_object->chan == &PRIV_CLOUD_CHAN) {
 		const enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
@@ -413,19 +398,18 @@ static void state_connecting_backoff_run(void *o)
 	}
 }
 
-static void state_connecting_backoff_exit(void *o)
+static void state_connecting_backoff_exit(void *obj)
 {
-	ARG_UNUSED(o);
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 
 	(void)k_work_cancel_delayable(&backoff_timer_work);
 }
 
-/* Handler for STATE_CONNECTED. */
-static void state_connected_entry(void *o)
+static void state_connected_entry(void *obj)
 {
-	ARG_UNUSED(o);
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 	LOG_INF("Connected to Cloud");
@@ -444,11 +428,11 @@ static void state_connected_entry(void *o)
 #endif /* CONFIG_MEMFAULT */
 }
 
-static void state_connected_exit(void *o)
+static void state_connected_exit(void *obj)
 {
 	int err;
 
-	ARG_UNUSED(o);
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 
@@ -458,8 +442,6 @@ static void state_connected_exit(void *o)
 		SEND_FATAL_ERROR();
 	}
 }
-
-/* Handlers for STATE_CONNECTED_READY */
 
 static void shadow_get(bool delta_only)
 {
@@ -531,14 +513,14 @@ static void shadow_get(bool delta_only)
 	}
 }
 
-static void state_connected_ready_entry(void *o)
+static void state_connected_ready_entry(void *obj)
 {
 	int err;
 	struct cloud_msg cloud_msg = {
 		.type = CLOUD_CONNECTED,
 	};
 
-	ARG_UNUSED(o);
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 
@@ -553,10 +535,10 @@ static void state_connected_ready_entry(void *o)
 	shadow_get(false);
 }
 
-static void state_connected_ready_run(void *o)
+static void state_connected_ready_run(void *obj)
 {
 	int err;
-	const struct cloud_state *state_object = (const struct cloud_state *)o;
+	struct cloud_state_object const *state_object = obj;
 	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
 
 	if (state_object->chan == &NETWORK_CHAN) {
@@ -701,14 +683,14 @@ static void state_connected_ready_run(void *o)
 
 /* Handlers for STATE_CONNECTED_PAUSED */
 
-static void state_connected_paused_entry(void *o)
+static void state_connected_paused_entry(void *obj)
 {
 	int err;
 	struct cloud_msg cloud_msg = {
 		.type = CLOUD_DISCONNECTED,
 	};
 
-	ARG_UNUSED(o);
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 
@@ -721,9 +703,9 @@ static void state_connected_paused_entry(void *o)
 	}
 }
 
-static void state_connected_paused_run(void *o)
+static void state_connected_paused_run(void *obj)
 {
-	const struct cloud_state *state_object = (const struct cloud_state *)o;
+	struct cloud_state_object const *state_object = obj;
 	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
@@ -733,9 +715,7 @@ static void state_connected_paused_run(void *o)
 	}
 }
 
-/* End of state handlers */
-
-static void cloud_thread(void)
+static void cloud_module_thread(void)
 {
 	int err;
 	int task_wdt_id;
@@ -743,11 +723,11 @@ static void cloud_thread(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	struct cloud_state cloud_state = { 0 };
+	struct cloud_state_object cloud_state = { 0 };
 
-	LOG_DBG("cloud  module task started");
+	LOG_DBG("Cloud module task started");
 
-	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
+	task_wdt_id = task_wdt_add(wdt_timeout_ms, cloud_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {
 		LOG_ERR("Failed to add task to watchdog: %d", task_wdt_id);
 		SEND_FATAL_ERROR();
@@ -787,6 +767,6 @@ static void cloud_thread(void)
 	}
 }
 
-K_THREAD_DEFINE(cloud_thread_id,
+K_THREAD_DEFINE(cloud_module_thread_id,
 		CONFIG_APP_CLOUD_THREAD_STACK_SIZE,
-		cloud_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+		cloud_module_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);

@@ -16,7 +16,7 @@
 #include "environmental.h"
 
 /* Register log module */
-LOG_MODULE_REGISTER(environmental_module, CONFIG_APP_ENVIRONMENTAL_LOG_LEVEL);
+LOG_MODULE_REGISTER(environmental, CONFIG_APP_ENVIRONMENTAL_LOG_LEVEL);
 
 /* Define channels provided by this module */
 ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
@@ -41,18 +41,17 @@ BUILD_ASSERT(CONFIG_APP_ENVIRONMENTAL_WATCHDOG_TIMEOUT_SECONDS >
 
 /* State machine */
 
-/* Defininig the module states.
- *
- * STATE_RUNNING: The environmental module is waiting for sensor type values to be requested.
+/* Environmental module states.
  */
 enum environmental_module_state {
+	/* The module is running and waiting for sensor value requests */
 	STATE_RUNNING,
 };
 
-/* User defined state object.
- * Used to transfer data between state changes.
+/* State object.
+ * Used to transfer context data between state changes.
  */
-struct environmental_state {
+struct environmental_state_object {
 	/* This must be first */
 	struct smf_ctx ctx;
 
@@ -72,8 +71,9 @@ struct environmental_state {
 };
 
 /* Forward declarations of state handlers */
-static void state_running_run(void *o);
+static void state_running_run(void *obj);
 
+/* State machine definition */
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
 		SMF_CREATE_STATE(NULL, state_running_run, NULL, NULL, NULL),
@@ -133,7 +133,7 @@ static void sample_sensors(const struct device *const bme680)
 	}
 }
 
-static void task_wdt_callback(int channel_id, void *user_data)
+static void env_wdt_callback(int channel_id, void *user_data)
 {
 	LOG_ERR("Watchdog expired, Channel: %d, Thread: %s",
 		channel_id, k_thread_name_get((k_tid_t)user_data));
@@ -143,9 +143,9 @@ static void task_wdt_callback(int channel_id, void *user_data)
 
 /* State handlers */
 
-static void state_running_run(void *o)
+static void state_running_run(void *obj)
 {
-	const struct environmental_state *state_object = (const struct environmental_state *)o;
+	struct environmental_state_object const *state_object = obj;
 
 	if (&ENVIRONMENTAL_CHAN == state_object->chan) {
 		struct environmental_msg msg = MSG_TO_ENVIRONMENTAL_MSG(state_object->msg_buf);
@@ -157,9 +157,7 @@ static void state_running_run(void *o)
 	}
 }
 
-/* End of state handling */
-
-static void environmental_task(void)
+static void env_module_thread(void)
 {
 	int err;
 	int task_wdt_id;
@@ -168,13 +166,13 @@ static void environmental_task(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_ENVIRONMENTAL_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	struct environmental_state environmental_state = {
+	struct environmental_state_object environmental_state = {
 		.bme680 = DEVICE_DT_GET(DT_NODELABEL(bme680)),
 	};
 
 	LOG_DBG("Environmental module task started");
 
-	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
+	task_wdt_id = task_wdt_add(wdt_timeout_ms, env_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {
 		LOG_ERR("Failed to add task to watchdog: %d", task_wdt_id);
 		SEND_FATAL_ERROR();
@@ -212,6 +210,6 @@ static void environmental_task(void)
 	}
 }
 
-K_THREAD_DEFINE(environmental_task_id,
+K_THREAD_DEFINE(environmental_module_thread_id,
 		CONFIG_APP_ENVIRONMENTAL_THREAD_STACK_SIZE,
-		environmental_task, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+		env_module_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);

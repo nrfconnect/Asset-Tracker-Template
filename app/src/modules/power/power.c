@@ -70,18 +70,16 @@ static void sample(int64_t *ref_time);
 
 /* State machine */
 
-/* Defininig the module states.
- *
- * STATE_RUNNING: The power module is initializing and waiting battery percentage to be requested.
+/* Power module states.
  */
 enum power_module_state {
 	STATE_RUNNING,
 };
 
-/* User defined state object.
- * Used to transfer data between state changes.
+/* State object.
+ * Used to transfer context data between state changes.
  */
-struct power_state {
+struct power_state_object {
 	/* This must be first */
 	struct smf_ctx ctx;
 
@@ -96,17 +94,19 @@ struct power_state {
 };
 
 /* Forward declarations of state handlers */
-static void state_running_entry(void *o);
-static void state_running_run(void *o);
+static void state_running_entry(void *obj);
+static void state_running_run(void *obj);
 
+/* State machine definition */
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
 		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL, NULL, NULL),
 };
 
+
 /* State handlers */
 
-static void state_running_entry(void *o)
+static void state_running_entry(void *obj)
 {
 	int err;
 	struct sensor_value value;
@@ -114,7 +114,7 @@ static void state_running_entry(void *o)
 		.model = &battery_model
 	};
 	int32_t chg_status;
-	struct power_state *state_object = o;
+	struct power_state_object *state_object = obj;
 	static struct gpio_callback event_cb;
 
 	if (!device_is_ready(charger)) {
@@ -156,9 +156,9 @@ static void state_running_entry(void *o)
 	}
 }
 
-static void state_running_run(void *o)
+static void state_running_run(void *obj)
 {
-	struct power_state *state_object = o;
+	struct power_state_object *state_object = obj;
 
 	if (&POWER_CHAN == state_object->chan) {
 		struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
@@ -169,8 +169,6 @@ static void state_running_run(void *o)
 		}
 	}
 }
-
-/* End of state handling */
 
 static int uart_disable(void)
 {
@@ -366,7 +364,7 @@ static void sample(int64_t *ref_time)
 	}
 }
 
-static void task_wdt_callback(int channel_id, void *user_data)
+static void power_wdt_callback(int channel_id, void *user_data)
 {
 	LOG_ERR("Watchdog expired, Channel: %d, Thread: %s",
 		channel_id, k_thread_name_get((k_tid_t)user_data));
@@ -374,7 +372,7 @@ static void task_wdt_callback(int channel_id, void *user_data)
 	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
 }
 
-static void power_task(void)
+static void power_module_thread(void)
 {
 	int err;
 	int task_wdt_id;
@@ -383,11 +381,11 @@ static void power_task(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_POWER_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	struct power_state power_state;
+	struct power_state_object power_state;
 
 	LOG_DBG("Power module task started");
 
-	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
+	task_wdt_id = task_wdt_add(wdt_timeout_ms, power_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {
 		LOG_ERR("Failed to add task to watchdog: %d", task_wdt_id);
 		SEND_FATAL_ERROR();
@@ -425,6 +423,6 @@ static void power_task(void)
 	}
 }
 
-K_THREAD_DEFINE(power_task_id,
+K_THREAD_DEFINE(power_module_thread_id,
 		CONFIG_APP_POWER_THREAD_STACK_SIZE,
-		power_task, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+		power_module_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);

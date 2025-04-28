@@ -57,23 +57,19 @@ static struct net_mgmt_event_callback conn_cb;
 enum network_module_state {
 	/* The module is running */
 	STATE_RUNNING,
+		/* The device is not connected to a network */
+		STATE_DISCONNECTED,
+			/* The device is disconnected from network and is not searching */
+			STATE_DISCONNECTED_IDLE,
+			/* The device is disconnected and the modem is searching for networks */
+			STATE_DISCONNECTED_SEARCHING,
+		/* The device is connected to a network */
+		STATE_CONNECTED,
 
-	/* The device is not connected to a network */
-	STATE_DISCONNECTED,
-
-	/* The device is disconencted from network and is not searching */
-	STATE_DISCONNECTED_IDLE,
-
-	/* The device is disconnected and the modem is searching for available networks */
-	STATE_DISCONNECTED_SEARCHING,
-
-	/* The device is connected to a network */
-	STATE_CONNECTED,
-
-	/* The device has initiated detachment from network, but the modem has not confirmed
-	 * detachment yet.
-	 */
-	STATE_DISCONNECTING,
+		/* The device has initiated detachment from network, but the modem has not confirmed
+		 * detachment yet.
+		 */
+		STATE_DISCONNECTING,
 };
 
 /* State object.
