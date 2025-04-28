@@ -1,0 +1,142 @@
+#
+# Copyright (c) 2025 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menuconfig APP_CLOUD_MQTT
+	bool "Cloud module"
+	depends on MQTT_HELPER
+	depends on HW_ID_LIBRARY
+
+if APP_CLOUD_MQTT
+
+config APP_CLOUD_MQTT_HOSTNAME
+	string "MQTT broker hostname"
+	default "mqtt.nordicsemi.academy"
+	help
+	  Hostname of the MQTT broker to connect to.
+
+config APP_CLOD_MQTT_TOPIC_SIZE_MAX
+	int "MQTT topic size"
+	default 64
+	help
+	  Maximum size of the MQTT topics used for publishing and subscribing to messages.
+
+config APP_CLOUD_MQTT_PUB_TOPIC
+	string "MQTT publish topic"
+	default "att-pub-topic"
+	help
+	  Topic used for publishing messages to the MQTT broker.
+
+config APP_CLOUD_MQTT_SUB_TOPIC
+	string "MQTT subscribe topic"
+	default "att-sub-topic"
+	help
+	  Topic used for subscribing to messages from the MQTT broker.
+
+config APP_CLOUD_MQTT_SEC_TAG
+	int "MQTT security tag"
+	default 888
+	help
+	  Security tag used to store the MQTT credentials in the modem using Modem Key Management API
+
+config APP_CLOUD_MQTT_SHELL
+	bool "Enable cloud shell"
+	default y if SHELL
+	help
+	  Enable cloud shell commands.
+
+config APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE
+	int "Payload maximum buffer size"
+	default 128
+	help
+	  Maximum size of the buffer sent over the payload channel when sending RAW JSON messages
+	  to the cloud.
+
+config APP_CLOUD_SHADOW_RESPONSE_BUFFER_MAX_SIZE
+	int "Payload maximum buffer size"
+	default 512
+	help
+	  Maximum size of the buffer used to receive shadow responses from the cloud.
+
+config APP_CLOUD_BACKOFF_INITIAL_SECONDS
+	int "Reconnection backoff time in seconds"
+	default 60
+	help
+	  Time in between reconnection attempts to the MQTT server.
+	  The timer starts after the last failed attempt.
+
+choice APP_CLOUD_BACKOFF_TYPE
+	prompt "Reconnection backoff type"
+	default APP_CLOUD_BACKOFF_TYPE_LINEAR
+
+config APP_CLOUD_BACKOFF_TYPE_EXPONENTIAL
+	bool "Exponential backoff"
+	help
+	  Exponential backoff doubles the reconnection timeout after each failed attempt.
+	  The maximum reconnection timeout is defined by APP_CLOUD_BACKOFF_MAX_SECONDS.
+
+config APP_CLOUD_BACKOFF_TYPE_LINEAR
+	bool "Linear backoff"
+	help
+	  Linear backoff adds a fixed amount of time to the reconnection timeout after each failed attempt,
+	  as defined by APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS.
+
+config APP_CLOUD_BACKOFF_TYPE_NONE
+	bool "No backoff"
+	help
+	  No backoff means that the reconnection timeout is constant at the value defined by
+	  APP_CLOUD_BACKOFF_INITIAL_SECONDS.
+
+endchoice
+
+config APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS
+	int "Reconnection backoff time increment"
+	default 60
+	help
+	  Time added to the reconnection timeout after each failed attempt in seconds.
+	  The maximum reconnection timeout is defined by APP_CLOUD_BACKOFF_MAX_SECONDS.
+
+config APP_CLOUD_BACKOFF_MAX_SECONDS
+	int "Maximum reconnection timeout"
+	default 3600
+	help
+	  Maximum reconnection backoff value in seconds.
+
+config APP_CLOUD_THREAD_STACK_SIZE
+	int "Thread stack size"
+	default 3328
+
+config APP_CLOUD_MESSAGE_QUEUE_SIZE
+	int "Message queue size"
+	default 5
+	help
+	  ZBus subscriber message queue size.
+
+config APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS
+	int "Watchdog timeout"
+	default 180
+	help
+	  Timeout in seconds for the cloud module watchdog.
+	  The timeout given in this option covers both:
+	    * Waiting for an incoming message in zbus_sub_wait_msg().
+	    * Time spent processing the message, defined by
+	      CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS.
+	  Ensure that this value exceeds CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS.
+	  A small difference between the two can mean more frequent watchdog feeds, which increases
+	  power consumption.
+
+
+config APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS
+	int "Maximum message processing time"
+	default 120
+	help
+	  Maximum time allowed for processing a single message in the module's state machine.
+	  The value must be smaller than CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS.
+
+module = APP_CLOUD_MQTT
+module-str = Cloud MQTT
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # APP_CLOUD_MQTT

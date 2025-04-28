@@ -424,3 +424,108 @@ The dummy module is now ready to use. It provides the following functionality:
 To test the module, send a `DUMMY_SAMPLE_REQUEST` message to its zbus channel. The module will respond with a `DUMMY_SAMPLE_RESPONSE` containing the incremented counter value.
 
 This dummy module serves as a template that you can extend to implement more complex functionality. You can add additional message types, state variables, and processing logic as needed for your specific use case.
+
+## Using a different Cloud
+
+To connect to a generic MQTT server using the Asset Tracker Template, you can use the example cloud module provided under `examples/modules/cloud`. This module replaces the default nRF Cloud CoAP-based cloud integration with a flexible MQTT client implementation.
+
+### Overview
+
+- **Location and FOTA**: These features are deactivated when using the example MQTT module because they depend on nRF Cloud CoAP.
+- **FOTA and LOCATION channels**: The MQTT cloud module provides stub channel declarations for FOTA and LOCATION to avoid build errors. You can implement your own FOTA and LOCATION modules based on your chosen cloud service if needed.
+- **MQTT Client default configurations:**
+
+    - **Broker hostname:** mqtt.nordicsemi.academy
+    - **Port:** 8883
+    - **TLS:** Yes
+    - **Authentication:** Server only
+    - **CA:** modules/examples/cloud/creds/ca-cert.pem
+    - **Device ID** IMEI
+    - **Subscribed topic** imei/att-pub-topic
+    - **Publishing toptic** imei/att-sub-topic
+
+The default configuration does not require/enable mutual authentication meaning that the device does not authenticate itself to the server.
+That would require a device certificate/private key pair. However, the server is authenticated using the server certificate `ca-cert.pem`located in the module example folder.
+
+### Configuration
+
+Configurations for the MQTT stack can be set in the `overlay-mqtt.conf` file and Kconfig options defined in `examples/modules/cloud/Kconfig.cloud_mqtt`.
+Some of the available options for controlling the MQTT module are:
+
+- `CONFIG_APP_CLOUD_MQTT`
+- `CONFIG_APP_CLOUD_MQTT_HOSTNAME`
+- `CONFIG_APP_CLOD_MQTT_TOPIC_SIZE_MAX`
+- `CONFIG_APP_CLOUD_MQTT_PUB_TOPIC`
+- `CONFIG_APP_CLOUD_MQTT_SUB_TOPIC`
+- `CONFIG_APP_CLOUD_MQTT_SEC_TAG`
+- `CONFIG_APP_CLOUD_MQTT_SHELL`
+- `CONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE`
+- `CONFIG_APP_CLOUD_SHADOW_RESPONSE_BUFFER_MAX_SIZE`
+- `CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS`
+- `CONFIG_APP_CLOUD_BACKOFF_TYPE_LINEAR`
+- `CONFIG_APP_CLOUD_BACKOFF_TYPE_EXPONENTIAL`
+- `CONFIG_APP_CLOUD_BACKOFF_TYPE_NONE`
+- `CONFIG_APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS`
+- `CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS`
+- `CONFIG_APP_CLOUD_THREAD_STACK_SIZE`
+- `CONFIG_APP_CLOUD_MESSAGE_QUEUE_SIZE`
+- `CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS`
+- `CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS`
+
+### How to use the MQTT Cloud Example
+
+1. **Build and flash with the MQTT overlay**
+
+   In the template's `app` folder, run:
+
+   ```sh
+   west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="$(PWD)/../examples/modules/cloud/overlay-mqtt.conf" && west flash --erase --skip-rebuild
+   ```
+
+2. **Observe that the device connects to the broker**
+
+3. **Test using shell commands**
+
+    ```bash
+        uart:~$ att_cloud_publish_mqtt test-payload
+        Sending on payload channel: "data":"test-payload","ts":1746534066186 (40 bytes)
+        [00:00:18.607,421] <dbg> cloud: on_cloud_payload_json: MQTT Publish Details:
+        [00:00:18.607,482] <dbg> cloud: on_cloud_payload_json:  -Payload: "data":"test-payload","ts":1746534066186
+        [00:00:18.607,513] <dbg> cloud: on_cloud_payload_json:  -Payload Length: 40
+        [00:00:18.607,543] <dbg> cloud: on_cloud_payload_json:  -Topic: 359404230261381/att-pub-topic
+        [00:00:18.607,574] <dbg> cloud: on_cloud_payload_json:  -Topic Size: 29
+        [00:00:18.607,635] <dbg> cloud: on_cloud_payload_json:  -QoS: 1
+        [00:00:18.607,635] <dbg> cloud: on_cloud_payload_json:  -Message ID: 1
+        [00:00:18.607,696] <dbg> mqtt_helper: mqtt_helper_publish: Publishing to topic: 359404230261381/att-pub-topic
+        [00:00:19.141,235] <dbg> mqtt_helper: mqtt_evt_handler: MQTT_EVT_PUBACK: id = 1 result = 0
+        [00:00:19.141,265] <dbg> cloud: on_mqtt_puback: Publish acknowledgment received, message id: 1
+        [00:00:19.141,296] <dbg> mqtt_helper: mqtt_helper_poll_loop: Polling on socket fd: 0
+        [00:00:48.653,503] <dbg> mqtt_helper: mqtt_helper_poll_loop: Polling on socket fd: 0
+        [00:00:49.587,463] <dbg> mqtt_helper: mqtt_evt_handler: MQTT_EVT_PINGRESP
+        [00:00:49.587,493] <dbg> mqtt_helper: mqtt_helper_poll_loop: Polling on socket fd: 0
+        [00:01:18.697,692] <dbg> mqtt_helper: mqtt_helper_poll_loop: Polling on socket fd: 0
+        [00:01:19.350,921] <dbg> mqtt_helper: mqtt_evt_handler: MQTT_EVT_PINGRESP
+    ```
+
+   The MQTT cloud module includes a shell module/commands for testing cloud publishing much like the default CoAP configuration.
+   To implement custom cloud shell commands this module can be used `examples/modules/cloud/cloud_mqtt_shell.c`.
+
+### **Module State Machine**
+
+The cloud MQTT module uses a state machine to manage connection and reconnection logic. Below is a mermaid diagram representing the module's states:
+
+   ```mermaid
+   stateDiagram-v2
+       [*] --> STATE_RUNNING
+       STATE_RUNNING --> STATE_DISCONNECTED : NETWORK_DISCONNECTED
+       STATE_DISCONNECTED --> STATE_CONNECTING : NETWORK_CONNECTED
+       STATE_CONNECTING --> STATE_CONNECTING_ATTEMPT
+       STATE_CONNECTING_ATTEMPT --> STATE_CONNECTING_BACKOFF : CLOUD_CONN_FAILED
+       STATE_CONNECTING_BACKOFF --> STATE_CONNECTING_ATTEMPT : CLOUD_BACKOFF_EXPIRED
+       STATE_CONNECTING_ATTEMPT --> STATE_CONNECTED : CLOUD_CONN_SUCCESS
+       STATE_CONNECTED --> STATE_DISCONNECTED : NETWORK_DISCONNECTED
+       STATE_CONNECTED --> STATE_CONNECTED : PAYLOAD_CHAN / send_data()
+       STATE_CONNECTED --> STATE_CONNECTED : <module>_SAMPLE_RESPONSE / send_<module>_data()
+       STATE_CONNECTED --> STATE_CONNECTED : NETWORK_CONNECTED / (noop)
+       STATE_CONNECTED --> STATE_DISCONNECTED : exit / mqtt_helper_disconnect()
+   ```
