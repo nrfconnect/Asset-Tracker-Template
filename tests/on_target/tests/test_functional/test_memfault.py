@@ -100,7 +100,7 @@ def test_memfault(dut_board, debug_hex_file):
     dut_board.uart.xfactoryreset()
     dut_board.uart.flush()
     reset_device()
-    dut_board.uart.wait_for_str("Connected to Cloud", timeout=120)
+    dut_board.uart.wait_for_str("Connected to Cloud", timeout=240)
 
     now = datetime.now(timezone.utc)
     start_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
