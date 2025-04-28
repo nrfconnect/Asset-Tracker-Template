@@ -30,7 +30,7 @@ Complete the following steps for building and running:
 
 1. Navigate to the project folder:
 ```shell
-cd asset-tracker-template/app
+cd asset-tracker-template/project/app
 ```
 
 2. To build the application, run the following command:

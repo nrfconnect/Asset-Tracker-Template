@@ -99,7 +99,7 @@ nrfutil toolchain-manager launch --
 
 # Initialize workspace
 west init -m https://github.com/nrfconnect/Asset-Tracker-Template.git --mr main asset-tracker-template
-cd asset-tracker-template/app
+cd asset-tracker-template/project/app
 west update
 ```
 
