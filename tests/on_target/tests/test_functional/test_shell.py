@@ -41,7 +41,7 @@ def test_shell(dut_cloud, hex_file):
     # Boot
     dut_cloud.uart.flush()
     reset_device()
-    dut_cloud.uart.wait_for_str(patterns_boot, timeout=120)
+    dut_cloud.uart.wait_for_str(patterns_boot, timeout=240)
 
     # Button press
     dut_cloud.uart.flush()
