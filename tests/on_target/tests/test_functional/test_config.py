@@ -32,22 +32,23 @@ def test_config(dut_cloud, hex_file):
 
     # # Wait for shadow to be reported to cloud
     start = time.time()
+    update_interval = 600
     try:
         while time.time() - start < CLOUD_TIMEOUT:
-                time.sleep(5)
-                try:
-                    device = dut_cloud.cloud.get_device(dut_cloud.device_id)
-                    device_state = device["state"]
-                    update_interval = device_state["reported"]["config"]["update_interval"]
-                except Exception as e:
-                    pytest.skip(f"Unable to retrieve device state from cloud, e: {e}")
+            time.sleep(5)
+            try:
+                device = dut_cloud.cloud.get_device(dut_cloud.device_id)
+                device_state = device["state"]
+                update_interval = device_state["reported"]["config"]["update_interval"]
+            except Exception as e:
+                pytest.skip(f"Unable to retrieve device state from cloud, e: {e}")
 
-                logger.debug(f"Device state: {device_state}")
-                if update_interval == TEST_UPDATE_INTERVAL:
-                        break
-                else:
-                    logger.debug("No correct interval update reported yet, retrying...")
-                    continue
+            logger.debug(f"Device state: {device_state}")
+            if update_interval == TEST_UPDATE_INTERVAL:
+                    break
+            else:
+                logger.debug("No correct interval update reported yet, retrying...")
+                continue
         else:
             raise RuntimeError(f"No correct update interval reported back to cloud, desired {TEST_UPDATE_INTERVAL}, reported {update_interval}")
     finally:
