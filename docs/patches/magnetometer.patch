@@ -63,7 +63,7 @@ diff --git a/app/src/modules/environmental/environmental.c b/app/src/modules/env
 index 9caa7aa..5767f91 100644
 --- a/app/src/modules/environmental/environmental.c
 +++ b/app/src/modules/environmental/environmental.c
-@@ -65,10 +65,16 @@ struct environmental_state {
+@@ -65,10 +65,16 @@ struct environmental_state_object {
  	/* Pointer to the BME680 sensor device */
  	const struct device *const bme680;
 
@@ -142,9 +142,9 @@ index 9caa7aa..5767f91 100644
  		}
  	}
  }
-@@ -170,6 +197,7 @@ static void environmental_task(void)
+@@ -170,6 +197,7 @@ static void env_module_thread(void)
  	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
- 	struct environmental_state environmental_state = {
+ 	struct environmental_state_object environmental_state = {
  		.bme680 = DEVICE_DT_GET(DT_NODELABEL(bme680)),
 +		.bmm350 = DEVICE_DT_GET(DT_NODELABEL(magnetometer)),
  	};
