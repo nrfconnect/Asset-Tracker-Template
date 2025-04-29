@@ -95,7 +95,7 @@ While designed for asset tracking applications, the template's modular architect
 
 ```shell
 # Launch toolchain
-nrfutil toolchain-manager launch --
+nrfutil toolchain-manager launch --shell
 
 # Initialize workspace
 west init -m https://github.com/nrfconnect/Asset-Tracker-Template.git --mr main asset-tracker-template

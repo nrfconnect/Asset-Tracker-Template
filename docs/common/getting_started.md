@@ -11,7 +11,7 @@ nrf9151dk/nrf9151/ns
 ## Workspace Initialization
 Before initializing, start the toolchain environment:
 ```shell
-nrfutil toolchain-manager launch --
+nrfutil toolchain-manager launch --shell
 ```
 
 To initialize the workspace folder (asset-tracker-template) where the firmware project and all nRF Connect SDK modules will be cloned, run the following commands:
