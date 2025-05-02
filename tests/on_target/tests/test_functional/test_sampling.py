@@ -38,7 +38,9 @@ def test_sampling(dut_board, hex_file):
     # Cloud connection
     dut_board.uart.flush()
     reset_device()
-    dut_board.uart.wait_for_str("Connected to Cloud", timeout=240)
+
+    dut_board.uart.wait_for_str_with_retries("Connected to Cloud", max_retries=3, timeout=240, reset_func=reset_device)
+
 
     # Sampling
     dut_board.uart.wait_for_str(pattern_list, timeout=120)
