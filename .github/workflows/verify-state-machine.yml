@@ -1,0 +1,29 @@
+# .github/workflows/verify-state-machine.yml
+name: CI State Machine Verification
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  verify-state-machine:
+    name: Verify State Machine Alignment
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.12.5-slim-bookworm
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          pip install openai
+
+      - name: Run state machine verification script
+        working-directory: asset-tracker-template
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python tests/state_machines/verify_machine.py \
+            --c-file app/src/modules/cloud/cloud.c \
+            --uml-file tests/state_machines/cloud/cloud.puml
