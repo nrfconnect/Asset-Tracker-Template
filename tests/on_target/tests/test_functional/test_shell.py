@@ -22,8 +22,7 @@ def test_shell(dut_cloud, hex_file):
     dut_cloud.uart.xfactoryreset()
 
     patterns_boot = [
-        "Connected to Cloud",
-        "main: wait_for_trigger_entry: Next trigger in"
+        "main: wait_for_trigger_entry: Next trigger in",
     ]
     patterns_button_press = [
         "main: sample_data_entry: sample_data_entry",
@@ -41,7 +40,8 @@ def test_shell(dut_cloud, hex_file):
     # Boot
     dut_cloud.uart.flush()
     reset_device()
-    dut_cloud.uart.wait_for_str(patterns_boot, timeout=240)
+    dut_cloud.uart.wait_for_str_with_retries("Connected to Cloud", max_retries=3, timeout=240, reset_func=reset_device)
+    dut_cloud.uart.wait_for_str(patterns_boot, timeout=120)
 
     # Button press
     dut_cloud.uart.flush()

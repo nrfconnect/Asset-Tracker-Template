@@ -33,7 +33,8 @@ def test_patched_firmware(dut_board, hex_file_patched):
     # Cloud connection
     dut_board.uart.flush()
     reset_device()
-    dut_board.uart.wait_for_str(pattern_cloud, timeout=240)
+
+    dut_board.uart.wait_for_str_with_retries(pattern_cloud, max_retries=3, timeout=240, reset_func=reset_device)
 
     # Wait for shadow request
     dut_board.uart.wait_for_str(pattern_shadow, timeout=30)

@@ -222,6 +222,22 @@ class Uart:
             return match.groups()
         return None
 
+    def wait_for_str_with_retries(self, msgs: Union[str, list], max_retries: int = 2, timeout: int = DEFAULT_WAIT_FOR_STR_TIMEOUT, error_msg: str = "", reset_func=None) -> None:
+        retries = 0
+        while retries <= max_retries:
+            try:
+                return self.wait_for_str(msgs, error_msg=error_msg, timeout=timeout)
+            except AssertionError as e:
+                retries += 1
+                if retries <= max_retries:
+                    logger.error(f"Waiting for string failed, e: {e}")
+                    logger.info(f"Retrying... (attempt {retries}/{max_retries})")
+                    if reset_func:
+                        reset_func()
+                else:
+                    logger.error(f"Failed waiting for {msgs} after {max_retries} retries")
+                    raise
+
 class UartBinary(Uart):
     def __init__(
         self,

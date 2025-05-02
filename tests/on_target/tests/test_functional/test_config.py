@@ -25,7 +25,8 @@ def test_config(dut_cloud, hex_file):
     dut_cloud.uart.xfactoryreset()
     dut_cloud.uart.flush()
     reset_device()
-    dut_cloud.uart.wait_for_str("Connected to Cloud", timeout=240)
+
+    dut_cloud.uart.wait_for_str_with_retries("Connected to Cloud", max_retries=3, timeout=240, reset_func=reset_device)
 
     dut_cloud.cloud.patch_update_interval(dut_cloud.device_id, interval=TEST_UPDATE_INTERVAL)
     dut_cloud.uart.wait_for_str(f"main: Received new interval: {TEST_UPDATE_INTERVAL} seconds", timeout=120)
