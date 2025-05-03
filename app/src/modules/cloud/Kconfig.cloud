@@ -18,10 +18,13 @@ config APP_CLOUD_SHELL
 
 config APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE
 	int "Payload maximum buffer size"
-	default 128
+	default 1024
 	help
-	  Maximum size of the buffer sent over the payload channel when sending RAW JSON messages
-	  to the cloud.
+	  Maximum size of the buffer used for CBOR-encoded messages sent to the cloud.
+	  Example: For environmental data, each sample triplet (temp, humidity, pressure) uses 76 bytes,
+	  plus 2 bytes overhead for the array header. The default value of 1024 allows for
+	  batching ~13 samples in a single CoAP message while staying within typical UDP
+	  datagram size limits.
 
 config APP_CLOUD_SHADOW_RESPONSE_BUFFER_MAX_SIZE
 	int "Payload maximum buffer size"
@@ -82,7 +85,7 @@ config APP_CLOUD_BACKOFF_MAX_SECONDS
 
 config APP_CLOUD_THREAD_STACK_SIZE
 	int "Thread stack size"
-	default 6144
+	default 8192
 
 config APP_CLOUD_MESSAGE_QUEUE_SIZE
 	int "Message queue size"

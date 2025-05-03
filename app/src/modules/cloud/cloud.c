@@ -27,6 +27,8 @@
 #include "app_common.h"
 #include "network.h"
 #include "location.h"
+#include "storage.h"
+#include "cloud_codec.h"
 
 #if defined(CONFIG_APP_POWER)
 #include "power.h"
@@ -35,6 +37,7 @@
 #if defined(CONFIG_APP_ENVIRONMENTAL)
 #include "environmental.h"
 #endif /* CONFIG_APP_ENVIRONMENTAL */
+
 
 /* Register log module */
 LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
@@ -59,6 +62,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
 #define CHANNEL_LIST(X)										\
 					 X(NETWORK_CHAN,	struct network_msg)		\
 					 X(CLOUD_CHAN,		struct cloud_msg)		\
+					 X(STORAGE_CHAN,	struct storage_msg)		\
 IF_ENABLED(CONFIG_APP_ENVIRONMENTAL,	(X(ENVIRONMENTAL_CHAN,	struct environmental_msg)))	\
 IF_ENABLED(CONFIG_APP_POWER,		(X(POWER_CHAN,		struct power_msg)))		\
 IF_ENABLED(CONFIG_APP_LOCATION,		(X(LOCATION_CHAN,	struct location_msg)))
@@ -251,11 +255,29 @@ static void connect_to_cloud(const struct cloud_state_object *state_object)
 	smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
 }
 
+/**
+ * @brief Calculate the backoff time for cloud connection retries.
+ *
+ * This function determines the delay before the next cloud connection attempt,
+ * based on the number of previous attempts and the configured backoff strategy.
+ * The backoff can be either exponential or linear, as selected by Kconfig options.
+ *
+ * - Exponential backoff: The delay doubles with each attempt, starting from
+ *   CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS, up to CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS.
+ * - Linear backoff: The delay increases by a fixed increment
+ *   (CONFIG_APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS) for each attempt after the first,
+ *   starting from CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS, up to the maximum.
+ *
+ * The returned value is always capped at CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS.
+ *
+ * @param attempts The current retry attempt number (starting from 1).
+ *
+ * @return The calculated backoff time in seconds.
+ */
 static uint32_t calculate_backoff_time(uint32_t attempts)
 {
 	uint32_t backoff_time = CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS;
 
-	/* Calculate backoff time */
 	if (IS_ENABLED(CONFIG_APP_CLOUD_BACKOFF_TYPE_EXPONENTIAL)) {
 		backoff_time = CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS << (attempts - 1);
 	} else if (IS_ENABLED(CONFIG_APP_CLOUD_BACKOFF_TYPE_LINEAR)) {
@@ -299,168 +321,7 @@ static void send_request_failed(void)
 	}
 }
 
-/* State handlers */
-
-static void state_running_entry(void *obj)
-{
-	int err;
-
-	ARG_UNUSED(obj);
-
-	LOG_DBG("%s", __func__);
-
-	err = nrf_cloud_coap_init();
-	if (err) {
-		LOG_ERR("nrf_cloud_coap_init, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-}
-
-static void state_running_run(void *obj)
-{
-	struct cloud_state_object const *state_object = obj;
-
-	if (state_object->chan == &NETWORK_CHAN) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
-
-		if (msg.type == NETWORK_DISCONNECTED) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
-
-			return;
-		}
-	}
-}
-
-static void state_disconnected_entry(void *obj)
-{
-	int err;
-	struct cloud_msg cloud_msg = {
-		.type = CLOUD_DISCONNECTED,
-	};
-
-	ARG_UNUSED(obj);
-
-	LOG_DBG("%s", __func__);
-
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-}
-
-static void state_disconnected_run(void *obj)
-{
-	struct cloud_state_object const *state_object = obj;
-	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
-
-	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
-
-		return;
-	}
-}
-
-static void state_connecting_entry(void *obj)
-{
-	/* Reset connection attempts counter */
-	struct cloud_state_object *state_object = obj;
-
-	LOG_DBG("%s", __func__);
-
-	state_object->connection_attempts = 0;
-}
-
-static void state_connecting_attempt_entry(void *obj)
-{
-	struct cloud_state_object *state_object = obj;
-
-	LOG_DBG("%s", __func__);
-
-	state_object->connection_attempts++;
-
-	connect_to_cloud(state_object);
-}
-
-static void state_connecting_backoff_entry(void *obj)
-{
-	int err;
-	struct cloud_state_object *state_object = obj;
-
-	LOG_DBG("%s", __func__);
-
-	state_object->backoff_time = calculate_backoff_time(state_object->connection_attempts);
-
-	err = k_work_schedule(&backoff_timer_work, K_SECONDS(state_object->backoff_time));
-	if (err < 0) {
-		LOG_ERR("k_work_schedule, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
-}
-
-static void state_connecting_backoff_run(void *obj)
-{
-	struct cloud_state_object const *state_object = obj;
-
-	if (state_object->chan == &PRIV_CLOUD_CHAN) {
-		const enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
-
-		if (msg == CLOUD_BACKOFF_EXPIRED) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_ATTEMPT]);
-
-			return;
-		}
-	}
-}
-
-static void state_connecting_backoff_exit(void *obj)
-{
-	ARG_UNUSED(obj);
-
-	LOG_DBG("%s", __func__);
-
-	(void)k_work_cancel_delayable(&backoff_timer_work);
-}
-
-static void state_connected_entry(void *obj)
-{
-	ARG_UNUSED(obj);
-
-	LOG_DBG("%s", __func__);
-	LOG_INF("Connected to Cloud");
-
-#if defined(CONFIG_MEMFAULT)
-	if (memfault_coredump_has_valid_coredump(NULL)) {
-		/* Initial update to Memfault is handled internally in the
-		 * Memfault LTE coredump layer.
-		 */
-		return;
-	}
-
-	/* No coredump available, trigger an initial update to Memfault. */
-	(void)memfault_metrics_heartbeat_debug_trigger();
-	(void)memfault_zephyr_port_post_data();
-#endif /* CONFIG_MEMFAULT */
-}
-
-static void state_connected_exit(void *obj)
-{
-	int err;
-
-	ARG_UNUSED(obj);
-
-	LOG_DBG("%s", __func__);
-
-	err = nrf_cloud_coap_disconnect();
-	if (err && (err != -ENOTCONN && err != -EPERM)) {
-		LOG_ERR("nrf_cloud_coap_disconnect, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
-}
+/* Helper functions */
 
 #if defined(CONFIG_APP_LOCATION)
 /* Handle cloud location requests from the location module */
@@ -692,6 +553,432 @@ static void shadow_get(bool delta_only)
 	}
 }
 
+static int send_sensor_data(const char *app_id, double value, bool confirmable)
+{
+	int err;
+
+	err = nrf_cloud_coap_sensor_send(app_id, value, NRF_CLOUD_NO_TIMESTAMP, confirmable);
+	if (err == -ENETUNREACH) {
+		LOG_WRN("Network is unreachable, error: %d", err);
+		return err;
+	} else if (err) {
+		LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+		SEND_FATAL_ERROR();
+		return err;
+	}
+
+	return 0;
+}
+
+static void handle_network_channel(const struct cloud_state_object *state_object)
+{
+	int err;
+	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
+
+	switch (msg.type) {
+	case NETWORK_DISCONNECTED:
+		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_PAUSED]);
+		break;
+
+	case NETWORK_CONNECTED:
+		smf_set_handled(SMF_CTX(state_object));
+		break;
+
+	case NETWORK_QUALITY_SAMPLE_RESPONSE:
+		err = send_sensor_data(CUSTOM_JSON_APPID_VAL_CONEVAL,
+				       msg.conn_eval_params.energy_estimate,
+				       confirmable);
+		if (err) {
+			return;
+		}
+
+		err = send_sensor_data(NRF_CLOUD_JSON_APPID_VAL_RSRP,
+				       msg.conn_eval_params.rsrp,
+				       confirmable);
+		if (err) {
+			return;
+		}
+		break;
+
+	default:
+		break;
+	}
+}
+
+static void handle_storage_data(const struct storage_msg *msg)
+{
+	int err;
+	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
+
+	switch (msg->data_type) {
+	case STORAGE_TYPE_BATTERY: {
+		double battery_level = *(double *)msg->buffer;
+
+		err = send_sensor_data(CUSTOM_JSON_APPID_VAL_BATTERY, battery_level, confirmable);
+		if (err) {
+			return;
+		}
+		break;
+	}
+	case STORAGE_TYPE_ENVIRONMENTAL: {
+		struct environmental_msg *env_msg = (struct environmental_msg *)msg->buffer;
+
+		err = send_sensor_data(NRF_CLOUD_JSON_APPID_VAL_TEMP, env_msg->temperature,
+				       confirmable);
+		if (err) {
+			return;
+		}
+
+		err = send_sensor_data(NRF_CLOUD_JSON_APPID_VAL_AIR_PRESS, env_msg->pressure,
+				       confirmable);
+		if (err) {
+			return;
+		}
+
+		err = send_sensor_data(NRF_CLOUD_JSON_APPID_VAL_HUMID, env_msg->humidity,
+				       confirmable);
+		if (err) {
+			return;
+		}
+
+		break;
+	}
+	default:
+		LOG_WRN("Unhandled data type: %d", msg->data_type);
+		break;
+	}
+}
+
+static void handle_storage_fifo(const struct storage_msg *msg)
+{
+	int err;
+	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
+	struct storage_data_chunk *chunk;
+	uint8_t cbor_buf[CONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE];
+	size_t cbor_buf_len = sizeof(cbor_buf);
+	size_t cbor_out_len;
+	size_t total_expected_cbor_len = CLOUD_CODEC_CBOR_ARRAY_HEADER_SIZE;
+	struct storage_data_chunk *chunks[20] = {0};
+	size_t chunk_count = 0;
+
+	__ASSERT_NO_MSG(msg->fifo);
+
+	/* Check if the FIFO is empty */
+	if (k_fifo_is_empty(msg->fifo)) {
+		LOG_DBG("FIFO is empty, nothing to send");
+		return;
+	}
+
+	while ((total_expected_cbor_len < cbor_buf_len) && (chunk_count < ARRAY_SIZE(chunks))) {
+		size_t expected_cbor_len = 0;
+
+		/* We peek the head of the FIFO to check the type of the chunk
+		 * and calculate the expected CBOR length.
+		 */
+		chunk = k_fifo_peek_head(msg->fifo);
+		if (!chunk) {
+			LOG_DBG("No more chunks in FIFO");
+			break;
+		}
+
+		switch (chunk->type) {
+		case STORAGE_TYPE_ENVIRONMENTAL:
+			expected_cbor_len = CLOUD_CODEC_ENV_ELEMENT_CBOR_SIZE;
+			break;
+		case STORAGE_TYPE_BATTERY:
+			expected_cbor_len = CLOUD_CODEC_BATTERY_ELEMENT_CBOR_SIZE;
+			break;
+		default:
+			LOG_WRN("Unhandled storage data type: %d", chunk->type);
+			(void)k_fifo_get(msg->fifo, K_NO_WAIT);
+			chunk->finished(chunk);
+			continue;
+		}
+
+		if ((total_expected_cbor_len + expected_cbor_len) > cbor_buf_len) {
+			LOG_DBG("CBOR buffer is full, cannot add more chunks");
+			break;
+		}
+
+		/* Store the chunk for later processing */
+		chunks[chunk_count++] = chunk;
+		total_expected_cbor_len += expected_cbor_len;
+
+		/* Get the chunk from the FIFO to remove it from the queue now that we have
+		 * the expected size and pointer to the chunk.
+		 */
+		(void)k_fifo_get(msg->fifo, K_NO_WAIT);
+	}
+
+	/* The chunks array is now filled with pointers to the chunks
+	 * that we will process.
+	 */
+	if (chunk_count == 0) {
+		LOG_DBG("No chunks to process");
+		return;
+	}
+
+	err = encode_data_chunk_array(
+		cbor_buf, cbor_buf_len, &cbor_out_len, chunks, chunk_count);
+	if (err) {
+		LOG_ERR("Failed to encode environmental samples, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	LOG_DBG("Encoded %u samples to CBOR, length: %u", chunk_count, cbor_out_len);
+
+	/* Free the chunks after encoding */
+	for (size_t i = 0; i < chunk_count; i++) {
+		chunks[i]->finished(chunks[i]);
+	}
+
+	/* Send the encoded CBOR data to the cloud */
+	err = nrf_cloud_coap_post("msg/d2c", NULL,
+				  cbor_buf, cbor_out_len,
+				  COAP_CONTENT_FORMAT_APP_CBOR,
+				  confirmable, NULL, NULL);
+	if (err == -ENETUNREACH) {
+		LOG_WRN("Network is unreachable, error: %d", err);
+	} else if (err) {
+		LOG_ERR("nrf_cloud_coap_post, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+}
+
+static void handle_storage_channel(const struct cloud_state_object *state_object)
+{
+	const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+
+	if (msg->type == STORAGE_DATA) {
+		handle_storage_data(msg);
+		return;
+	}
+
+	if (msg->type == STORAGE_FIFO_AVAILABLE) {
+		handle_storage_fifo(msg);
+	}
+}
+
+static void handle_cloud_channel(const struct cloud_state_object *state_object)
+{
+	int err;
+	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
+	const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
+
+	if (msg->type == CLOUD_PAYLOAD_JSON) {
+		err = nrf_cloud_coap_json_message_send(msg->payload.buffer,
+						       false, confirmable);
+		if (err == -ENETUNREACH) {
+			LOG_WRN("Network is unreachable, error: %d", err);
+			return;
+		} else if (err) {
+			LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+			SEND_FATAL_ERROR();
+			return;
+		}
+	} else if (msg->type == CLOUD_POLL_SHADOW) {
+		LOG_DBG("Poll shadow trigger received");
+		shadow_get(true);
+	}
+}
+
+#if defined(CONFIG_APP_LOCATION)
+static void handle_location_channel(const struct cloud_state_object *state_object)
+{
+	const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+
+	switch (msg->type) {
+	case LOCATION_CLOUD_REQUEST:
+		LOG_DBG("Cloud location request received");
+		handle_cloud_location_request(&msg->cloud_request);
+		break;
+
+#if defined(CONFIG_NRF_CLOUD_AGNSS)
+	case LOCATION_AGNSS_REQUEST:
+		LOG_DBG("A-GNSS data request received");
+		handle_agnss_request(&msg->agnss_request);
+		break;
+#endif /* CONFIG_NRF_CLOUD_AGNSS */
+
+#if defined(CONFIG_LOCATION_METHOD_GNSS)
+	case LOCATION_GNSS_DATA:
+		LOG_DBG("GNSS location data received");
+		handle_gnss_location_data(&msg->gnss_data);
+		break;
+#endif /* CONFIG_LOCATION_METHOD_GNSS */
+
+	default:
+		break;
+	}
+}
+#endif /* CONFIG_APP_LOCATION */
+
+/* State handlers */
+
+static void state_running_entry(void *obj)
+{
+	int err;
+
+	ARG_UNUSED(obj);
+
+	LOG_DBG("%s", __func__);
+
+	err = nrf_cloud_coap_init();
+	if (err) {
+		LOG_ERR("nrf_cloud_coap_init, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+}
+
+static void state_running_run(void *obj)
+{
+	struct cloud_state_object const *state_object = obj;
+
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		if (msg.type == NETWORK_DISCONNECTED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
+
+			return;
+		}
+	}
+}
+
+static void state_disconnected_entry(void *obj)
+{
+	int err;
+	struct cloud_msg cloud_msg = {
+		.type = CLOUD_DISCONNECTED,
+	};
+
+	ARG_UNUSED(obj);
+
+	LOG_DBG("%s", __func__);
+
+	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+}
+
+static void state_disconnected_run(void *obj)
+{
+	struct cloud_state_object const *state_object = obj;
+	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
+		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
+
+		return;
+	}
+}
+
+static void state_connecting_entry(void *obj)
+{
+	/* Reset connection attempts counter */
+	struct cloud_state_object *state_object = obj;
+
+	LOG_DBG("%s", __func__);
+
+	state_object->connection_attempts = 0;
+}
+
+static void state_connecting_attempt_entry(void *obj)
+{
+	struct cloud_state_object *state_object = obj;
+
+	LOG_DBG("%s", __func__);
+
+	state_object->connection_attempts++;
+
+	connect_to_cloud(state_object);
+}
+
+static void state_connecting_backoff_entry(void *obj)
+{
+	int err;
+	struct cloud_state_object *state_object = obj;
+
+	LOG_DBG("%s", __func__);
+
+	state_object->backoff_time = calculate_backoff_time(state_object->connection_attempts);
+
+	err = k_work_schedule(&backoff_timer_work, K_SECONDS(state_object->backoff_time));
+	if (err < 0) {
+		LOG_ERR("k_work_schedule, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+static void state_connecting_backoff_run(void *obj)
+{
+	struct cloud_state_object const *state_object = obj;
+
+	if (state_object->chan == &PRIV_CLOUD_CHAN) {
+		const enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
+
+		if (msg == CLOUD_BACKOFF_EXPIRED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_ATTEMPT]);
+
+			return;
+		}
+	}
+}
+
+static void state_connecting_backoff_exit(void *obj)
+{
+	ARG_UNUSED(obj);
+
+	LOG_DBG("%s", __func__);
+
+	(void)k_work_cancel_delayable(&backoff_timer_work);
+}
+
+static void state_connected_entry(void *obj)
+{
+	ARG_UNUSED(obj);
+
+	LOG_DBG("%s", __func__);
+	LOG_INF("Connected to Cloud");
+
+#if defined(CONFIG_MEMFAULT)
+	if (memfault_coredump_has_valid_coredump(NULL)) {
+		/* Initial update to Memfault is handled internally in the
+		 * Memfault LTE coredump layer.
+		 */
+		return;
+	}
+
+	/* No coredump available, trigger an initial update to Memfault. */
+	(void)memfault_metrics_heartbeat_debug_trigger();
+	(void)memfault_zephyr_port_post_data();
+#endif /* CONFIG_MEMFAULT */
+}
+
+static void state_connected_exit(void *obj)
+{
+	int err;
+
+	ARG_UNUSED(obj);
+
+	LOG_DBG("%s", __func__);
+
+	err = nrf_cloud_coap_disconnect();
+	if (err && (err != -ENOTCONN && err != -EPERM)) {
+		LOG_ERR("nrf_cloud_coap_disconnect, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
 static void state_connected_ready_entry(void *obj)
 {
 	int err;
@@ -716,9 +1003,7 @@ static void state_connected_ready_entry(void *obj)
 
 static void state_connected_ready_run(void *obj)
 {
-	int err;
 	struct cloud_state_object const *state_object = obj;
-	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
 
 	if (state_object->chan == &PRIV_CLOUD_CHAN) {
 		enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
@@ -730,163 +1015,19 @@ static void state_connected_ready_run(void *obj)
 		}
 	}
 
-	if (state_object->chan == &NETWORK_CHAN) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
-
-		switch (msg.type) {
-		case NETWORK_DISCONNECTED:
-			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_PAUSED]);
-
-			return;
-		case NETWORK_CONNECTED:
-			smf_set_handled(SMF_CTX(state_object));
-
-			return;
-		case NETWORK_QUALITY_SAMPLE_RESPONSE:
-			err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_CONEVAL,
-							 msg.conn_eval_params.energy_estimate,
-							 NRF_CLOUD_NO_TIMESTAMP,
-							 confirmable);
-			if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-
-				send_request_failed();
-				return;
-			}
-
-			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_RSRP,
-							 msg.conn_eval_params.rsrp,
-							 NRF_CLOUD_NO_TIMESTAMP,
-							 confirmable);
-			if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-
-				send_request_failed();
-				return;
-			}
-
-			break;
-
-		default:
-			break;
-		}
-	}
-
-#if defined(CONFIG_APP_POWER)
-	if (state_object->chan == &POWER_CHAN) {
-		struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
-
-		if (msg.type == POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE) {
-			err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_BATTERY,
-							 msg.percentage,
-							 NRF_CLOUD_NO_TIMESTAMP,
-							 confirmable);
-			if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-
-				send_request_failed();
-				return;
-			}
-
-			return;
-		}
-	}
-#endif /* CONFIG_APP_POWER */
-
-#if defined(CONFIG_APP_ENVIRONMENTAL)
-	if (state_object->chan == &ENVIRONMENTAL_CHAN) {
-		struct environmental_msg msg = MSG_TO_ENVIRONMENTAL_MSG(state_object->msg_buf);
-
-		if (msg.type == ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE) {
-			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_TEMP,
-							 msg.temperature,
-							 NRF_CLOUD_NO_TIMESTAMP,
-							 confirmable);
-			if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-
-				send_request_failed();
-				return;
-			}
-
-			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_AIR_PRESS,
-							 msg.pressure,
-							 NRF_CLOUD_NO_TIMESTAMP,
-							 confirmable);
-			if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-
-				send_request_failed();
-				return;
-			}
-
-			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_HUMID,
-							 msg.humidity,
-							 NRF_CLOUD_NO_TIMESTAMP,
-							 confirmable);
-			if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-
-				send_request_failed();
-				return;
-			}
-
-			return;
-		}
-
-		return;
-	}
-#endif /* CONFIG_APP_ENVIRONMENTAL */
-
 #if defined(CONFIG_APP_LOCATION)
 	if (state_object->chan == &LOCATION_CHAN) {
-		const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
-
-		switch (msg->type) {
-		case LOCATION_CLOUD_REQUEST:
-			LOG_DBG("Cloud location request received");
-			handle_cloud_location_request(&msg->cloud_request);
-			break;
-
-#if defined(CONFIG_NRF_CLOUD_AGNSS)
-		case LOCATION_AGNSS_REQUEST:
-			LOG_DBG("A-GNSS data request received");
-			handle_agnss_request(&msg->agnss_request);
-			break;
-#endif /* CONFIG_NRF_CLOUD_AGNSS */
-
-#if defined(CONFIG_LOCATION_METHOD_GNSS)
-		case LOCATION_GNSS_DATA:
-			LOG_DBG("GNSS location data received");
-			handle_gnss_location_data(&msg->gnss_data);
-			break;
-#endif /* CONFIG_LOCATION_METHOD_GNSS */
-
-		default:
-			break;
-		}
-
+		handle_location_channel(state_object);
 		return;
 	}
 #endif /* CONFIG_APP_LOCATION */
 
-	if (state_object->chan == &CLOUD_CHAN) {
-		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
-
-		if (msg->type == CLOUD_PAYLOAD_JSON) {
-			err = nrf_cloud_coap_json_message_send(msg->payload.buffer,
-							       false, confirmable);
-			if (err) {
-				LOG_ERR("nrf_cloud_coap_json_message_send, error: %d", err);
-
-				send_request_failed();
-				return;
-			}
-		} else if (msg->type == CLOUD_POLL_SHADOW) {
-			LOG_DBG("Poll shadow trigger received");
-
-			shadow_get(true);
-		}
+	if (state_object->chan == &NETWORK_CHAN) {
+		handle_network_channel(state_object);
+	} else if (state_object->chan == &STORAGE_CHAN) {
+		handle_storage_channel(state_object);
+	} else if (state_object->chan == &CLOUD_CHAN) {
+		handle_cloud_channel(state_object);
 	}
 }
 
@@ -978,4 +1119,5 @@ static void cloud_module_thread(void)
 
 K_THREAD_DEFINE(cloud_module_thread_id,
 		CONFIG_APP_CLOUD_THREAD_STACK_SIZE,
-		cloud_module_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+		cloud_module_thread, NULL, NULL, NULL,
+		K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
