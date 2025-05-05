@@ -35,7 +35,7 @@ struct storage_backend {
  * @param size Size of the data in bytes
  * @return 0 on success, negative errno on failure
  */
-int (*store)(const struct storage_data_type *type, const void *data, size_t size);
+int (*store)(const struct storage_data_type *type, void *data, size_t size);
 
 /**
  * @brief Retrieve data from the backend.
