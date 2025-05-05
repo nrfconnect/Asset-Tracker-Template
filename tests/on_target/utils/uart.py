@@ -73,6 +73,7 @@ class Uart:
     def xfactoryreset(self) -> None:
         try:
             self.at_cmd_write("at AT")
+            self.write("att_network disconnect\r\n")
             self.at_cmd_write("at AT+CFUN=4")
             self.at_cmd_write("at AT%XFACTORYRESET=0")
         except UartLogTimeout:
