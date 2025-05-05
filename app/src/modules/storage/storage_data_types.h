@@ -10,7 +10,6 @@
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/kernel.h>
 
-
 #include "power.h"
 #include "environmental.h"
 #include "location.h"
@@ -107,7 +106,11 @@ struct storage_data_type {
 	void (*extract_data)(const void *msg, void *data);
 };
 
-// TODO: Generate extract and check functions automatically?
+/* Helper macro to create a name with a numercial value so that the linker can place the struct
+ * in a predictable location based on its appearence in the input list to STORAGE_DATA_TYPE.
+ */
+#define STORAGE_TYPE_NAME(_name) storage_type_##__COUNTER__##_##_name
+
 /**
  * @brief Register a storage data type.
  *
@@ -151,7 +154,7 @@ struct storage_data_type {
 		_extract_fn(m, (_data_type *)data);						\
 	}											\
 												\
-	STRUCT_SECTION_ITERABLE(storage_data_type, _name##_storage_type) = {			\
+	STRUCT_SECTION_ITERABLE(storage_data_type, STORAGE_TYPE_NAME(_name)) = {		\
 		.name = #_name,									\
 		.chan = &_chan,									\
 		.data_size = sizeof(_data_type),						\
