@@ -4,13 +4,40 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "0 0 * * *"
+  pull_request:
+    paths:
+      - "app/src/main.c"
+      - "app/src/modules/network/network.c"
+      - "app/src/modules/cloud/cloud.c"
+      - "app/src/modules/fota/fota.c"
+      - "tests/state_machines/**/*"
+
 
 jobs:
-  verify-state-machine:
-    name: Verify State Machine
+  verify-state-machines:
+    name: Verify State Machines
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # Prevent hanging jobs
     container:
       image: python:3.12.5-slim-bookworm
+
+    strategy:
+      matrix:
+        include:
+          - name: MAIN
+            c_file: app/src/main.c
+            uml_file: tests/state_machines/source_of_truth/main.puml
+          - name: NETWORK
+            c_file: app/src/modules/network/network.c
+            uml_file: tests/state_machines/source_of_truth/network.puml
+          - name: CLOUD
+            c_file: app/src/modules/cloud/cloud.c
+            uml_file: tests/state_machines/source_of_truth/cloud.puml
+          - name: FOTA
+            c_file: app/src/modules/fota/fota.c
+            uml_file: tests/state_machines/source_of_truth/fota.puml
+      # Don't cancel all jobs if one fails
+      fail-fast: false
 
     steps:
       - name: Checkout repository
@@ -20,10 +47,11 @@ jobs:
         run: |
           pip install openai
 
-      - name: CLOUD SM
+      - name: Verify ${{ matrix.name }} State Machine
+        id: verify
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           python tests/state_machines/verify_machine.py \
-            --c-file app/src/modules/cloud/cloud.c \
-            --uml-file tests/state_machines/source_of_truth/cloud.puml
+            --c-file ${{ matrix.c_file }} \
+            --uml-file ${{ matrix.uml_file }}
