@@ -4,6 +4,7 @@
 
 - [Add environmental sensor](#add-environmental-sensor)
 - [Add your own module](#add-your-own-module)
+- [Enable support for MQTT](#enable-support-for-mqtt)
 
 This section contains guides for modifying specific aspects of the template.
 
@@ -425,7 +426,7 @@ To test the module, send a `DUMMY_SAMPLE_REQUEST` message to its zbus channel. T
 
 This dummy module serves as a template that you can extend to implement more complex functionality. You can add additional message types, state variables, and processing logic as needed for your specific use case.
 
-## Using a different Cloud
+## Enable support for MQTT
 
 To connect to a generic MQTT server using the Asset Tracker Template, you can use the example cloud module provided under `examples/modules/cloud`. This module replaces the default nRF Cloud CoAP-based cloud integration with a flexible MQTT client implementation.
 
@@ -479,7 +480,7 @@ Some of the available options for controlling the MQTT module are:
    In the template's `app` folder, run:
 
    ```sh
-   west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="$(PWD)/../examples/modules/cloud/overlay-mqtt.conf" && west flash --erase --skip-rebuild
+   west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="$(pwd)/../examples/modules/cloud/overlay-mqtt.conf" && west flash --erase --skip-rebuild
    ```
 
 2. **Observe that the device connects to the broker**
