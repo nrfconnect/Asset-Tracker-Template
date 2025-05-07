@@ -120,6 +120,7 @@ For detailed setup including nRF Cloud provisioning and advanced build configura
 * [Architecture](docs/common/architecture.md)
 * [Configurability](docs/common/configurability.md)
 * [Customization](docs/common/customization.md)
+  * [Enable support for MQTT](docs/common/customization.md#enable-support-for-mqtt)
 * [Location Services](docs/common/location_services.md)
 * [Test and CI Setup](docs/common/test_and_ci_setup.md)
 * [nRF Cloud FOTA](docs/common/nrfcloud_fota.md)
