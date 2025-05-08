@@ -32,16 +32,10 @@ def get_uarts():
     try:
         serial_paths = [os.path.join(base_path, entry) for entry in os.listdir(base_path)]
     except (FileNotFoundError, PermissionError) as e:
-        logger.error(e)
-        return False
-
-    uarts = []
-
-    for path in sorted(serial_paths):
-        if UART_ID in path:
-            uarts.append(path)
-        else:
-            continue
+        raise RuntimeError("Failed to list serial devices") from e
+    if not UART_ID:
+        raise RuntimeError("UART_ID not set")
+    uarts = [x for x in sorted(serial_paths) if UART_ID in x]
     return uarts
 
 def scan_log_for_assertions(log):
