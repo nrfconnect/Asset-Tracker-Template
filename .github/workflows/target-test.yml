@@ -16,14 +16,11 @@ on:
         type: string
         required: false
         default: tests
-      is_scheduled:
-        type: boolean
+      devices:
+        description: JSON array of devices. e.g. [\"thingy91x\",\"nrf9151dk\"]
+        type: string
         required: false
-        default: false
-      nrfsdk_sha_update:
-        type: boolean
-        required: false
-        default: false
+        default: '[\"thingy91x\"]'
 
   workflow_dispatch:
     inputs:
@@ -53,25 +50,19 @@ on:
 jobs:
   set-matrix:
     runs-on: ubuntu-latest
+    outputs:
+      device_matrix: ${{ steps.set-matrix.outputs.device_matrix }}
     steps:
       - id: set-matrix
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            matrix="${{ github.event.inputs.devices }}"
-          elif [[ "${{ inputs.is_scheduled }}" == "true" ]]; then
-              matrix='["thingy91x","nrf9151dk","ppk_thingy91x"]'
+          if [[ ${{ github.event_name == 'schedule' }} == "true" ]]; then
+              matrix='[\"thingy91x\",\"nrf9151dk\",\"ppk_thingy91x\"]'
           else
-            matrix='["thingy91x"]'
-          fi
-          if [[ -z "$matrix" ]]; then
-            matrix='["thingy91x"]'
+            matrix=${{ inputs.devices }}
           fi
 
           echo "Matrix as string: $matrix"
           echo "device_matrix=$matrix" >> $GITHUB_OUTPUT
-
-    outputs:
-      device_matrix: ${{ steps.set-matrix.outputs.device_matrix }}
 
   target_test:
     # This will create multiple jobs, one for each target defined in the matrix
@@ -151,22 +142,14 @@ jobs:
         working-directory: asset-tracker-template/tests/on_target
         run: |
           mkdir -p results
-
-          if [[ '${{ inputs.pytest_marker }}' == 'no_markers_flag' || '${{ inputs.pytest_marker }}' == '' ]]; then
-            pytest_marker_arg=()
-          else
-            pytest_marker_arg=(-m "${{ inputs.pytest_marker }}")
-          fi
-          echo pytest -v "${pytest_marker_arg[@]}"
-
           if [[ '${{ matrix.device }}' == 'ppk_thingy91x' ]]; then
             # For PPK device, only run tests/test_ppk
-            pytest -v "${pytest_marker_arg[@]}" \
+            pytest -v ${{ inputs.pytest_marker }} \
               --junit-xml=results/test-results.xml \
               --html=results/test-results.html --self-contained-html \
               tests/test_ppk
           else
-            pytest -v "${pytest_marker_arg[@]}" \
+            pytest -v ${{ inputs.pytest_marker }} \
               --junit-xml=results/test-results.xml \
               --html=results/test-results.html --self-contained-html \
               --ignore=tests/test_ppk \
