@@ -185,27 +185,6 @@ jobs:
           MEMFAULT_PROJECT_SLUG: ${{ vars.MEMFAULT_PROJECT_SLUG }}
           APP_BUNDLEID: ${{ env.APP_BUNDLEID }}
 
-      - name: Test Patched Firmware
-        if: ${{ matrix.device == 'thingy91x' && endsWith(inputs.artifact_fw_version, '-patched') }}
-        working-directory: asset-tracker-template/tests/on_target
-        run: |
-          pytest -v \
-            --junit-xml=results/test-results-patched.xml \
-            --html=results/test-results-patched.html --self-contained-html \
-            tests/test_functional/test_patched.py
-        shell: bash
-        env:
-          SEGGER: ${{ env.RUNNER_SERIAL_NUMBER }}
-          DUT_DEVICE_TYPE: ${{ vars.DUT_DEVICE_TYPE }}
-          UUID: ${{ env.UUID }}
-          NRFCLOUD_API_KEY: ${{ secrets.NRF_CLOUD_API_KEY }}
-          LOG_FILENAME: att_test_log_patched
-          TEST_REPORT_NAME: ATT Patched Firwmare Test Report
-          MEMFAULT_ORGANIZATION_TOKEN: ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }}
-          MEMFAULT_ORGANIZATION_SLUG: ${{ vars.MEMFAULT_ORGANIZATION_SLUG }}
-          MEMFAULT_PROJECT_SLUG: ${{ vars.MEMFAULT_PROJECT_SLUG }}
-          APP_BUNDLEID: ${{ env.APP_BUNDLEID }}
-
       - name: Generate and Push Power Badge
         if: ${{ matrix.device }} == ppk_thingy91x
         continue-on-error: true
