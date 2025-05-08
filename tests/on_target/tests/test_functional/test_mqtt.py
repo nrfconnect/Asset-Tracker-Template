@@ -13,6 +13,7 @@ from utils.logger import get_logger
 
 logger = get_logger()
 
+@pytest.mark.mqtt
 @pytest.mark.slow
 def test_mqtt_firmware(dut_board, hex_file_mqtt):
     """Test the firmware with cloud MQTT module."""
