@@ -21,14 +21,16 @@
 #include "../../../app/src/modules/location/location.h"
 #include "../../../app/src/common/app_common.h"
 
-#include "creds.h"
-
 /* Register log module */
 LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_MQTT_LOG_LEVEL);
 
 BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
 	     CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS,
 	     "Watchdog timeout must be greater than maximum message processing time");
+
+static const unsigned char ca_certificate[] = {
+	#include ATT_MQTT_CA_CERT (0x00)
+};
 
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
