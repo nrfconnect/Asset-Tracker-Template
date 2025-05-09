@@ -210,8 +210,8 @@ struct cloud_state {
 	uint32_t connection_attempts;
 
 	/* Topics that are published and subscribed to */
-	char pub_topic[CONFIG_APP_CLOD_MQTT_TOPIC_SIZE_MAX];
-	char sub_topic[CONFIG_APP_CLOD_MQTT_TOPIC_SIZE_MAX];
+	char pub_topic[CONFIG_APP_CLOUD_MQTT_TOPIC_SIZE_MAX];
+	char sub_topic[CONFIG_APP_CLOUD_MQTT_TOPIC_SIZE_MAX];
 
 	/* MQTT client ID */
 	char client_id[HW_ID_LEN];
@@ -585,10 +585,32 @@ static void state_connecting_backoff_exit(void *o)
 
 static void state_connected_entry(void *o)
 {
-	ARG_UNUSED(o);
+	int err;
+	struct cloud_state *state_object = (struct cloud_state *)o;
+	struct mqtt_topic topics[] = {
+		{
+			.topic.utf8 = state_object->sub_topic,
+			.topic.size = strlen(state_object->sub_topic),
+		},
+	};
+	struct mqtt_subscription_list list = {
+		.list = topics,
+		.list_count = ARRAY_SIZE(topics),
+		.message_id = SUBSCRIBE_TOPIC_ID,
+	};
 
 	LOG_DBG("%s", __func__);
 	LOG_DBG("Connected to Cloud");
+
+	for (size_t i = 0; i < list.list_count; i++) {
+		LOG_INF("Subscribing to: %s", (char *)list.list[i].topic.utf8);
+	}
+
+	err = mqtt_helper_subscribe(&list);
+	if (err) {
+		LOG_ERR("Failed to subscribe to topics, error: %d", err);
+		return;
+	}
 }
 
 static void state_connected_run(void *o)

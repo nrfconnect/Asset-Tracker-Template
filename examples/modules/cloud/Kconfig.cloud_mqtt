@@ -64,8 +64,7 @@ config APP_CLOUD_MQTT_BACKOFF_INITIAL_SECONDS
 	int "Reconnection backoff time in seconds"
 	default 60
 	help
-	  Time in between reconnection attempts to the MQTT server.
-	  The timer starts after the last failed attempt.
+	  Initial timeout after a failed reconnection attempt before backoff (reconnection) starts.
 
 choice APP_CLOUD_MQTT_BACKOFF_TYPE
 	prompt "Reconnection backoff type"
@@ -81,7 +80,7 @@ config APP_CLOUD_MQTT_BACKOFF_TYPE_LINEAR
 	bool "Linear backoff"
 	help
 	  Linear backoff adds a fixed amount of time to the reconnection timeout after each failed attempt,
-	  as defined by APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS.
+	  as defined by APP_CLOUD_MQTT_BACKOFF_LINEAR_INCREMENT_SECONDS.
 
 config APP_CLOUD_MQTT_BACKOFF_TYPE_NONE
 	bool "No backoff"
