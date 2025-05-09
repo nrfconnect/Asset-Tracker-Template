@@ -16,17 +16,9 @@
 
 The Asset Tracker Template is a framework for developing IoT applications on nRF91-based devices. Built on the [nRF Connect SDK](https://www.nordicsemi.com/Products/Development-software/nRF-Connect-SDK) and [Zephyr RTOS](https://docs.zephyrproject.org/latest/), it provides a modular, event-driven architecture suitable for battery-powered IoT use cases. The framework supports features such as cloud connectivity, location tracking, and sensor data collection.
 
-The system is organized into independent modules, each responsible for a specific functionality, such as managing network connectivity, handling cloud communication, or collecting environmental data. Modules communicate through zbus channels, ensuring loose coupling and maintainability.
+The system is organized into modules, each responsible for a specific functionality, such as managing network connectivity, handling cloud communication, or collecting environmental data. Modules communicate through [zbus](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) channels, ensuring loose coupling and maintainability.
 
-This template is suitable for applications like asset tracking, environmental monitoring, and other IoT use cases requiring modularity, configurability, and efficient power management. It includes a testing infrastructure with GitHub Actions for automated testing and continuous integration.
-
-The framework is designed for customization, allowing developers to:
-
-* Modify the central business logic in the `main.c` file.
-* Enable, disable and configure modules via Kconfig options.
-* Add new modules following the established patterns.
-* Modify existing modules to suit specific requirements.
-* Contribute to the open-source project by submitting improvements, bug fixes, or new features.
+This template is suitable for applications like asset tracking, environmental monitoring, and other IoT use cases requiring modularity, configurability, and efficient power management. It includes a test setup with GitHub Actions for automated testing and continuous integration.
 
 **Supported and verified hardware**:
 
@@ -39,51 +31,56 @@ If you are not familiar with the nRF91 series SiPs and cellular in general, it's
 
 The template consists of the following modules:
 
-* **Main Module**: Central coordinator implementing business logic and control flow
-* **Network Module**: Manages LTE connectivity and tracks network status
-* **Cloud Module**: Handles communication with nRF Cloud using CoAP
-* **Location Module**: Provides location services using GNSS, Wi-Fi and cellular positioning
-* **LED Module**: Controls RGB LED for visual feedback on Thingy:91 X
-* **Button Module**: Handles button input for user interaction
-* **FOTA Module**: Manages firmware over-the-air updates
-* **Environmental Module**: Collects environmental sensor data
-* **Power Module**: Monitors battery status and provides power management
+* [**Main module**](docs/modules/main.md): Central coordinator implementing business logic and control flow.
+* [**Network module**](docs/modules/network.md): Manages LTE connectivity and tracks network status.
+* [**Cloud module**](docs/modules/cloud.md): Handles communication with nRF Cloud using CoAP.
+* [**Location module**](docs/modules/location.md): Provides location services using GNSS, Wi-Fi and cellular positioning.
+* [**LED module**](docs/modules/led.md): Controls RGB LED for visual feedback on Thingy:91 X.
+* [**Button module**](docs/modules/button.md): Handles button input for user interaction.
+* [**FOTA module**](docs/modules/fota.md): Manages firmware over-the-air updates.
+* [**Environmental module**](docs/modules/environmental.md): Collects environmental sensor data.
+* [**Power module**](docs/modules/power.md): Monitors battery status and provides power management.
 
 The image below illustrates the system architecture and the interaction between the modules.
 The zbus channels are indicated with colored arrows showing the direction of communication, with the arrows pointing in to the module that is subscribing to the respective channel.
 
 ![System overview](docs/images/system_overview.png)
 
+The system archtecture is described in more detail in the [Architecture](docs/common/architecture.md) document.
+
 ### Key Technical Features
 
 1. **State Machine Framework (SMF)**
-   * Each module implements its own state machine using Zephyr's [State Machine Framework](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html)
-   * Run-to-completion model ensures predictable behavior
+   * Each module implements its own state machine using Zephyr's [State Machine Framework](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html).
+   * Run-to-completion model ensures predictable behavior.
 
 2. **Message-Based Communication (zbus)**
-   * Modules communicate through dedicated [zbus](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) channels
+   * Modules communicate through dedicated message channels using [zbus](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html).
 
 3. **Modular Architecture**
-   * Separation of concerns between modules
-   * Each module that performs blocking operations runs in its own thread and use zbus message subscribers to queue messages
-   * Non-blocking modules use zbus listeners for immediate processing
+   * Separation of concerns between modules.
+   * Each module that performs blocking operations runs in its own thread and use zbus message subscribers to queue messages.
+   * Non-blocking modules use zbus listeners for immediate processing.
 
 4. **Power Optimization**
-   * LTE Power Saving Mode (PSM) enabled by default
-   * Configurable power-saving features
+   * LTE Power Saving Mode (PSM) enabled by default.
+   * Configurable power-saving features.
 
 ### Customization and Extension
 
-The template is customizable and extensible, enabling developers to adapt it to specific requirements. Key points for customization include:
+The framework is designed for customization, allowing developers to:
 
-* The `main.c` file contains the central business logic and is the primary customization point
-* Modules can be enabled/disabled via Kconfig options
-* New modules can be added following the established patterns
-* Existing modules can be modified to suit specific requirements
+* Modify the central business logic in the `main.c` file.
+* Enable, disable and configure modules via Kconfig options.
+* Add new modules following the established patterns.
+* Modify existing modules to suit specific requirements.
+* Contribute to the open-source project by submitting improvements, bug fixes, or new features.
 
-While designed for asset tracking applications, the template's modular architecture makes it adaptable for various IoT use cases. The template is open-source, and we encourage contributions of improvements, bug fixes, or new features.
+More information on how to customize the template can be found in the [Customization](docs/common/customization.md) document.
 
 ## Quick Start
+
+This section provides a brief introduction to building and running the Asset Tracker Template on supported hardware. For detailed instructions, refer to the [Getting Started](docs/common/getting_started.md) document.
 
 ### Prerequisites
 
@@ -95,7 +92,7 @@ While designed for asset tracking applications, the template's modular architect
 
 ```shell
 # Launch toolchain
-nrfutil toolchain-manager launch --shell
+nrfutil sdk-manager toolchain launch --ncs-version v3.0.0 --shell # Or the version you are using
 
 # Initialize workspace
 west init -m https://github.com/nrfconnect/Asset-Tracker-Template.git --mr main asset-tracker-template
@@ -106,7 +103,7 @@ west update
 2. Build and flash:
 
 ```shell
-west build -p -b thingy91x/nrf9151/ns
+west build --pristine --board thingy91x/nrf9151/ns
 west thingy91x-dfu  # For Thingy:91 X serial bootloader
 # Or if you use an external debugger (ensure that nRF9151 is selected with the switch on the Thingy:91 X)
 west flash --erase
