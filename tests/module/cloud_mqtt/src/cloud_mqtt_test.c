@@ -60,7 +60,8 @@ FAKE_VALUE_FUNC(int, mqtt_helper_connect, struct mqtt_helper_conn_params *);
 FAKE_VALUE_FUNC(int, mqtt_helper_disconnect);
 FAKE_VALUE_FUNC(int, mqtt_helper_publish, const struct mqtt_publish_param *);
 FAKE_VALUE_FUNC(int, mqtt_helper_subscribe, struct mqtt_subscription_list *);
-FAKE_VALUE_FUNC(int, modem_key_mgmt_write, nrf_sec_tag_t, enum modem_key_mgmt_cred_type, const void *, size_t);
+FAKE_VALUE_FUNC(int, modem_key_mgmt_write, nrf_sec_tag_t,
+		enum modem_key_mgmt_cred_type, const void *, size_t);
 FAKE_VALUE_FUNC(uint16_t, mqtt_helper_msg_id_get);
 
 /* Forward declarations */
@@ -70,7 +71,7 @@ ZBUS_LISTENER_DEFINE(cloud_test_listener, cloud_chan_cb);
 
 #define FAKE_DEVICE_ID "test_device"
 
-static bool cloud_connected = false;
+static bool cloud_connected;
 
 /* This is a custom fake function to capture the callback functions */
 static int mqtt_helper_init_custom_fake(struct mqtt_helper_cfg *cfg)
@@ -112,8 +113,8 @@ static void network_disconnect(void)
 	struct network_msg msg = {
 		.type = NETWORK_DISCONNECTED
 	};
-
 	int err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Transport module needs CPU to run state machine */
@@ -125,8 +126,8 @@ static void network_connect(void)
 	struct network_msg msg = {
 		.type = NETWORK_CONNECTED
 	};
-
 	int err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Transport module needs CPU to run state machine */
@@ -140,8 +141,8 @@ static void publish_test_payload(void)
 		.payload.buffer = "{\"test\": 1}",
 		.payload.buffer_data_len = strnlen(msg.payload.buffer, sizeof(msg.payload.buffer)),
 	};
-
 	int err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
+
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Transport module needs CPU to run state machine */
