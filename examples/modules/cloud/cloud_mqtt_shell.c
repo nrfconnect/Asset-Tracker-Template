@@ -10,8 +10,7 @@
 #include <zephyr/zbus/zbus.h>
 #include <date_time.h>
 
-/* Reuse the templates cloud module header */
-#include "../../../app/src/modules/cloud/cloud.h"
+#include "cloud.h"
 
 LOG_MODULE_DECLARE(cloud, CONFIG_APP_CLOUD_MQTT_LOG_LEVEL);
 

@@ -12,8 +12,6 @@
 
 #include "app_common.h"
 #include "led.h"
-#include "location.h"
-#include "network.h"
 
 #define PWM_LED0	DT_ALIAS(pwm_led0)
 #define PWM_LED1	DT_ALIAS(pwm_led1)

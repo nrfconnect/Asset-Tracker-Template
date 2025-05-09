@@ -14,22 +14,42 @@
 #include <modem/modem_key_mgmt.h>
 #include <hw_id.h>
 
-/* Reuse the templates cloud module header */
-#include "../../../app/src/modules/cloud/cloud.h"
-#include "../../../app/src/modules/network/network.h"
-#include "../../../app/src/modules/fota/fota.h"
-#include "../../../app/src/modules/location/location.h"
-#include "../../../app/src/common/app_common.h"
+#include "cloud.h"
+#include "network.h"
+#include "app_common.h"
+
+/* Define FOTA and Location channels to avoid build warning due to the module being patched out
+ * because they are not supported with the MQTT cloud.
+ */
+#include "fota.h"
+#include "location.h"
+
+ZBUS_CHAN_DEFINE(FOTA_CHAN,
+		 enum fota_msg_type,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
+
+ZBUS_CHAN_DEFINE(LOCATION_CHAN,
+		 enum location_msg_type,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
 
 /* Register log module */
 LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_MQTT_LOG_LEVEL);
 
-BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
-	     CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS,
+BUILD_ASSERT(CONFIG_APP_CLOUD_MQTT_WATCHDOG_TIMEOUT_SECONDS >
+	     CONFIG_APP_CLOUD_MQTT_MSG_PROCESSING_TIMEOUT_SECONDS,
 	     "Watchdog timeout must be greater than maximum message processing time");
 
 static const unsigned char ca_certificate[] = {
-	#include ATT_MQTT_CA_CERT (0x00)
+	#include ATT_MQTT_CA_CERT
+	(0x00)
 };
 
 /* Register subscriber */
@@ -56,25 +76,6 @@ ZBUS_CHAN_DEFINE(CLOUD_CHAN,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(.type = CLOUD_DISCONNECTED)
-);
-
-/* Define FOTA and Location channels to avoid build warning due to the module being patched out
- * because they are not supported with the MQTT cloud.
- */
-ZBUS_CHAN_DEFINE(FOTA_CHAN,
-		 enum fota_msg_type,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-
-ZBUS_CHAN_DEFINE(LOCATION_CHAN,
-		 enum location_msg_type,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
 );
 
 static void on_modem_init(int ret, void *ctx)
@@ -296,19 +297,19 @@ static void connect_to_cloud(const struct cloud_state *state_object)
 
 static uint32_t calculate_backoff_time(uint32_t attempts)
 {
-	uint32_t backoff_time = CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS;
+	uint32_t backoff_time = CONFIG_APP_CLOUD_MQTT_BACKOFF_INITIAL_SECONDS;
 
 	/* Calculate backoff time */
-	if (IS_ENABLED(CONFIG_APP_CLOUD_BACKOFF_TYPE_EXPONENTIAL)) {
-		backoff_time = CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS << (attempts - 1);
-	} else if (IS_ENABLED(CONFIG_APP_CLOUD_BACKOFF_TYPE_LINEAR)) {
-		backoff_time = CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS +
-			((attempts - 1) * CONFIG_APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS);
+	if (IS_ENABLED(CONFIG_APP_CLOUD_MQTT_BACKOFF_TYPE_EXPONENTIAL)) {
+		backoff_time = CONFIG_APP_CLOUD_MQTT_BACKOFF_INITIAL_SECONDS << (attempts - 1);
+	} else if (IS_ENABLED(CONFIG_APP_CLOUD_MQTT_BACKOFF_TYPE_LINEAR)) {
+		backoff_time = CONFIG_APP_CLOUD_MQTT_BACKOFF_INITIAL_SECONDS +
+			((attempts - 1) * CONFIG_APP_CLOUD_MQTT_BACKOFF_LINEAR_INCREMENT_SECONDS);
 	}
 
 	/* Limit backoff time */
-	if (backoff_time > CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS) {
-		backoff_time = CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS;
+	if (backoff_time > CONFIG_APP_CLOUD_MQTT_BACKOFF_MAX_SECONDS) {
+		backoff_time = CONFIG_APP_CLOUD_MQTT_BACKOFF_MAX_SECONDS;
 	}
 
 	LOG_DBG("Backoff time: %u seconds", backoff_time);
@@ -628,9 +629,9 @@ static void cloud_module_thread(void)
 {
 	int err;
 	int task_wdt_id;
-	const uint32_t wdt_timeout_ms = (CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
+	const uint32_t wdt_timeout_ms = (CONFIG_APP_CLOUD_MQTT_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const uint32_t execution_time_ms =
-		(CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
+		(CONFIG_APP_CLOUD_MQTT_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	struct cloud_state cloud_state = { 0 };
 
@@ -674,5 +675,5 @@ static void cloud_module_thread(void)
 }
 
 K_THREAD_DEFINE(cloud_module_thread_id,
-		CONFIG_APP_CLOUD_THREAD_STACK_SIZE,
+		CONFIG_APP_CLOUD_MQTT_THREAD_STACK_SIZE,
 		cloud_module_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);

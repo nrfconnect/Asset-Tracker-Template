@@ -47,43 +47,43 @@ config APP_CLOUD_MQTT_SHELL
 	help
 	  Enable cloud shell commands.
 
-config APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE
+config APP_CLOUD_MQTT_PAYLOAD_BUFFER_MAX_SIZE
 	int "Payload maximum buffer size"
 	default 128
 	help
 	  Maximum size of the buffer sent over the payload channel when sending RAW JSON messages
 	  to the cloud.
 
-config APP_CLOUD_SHADOW_RESPONSE_BUFFER_MAX_SIZE
+config APP_CLOUD_MQTT_SHADOW_RESPONSE_BUFFER_MAX_SIZE
 	int "Payload maximum buffer size"
 	default 512
 	help
 	  Maximum size of the buffer used to receive shadow responses from the cloud.
 
-config APP_CLOUD_BACKOFF_INITIAL_SECONDS
+config APP_CLOUD_MQTT_BACKOFF_INITIAL_SECONDS
 	int "Reconnection backoff time in seconds"
 	default 60
 	help
 	  Time in between reconnection attempts to the MQTT server.
 	  The timer starts after the last failed attempt.
 
-choice APP_CLOUD_BACKOFF_TYPE
+choice APP_CLOUD_MQTT_BACKOFF_TYPE
 	prompt "Reconnection backoff type"
-	default APP_CLOUD_BACKOFF_TYPE_LINEAR
+	default APP_CLOUD_MQTT_BACKOFF_TYPE_LINEAR
 
-config APP_CLOUD_BACKOFF_TYPE_EXPONENTIAL
+config APP_CLOUD_MQTT_BACKOFF_TYPE_EXPONENTIAL
 	bool "Exponential backoff"
 	help
 	  Exponential backoff doubles the reconnection timeout after each failed attempt.
 	  The maximum reconnection timeout is defined by APP_CLOUD_BACKOFF_MAX_SECONDS.
 
-config APP_CLOUD_BACKOFF_TYPE_LINEAR
+config APP_CLOUD_MQTT_BACKOFF_TYPE_LINEAR
 	bool "Linear backoff"
 	help
 	  Linear backoff adds a fixed amount of time to the reconnection timeout after each failed attempt,
 	  as defined by APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS.
 
-config APP_CLOUD_BACKOFF_TYPE_NONE
+config APP_CLOUD_MQTT_BACKOFF_TYPE_NONE
 	bool "No backoff"
 	help
 	  No backoff means that the reconnection timeout is constant at the value defined by
@@ -91,30 +91,30 @@ config APP_CLOUD_BACKOFF_TYPE_NONE
 
 endchoice
 
-config APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS
+config APP_CLOUD_MQTT_BACKOFF_LINEAR_INCREMENT_SECONDS
 	int "Reconnection backoff time increment"
 	default 60
 	help
 	  Time added to the reconnection timeout after each failed attempt in seconds.
 	  The maximum reconnection timeout is defined by APP_CLOUD_BACKOFF_MAX_SECONDS.
 
-config APP_CLOUD_BACKOFF_MAX_SECONDS
+config APP_CLOUD_MQTT_BACKOFF_MAX_SECONDS
 	int "Maximum reconnection timeout"
 	default 3600
 	help
 	  Maximum reconnection backoff value in seconds.
 
-config APP_CLOUD_THREAD_STACK_SIZE
+config APP_CLOUD_MQTT_THREAD_STACK_SIZE
 	int "Thread stack size"
 	default 3328
 
-config APP_CLOUD_MESSAGE_QUEUE_SIZE
+config APP_CLOUD_MQTT_MESSAGE_QUEUE_SIZE
 	int "Message queue size"
 	default 5
 	help
 	  ZBus subscriber message queue size.
 
-config APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS
+config APP_CLOUD_MQTT_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout"
 	default 180
 	help
@@ -122,18 +122,18 @@ config APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS
 	  The timeout given in this option covers both:
 	    * Waiting for an incoming message in zbus_sub_wait_msg().
 	    * Time spent processing the message, defined by
-	      CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS.
-	  Ensure that this value exceeds CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS.
+	      CONFIG_APP_CLOUD_MQTT_MSG_PROCESSING_TIMEOUT_SECONDS.
+	  Ensure that this value exceeds CONFIG_APP_CLOUD_MQTT_MSG_PROCESSING_TIMEOUT_SECONDS.
 	  A small difference between the two can mean more frequent watchdog feeds, which increases
 	  power consumption.
 
 
-config APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS
+config APP_CLOUD_MQTT_MSG_PROCESSING_TIMEOUT_SECONDS
 	int "Maximum message processing time"
 	default 120
 	help
 	  Maximum time allowed for processing a single message in the module's state machine.
-	  The value must be smaller than CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS.
+	  The value must be smaller than CONFIG_APP_CLOUD_MQTT_WATCHDOG_TIMEOUT_SECONDS.
 
 module = APP_CLOUD_MQTT
 module-str = Cloud MQTT
