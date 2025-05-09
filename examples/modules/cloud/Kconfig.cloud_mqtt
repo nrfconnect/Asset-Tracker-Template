@@ -17,7 +17,7 @@ config APP_CLOUD_MQTT_HOSTNAME
 	help
 	  Hostname of the MQTT broker to connect to.
 
-config APP_CLOD_MQTT_TOPIC_SIZE_MAX
+config APP_CLOUD_MQTT_TOPIC_SIZE_MAX
 	int "MQTT topic size"
 	default 64
 	help
