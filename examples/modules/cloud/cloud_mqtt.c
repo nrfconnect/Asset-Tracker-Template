@@ -651,7 +651,8 @@ static void cloud_module_thread(void)
 {
 	int err;
 	int task_wdt_id;
-	const uint32_t wdt_timeout_ms = (CONFIG_APP_CLOUD_MQTT_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
+	const uint32_t wdt_timeout_ms =
+		(CONFIG_APP_CLOUD_MQTT_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_CLOUD_MQTT_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
