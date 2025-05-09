@@ -15,23 +15,48 @@
 LOG_MODULE_DECLARE(storage, CONFIG_APP_STORAGE_LOG_LEVEL);
 
 #define RECORDS_PER_TYPE	CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE
+/* 1 word for the header of a ring buffer item */
+#define RING_BUF_HEADER_SIZE	1
 
-/* Calculate total RAM usage for storage areas */
-#define STORAGE_RAM_SIZE	(CONFIG_APP_STORAGE_MAX_TYPES *				\
-				 RECORDS_PER_TYPE *					\
-				 CONFIG_APP_STORAGE_RECORD_SIZE)
+/**
+ * @brief Macro to declare a ring buffer for a specific data type
+ *
+ * This macro is used with DATA_SOURCE_LIST to create ring buffers for each data type.
+ * For each data type in DATA_SOURCE_LIST, it declares a ring buffer with:
+ * - Name: <type_name>_ring_buf (e.g., battery_ring_buf)
+ * - Size: Calculated to hold RECORDS_PER_TYPE items of the data type's size
+ *        plus header space for each item
+ *
+ * @param _name Name of the data type (e.g., battery)
+ * @param _c Channel parameter (unused in this macro)
+ * @param _m Message type parameter (unused in this macro)
+ * @param _data_type Data type to store
+ * @param _cfn Check function parameter (unused in this macro)
+ * @param _efn Extract function parameter (unused in this macro)
+ */
+#define RAM_RING_BUF_ADD(_name, _c, _m, _data_type, _cfn, _efn) 				\
+	RING_BUF_ITEM_DECLARE(_name ## _ring_buf,               				\
+		((RING_BUF_ITEM_SIZEOF(_data_type) + RING_BUF_HEADER_SIZE) * RECORDS_PER_TYPE));
 
-/* Ensure RAM usage doesn't exceed configured limit */
-BUILD_ASSERT(STORAGE_RAM_SIZE <= KB(CONFIG_APP_STORAGE_RAM_LIMIT_KB),
-	    "Storage RAM usage exceeds configured limit. Adjust MAX_TYPES, "
-	    "MAX_RECORDS_PER_TYPE, RECORD_SIZE, or increase RAM_LIMIT_KB.");
-
-
-#define RAM_RING_BUF_ADD(_name, _c, _m, _data_type, _cf, _ef)				\
-	RING_BUF_ITEM_DECLARE(_name ## _ring_buf,				\
-			      (RING_BUF_ITEM_SIZEOF(_data_type) * RECORDS_PER_TYPE));
-
-#define RAM_RING_BUF_PTR(_name, _c, _m, _dt, _cf, _ef)					\
+/**
+ * @brief Macro to create a pointer to a ring buffer
+ *
+ * This macro is used with DATA_SOURCE_LIST to create an array of pointers to
+ * the ring buffers declared by RAM_RING_BUF_ADD. For each data type, it:
+ * - Creates a pointer to the corresponding ring buffer
+ * - Adds a comma for array initialization
+ *
+ * Used in the ring_buf_ptrs array initialization to create a flexible array
+ * of pointers that automatically updates when DATA_SOURCE_LIST changes.
+ *
+ * @param _name Name of the data type (used to reference its ring buffer)
+ * @param _c Channel parameter (unused in this macro)
+ * @param _m Message type parameter (unused in this macro)
+ * @param _dt Data type parameter (unused in this macro)
+ * @param _cfn Check function parameter (unused in this macro)
+ * @param _efn Extract function parameter (unused in this macro)
+ */
+#define RAM_RING_BUF_PTR(_name, _c, _m, _dt, _cfn, _efn)					\
 	&(_name ## _ring_buf),
 
 /* Declare ring buffers for each data type */
@@ -40,7 +65,7 @@ DATA_SOURCE_LIST(RAM_RING_BUF_ADD)
 /* RAM backend context */
 struct ram_backend_ctx {
 	/* Array with pointers to the ring buffers.
-	 * We use an array of pointers instead of nmed pointers to make it flexible
+	 * We use an array of pointers instead of named pointers to make it flexible
 	 * when DATA_SOURCE_LIST is updated.
 	 */
 	struct ring_buf *ring_buf_ptrs[CONFIG_APP_STORAGE_MAX_TYPES];
@@ -84,7 +109,7 @@ static int get_type_index(const struct storage_data_type *type)
  * @brief Get the ring buffer pointer for a specific data type
  *
  * This function retrieves the ring buffer pointer for a specific data type
- * from the context structure. The index is must be retrieved by the
+ * from the context structure. The index must be retrieved by the
  * get_type_index function.
  *
  * @param idx Index of the data type
@@ -97,6 +122,14 @@ static struct ring_buf *get_ring_buf_ptr(size_t idx)
 	return ctx.ring_buf_ptrs[idx];
 }
 
+/**
+ * @brief Initialize the RAM storage backend
+ *
+ * Counts the number of registered data types and ensures it doesn't exceed
+ * the configured maximum. Also calculates and logs the total RAM usage.
+ *
+ * @return 0 on success, negative errno on failure
+ */
 static int ram_init(void)
 {
 	/* Count registered types */
@@ -110,12 +143,21 @@ static int ram_init(void)
 		 "Increase CONFIG_APP_STORAGE_MAX_TYPES.",
 		 ctx.num_registered_types);
 
-	LOG_DBG("RAM backend initialized with %d types, using %d bytes of RAM",
-		ctx.num_registered_types, STORAGE_RAM_SIZE);
-
 	return 0;
 }
 
+/**
+ * @brief Store data in the RAM backend
+ *
+ * Stores data in the ring buffer associated with the given data type.
+ * If the ring buffer is full, the oldest data will be overwritten.
+ *
+ * @param type Storage data type to store data for
+ * @param data Pointer to the data to store
+ * @param size Size of the data in bytes
+ *
+ * @return 0 on success, negative errno on failure
+ */
 static int ram_store(const struct storage_data_type *type, void *data, size_t size)
 {
 	int err;
@@ -139,30 +181,37 @@ static int ram_store(const struct storage_data_type *type, void *data, size_t si
 
 	ring_buf = get_ring_buf_ptr(idx);
 
-	if (ring_buf_item_space_get(ring_buf) <= type->data_size) {
-		uint16_t unused_type;
-		uint8_t unused_value;
+	if (ring_buf_item_space_get(ring_buf) <= RING_BUF_ITEM_SIZEOF(type->data_size)) {
 		uint8_t unused_size = type->data_size;
 
-		LOG_DBG("Old data will be overwritten");
+		LOG_DBG("Full buffer, old data will be overwritten");
 
 		/* Remove the oldest record in the ring buffer */
 		(void)ring_buf_item_get(ring_buf, &unused_type, &unused_value, NULL, &unused_size);
 	}
 
 	/* Store the data */
-	/* TODO: Use type and value? */
 	err = ring_buf_item_put(ring_buf, unused_type, unused_value, data,
 				RING_BUF_ITEM_SIZEOF(size));
+
+	LOG_DBG("Stored %s item, count: %u", type->name, storage_backend_get()->count(type));
 
 	/* We should never fail here, as we checked space above */
 	__ASSERT_NO_MSG(err == 0);
 
-	(void)err;
-
-	return 0;
+	return err;
 }
 
+/**
+ * @brief Retrieve data from the RAM backend
+ *
+ * Retrieves the oldest stored data for the given data type from its ring buffer.
+ *
+ * @param type Storage data type to retrieve data for
+ * @param data Pointer where the retrieved data will be stored
+ * @param size Size of the data buffer in bytes
+ * @return Number of bytes read on success, negative errno on failure
+ */
 static int ram_retrieve(const struct storage_data_type *type, void *data, size_t size)
 {
 	int err;
@@ -192,19 +241,29 @@ static int ram_retrieve(const struct storage_data_type *type, void *data, size_t
 
 	bytes_read = size32 * sizeof(uint32_t);
 
+	LOG_DBG("Retrieved item in %s ring buffer, %u left",
+		type->name, storage_backend_get()->count(type));
+
 	return bytes_read;
 }
 
+/**
+ * @brief Count the number of records stored for a data type
+ *
+ * Calculates how many records are currently stored in the ring buffer
+ * for the given data type.
+ *
+ * @param type Storage data type to count records for
+ * @return Number of records on success, negative errno on failure
+ */
 static int ram_records_count(const struct storage_data_type *type)
 {
 	int idx;
 	struct ring_buf *ring_buf;
-	size_t capacity;
+	size_t capacity_words;
 	size_t words_used;
 	size_t words_free;
 	size_t item_count;
-	/* 1 word for the header of a ring buffer item */
-	const size_t ring_buf_header_size = 1;
 
 	if (!type) {
 		return -EINVAL;
@@ -222,32 +281,66 @@ static int ram_records_count(const struct storage_data_type *type)
 	}
 
 	words_free = ring_buf_item_space_get(ring_buf);
-	capacity = ring_buf_capacity_get(ring_buf);
-	words_used = (capacity - words_free) / sizeof(uint32_t);
+	capacity_words = ring_buf_capacity_get(ring_buf) / 4;
+	words_used = capacity_words - words_free;
 
 	/* Calculate the number of items in the ring buffer */
-	item_count = words_used / (ring_buf_header_size + RING_BUF_ITEM_SIZEOF(type->data_size));
+	item_count = words_used / (RING_BUF_HEADER_SIZE + RING_BUF_ITEM_SIZEOF(type->data_size));
+
+	LOG_DBG("Counted %zu items in %s ring buffer", item_count, type->name);
 
 	return item_count;
 }
 
+/**
+ * @brief Clear all stored data in the RAM backend
+ *
+ * Resets all ring buffers to their empty state using the Zephyr ring buffer API,
+ * clearing any stored data while preserving the ring buffer context structure.
+ *
+ * @return 0 on success
+ * @retval -EINVAL if no types are registered
+ */
 static int ram_clear(void)
 {
-	memset(&ctx, 0, sizeof(ctx));
+	size_t idx;
+
+	if (ctx.num_registered_types == 0) {
+		return -EINVAL;
+	}
+
+	/* Iterate through all registered types */
+	for (idx = 0; idx < ctx.num_registered_types; idx++) {
+		struct ring_buf *ring_buf = get_ring_buf_ptr(idx);
+
+		ring_buf_reset(ring_buf);
+	}
 
 	return 0;
 }
 
-/* RAM backend interface */
+/**
+ * @brief RAM storage backend interface
+ *
+ * Implementation of the storage_backend interface for RAM-based storage.
+ * Provides functions for initializing the backend, storing and retrieving
+ * data, counting stored records, and clearing all data.
+ */
 static const struct storage_backend ram_backend = {
-    .init = ram_init,
-    .store = ram_store,
-    .retrieve = ram_retrieve,
-    .count = ram_records_count,
-    .clear = ram_clear,
+	.init = ram_init,
+	.store = ram_store,
+	.retrieve = ram_retrieve,
+	.count = ram_records_count,
+	.clear = ram_clear,
 };
 
-/* Make the RAM backend available */
+/**
+ * @brief Get the RAM storage backend interface
+ *
+ * Makes the RAM storage backend available to the storage module.
+ *
+ * @return Pointer to the RAM storage backend interface
+ */
 const struct storage_backend *storage_backend_get(void)
 {
 	return &ram_backend;

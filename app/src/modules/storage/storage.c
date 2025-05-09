@@ -24,7 +24,7 @@
 LOG_MODULE_REGISTER(storage, CONFIG_APP_STORAGE_LOG_LEVEL);
 
 /* Register zbus subscriber */
-ZBUS_SUBSCRIBER_DEFINE(storage_subscriber, CONFIG_APP_STORAGE_MESSAGE_QUEUE_SIZE);
+ZBUS_MSG_SUBSCRIBER_DEFINE(storage_subscriber);
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(DATA_SOURCE_LIST)
@@ -63,15 +63,12 @@ ZBUS_SUBSCRIBER_DEFINE(storage_subscriber, CONFIG_APP_STORAGE_MESSAGE_QUEUE_SIZE
  */
 DATA_SOURCE_LIST(ADD_OBSERVERS);
 
-/* Add the storage_subscriber as observer to the storage channel */
-ZBUS_CHAN_ADD_OBS(STORAGE_CHAN, storage_subscriber, 0);
-
 /* Create the storage channel */
 ZBUS_CHAN_DEFINE(STORAGE_CHAN,
 		 struct storage_msg,
 		 NULL,
 		 NULL,
-		 ZBUS_OBSERVERS(storage_subscriber),
+		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0)
 );
 
@@ -120,18 +117,20 @@ static void state_running_entry(void *o)
 	LOG_DBG("%s", __func__);
 }
 
-static void handle_data_message(const struct storage_state *state_object,
-				const struct storage_data_type *type)
+static void handle_data_message(const struct storage_data_type *type,
+				const uint8_t *buf)
 {
 	int err;
 	uint8_t data[CONFIG_APP_STORAGE_RECORD_SIZE];
 	const struct storage_backend *backend = storage_backend_get();
 
-	if (!type->should_store(state_object->msg_buf)) {
+	LOG_DBG("Handle data message for %s", type->name);
+
+	if (!type->should_store(buf)) {
 		return;
 	}
 
-	type->extract_data(state_object->msg_buf, data);
+	type->extract_data(buf, data);
 
 	err = backend->store(type, data, type->data_size);
 	if (err) {
@@ -147,37 +146,55 @@ static void flush_stored_data(void)
 	const struct storage_backend *backend = storage_backend_get();
 	uint8_t data[CONFIG_APP_STORAGE_RECORD_SIZE];
 
+	/* De-register storage_subscriber from observing STORAGE_CHAN to avoid
+	 * receiving messages while flushing. That would
+	 */
+	err = zbus_chan_rm_obs(&STORAGE_CHAN, &storage_subscriber, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to remove observer from STORAGE_CHAN, error: %d", err);
+	}
+
 	STRUCT_SECTION_FOREACH(storage_data_type, type) {
 		count = backend->count(type);
 		if (count < 0) {
-			LOG_ERR("Failed to get count for %p, error: %d",
-				type->name, count);
+			LOG_ERR("Failed to get count for %p, error: %d", type->name, count);
 			continue;
 		}
 
+		LOG_DBG("Flushing %d %s records", count, type->name);
+
 		while (count > 0) {
+			int ret;
+
 			msg.type = STORAGE_DATA;
 			msg.data_type = type;
 
-			err = backend->retrieve(type, data, sizeof(data));
-			if (err < 0) {
+			ret = backend->retrieve(type, data, sizeof(data));
+			if (ret < 0) {
 				LOG_ERR("Failed to retrieve %s data, error: %d",
-					type->name, err);
+					type->name, ret);
 				break;
 			}
 
-			memcpy(msg.buffer, data, err);
-			msg.buffer_data_len = err;
+			memcpy(msg.buffer, data, ret);
 
-			err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
-			if (err) {
-				LOG_ERR("Failed to publish %s data, error: %d",
-					type->name, err);
+			msg.buffer_data_len = ret;
+
+			ret = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+			if (ret) {
+				LOG_ERR("Failed to publish %s data, error: %d", type->name, ret);
+
 				break;
 			}
 
 			count--;
 		}
+	}
+
+	/* Re-register storage_subscriber to observe STORAGE_CHAN */
+	err = zbus_chan_add_obs(&STORAGE_CHAN, &storage_subscriber, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to add observer to STORAGE_CHAN, error: %d", err);
 	}
 }
 
@@ -194,15 +211,19 @@ static void state_running_run(void *o)
 {
 	const struct storage_state *state_object = (const struct storage_state *)o;
 
+	LOG_DBG("%s", __func__);
+
 	if (state_object->chan == &STORAGE_CHAN) {
 		handle_storage_message(state_object);
+
 		return;
 	}
 
 	/* Check if message is from a registered data type */
 	STRUCT_SECTION_FOREACH(storage_data_type, type) {
 		if (state_object->chan == type->chan) {
-			handle_data_message(state_object, type);
+			handle_data_message(type, state_object->msg_buf);
+
 			return;
 		}
 	}
@@ -224,6 +245,14 @@ static void storage_thread(void)
 				  (void *)k_current_get());
 	if (task_wdt_id < 0) {
 		LOG_ERR("Failed to add task to watchdog: %d", task_wdt_id);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+
+	err = zbus_chan_add_obs(&STORAGE_CHAN, &storage_subscriber, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to add observer to STORAGE_CHAN, error: %d", err);
 		SEND_FATAL_ERROR();
 
 		return;

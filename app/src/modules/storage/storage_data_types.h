@@ -51,10 +51,20 @@
  *          X(name, channel, msg_type, data_type, check_fn, extract_fn)
  */
 #define DATA_SOURCE_LIST(X)										   \
-	IF_ENABLED(CONFIG_APP_POWER, (X(battery, POWER_CHAN,	struct power_msg, double, battery_check, battery_extract)))	   \
+	IF_ENABLED(CONFIG_APP_POWER, (X(battery, POWER_CHAN, struct power_msg, double, battery_check, battery_extract)))	   \
 	IF_ENABLED(CONFIG_APP_LOCATION, (X(location, LOCATION_CHAN, enum location_msg_type, enum location_msg_type, location_check, location_extract)))  \
 	IF_ENABLED(CONFIG_APP_ENVIRONMENTAL, (X(environmental, ENVIRONMENTAL_CHAN, struct environmental_msg, struct environmental_msg, environmental_check, environmental_extract)))
 
+#define DATA_STORAGE_TYPE_ID_GET(_name)		\
+	DATA_STORAGE_TYPE_ ## _name
+
+#define _DATA_STORAGE_TYPE_ID(_name, _chan, _msg_type, _data_type, _check_fn, _extract_fn)	\
+	DATA_STORAGE_TYPE_ID_GET(_name),
+
+/* Forward declaration of storage type enum */
+enum storage_data_type_id {
+	DATA_SOURCE_LIST(_DATA_STORAGE_TYPE_ID)
+};
 
 /* Structure to define a storage data type */
 struct storage_data_type {
@@ -64,15 +74,13 @@ struct storage_data_type {
 	/* Channel to subscribe to */
 	const struct zbus_channel *chan;
 
+	/* Type of message on the channel */
+	const enum storage_data_type_id type_id;
+
 	/* Size of data to store. This must be less than or equal to
 	 * CONFIG_APP_STORAGE_RECORD_SIZE.
 	 */
 	size_t data_size;
-
-	/* Size of the required storage for the data type.
-	 * Must be equal to or less than .data_size * CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE.
-	 */
-	size_t storage_size;
 
 	/**
 	 * @brief Function to determine if a message should be stored
@@ -109,7 +117,9 @@ struct storage_data_type {
 /* Helper macro to create a name with a numercial value so that the linker can place the struct
  * in a predictable location based on its appearence in the input list to STORAGE_DATA_TYPE.
  */
-#define STORAGE_TYPE_NAME(_name) storage_type_##__COUNTER__##_##_name
+#define _STORAGE_TYPE_NAME(_name) storage_type_ ## __COUNTER__ ##_## _name
+
+#define _STORAGE_TYPE_PTR(_name) &(_STORAGE_TYPE_NAME(_name)
 
 /**
  * @brief Register a storage data type.
@@ -139,28 +149,30 @@ struct storage_data_type {
 	BUILD_ASSERT(sizeof(_data_type) <= CONFIG_APP_STORAGE_RECORD_SIZE,			\
 		    "Data type too large for storage record");					\
 												\
-	extern bool _name##_check(const _msg_type *msg);					\
-	extern void _name##_extract(const _msg_type *msg, _data_type *data);			\
+	extern bool _name ## _check(const _msg_type *msg);					\
+	extern void _name ## _extract(const _msg_type *msg, _data_type *data);			\
 												\
-	static bool _name##_should_store(const void *msg)					\
+	static bool _name ## _should_store(const void *msg)					\
 	{											\
 		const _msg_type *m = (_msg_type *)msg;						\
-		return _name##_check(m);							\
+												\
+		return _name ## _check(m);							\
 	}											\
 												\
-	static void _name##_extract_data(const void *msg, void *data)				\
+	static void _name ## _extract_data(const void *msg, void *data)				\
 	{											\
 		const _msg_type *m = (_msg_type *)msg;						\
+												\
 		_extract_fn(m, (_data_type *)data);						\
 	}											\
 												\
-	STRUCT_SECTION_ITERABLE(storage_data_type, STORAGE_TYPE_NAME(_name)) = {		\
+	STRUCT_SECTION_ITERABLE(storage_data_type, _STORAGE_TYPE_NAME(_name)) = {		\
 		.name = #_name,									\
 		.chan = &_chan,									\
+		.type_id = DATA_STORAGE_TYPE_ID_GET(_name),					\
 		.data_size = sizeof(_data_type),						\
-		.storage_size = (sizeof(_data_type) * CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE),	\
-		.should_store = _name##_should_store,						\
-		.extract_data = _name##_extract_data,						\
+		.should_store = _name ## _should_store,						\
+		.extract_data = _name ## _extract_data,						\
 	};
 
 #endif /* _STORAGE_DATA_TYPES_H_ */
