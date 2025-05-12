@@ -286,13 +286,40 @@ Define a custom APP ID for magnetic field data:
 
 ## Add your own module
 
-TL;DR: To add the dummy module to the template, apply the following patch:
+This guide demonstrates how to create a new module in the template. The dummy module serves as a template for understanding the module architecture and can be used as a foundation for custom modules.
+
+### TL;DR
+
+To add the dummy module to the template, apply the following patch:
 
 ```bash
 git apply <path-to-template-dir>/Asset-Tracker-Template/docs/patches/dummy-module.patch
 ```
 
-This guide demonstrates how to create a new module in the template. The dummy module serves as a template for understanding the module architecture and can be used as a foundation for custom modules.
+If you want to generate and apply a dummy module with a custom name other than "Dummy" you can run the following script to rename the module and apply the patch:
+
+```bash
+cd Asset-Tracker-Template
+```
+
+```bash
+python3 scripts/rename_patch.py
+```
+
+Follow the instructions to rename and apply the patch:
+
+```bash
+===== Patch Module Renamer =====
+
+Enter the new module name (e.g. new-name): accelerometer
+Enter the full path to the patch file: /<path-to-template-dir>/Asset-Tracker-Template/docs/patches/dummy-module.patch
+
+Patched file written to: /tmp/accelerometer-module.patch
+Do you want to apply the changes now with 'git apply'? (y/N): y
+Patch applied successfully.
+```
+
+### Instructions
 
 1. Create the module directory structure:
 
