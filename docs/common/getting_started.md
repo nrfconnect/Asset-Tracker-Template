@@ -91,7 +91,7 @@ west thingy91x-dfu
 west flash --erase # The --erase option is optional and will erase the entire flash memory before programming
 ```
 
-The application is now built and flashed to the device. You can open a serial terminal to see the logs from the application. The default baud rate is 115200.
+The application is now built and flashed to the device. You can open a serial terminal to see the logs fromTest that it all works the application. The default baud rate is 115200. We suggest using the Serial Terminal application that comes with [nRF Connect for Desktop](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop). You can also use other serial terminal applications like PuTTY, Tera Term, or minicom.
 
 ### Builing with overlays
 
@@ -170,4 +170,116 @@ In this step, you will also be prompted to enter your nRF Cloud API key that you
 nrf_cloud_onboard --api-key $NRFCLOUD_API_KEY --csv onboard.csv
 ```
 
-Your device should now be registered to nRF Cloud, and will show up in the nRF Cloud device overview. You can now reset device and wait for cloud connection.
+Your device should now be registered to your account on nRF Cloud.
+
+## Test that it all works
+
+To test that everything is working as expected, you can do the following:
+
+* In a web browser, navigate to [nRF Cloud](https://nrfcloud.com) and log in to your account. Navigate to the `Device management` menu and select `Devices`, as shown below. You should now see your device listed in the device overview. Click on the device ID to see the device page.
+
+![nRF Cloud device management menu](../images/nrfcloud_devices.png)
+
+* Connect to the device using the serial terminal and reset the device using either the reset button or the following shell command:
+
+```shell
+kernel reboot
+```
+
+* In the serial terminal, you will see the device booting up and connecting to the network. The device will attempt to connect to nRF Cloud using the credentials you provided during provisioning.
+
+<details>
+
+<summary>Example log output</summary>
+
+```shell
+
+*** Booting nRF Connect SDK v3.0.0-3bfc46578e42 ***
+*** Using Zephyr OS v4.0.99-a0e545cb437a ***
+Attempting to boot slot 0.
+Attempting to boot from address 0x8200.
+I: Trying to get Firmware version
+I: Verifying signature against key 0.
+I: Hash: 0x3e...f9
+I: Firmware signature verified.
+Firmware version 2
+All pins have been configured as non-secure
+Booting TF-M v2.1.1-ncs4
+[Sec Thread] Secure image initializing!
+TF-M isolation level is: 0x00000001
+TF-M Float ABI: Hard
+Lazy stacking enabled
+
+[00:00:00.257,324] <inf> spi_nor: GD25LE255E@0: 32 MiBy flash
+[00:00:00.311,828] <inf> wifi_nrf_bus: SPIM spi@b000: freq = 8 MHz
+[00:00:00.311,889] <inf> wifi_nrf_bus: SPIM spi@b000: latency = 0
+]mJ*** Using nRF Connect SDK v3.0.0-3bfc46578e42 ***
+*** Using Zephyr OS v4.0.99-a0e545cb437a ***
+[00:00:00.520,202] <dbg> main: main: Main has started
+[00:00:00.520,263] <dbg> main: running_entry: running_entry
+[00:00:00.520,294] <dbg> main: idle_entry: idle_entry
+[00:00:00.520,477] <dbg> main: idle_entry: idle_entry
+[00:00:00.520,812] <dbg> cloud: cloud_thread: cloud  module task started
+[00:00:00.520,874] <dbg> cloud: state_running_entry: state_running_entry
+[00:00:00.520,996] <dbg> cloud: state_disconnected_entry: state_disconnected_entry
+[00:00:00.521,514] <dbg> environmental_module: environmental_task: Environmental module task started
+[00:00:00.521,636] <dbg> fota: fota_task: FOTA module task started
+[00:00:00.521,728] <dbg> fota: state_running_entry: state_running_entry
+[00:00:00.522,949] <dbg> location_module: location_module_thread: Location module task started
+[00:00:00.523,010] <dbg> location_module: state_running_entry: state_running_entry
+[00:00:00.523,345] <dbg> network: state_running_entry: state_running_entry
+[00:00:00.523,376] <inf> network: Bringing network interface up and connecting to the network
+[00:00:00.523,803] <dbg> power: power_task: Power module task started
+[00:00:00.550,445] <dbg> location_module: state_running_entry: Location library initialized
+[00:00:00.586,822] <inf> nrf_cloud_fota_common: Saved job: , type: 6, validate: 0, bl: 0x0
+[00:00:00.625,976] <dbg> fota: state_waiting_for_poll_request_entry: state_waiting_for_poll_request_entry
+[00:00:00.859,680] <dbg> network: state_running_entry: Network module started
+[00:00:00.859,710] <dbg> network: state_disconnected_entry: state_disconnected_entry
+[00:00:00.859,741] <dbg> network: state_disconnected_searching_entry: state_disconnected_searching_entry
+[00:00:00.864,227] <inf> wifi_nrf_bus: SPIM spi@b000: freq = 8 MHz
+[00:00:00.864,257] <inf> wifi_nrf_bus: SPIM spi@b000: latency = 0
+[00:00:01.109,924] <dbg> location_module: on_cfun: Modem CFUN mode: 21
+[00:00:03.170,928] <dbg> network: lte_lc_evt_handler: PSM parameters received, TAU: 7200, Active time: 6
+[00:00:03.171,447] <dbg> network: lte_lc_evt_handler: eDRX parameters received, mode: 7, eDRX: 5.12 s, PTW: 1.28 s
+[00:00:03.171,752] <inf> network: Network connectivity established
+[00:00:03.172,821] <dbg> cloud: state_connecting_entry: state_connecting_entry
+[00:00:03.172,851] <dbg> cloud: state_connecting_attempt_entry: state_connecting_attempt_entry
+[00:00:03.174,224] <dbg> network: state_connected_entry: state_connected_entry
+[00:00:03.288,574] <inf> cloud: Connecting to nRF Cloud CoAP with client ID: 23437848-3230-4d7d-80ab-971ac066a8ce
+[00:00:04.818,969] <inf> nrf_cloud_coap_transport: Request authorization with JWT
+[00:00:05.076,232] <inf> nrf_cloud_coap_transport: Authorization result_code: 2.01
+[00:00:05.076,354] <inf> nrf_cloud_coap_transport: Authorized
+[00:00:05.076,568] <inf> nrf_cloud_coap_transport: DTLS CID is active
+[00:00:11.381,195] <dbg> cloud: state_connected_entry: state_connected_entry
+[00:00:11.381,225] <inf> cloud: Connected to Cloud
+[00:00:11.381,317] <dbg> cloud: state_connected_ready_entry: state_connected_ready_entry
+[00:00:11.381,622] <dbg> main: triggering_entry: triggering_entry
+[00:00:11.381,683] <dbg> main: sample_data_entry: sample_data_entry
+[00:00:11.382,415] <dbg> cloud: shadow_get: Requesting device shadow from the device
+[00:00:11.383,666] <dbg> location_module: handle_location_chan: Location search trigger received, getting location
+[00:00:11.628,173] <dbg> cloud: shadow_get: No shadow delta changes available
+[00:00:20.751,007] <dbg> location_module: location_event_handler: Got location: lat: 63.421421, lon: 10.437868, acc: 15.000000, method: Wi-Fi
+[00:00:20.751,953] <dbg> main: wait_for_trigger_entry: wait_for_trigger_entry
+[00:00:20.751,983] <dbg> main: wait_for_trigger_entry: Next trigger in 591 seconds
+[00:00:20.752,685] <dbg> cloud: state_connected_ready_run: Poll shadow trigger received
+[00:00:20.752,777] <dbg> cloud: shadow_get: Requesting device shadow from the device
+[00:00:20.753,997] <dbg> power: state_running_run: Battery percentage sample request received, getting battery data
+[00:00:20.754,089] <dbg> environmental_module: state_running_run: Environmental values sample request received, getting data
+[00:00:20.754,180] <dbg> fota: state_polling_for_update_entry: state_polling_for_update_entry
+[00:00:20.754,211] <inf> nrf_cloud_fota_poll: Checking for FOTA job...
+[00:00:20.760,650] <dbg> environmental_module: sample_sensors: Temperature: 26.86 C, Pressure: 100.92 Pa, Humidity: 33.61 %
+[00:00:20.762,695] <dbg> power: sample: State of charge: 79.000000
+[00:00:20.762,756] <dbg> power: sample: The battery is charging
+[00:00:20.976,806] <dbg> cloud: shadow_get: No shadow delta changes available
+```
+
+</details>
+
+* In the web browser, you will see the device page updating with the latest information from the device, including the location, battery level, and other sensor data.
+
+* Press button 1 on the device to trigger data sampling and sending to nRF Cloud.
+
+![nRF Cloud exmaple data](../images/nrf_cloud_example_data.png)
+
+If you experience issues, check the logs in the serial terminal for any error messages. You can find troubleshooting tips in the [Troubleshooting](../troubleshooting.md) section of the documentation.
+You can also open a support ticket on [DevZone](https://devzone.nordicsemi.com) for further assistance.
