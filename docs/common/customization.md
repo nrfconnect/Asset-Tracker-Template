@@ -2,19 +2,156 @@
 
 ## Table of Contents
 
+This section contains guides for modifying specific aspects of the template.
+
+- [Add a new Zbus event](#add-a-new-zbus-event)
 - [Add environmental sensor](#add-environmental-sensor)
 - [Add your own module](#add-your-own-module)
 - [Enable support for MQTT](#enable-support-for-mqtt)
 
-This section contains guides for modifying specific aspects of the template.
+## Add a new ZBus event
+
+This guide demonstrates how to add a new event to a module and utilize it in another module within the system. In this example, we will add events to the power module to notify the system when VBUS is connected or disconnected on the Thingy91x.
+The main module will subscribe to these events and request specific LED patterns from the LED module in response.
+
+When VBUS is connected, the LED will toggle white for 10 seconds.
+When VBUS is disconnected, the LED will toggle purple for 10 seconds.
+
+### TL;DR
+
+To apply all the necessary changes to the template, use the following command:
+
+```bash
+git apply <path-to-template-dir>/Asset-Tracker-Template/docs/patches/add-event.patch
+```
+
+### Instructions
+
+1. Define the new events in your module's header file (e.g., in `power.h`):
+   ```c
+   enum power_msg_type {
+       /* ... existing message types ... */
+
+       /* VBUS power supply is connected. */
+       POWER_VBUS_CONNECTED,
+
+       /* VBUS power supply is disconnected. */
+       POWER_VBUS_DISCONNECTED,
+   };
+   ```
+
+2. Implement publishing VBUS connected/disconnected events in the appropiate handler in `power.c: event_callback()`:
+   ```c
+   if (pins & BIT(NPM1300_EVENT_VBUS_DETECTED)) {
+       LOG_DBG("VBUS detected");
+
+       enum power_msg_type msg = POWER_VBUS_CONNECTED;
+
+       err = zbus_chan_pub(&POWER_CHAN, &msg, K_SECONDS(1));
+       if (err) {
+           LOG_ERR("zbus_chan_pub, error: %d", err);
+           SEND_FATAL_ERROR();
+           return;
+       }
+
+       // ... existing code ...
+   }
+
+   if (pins & BIT(NPM1300_EVENT_VBUS_REMOVED)) {
+       LOG_DBG("VBUS removed");
+
+       enum power_msg_type msg = POWER_VBUS_DISCONNECTED;
+
+       err = zbus_chan_pub(&POWER_CHAN, &msg, K_SECONDS(1));
+       if (err) {
+           LOG_ERR("zbus_chan_pub, error: %d", err);
+           SEND_FATAL_ERROR();
+           return;
+       }
+
+       // ... existing code ...
+   }
+   ```
+
+3. Make sure the channel is included in the subscriber module (e.g., in `main.c`). Add the channel to the channel list:
+   ```c
+   #define LIST_OF_CHANNELS(X)                          \
+       X(LED_CHAN,		    enum led_msg_type)          \
+       X(LOCATION_CHAN,		enum location_msg_type)     \
+       X(POWER_CHAN,		enum power_msg_type)	    \
+       X(TIMER_CHAN,		int)
+   ```
+
+4. Implement a handler for the new events in the subscriber module (e.g., in the main module's state machine in `running_run`):
+   ```c
+   if (state_object->chan == &POWER_CHAN) {
+       struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
+
+       if (msg.type == POWER_VBUS_CONNECTED) {
+           LOG_WRN("VBUS connected, request white LED blinking 10 seconds");
+
+           struct led_msg led_msg = {
+               .type = LED_RGB_SET,
+               .red = 255,
+               .green = 255,
+               .blue = 255,
+               .duration_on_msec = 1000,
+               .duration_off_msec = 700,
+               .repetitions = 10,
+           };
+
+           int err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+
+           if (err) {
+               LOG_ERR("zbus_chan_pub, error: %d", err);
+               SEND_FATAL_ERROR();
+               return;
+           }
+
+           return;
+       } else if (msg.type == POWER_VBUS_DISCONNECTED) {
+           LOG_WRN("VBUS disconnected, request purple LED blinking for 10 seconds");
+
+           struct led_msg led_msg = {
+               .type = LED_RGB_SET,
+               .red = 255,
+               .green = 0,
+               .blue = 255,
+               .duration_on_msec = 1000,
+               .duration_off_msec = 700,
+               .repetitions = 10,
+           };
+
+           int err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+
+           if (err) {
+               LOG_ERR("zbus_chan_pub, error: %d", err);
+               SEND_FATAL_ERROR();
+               return;
+           }
+
+           return;
+       }
+   }
+   ```
+
+5. Test the implementation by connecting and disconnecting VBUS to verify the LED patterns change as expected.
 
 ## Add environmental sensor
 
-TL;DR: To add basic support for the BMM350 magnetometer, apply the following patch:
+This guide demonstrates how to add support for the BMM350 magnetometer.
+The environmental module will be updated to sample data from the sensor via the Zephyr Sensor API.
+The data is forwarded to nRF Cloud along with all the other data types sampled by the system.
+
+### TL;DR
+
+To add basic support for the BMM350 magnetometer to the template, use the following command:
 
 ```bash
 git apply <path-to-template-dir>/Asset-Tracker-Template/docs/patches/magnetometer.patch
 ```
+
+### Instructions
 
 To add a new sensor to the environmental module, ensure that:
 
