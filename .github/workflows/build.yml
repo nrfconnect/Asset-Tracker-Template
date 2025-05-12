@@ -188,6 +188,7 @@ jobs:
         run: |
           git apply docs/patches/magnetometer.patch
           git apply docs/patches/dummy-module.patch
+          git apply docs/patches/add-event.patch
         working-directory: asset-tracker-template
 
       - name: Build patched thingy91x firmware

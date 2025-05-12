@@ -1,0 +1,122 @@
+diff --git a/app/src/main.c b/app/src/main.c
+index f32855e..52c0f16 100644
+--- a/app/src/main.c
++++ b/app/src/main.c
+@@ -55,6 +55,7 @@ ZBUS_CHAN_DEFINE(TIMER_CHAN,
+ 	X(FOTA_CHAN,		enum fota_msg_type)		\
+ 	X(NETWORK_CHAN,		struct network_msg)		\
+ 	X(LOCATION_CHAN,	enum location_msg_type)		\
++	X(POWER_CHAN,		enum power_msg_type)		\
+ 	X(TIMER_CHAN,		int)
+ 
+ /* Calculate the maximum message size from the list of channels */
+@@ -365,6 +366,56 @@ static void running_run(void *o)
+ 			return;
+ 		}
+ 	}
++
++	if (state_object->chan == &POWER_CHAN) {
++		struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
++
++		if (msg.type == POWER_VBUS_CONNECTED) {
++			LOG_WRN("VBUS connected, request white LED blinking 10 seconds");
++
++			struct led_msg led_msg = {
++				.type = LED_RGB_SET,
++				.red = 255,
++				.green = 255,
++				.blue = 255,
++				.duration_on_msec =1000,
++				.duration_off_msec = 700,
++				.repetitions = 10,
++			};
++
++			int err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
++
++			if (err) {
++				LOG_ERR("zbus_chan_pub, error: %d", err);
++				SEND_FATAL_ERROR();
++				return;
++			}
++
++			return;
++		} else if (msg.type == POWER_VBUS_DISCONNECTED) {
++			LOG_WRN("VBUS disconnected, request purple LED blinking for 10 seconds");
++
++			struct led_msg led_msg = {
++				.type = LED_RGB_SET,
++				.red = 255,
++				.green = 0,
++				.blue = 255,
++				.duration_on_msec = 1000,
++				.duration_off_msec = 700,
++				.repetitions = 10,
++			};
++
++			int err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
++
++			if (err) {
++				LOG_ERR("zbus_chan_pub, error: %d", err);
++				SEND_FATAL_ERROR();
++				return;
++			}
++
++			return;
++		}
++	}
+ }
+ 
+ /* STATE_IDLE */
+diff --git a/app/src/modules/power/power.c b/app/src/modules/power/power.c
+index b28173d..ce42c7e 100644
+--- a/app/src/modules/power/power.c
++++ b/app/src/modules/power/power.c
+@@ -244,6 +244,15 @@ static void event_callback(const struct device *dev, struct gpio_callback *cb, u
+ 	if (pins & BIT(NPM1300_EVENT_VBUS_DETECTED)) {
+ 		LOG_DBG("VBUS detected");
+ 
++		enum power_msg_type msg = POWER_VBUS_CONNECTED;
++
++		err = zbus_chan_pub(&POWER_CHAN, &msg, K_SECONDS(1));
++		if (err) {
++			LOG_ERR("zbus_chan_pub, error: %d", err);
++			SEND_FATAL_ERROR();
++			return;
++		}
++
+ 		err = uart_enable();
+ 		if (err) {
+ 			LOG_ERR("uart_enable, error: %d", err);
+@@ -255,6 +264,15 @@ static void event_callback(const struct device *dev, struct gpio_callback *cb, u
+ 	if (pins & BIT(NPM1300_EVENT_VBUS_REMOVED)) {
+ 		LOG_DBG("VBUS removed");
+ 
++		enum power_msg_type msg = POWER_VBUS_DISCONNECTED;
++
++		err = zbus_chan_pub(&POWER_CHAN, &msg, K_SECONDS(1));
++		if (err) {
++			LOG_ERR("zbus_chan_pub, error: %d", err);
++			SEND_FATAL_ERROR();
++			return;
++		}
++
+ 		err = uart_disable();
+ 		if (err) {
+ 			LOG_ERR("uart_disable, error: %d", err);
+diff --git a/app/src/modules/power/power.h b/app/src/modules/power/power.h
+index 567cd8e..d9379e9 100644
+--- a/app/src/modules/power/power.h
++++ b/app/src/modules/power/power.h
+@@ -33,6 +33,12 @@ enum power_msg_type {
+ 	 * POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE message.
+ 	 */
+ 	POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST,
++
++	/* VBUS power supply is connected. */
++	POWER_VBUS_CONNECTED,
++
++	/* VBUS power supply is disconnected. */
++	POWER_VBUS_DISCONNECTED,
+ };
+ 
+ struct power_msg {
