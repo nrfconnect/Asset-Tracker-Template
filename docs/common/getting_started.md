@@ -160,14 +160,14 @@ Now, you should have three `.pem` files containing the key pair and the CA certi
 Install credentials onto the device:
 
 ```shell
-device_credentials_installer -d --ca *_ca.pem --ca-key *_prv.pem --coap --cmd-type at_shell
+python device_credentials_installer.py -d --ca *_ca.pem --ca-key *_prv.pem --coap --csv onboard.csv --cmd_type at
 ```
 
 Upon success, you can find an `onboard.csv` file with information about your device. We need this file to register the certificate with your account.
 In this step, you will also be prompted to enter your nRF Cloud API key that you obtained earlier.
 
 ```shell
-nrf_cloud_onboard --api-key $NRFCLOUD_API_KEY --csv onboard.csv
+python nrf_cloud_onboard.py --api-key $NRFCLOUD_API_KEY --csv onboard.csv
 ```
 
 Your device should now be registered to your account on nRF Cloud.
