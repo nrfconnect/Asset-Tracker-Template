@@ -669,7 +669,7 @@ static void state_connected_ready_run(void *obj)
 				LOG_WRN("Network is unreachable, error: %d", err);
 				return;
 			} else if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+				LOG_ERR("nrf_cloud_coap_json_message_send, error: %d", err);
 				SEND_FATAL_ERROR();
 				return;
 			}
