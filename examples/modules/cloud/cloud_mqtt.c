@@ -101,6 +101,7 @@ NRF_MODEM_LIB_ON_INIT(att_cloud_mqtt_hook, on_modem_init, NULL);
 
 /* Enumerator to be used in privat cloud channel */
 enum priv_cloud_msg {
+	CLOUD_CONNECTION_ATTEMPTED,
 	CLOUD_BACKOFF_EXPIRED,
 };
 
@@ -132,6 +133,7 @@ static void state_connecting_entry(void *o);
 static void state_connecting_run(void *o);
 
 static void state_connecting_attempt_entry(void *o);
+static void state_connecting_attempt_run(void *o);
 
 static void state_connecting_backoff_entry(void *o);
 static void state_connecting_backoff_run(void *o);
@@ -174,7 +176,7 @@ static const struct smf_state states[] = {
 				 &states[STATE_CONNECTING_ATTEMPT]),
 
 	[STATE_CONNECTING_ATTEMPT] =
-		SMF_CREATE_STATE(state_connecting_attempt_entry, NULL, NULL,
+		SMF_CREATE_STATE(state_connecting_attempt_entry, state_connecting_attempt_run, NULL,
 				 &states[STATE_CONNECTING],
 				 NULL),
 
@@ -258,6 +260,7 @@ static void connect_to_cloud(const struct cloud_state *state_object)
 {
 	int err;
 	struct cloud_state *object = (struct cloud_state *)state_object;
+	enum priv_cloud_msg msg = CLOUD_CONNECTION_ATTEMPTED;
 	struct mqtt_helper_conn_params conn_params = {
 		.hostname.ptr = CONFIG_APP_CLOUD_MQTT_HOSTNAME,
 		.hostname.size = strlen(CONFIG_APP_CLOUD_MQTT_HOSTNAME),
@@ -292,7 +295,11 @@ static void connect_to_cloud(const struct cloud_state *state_object)
 		LOG_ERR("Failed connecting to MQTT, error code: %d", err);
 	}
 
-	smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
+	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
 }
 
 static uint32_t calculate_backoff_time(uint32_t attempts)
@@ -537,6 +544,23 @@ static void state_connecting_attempt_entry(void *o)
 	state_object->connection_attempts++;
 
 	connect_to_cloud(state_object);
+}
+
+static void state_connecting_attempt_run(void *o)
+{
+	struct cloud_state *state_object = o;
+
+	LOG_DBG("%s", __func__);
+
+	if (state_object->chan == &PRIV_CLOUD_CHAN) {
+		const enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
+
+		if (msg == CLOUD_CONNECTION_ATTEMPTED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
+
+			return;
+		}
+	}
 }
 
 /* Handler for STATE_CONNECTING_BACKOFF */
