@@ -33,6 +33,9 @@ jobs:
           - name: CLOUD
             c_file: app/src/modules/cloud/cloud.c
             uml_file: tests/state_machines/source_of_truth/cloud.puml
+          - name: CLOUD-MQTT
+            c_file: examples/modules/cloud/cloud_mqtt.c
+            uml_file: tests/state_machines/source_of_truth/cloud_mqtt.puml
           - name: FOTA
             c_file: app/src/modules/fota/fota.c
             uml_file: tests/state_machines/source_of_truth/fota.puml
