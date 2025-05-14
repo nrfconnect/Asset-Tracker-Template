@@ -56,7 +56,7 @@ jobs:
       - id: set-matrix
         run: |
           if [[ ${{ github.event_name == 'schedule' }} == "true" ]]; then
-              matrix='[\"thingy91x\",\"nrf9151dk\",\"ppk_thingy91x\"]'
+              matrix='["thingy91x","nrf9151dk","ppk_thingy91x"]'
           else
             matrix=${{ inputs.devices }}
           fi
