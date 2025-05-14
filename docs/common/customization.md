@@ -593,24 +593,16 @@ This dummy module serves as a template that you can extend to implement more com
 ## Enable support for MQTT
 
 To connect to a generic MQTT server using the Asset Tracker Template, you can use the example cloud module provided under `examples/modules/cloud`. This module replaces the default nRF Cloud CoAP-based cloud integration with a flexible MQTT client implementation.
+- **MQTT module *default* configurations:**
 
-### Overview
-
-- **Location and FOTA**: These features are deactivated when using the example MQTT module because they depend on nRF Cloud CoAP.
-- **FOTA and LOCATION channels**: The MQTT cloud module provides stub channel declarations for FOTA and LOCATION to avoid build errors. You can implement your own FOTA and LOCATION modules based on your chosen cloud service if needed.
-- **MQTT Client default configurations:**
-
-    - **Broker hostname:** mqtt.nordicsemi.academy
+    - **Broker hostname:** [mqtt.nordicsemi.academy](https://mqtt.nordicsemi.academy/)
+    - **Device/Client ID** IMEI (International Mobile Equipment Identity)
     - **Port:** 8883
     - **TLS:** Yes
     - **Authentication:** Server only
-    - **CA:** modules/examples/cloud/creds/ca-cert.pem
-    - **Device ID** IMEI
+    - **CA:** modules/examples/cloud/creds/mqtt.nordicsemi.academy.pem
     - **Subscribed topic** imei/att-pub-topic
     - **Publishing toptic** imei/att-sub-topic
-
-The default configuration does not require/enable mutual authentication meaning that the device does not authenticate itself to the server.
-That would require a device certificate/private key pair. However, the server is authenticated using the server certificate `ca-cert.pem`located in the module example folder.
 
 ### Configuration
 
@@ -672,12 +664,9 @@ Some of the available options for controlling the MQTT module are:
         [00:01:19.350,921] <dbg> mqtt_helper: mqtt_evt_handler: MQTT_EVT_PINGRESP
     ```
 
-   The MQTT cloud module includes a shell module/commands for testing cloud publishing much like the default CoAP configuration.
-   To implement custom cloud shell commands this module can be used `examples/modules/cloud/cloud_mqtt_shell.c`.
-
 ### **Module State Machine**
 
-The cloud MQTT module uses a state machine to manage connection and reconnection logic. Below is a mermaid diagram representing the module's states:
+The cloud MQTT module implements an internal state machine to manage the connection and reconnection logic.
 
    ```mermaid
    stateDiagram-v2
@@ -694,3 +683,15 @@ The cloud MQTT module uses a state machine to manage connection and reconnection
        STATE_CONNECTED --> STATE_CONNECTED : NETWORK_CONNECTED / (noop)
        STATE_CONNECTED --> STATE_DISCONNECTED : exit / mqtt_helper_disconnect()
    ```
+
+### Caveats
+
+The MQTT cloud module is designed as a demonstration of how to replace the template's default nRF Cloud CoAP-based cloud module with an MQTT-based implementation. It is not intended to be a fully-featured solution and has the following limitations:
+
+- **Location and FOTA Support**:
+  The example MQTT module does not support location services or firmware over-the-air (FOTA) updates, as these features rely on nRF Cloud CoAP functionality.
+
+- **Stub Channels for FOTA and LOCATION**:
+  To prevent build errors, the MQTT module includes placeholder (stub) channel declarations for FOTA and LOCATION. If your application requires these features, you will need to implement custom modules tailored to your chosen cloud service.
+
+For production use, it is recommended to utilize the default nRF Cloud CoAP cloud module, which provides comprehensive support for location services, FOTA, and other advanced features.

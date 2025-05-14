@@ -30,4 +30,4 @@ function(process_certificate definition_name file_name)
 	endif()
 endfunction()
 
-process_certificate("ATT_MQTT_CA_CERT" "ca-cert.pem")
+process_certificate("ATT_MQTT_CA_CERT" "mqtt.nordicsemi.academy.pem")
