@@ -186,8 +186,12 @@ jobs:
       - name: Apply patches for Thingy91x firmware
         if: ${{ github.event_name != 'pull_request' }}
         run: |
+
+          ## Rename patch file for dummy module and apply it
+          python3 scripts/add_module.py --name test --patch_file docs/patches/dummy-module.patch --apply
+
+          ## Apply the rest of the patches for the Thingy91x firmware
           git apply docs/patches/magnetometer.patch
-          git apply docs/patches/dummy-module.patch
           git apply docs/patches/add-event.patch
         working-directory: asset-tracker-template
 

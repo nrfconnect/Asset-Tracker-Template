@@ -55,6 +55,6 @@ def test_patched_firmware(dut_board, hex_file_patched):
     assert -1000 <= y <= 1000, f"Magnetometer Y value {y} out of expected range"
     assert -1000 <= z <= 1000, f"Magnetometer Z value {z} out of expected range"
 
-    dut_board.uart.write("att_dummy_request\r\n")
-    dut_board.uart.wait_for_str("Dummy request sent", timeout=10)
+    dut_board.uart.write("att_test_request\r\n")
+    dut_board.uart.wait_for_str("Test request sent", timeout=10)
     dut_board.uart.wait_for_str("Response received", timeout=10)
