@@ -4,16 +4,16 @@
 ##########################################################################################
 
 import os
-from utils.flash_tools import flash_device, reset_device
-import sys
 import pytest
 from utils.flash_tools import flash_device, reset_device
+import sys
 
 sys.path.append(os.getcwd())
 from utils.logger import get_logger
 
 logger = get_logger()
 
+@pytest.mark.slow
 def test_patched_firmware(dut_board, hex_file_patched):
     """Test the patched firmware with magnetometer functionality."""
     # Only run this test for thingy91x devices

@@ -9,9 +9,10 @@ on:
       artifact_fw_version:
         type: string
         required: true
-      pytest_marker:
-        type: string
+      test_all:
+        type: boolean
         required: false
+        default: false
       pytest_path:
         type: string
         required: false
@@ -32,10 +33,11 @@ on:
         description: The run ID of the workflow to fetch artifacts from
         type: string
         required: true
-      pytest_marker:
-        description: The pytest marker to run
-        type: string
+      test_all:
+        description: Run all tests
+        type: boolean
         required: false
+        default: false
       pytest_path:
         description: Select test execution path
         type: string
@@ -52,17 +54,28 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       device_matrix: ${{ steps.set-matrix.outputs.device_matrix }}
+      pytest_marker: ${{ steps.set-matrix.outputs.pytest_marker }}
     steps:
       - id: set-matrix
         run: |
-          if [[ ${{ github.event_name == 'schedule' }} == "true" ]]; then
-              matrix='["thingy91x","nrf9151dk","ppk_thingy91x"]'
+          if [[ ${{ github.event_name == 'schedule' }} == true ]]; then
+            marker=''
+            matrix='["thingy91x","nrf9151dk","ppk_thingy91x"]'
+          elif [[ ${{ inputs.test_all }} == true ]]; then
+            marker=''
+            matrix='["thingy91x","nrf9151dk","ppk_thingy91x"]'
+          elif [[ ${{ github.event_name == 'push' }} == true ]]; then
+            marker='-m "not slow"'
+            matrix='["thingy91x"]'
           else
-            matrix=${{ inputs.devices }}
+            marker='-m "not slow"'
+            matrix='["thingy91x"]'
           fi
 
-          echo "Matrix as string: $matrix"
+          echo Matrix as string: $matrix
+          echo Pytest marker as string: $marker
           echo "device_matrix=$matrix" >> $GITHUB_OUTPUT
+          echo "pytest_marker=$marker" >> $GITHUB_OUTPUT
 
   target_test:
     # This will create multiple jobs, one for each target defined in the matrix
@@ -119,7 +132,7 @@ jobs:
           nrfutil install trace
 
       - name: Upload symbol file to Memfault
-        if: ${{ matrix.device == 'thingy91x' }}
+        if: ${{ matrix.device == 'thingy91x' && inputs.test_all }}
         working-directory: asset-tracker-template/tests/on_target/artifacts
         run: |
           memfault \
@@ -131,7 +144,7 @@ jobs:
               asset-tracker-template-${{ inputs.artifact_fw_version }}-debug-${{ vars.DUT_DEVICE_TYPE }}-nrf91.elf
 
       - name: Generate and Push RAM and FLASH Badges
-        if: ${{ matrix.device == 'thingy91x' && inputs.is_scheduled }}
+        if: ${{ matrix.device == 'thingy91x' && github.event_name == 'schedule' }}
         continue-on-error: true
         working-directory: asset-tracker-template
         env:
@@ -144,12 +157,12 @@ jobs:
           mkdir -p results
           if [[ '${{ matrix.device }}' == 'ppk_thingy91x' ]]; then
             # For PPK device, only run tests/test_ppk
-            pytest -v ${{ inputs.pytest_marker }} \
+            pytest -v ${{ needs.set-matrix.outputs.pytest_marker }} \
               --junit-xml=results/test-results.xml \
               --html=results/test-results.html --self-contained-html \
               tests/test_ppk
           else
-            pytest -v ${{ inputs.pytest_marker }} \
+            pytest -v ${{ needs.set-matrix.outputs.pytest_marker }} \
               --junit-xml=results/test-results.xml \
               --html=results/test-results.html --self-contained-html \
               --ignore=tests/test_ppk \

@@ -3,10 +3,11 @@ name: Build and Test
 on:
   workflow_dispatch:
     inputs:
-      pytest_marker:
-        type: string
+      build_all:
+        description: Build all configurations
+        type: boolean
         required: false
-        default: '-m "not slow"'
+        default: false
 
   schedule:
     - cron: "0 0 * * *"
@@ -19,6 +20,8 @@ jobs:
   build:
     uses: ./.github/workflows/build.yml
     secrets: inherit
+    with:
+      build_all: ${{ inputs.build_all || false }}
   test:
     permissions:
       actions: read
@@ -30,4 +33,4 @@ jobs:
     with:
       artifact_fw_version: ${{ needs.build.outputs.version }}
       artifact_run_id: ${{ needs.build.outputs.run_id }}
-      pytest_marker: ${{ inputs.pytest_marker }}
+      test_all: ${{ inputs.build_all || false }}
