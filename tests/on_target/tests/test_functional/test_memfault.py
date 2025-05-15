@@ -21,7 +21,6 @@ MEMFAULT_TIMEOUT = 5 * 60
 logger = get_logger()
 
 url = "https://api.memfault.com/api/v0"
-url_cdr = "https://app.memfault.com/api/v0"
 auth = ("", MEMFAULT_ORG_TOKEN)
 
 def convert_binary_trace_to_pcap(binary_trace, pcapng_file):
@@ -43,7 +42,7 @@ def convert_binary_trace_to_pcap(binary_trace, pcapng_file):
 
 def fetch_recent_modem_trace(device_id, start_time, end_time):
     r = requests.get(
-        f"{url_cdr}/organizations/{MEMFAULT_ORG}/projects/{MEMFAULT_PROJ}/devices/{device_id}/custom-data-recordings?end_time={end_time}&page=1&per_page=1&start_time={start_time}",
+        f"{url}/organizations/{MEMFAULT_ORG}/projects/{MEMFAULT_PROJ}/devices/{device_id}/custom-data-recordings?end_time={end_time}&page=1&per_page=1&start_time={start_time}",
         auth=auth
     )
 
@@ -148,7 +147,7 @@ def test_memfault(dut_board, debug_hex_file):
 
     # Download modem trace
     r = requests.get(
-        f"{url_cdr}/organizations/{MEMFAULT_ORG}/projects/{MEMFAULT_PROJ}/custom-data-recording/{modem_trace_id}/download",
+        f"{url}/organizations/{MEMFAULT_ORG}/projects/{MEMFAULT_PROJ}/custom-data-recording/{modem_trace_id}/download",
         auth=auth
     )
     r.raise_for_status()
