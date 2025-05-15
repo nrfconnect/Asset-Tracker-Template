@@ -169,6 +169,7 @@ jobs:
 
       # Asset Tracker Template debug firmware build
       - name: Build thingy91x debug firmware
+        if: ${{ inputs.build_all }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           memfault_project_key: ${{ secrets.MEMFAULT_PROJECT_KEY }}
@@ -201,7 +202,7 @@ jobs:
         working-directory: asset-tracker-template
 
       - name: Build patched thingy91x firmware
-        if: ${{ github.event_name != 'pull_request' }}
+        if: ${{ inputs.build_all }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: thingy91x/nrf9151/ns

@@ -88,6 +88,7 @@ def timestamp(event):
         event["captured_date"], "%Y-%m-%dT%H:%M:%S.%f%z"
     )
 
+@pytest.mark.slow
 def test_memfault(dut_board, debug_hex_file):
     # Save timestamp of latest coredump
     coredumps = get_latest_coredump_traces(IMEI)
