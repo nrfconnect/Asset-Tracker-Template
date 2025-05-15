@@ -685,6 +685,10 @@ static void fota_downloading_run(void *o)
 			smf_set_state(SMF_CTX(state_object),
 					      &states[STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT]);
 			return;
+		// TODO: if FOTA_SUCCESS_MODEM_RESET_NEEDED, then do somaething similar to reboot, but only reset modem instead
+		// use nrf_modem_lib_shutdown() And then nrf_modem_lin_init() to reset the modem
+		// from nrf/lib/nrf_modem_lib/nrf_modem_lib.c
+ 
 		case FOTA_IMAGE_APPLY_NEEDED:
 			smf_set_state(SMF_CTX(state_object),
 				&states[STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE]);
@@ -785,6 +789,10 @@ static void fota_applying_image_run(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
+	// TODO: if FOTA_SUCCESS_MODEM_RESET_NEEDED, then do somaething similar to reboot, but only reset modem instead
+	// use nrf_modem_shutdown() And then nrf_modem_init() to reset the modem
+	// from #include <nrf_modem/include/nrf_modem.h>
+
 	if (state_object->chan == &FOTA_CHAN) {
 		enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
@@ -813,6 +821,8 @@ static void fota_rebooting_entry(void *o)
 
 	sys_reboot(SYS_REBOOT_COLD);
 }
+
+//TOdO state fota modem resetting, move to state running upon modem reset correct completion
 
 int main(void)
 {
