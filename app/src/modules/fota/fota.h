@@ -35,6 +35,12 @@ enum fota_msg_type {
 	/* Event notified when a FOTA update has succeeded, reboot is needed to apply the image. */
 	FOTA_SUCCESS_REBOOT_NEEDED,
 
+	/* Event notified when a modem FOTA update has succeeded, modem reset is needed to apply the image. */
+	FOTA_SUCCESS_MODEM_RESET_NEEDED,
+
+	/* Event notified when modem has been reset after FOTA update. */
+	FOTA_MODEM_RESET_COMPLETE,
+
 	/* Event notified when the module needs the network to disconnect in order to apply
 	 * an update. When disconnected from the network, send the event FOTA_IMAGE_APPLY.
 	 * This is needed for Full Modem FOTA updates.

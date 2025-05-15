@@ -108,6 +108,7 @@ static void fota_applying_image_entry(void *o);
 static void fota_applying_image_run(void *o);
 
 static void fota_rebooting_entry(void *o);
+static void fota_modem_resetting_entry(void *o);
 
 enum state {
 	/* Normal operation */
@@ -137,6 +138,8 @@ enum state {
 		STATE_FOTA_APPLYING_IMAGE,
 		/* Rebooting */
 		STATE_FOTA_REBOOTING,
+		/* Resetting modem */
+		STATE_FOTA_MODEM_RESETTING,
 };
 
 /* State object for the app module.
@@ -162,6 +165,9 @@ struct main_state {
 	 * time when scheduling the next sampling trigger.
 	 */
 	uint32_t sample_start_time;
+
+	/* Flag to indicate if modem reset is needed for FOTA */
+	bool modem_reset_needed;
 };
 
 /* Construct state table */
@@ -238,6 +244,13 @@ static const struct smf_state states[] = {
 	),
 	[STATE_FOTA_REBOOTING] = SMF_CREATE_STATE(
 		fota_rebooting_entry,
+		NULL,
+		NULL,
+		&states[STATE_FOTA],
+		NULL
+	),
+	[STATE_FOTA_MODEM_RESETTING] = SMF_CREATE_STATE(
+		fota_modem_resetting_entry,
 		NULL,
 		NULL,
 		&states[STATE_FOTA],
@@ -675,20 +688,22 @@ static void fota_downloading_entry(void *o)
 
 static void fota_downloading_run(void *o)
 {
-	const struct main_state *state_object = (const struct main_state *)o;
+	struct main_state *state_object = o;
 
 	if (state_object->chan == &FOTA_CHAN) {
 		enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		switch (msg) {
 		case FOTA_SUCCESS_REBOOT_NEEDED:
+			state_object->modem_reset_needed = false;
 			smf_set_state(SMF_CTX(state_object),
 					      &states[STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT]);
 			return;
-		// TODO: if FOTA_SUCCESS_MODEM_RESET_NEEDED, then do somaething similar to reboot, but only reset modem instead
-		// use nrf_modem_lib_shutdown() And then nrf_modem_lin_init() to reset the modem
-		// from nrf/lib/nrf_modem_lib/nrf_modem_lib.c
- 
+		case FOTA_SUCCESS_MODEM_RESET_NEEDED:
+			state_object->modem_reset_needed = true;
+			smf_set_state(SMF_CTX(state_object),
+					      &states[STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT]);
+			return;
 		case FOTA_IMAGE_APPLY_NEEDED:
 			smf_set_state(SMF_CTX(state_object),
 				&states[STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE]);
@@ -728,7 +743,11 @@ static void fota_waiting_for_network_disconnect_run(void *o)
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		if (msg.type == NETWORK_DISCONNECTED) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
+			if (state_object->modem_reset_needed) {
+				smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_MODEM_RESETTING]);
+			} else {
+				smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
+			}
 			return;
 		}
 	}
@@ -787,17 +806,16 @@ static void fota_applying_image_entry(void *o)
 
 static void fota_applying_image_run(void *o)
 {
-	const struct main_state *state_object = (const struct main_state *)o;
-
-	// TODO: if FOTA_SUCCESS_MODEM_RESET_NEEDED, then do somaething similar to reboot, but only reset modem instead
-	// use nrf_modem_shutdown() And then nrf_modem_init() to reset the modem
-	// from #include <nrf_modem/include/nrf_modem.h>
+	const struct main_state *state_object = o;
 
 	if (state_object->chan == &FOTA_CHAN) {
 		enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		if (msg == FOTA_SUCCESS_REBOOT_NEEDED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
+			return;
+		} else if (msg == FOTA_SUCCESS_MODEM_RESET_NEEDED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_RUNNING]);
 			return;
 		}
 	}
@@ -822,7 +840,40 @@ static void fota_rebooting_entry(void *o)
 	sys_reboot(SYS_REBOOT_COLD);
 }
 
-//TOdO state fota modem resetting, move to state running upon modem reset correct completion
+static void fota_modem_resetting_entry(void *o)
+{
+	ARG_UNUSED(o);
+
+	LOG_DBG("%s", __func__);
+	LOG_DBG("Resetting modem to apply FOTA update");
+
+	/* Reset the modem */
+	int err = nrf_modem_lib_shutdown();
+	if (err) {
+		LOG_ERR("nrf_modem_lib_shutdown failed: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	err = nrf_modem_lib_init();
+	if (err) {
+		LOG_ERR("nrf_modem_lib_init failed: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	/* Notify FOTA module that modem reset is complete */
+	enum fota_msg_type msg = FOTA_MODEM_RESET_COMPLETE;
+	err = zbus_chan_pub(&FOTA_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	/* Move back to running state */
+	smf_set_state(SMF_CTX(o), &states[STATE_RUNNING]);
+}
 
 int main(void)
 {

@@ -64,6 +64,8 @@ enum fota_module_state {
 		STATE_IMAGE_APPLYING,
 		/* The FOTA module is waiting for a reboot */
 		STATE_REBOOT_PENDING,
+		/* The FOTA module is waiting for modem reset */
+		STATE_MODEM_RESET_PENDING,
 		/* The FOTA module is canceling the job */
 		STATE_CANCELING,
 };
@@ -99,6 +101,8 @@ static void state_waiting_for_image_apply_run(void *obj);
 static void state_image_applying_entry(void *obj);
 static void state_image_applying_run(void *obj);
 static void state_reboot_pending_entry(void *obj);
+static void state_modem_reset_pending_entry(void *obj);
+static void state_modem_reset_pending_run(void *obj);
 static void state_canceling_entry(void *obj);
 static void state_canceling_run(void *obj);
 
@@ -145,6 +149,12 @@ static const struct smf_state states[] = {
 				 NULL,
 				 &states[STATE_RUNNING],
 				 NULL),
+	[STATE_MODEM_RESET_PENDING] =
+		SMF_CREATE_STATE(state_modem_reset_pending_entry,
+				 state_modem_reset_pending_run,
+				 NULL,
+				 &states[STATE_RUNNING],
+				 NULL),
 	[STATE_CANCELING] =
 		SMF_CREATE_STATE(state_canceling_entry,
 				 state_canceling_run,
@@ -158,12 +168,16 @@ static const struct smf_state states[] = {
 static void fota_reboot(enum nrf_cloud_fota_reboot_status status)
 {
 	int err;
-	enum fota_msg_type evt = FOTA_SUCCESS_REBOOT_NEEDED;
+	enum fota_msg_type evt;
 
 	LOG_DBG("Reboot requested with FOTA status %d", status);
 
-	// TODO: if dfu_target_image_type in fota context is DFU_TARGET_IMAGE_TYPE_ANY_MODEM
-	// then send FOTA_SUCCESS_MODEM_RESET_NEEDED, else send FOTA_SUCCESS_REBOOT_NEEDED
+	/* For modem FOTA, we only need to reset the modem */
+	if (nrf_cloud_fota_is_type_modem()) {
+		evt = FOTA_SUCCESS_MODEM_RESET_NEEDED;
+	} else {
+		evt = FOTA_SUCCESS_REBOOT_NEEDED;
+	}
 
 	err = zbus_chan_pub(&FOTA_CHAN, &evt, K_SECONDS(1));
 	if (err) {
@@ -382,7 +396,9 @@ static void state_downloading_update_run(void *obj)
 		case FOTA_SUCCESS_REBOOT_NEEDED:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_PENDING]);
 			break;
-		// TODO: if FOTA_SUCCESS_MODEM_RESET_NEEDED, enter a MODEM_RESET_PENDING STATE
+		case FOTA_SUCCESS_MODEM_RESET_NEEDED:
+			smf_set_state(SMF_CTX(state_object), &states[STATE_MODEM_RESET_PENDING]);
+			break;
 		case FOTA_DOWNLOAD_CANCELED:
 			__fallthrough;
 		case FOTA_DOWNLOAD_TIMED_OUT:
@@ -437,13 +453,13 @@ static void state_image_applying_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
-	// TODO: if FOTA_SUCCESS_MODEM_RESET_NEEDED, enter a MODEM_RESET_PENDING STATE
-
 	if (&FOTA_CHAN == state_object->chan) {
 		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		if (evt == FOTA_SUCCESS_REBOOT_NEEDED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_PENDING]);
+		} else if (evt == FOTA_SUCCESS_MODEM_RESET_NEEDED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_MODEM_RESET_PENDING]);
 		}
 	}
 }
@@ -455,9 +471,26 @@ static void state_reboot_pending_entry(void *obj)
 	LOG_DBG("Waiting for the application to reboot in order to apply the update");
 }
 
-// TODO: add a MODEM_RESET_PENDING STATE
-// This state should go to state waiting for poll request when modem reset is succcesfull
+static void state_modem_reset_pending_entry(void *obj)
+{
+	ARG_UNUSED(obj);
 
+	LOG_DBG("%s", __func__);
+	LOG_DBG("Waiting for modem reset to complete");
+}
+
+static void state_modem_reset_pending_run(void *obj)
+{
+	struct fota_state_object const *state_object = obj;
+
+	if (&FOTA_CHAN == state_object->chan) {
+		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+
+		if (evt == FOTA_MODEM_RESET_COMPLETE) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_WAITING_FOR_POLL_REQUEST]);
+		}
+	}
+}
 
 static void state_canceling_entry(void *obj)
 {
