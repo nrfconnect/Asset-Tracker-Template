@@ -157,7 +157,7 @@ static void twelve_hour_interval_set(void)
 {
 	int err;
 	const struct cloud_msg msg = {
-		.type = CLOUD_SHADOW_RESPONSE,
+		.type = CLOUD_SHADOW_RESPONSE_DESIRED,
 		/* JSON equivalent string: "{"config":{"update_interval": 43200 }}" */
 		.response.buffer = {
 		0xA1,  /* Map of 1 key-value pair */
@@ -220,6 +220,7 @@ void test_init_to_triggering_state(void)
 
 	/* Cleanup */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 	expect_no_events(7200);
 }
 
@@ -295,6 +296,7 @@ void test_trigger_interval_change_in_connected(void)
 
 	/* Cleanup */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 	expect_no_events(WEEK_IN_SECONDS);
 }
 
@@ -330,6 +332,7 @@ void test_trigger_disconnect_and_connect_when_triggering(void)
 		/* Disconnect and connect every second iteration */
 		if (i % 2 == 0) {
 			send_cloud_disconnected();
+			expect_location_event(LOCATION_SEARCH_CANCEL);
 			expect_no_events(7200);
 			send_cloud_connected();
 
@@ -339,6 +342,7 @@ void test_trigger_disconnect_and_connect_when_triggering(void)
 
 	/* Cleanup */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 	expect_no_events(WEEK_IN_SECONDS);
 }
 

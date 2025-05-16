@@ -49,6 +49,7 @@ uart:~$ help
 Available commands:
   at                 : Execute an AT command
   att_button_press   : Asset Tracker Template Button CMDs
+  att_cloud_provision  : Asset Tracker Template Provisioning CMDs
   att_cloud_publish  : Asset Tracker Template Cloud CMDs
   att_network        : Asset Tracker Template Network CMDs
   clear              : Clear screen.
@@ -82,6 +83,27 @@ Available commands:
 uart:~$ att_cloud_publish TEMP "24"
 Sending on payload channel: {"messageType":"DATA","appId":"TEMP","data":"24","ts":1744359144653} (68 bytes)
 ```
+
+#### Perform cloud provisioning
+
+```bash
+uart:~$ att_cloud_provision now
+[00:00:42.258,361] <dbg> cloud: state_connected_ready_run: Provisioning request received
+[00:00:42.258,453] <dbg> cloud: state_connected_exit: state_connected_exit
+...
+[00:00:45.086,273] <dbg> nrf_provisioning_coap: request_commands: Path: p/cmd?after=&rxMaxSize=4096&txMaxSize=4096&limit=5
+[00:00:45.289,215] <dbg> nrf_provisioning_coap: coap_callback: Callback code 69
+[00:00:45.289,245] <dbg> nrf_provisioning_coap: coap_callback: Operation successful
+[00:00:45.289,245] <dbg> nrf_provisioning_coap: coap_callback: Last packet received
+[00:00:45.289,367] <dbg> nrf_provisioning_coap: nrf_provisioning_coap_req: Response code 69
+[00:00:45.289,367] <inf> nrf_provisioning_coap: No commands to process on server side
+[00:00:45.290,924] <dbg> nrf_provisioning: check_return_code_and_notify: No commands to process
+[00:00:45.290,954] <wrn> cloud: No commands from the nRF Provisioning Service to process
+[00:00:45.290,954] <wrn> cloud: Treating as provisioning finished
+```
+
+When the provisioning command is called, the device will connect to the provisioning endpoint and check if there are any pending commands for the device
+and execute them if any. Can be used to reprovision the device for development purposes and when its desired to swap out the certificates used in the CoAP connection.
 
 #### Network disconnect
 

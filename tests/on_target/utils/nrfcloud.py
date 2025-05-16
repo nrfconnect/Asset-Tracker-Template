@@ -8,6 +8,7 @@ import io
 import re
 import json
 import time
+import random
 import requests
 from enum import Enum
 from typing import Union
@@ -64,6 +65,61 @@ class NRFCloud():
         r = self.session.patch(self.url + path, **kwargs, timeout=self.timeout)
         r.raise_for_status()
         return r
+
+    def claim_device(self, attestation_token: str) -> None:
+        """
+        Add (claim) a provisioned device to nrfcloud.com
+
+        :param attestation_token: Attestation token for device
+        :return: None
+        """
+        data = json.dumps({
+            "claimToken": attestation_token,
+            "tags": ["nrf-cloud-onboarding"]
+        })
+
+        # Use the provisioning API endpoint for unclaiming
+        original_url = self.url
+        self.url = "https://api.provisioning.nrfcloud.com/v1"
+        try:
+            self._post(path=f"/claimed-devices", data=data)
+        finally:
+            self.url = original_url
+
+    def unclaim_device(self, device_id: str) -> int:
+        """
+        Unclaim (delete) a claimed device from nrfcloud.com
+
+        :param device_id: Device ID
+        :return: HTTP status code from the delete call
+        """
+        # Use the provisioning API endpoint for unclaiming
+        original_url = self.url
+        self.url = "https://api.provisioning.nrfcloud.com/v1"
+        try:
+            response = self._delete(path=f"/claimed-devices/{device_id}")
+            return response.status_code
+        finally:
+            self.url = original_url
+
+    def add_provisioning_command(self, device_id: str, command: str) -> None:
+        """
+        Add a provisioning command to a claimed device.
+
+        :param device_id: Device ID
+        :param command: Command as a JSON string
+        :return: None
+        """
+
+        data = command  # command is already a JSON string containing all needed data
+
+        # Use the provisioning API endpoint for unclaiming
+        original_url = self.url
+        self.url = "https://api.provisioning.nrfcloud.com/v1"
+        try:
+            self._post(path=f"/claimed-devices/{device_id}/provisioning", data=data)
+        finally:
+            self.url = original_url
 
     def get_devices(self, path: str="", params=None) -> dict:
         return self._get(path=f"/devices{path}", params=params)
@@ -132,6 +188,37 @@ class NRFCloud():
                 "config": {
                     "update_interval": interval
                 }
+            }
+        })
+        return self._patch(f"/devices/{device_id}/state", data=data)
+
+    def patch_add_provisioning_command_to_shadow(self, device_id: str, command: int) -> None:
+        """
+        Update the device's update interval configuration
+
+        :param device_id: Device ID to update
+        :param interval: New update interval in seconds
+        """
+        data = json.dumps({
+            "desired": {
+                "command": [command, random.randint(1, 100)]
+            }
+        })
+        return self._patch(f"/devices/{device_id}/state", data=data)
+
+    def patch_delete_command_entry_from_shadow(self, device_id: str) -> None:
+        """
+        Delete a specific desired state key for a device
+
+        :param device_id: Device ID to update
+        :param key: Desired state key to delete
+        """
+        data = json.dumps({
+            "desired": {
+                "command": None,
+            },
+            "reported": {
+                "command": None,
             }
         })
         return self._patch(f"/devices/{device_id}/state", data=data)

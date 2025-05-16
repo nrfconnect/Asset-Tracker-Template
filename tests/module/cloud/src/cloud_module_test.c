@@ -14,6 +14,7 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/net/coap.h>
 #include <zephyr/net/coap_client.h>
+#include <net/nrf_provisioning.h>
 #include <zephyr/zbus/zbus.h>
 
 #include "environmental.h"
@@ -82,6 +83,8 @@ FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
 FAKE_VOID_FUNC(location_cloud_location_ext_result_set, enum location_ext_result,
 	       struct location_data *);
 FAKE_VALUE_FUNC(int, location_agnss_data_process, const char *, size_t);
+FAKE_VALUE_FUNC(int, nrf_provisioning_init, nrf_provisioning_event_cb_t);
+FAKE_VALUE_FUNC(int, nrf_provisioning_trigger_manually);
 
 /* Forward declarations */
 static void dummy_cb(const struct zbus_channel *chan);
@@ -142,6 +145,8 @@ void setUp(void)
 	RESET_FAKE(nrf_cloud_coap_connect);
 	RESET_FAKE(nrf_cloud_coap_location_send);
 	RESET_FAKE(date_time_now);
+	RESET_FAKE(nrf_provisioning_init);
+	RESET_FAKE(nrf_provisioning_trigger_manually);
 
 	nrf_cloud_client_id_get_fake.custom_fake = nrf_cloud_client_id_get_custom_fake;
 
