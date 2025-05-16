@@ -37,7 +37,20 @@ enum cloud_msg_type {
 	CLOUD_CONNECTION_ATTEMPT_COUNT_REACHED,
 	CLOUD_PAYLOAD_JSON,
 	CLOUD_POLL_SHADOW,
-	CLOUD_SHADOW_RESPONSE,
+
+	/* Shadow response message. Contains the desired section of the shadow. */
+	CLOUD_SHADOW_RESPONSE_DESIRED,
+
+	/* Shadow response message. Contains the delta section of the shadow. */
+	CLOUD_SHADOW_RESPONSE_DELTA,
+
+	/* Triggers device provisioning. Sending this event puts the cloud module into
+	 * provisioning mode, where it connects to the provisioning endpoint and checks
+	 * for provisioning commands. Use this to onboard new devices to nRF Cloud with
+	 * their attestation token, or to reprovision devices with new credentials when
+	 * the old ones expire or when rotating credentials is required.
+	 */
+	CLOUD_PROVISIONING_REQUEST,
 };
 
 struct cloud_msg {
