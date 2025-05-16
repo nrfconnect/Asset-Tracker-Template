@@ -6,8 +6,13 @@ on:
       build_all:
         description: Build all configurations
         type: boolean
-        required: false
+        required: true
         default: false
+      boards:
+        description: Boards to test, json list
+        type: string
+        required: true
+        default: '[\"thingy91x\"]'
 
   schedule:
     - cron: "0 0 * * *"
@@ -17,20 +22,48 @@ on:
     paths-ignore:
       - "docs/**"
 jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      boards: ${{ steps.setup.outputs.boards }}
+      build_all: ${{ steps.setup.outputs.build_all == 'true' }}
+    steps:
+      - name: Setup
+        id: setup
+        run: |
+          SCHEDULED=${{ github.event_name == 'schedule' }}
+          PUSH=${{ github.event_name == 'push' }}
+          BUILD_ALL=${{ inputs.build_all }}
+          if [[ $SCHEDULED == true ]]; then
+            boards='["thingy91x","nrf9151dk","ppk_thingy91x"]'
+            build_all=true
+          elif [[ $PUSH == true ]]; then
+            boards='["thingy91x"]'
+            build_all=false
+          else
+            boards=${{ inputs.boards }}
+            build_all=${{ inputs.build_all }}
+          fi
+          echo "boards=$boards"
+          echo "build_all=$build_all"
+          echo "boards=$boards" >> $GITHUB_OUTPUT
+          echo "build_all=$build_all" >> $GITHUB_OUTPUT
   build:
+    needs: setup
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
-      build_all: ${{ inputs.build_all || false }}
+      build_all: ${{ needs.setup.outputs.build_all == 'true' }}
   test:
     permissions:
       actions: read
       contents: write
       packages: read
     uses: ./.github/workflows/target-test.yml
-    needs: build
+    needs: [build, setup]
     secrets: inherit
     with:
       artifact_fw_version: ${{ needs.build.outputs.version }}
       artifact_run_id: ${{ needs.build.outputs.run_id }}
-      test_all: ${{ inputs.build_all || false }}
+      devices: ${{ needs.setup.outputs.boards }}
+      test_all: ${{ needs.setup.outputs.build_all == 'true' }}
