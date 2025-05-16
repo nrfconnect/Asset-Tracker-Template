@@ -58,15 +58,9 @@ jobs:
     steps:
       - id: set-matrix
         run: |
-          if [[ ${{ github.event_name == 'schedule' }} == true ]]; then
+          if [[ ${{ inputs.test_all }} == true ]]; then
             marker=''
             matrix='["thingy91x","nrf9151dk","ppk_thingy91x"]'
-          elif [[ ${{ inputs.test_all }} == true ]]; then
-            marker=''
-            matrix='["thingy91x","nrf9151dk","ppk_thingy91x"]'
-          elif [[ ${{ github.event_name == 'push' }} == true ]]; then
-            marker='-m "not slow"'
-            matrix='["thingy91x"]'
           else
             marker='-m "not slow"'
             matrix='["thingy91x"]'

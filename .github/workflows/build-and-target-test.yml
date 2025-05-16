@@ -21,7 +21,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
-      build_all: ${{ inputs.build_all || false }}
+      build_all: ${{ inputs.build_all || github.event_name == 'schedule' || false }}
   test:
     permissions:
       actions: read
@@ -33,4 +33,4 @@ jobs:
     with:
       artifact_fw_version: ${{ needs.build.outputs.version }}
       artifact_run_id: ${{ needs.build.outputs.run_id }}
-      test_all: ${{ inputs.build_all || false }}
+      test_all: ${{ inputs.build_all || github.event_name == 'schedule' || false }}
