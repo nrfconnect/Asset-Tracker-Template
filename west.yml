@@ -9,10 +9,12 @@ manifest:
   remotes:
     - name: ncs
       url-base: https://github.com/nrfconnect
+    - name: simen
+      url-base: https://github.com/simensrostad
 
   projects:
     - name: nrf
-      remote: ncs
-      repo-path: sdk-nrf
-      revision: b86ade278d14c875d0f1c3931c1863605d1fb7ad
+      remote: simen
+      repo-path: fw-nrfconnect-nrf
+      revision: 84b8de517deaf26e271f9fa1a2414ace106908b5
       import: true
