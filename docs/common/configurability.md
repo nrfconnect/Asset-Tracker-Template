@@ -29,6 +29,12 @@ Update interval using nrfcloud rest api [nRF Cloud REST API](https://api.nrfclou
 curl -X PATCH   "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state"   -H "Authorization: Bearer $API_KEY"   -H "Content-Type: application/json"   -d '{ "desired": { "config": { "update_interval": <your_value> } } }'
 ```
 
+## Supported configurations and commands
+ - provisioning
+ - reboot
+
+Document what they mean, how they work and how to update them via the REST api with example payload
+
 ### Configuration Flow
 1. **Initial Setup**
    - Device starts with default interval from `CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS`
