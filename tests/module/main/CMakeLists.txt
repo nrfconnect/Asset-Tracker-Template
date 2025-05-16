@@ -82,11 +82,9 @@ set(zcbor_command
 	--cddl ${APPLICATION_SOURCE_DIR}/../../../app/src/cbor/device_shadow.cddl
 	--decode # Generate decoding functions
 	--short-names # Attempt to make generated symbol names shorter (at the risk of collision)
-	-t config-object # Create a public API for decoding the "config-object" type from the cddl file
+	-t desired-object # Create a public API for decoding the "desired-object" type from the cddl file
 	--output-cmake device_shadow.cmake # The generated cmake file will be placed here
 )
-
-message(WARNING ${zcbor_command})
 
 execute_process(COMMAND ${zcbor_command}
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -96,13 +94,13 @@ execute_process(COMMAND ${zcbor_command}
 # generated code and the necessary zcbor C code files.
 include(${CMAKE_CURRENT_BINARY_DIR}/device_shadow.cmake)
 
-# # Ensure that the cmake reconfiguration is triggerred everytime the cddl file changes.
-# # This ensures that the codec generation is triggered.
-# set_property(
-# 	DIRECTORY
-# 	PROPERTY
-# 	CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device_shadow.cddl
-# )
+# Ensure that the cmake reconfiguration is triggerred everytime the cddl file changes.
+# This ensures that the codec generation is triggered.
+set_property(
+	DIRECTORY
+	PROPERTY
+	CMAKE_CONFIGURE_DEPENDS ${APPLICATION_SOURCE_DIR}/../../../app/src/cbor/device_shadow.cddl
+)
 
 zephyr_link_libraries(device_shadow)
 target_link_libraries(device_shadow PRIVATE zephyr_interface)

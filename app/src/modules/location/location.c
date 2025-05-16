@@ -83,61 +83,12 @@ static const struct smf_state states[] = {
 				 NULL),
 };
 
-static void on_cfun(int mode, void *ctx)
-{
-	ARG_UNUSED(ctx);
-
-	int err;
-	static bool inited;
-
-	/* Don't activate GNSS if modem is powered off or put into offline mode. */
-	if (mode == 0 || mode == 4) {
-		/* Set init guard to false if modem is disabled or turned off.
-		 * This makes it possible to reactivate GNSS when modem is turned on.
-		 */
-		inited = false;
-		return;
-	}
-
-	/* Use initialization guard to avoid an infinite loop. */
-	if (inited) {
-		return;
-	}
-
-	inited = true;
-
-	LOG_DBG("Modem CFUN mode: %d", mode);
-
-	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
-	if (err) {
-		LOG_ERR("Activating GNSS in the modem failed: %d", err);
-		SEND_FATAL_ERROR();
-	}
-}
-
-NRF_MODEM_LIB_ON_CFUN(att_location_init_hook, on_cfun, NULL);
-
 static void location_wdt_callback(int channel_id, void *user_data)
 {
 	LOG_ERR("Watchdog expired, Channel: %d, Thread: %s",
 		channel_id, k_thread_name_get((k_tid_t)user_data));
 
 	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
-}
-
-static void status_send(enum location_msg_type status)
-{
-	int err;
-	struct location_msg location_msg = {
-		.type = status
-	};
-
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
 }
 
 static void cloud_request_send(const struct location_data_cloud *cloud_request)
@@ -188,9 +139,40 @@ static void gnss_location_send(const struct location_data *location_data)
 	}
 }
 
+static void send_location_status_and_set_functional_mode(enum location_msg_type status)
+{
+	int err;
+	struct location_msg location_msg = {
+		.type = status
+	};
+
+	if ((status == LOCATION_SEARCH_DONE) && IS_ENABLED(CONFIG_LOCATION_METHOD_GNSS)) {
+		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_DEACTIVATE_GNSS);
+		if (err) {
+			LOG_ERR("Activating GNSS in the modem failed: %d", err);
+			SEND_FATAL_ERROR();
+		}
+	}
+
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+}
+
 void trigger_location_update(void)
 {
 	int err;
+
+	if (IS_ENABLED(CONFIG_LOCATION_METHOD_GNSS)) {
+		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
+		if (err) {
+			LOG_ERR("Activating GNSS in the modem failed: %d", err);
+			SEND_FATAL_ERROR();
+		}
+	}
 
 	err = location_request(NULL);
 	if (err == -EBUSY) {
@@ -201,11 +183,25 @@ void trigger_location_update(void)
 	}
 }
 
-void handle_location_chan(const struct location_msg *location_msg)
+static void handle_location_chan(const struct location_msg *location_msg)
 {
+	int err;
+
 	if (location_msg->type == LOCATION_SEARCH_TRIGGER) {
 		LOG_DBG("Location search trigger received, getting location");
 		trigger_location_update();
+	} else if (location_msg->type == LOCATION_SEARCH_CANCEL) {
+		LOG_DBG("Location search cancel received, cancelling location request");
+
+		err = location_request_cancel();
+		if (err == -EPERM) {
+			LOG_WRN("Location library not initialized, cannot cancel request");
+			SEND_FATAL_ERROR();
+		} else if (err) {
+			LOG_ERR("Unable to cancel location request: %d", err);
+		} else {
+			LOG_DBG("Location request cancelled successfully");
+		}
 	}
 }
 
@@ -309,14 +305,14 @@ static void location_event_handler(const struct location_event_data *event_data)
 		}
 #endif /* CONFIG_LOCATION_METHOD_GNSS */
 
-		status_send(LOCATION_SEARCH_DONE);
+		send_location_status_and_set_functional_mode(LOCATION_SEARCH_DONE);
 		break;
 	case LOCATION_EVT_STARTED:
-		status_send(LOCATION_SEARCH_STARTED);
+		send_location_status_and_set_functional_mode(LOCATION_SEARCH_STARTED);
 		break;
 	case LOCATION_EVT_TIMEOUT:
 		LOG_DBG("Getting location timed out");
-		status_send(LOCATION_SEARCH_DONE);
+		send_location_status_and_set_functional_mode(LOCATION_SEARCH_DONE);
 		break;
 	case LOCATION_EVT_ERROR:
 		LOG_WRN("Location request failed:");
@@ -325,7 +321,7 @@ static void location_event_handler(const struct location_event_data *event_data)
 
 		location_print_data_details(event_data->method, &event_data->error.details);
 
-		status_send(LOCATION_SEARCH_DONE);
+		send_location_status_and_set_functional_mode(LOCATION_SEARCH_DONE);
 		break;
 	case LOCATION_EVT_FALLBACK:
 		LOG_DBG("Location request fallback has occurred:");
@@ -353,7 +349,7 @@ static void location_event_handler(const struct location_event_data *event_data)
 #endif
 	case LOCATION_EVT_RESULT_UNKNOWN:
 		LOG_DBG("Location result unknown");
-		status_send(LOCATION_SEARCH_DONE);
+		send_location_status_and_set_functional_mode(LOCATION_SEARCH_DONE);
 		break;
 	default:
 		LOG_DBG("Getting location: Unknown event %d", event_data->id);

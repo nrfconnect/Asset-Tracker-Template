@@ -37,6 +37,7 @@ FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
 FAKE_VALUE_FUNC(int, date_time_set, const struct tm *);
 FAKE_VALUE_FUNC(const char *, location_method_str, enum location_method);
+FAKE_VALUE_FUNC(int, lte_lc_func_mode_set, enum lte_lc_func_mode);
 
 /* Store the registered event handler */
 static location_event_handler_t registered_handler;

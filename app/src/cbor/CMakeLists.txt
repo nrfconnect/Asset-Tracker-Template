@@ -13,7 +13,7 @@ set(zcbor_command
 	--cddl ${CMAKE_CURRENT_SOURCE_DIR}/device_shadow.cddl
 	--decode # Generate decoding functions
 	--short-names # Attempt to make generated symbol names shorter (at the risk of collision)
-	-t config-object # Create a public API for decoding the "config-object" type from the cddl file
+	-t desired-object # Create a public API for decoding the "desired-object" type from the cddl file
 	--output-cmake device_shadow.cmake # The generated cmake file will be placed here
 )
 execute_process(COMMAND ${zcbor_command}

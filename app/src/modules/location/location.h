@@ -30,6 +30,7 @@ enum location_msg_type {
 	LOCATION_CLOUD_REQUEST,
 	LOCATION_AGNSS_REQUEST,
 	LOCATION_GNSS_DATA,
+	LOCATION_SEARCH_CANCEL,
 };
 
 /* Structure to pass location data through zbus */

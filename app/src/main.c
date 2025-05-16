@@ -335,6 +335,73 @@ static void timer_work_fn(struct k_work *work)
 	}
 }
 
+static void on_shadow_response(struct main_state *state_object, const struct cloud_msg *msg)
+{
+	int err;
+	uint32_t command_type = UINT32_MAX;
+	uint32_t interval_sec = UINT32_MAX;
+
+	err = get_parameters_from_cbor_response(msg->response.buffer,
+						       msg->response.buffer_data_len,
+						       &interval_sec,
+						       &command_type);
+	if (err) {
+		LOG_ERR("get_parameters_from_cbor_response, error: %d", err);
+		return;
+	}
+
+	/* Set new interval if valid */
+	if (interval_sec != UINT32_MAX) {
+		state_object->interval_sec = interval_sec;
+
+		LOG_DBG("Received new interval: %d seconds", state_object->interval_sec);
+
+		err = k_work_reschedule(&trigger_work, K_SECONDS(state_object->interval_sec));
+		if (err < 0) {
+			LOG_ERR("k_work_reschedule, error: %d", err);
+			SEND_FATAL_ERROR();
+			return;
+		}
+	}
+
+	/* For commands, only process delta responses. This avoids executing commands that may still
+	 * persist in the shadow's desired section. Delta responses only include new
+	 * commands, since the device clears received commands by reporting them in
+	 * the reported section of the shadow.
+	 */
+	if ((msg->type != CLOUD_SHADOW_RESPONSE_DELTA) && (command_type != UINT32_MAX)) {
+		return;
+	}
+
+	LOG_DBG("Received command ID: %d, translated to %s", command_type,
+		(command_type == CLOUD_COMMAND_TYPE_PROVISION) ?
+		"CLOUD_COMMAND_TYPE_PROVISION" :
+		(command_type == CLOUD_COMMAND_TYPE_REBOOT) ?
+		"CLOUD_COMMAND_TYPE_REBOOT" : "UNKNOWN");
+
+	/* Check for known commands */
+	if (command_type == CLOUD_COMMAND_TYPE_PROVISION) {
+
+		struct cloud_msg cloud_msg = {
+			.type = CLOUD_PROVISIONING_REQUEST,
+		};
+
+		err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+		if (err) {
+			LOG_ERR("zbus_chan_pub, error: %d", err);
+			SEND_FATAL_ERROR();
+			return;
+		}
+	} else if (command_type == CLOUD_COMMAND_TYPE_REBOOT) {
+		LOG_WRN("Received command ID: %d", command_type);
+
+		/* Flush the log buffer and wait a few seconds before rebooting */
+		LOG_PANIC();
+		k_sleep(K_SECONDS(10));
+		sys_reboot(SYS_REBOOT_COLD);
+	}
+}
+
 /* Zephyr State Machine framework handlers */
 
 /* STATE_RUNNING */
@@ -440,29 +507,34 @@ static void triggering_run(void *o)
 	if (state_object->chan == &CLOUD_CHAN) {
 		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
 
-		if (msg->type == CLOUD_DISCONNECTED) {
+		switch (msg->type) {
+		case CLOUD_DISCONNECTED:
 			state_object->connected = false;
-			smf_set_state(SMF_CTX(state_object), &states[STATE_IDLE]);
-			return;
-		}
 
-		if (msg->type == CLOUD_SHADOW_RESPONSE) {
-			err = get_update_interval_from_cbor_response(msg->response.buffer,
-								     msg->response.buffer_data_len,
-								     &state_object->interval_sec);
+			/* Because the location library in the location module performs its own
+			 * calls to cloud we cancel any ongoing location request when the cloud
+			 * connection is lost. This is to prevent the location module from
+			 * attempting to send location data to the cloud when it is not connected.
+			 */
+			enum location_msg_type location_msg = LOCATION_SEARCH_CANCEL;
+
+			err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
 			if (err) {
-				LOG_ERR("get_update_interval_from_cbor_response, error: %d", err);
+				LOG_ERR("zbus_chan_pub, error: %d", err);
+				SEND_FATAL_ERROR();
 				return;
 			}
 
-			LOG_WRN("Received new interval: %d seconds", state_object->interval_sec);
-
-			err = k_work_reschedule(&trigger_work,
-						K_SECONDS(state_object->interval_sec));
-			if (err < 0) {
-				LOG_ERR("k_work_reschedule, error: %d", err);
-				SEND_FATAL_ERROR();
-			}
+			smf_set_state(SMF_CTX(state_object), &states[STATE_IDLE]);
+			return;
+		case CLOUD_SHADOW_RESPONSE_DELTA:
+			__fallthrough;
+		case CLOUD_SHADOW_RESPONSE_DESIRED:
+			on_shadow_response(state_object, msg);
+			return;
+		default:
+			/* Don't care */
+			break;
 		}
 	}
 }
