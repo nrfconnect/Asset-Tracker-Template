@@ -223,6 +223,13 @@ class Uart:
             return match.groups()
         return None
 
+    def extract_value_all(self, pattern: str, start_pos: int = 0):
+        pattern = re.compile(pattern)
+        matches = pattern.findall(self.log[start_pos:])
+        if matches:
+            return matches
+        return None
+
     def wait_for_str_with_retries(self, msgs: Union[str, list], max_retries: int = 2, timeout: int = DEFAULT_WAIT_FOR_STR_TIMEOUT, error_msg: str = "", reset_func=None) -> None:
         retries = 0
         while retries <= max_retries:

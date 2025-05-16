@@ -11,6 +11,7 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <net/nrf_cloud.h>
 #include <net/nrf_cloud_coap.h>
+#include <net/nrf_provisioning.h>
 #include <nrf_cloud_coap_transport.h>
 #include <zephyr/net/coap.h>
 #include <app_version.h>
@@ -79,6 +80,11 @@ ZBUS_CHAN_DEFINE(CLOUD_CHAN,
 
 /* Enumerator to be used in privat cloud channel */
 enum priv_cloud_msg {
+	CLOUD_CONNECTION_FAILED,
+	CLOUD_CONNECTION_SUCCESS,
+	CLOUD_NOT_AUTHENTICATED,
+	CLOUD_PROVISIONING_FINISHED,
+	CLOUD_PROVISIONING_FAILED,
 	CLOUD_BACKOFF_EXPIRED,
 };
 
@@ -111,6 +117,12 @@ enum cloud_module_state {
 		STATE_CONNECTING,
 			/* The module is trying to connect to cloud */
 			STATE_CONNECTING_ATTEMPT,
+				/* Module is provisioned to nRF Cloud CoAP */
+				STATE_PROVISIONED,
+				/* The module is trying to provision to nRF Cloud CoAP using
+				 * nRF Cloud Provisioning Service
+				 */
+				STATE_PROVISIONING,
 			/* The module is waiting before trying to connect again */
 			STATE_CONNECTING_BACKOFF,
 		/* Cloud connection has been established. Note that because of
@@ -122,6 +134,12 @@ enum cloud_module_state {
 			STATE_CONNECTED_READY,
 			/* Connected to cloud, but not network connection */
 			STATE_CONNECTED_PAUSED,
+};
+
+/* Types of sections of the shadow document to poll for. */
+enum shadow_poll_type {
+	SHADOW_POLL_DELTA,
+	SHADOW_POLL_DESIRED,
 };
 
 /* State object.
@@ -140,6 +158,9 @@ struct cloud_state_object {
 	/* Network status */
 	enum network_msg_type nw_status;
 
+	/* Provisioning ongoing flag */
+	bool provisioning_ongoing;
+
 	/* Connection attempt counter. Reset when entering STATE_CONNECTING */
 	uint32_t connection_attempts;
 
@@ -149,11 +170,15 @@ struct cloud_state_object {
 
 /* Forward declarations of state handlers */
 static void state_running_entry(void *obj);
-static void state_running_run(void *obj);
 static void state_disconnected_entry(void *obj);
 static void state_disconnected_run(void *obj);
 static void state_connecting_entry(void *obj);
+static void state_connecting_run(void *obj);
 static void state_connecting_attempt_entry(void *obj);
+static void state_connecting_provisioned_entry(void *obj);
+static void state_connecting_provisioned_run(void *obj);
+static void state_connecting_provisioning_entry(void *obj);
+static void state_connecting_provisioning_run(void *obj);
 static void state_connecting_backoff_entry(void *obj);
 static void state_connecting_backoff_run(void *obj);
 static void state_connecting_backoff_exit(void *obj);
@@ -167,7 +192,7 @@ static void state_connected_paused_run(void *obj);
 /* State machine definition */
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
-		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
+		SMF_CREATE_STATE(state_running_entry, NULL, NULL,
 				 NULL, /* No parent state */
 				 &states[STATE_DISCONNECTED]), /* Initial transition */
 
@@ -177,13 +202,24 @@ static const struct smf_state states[] = {
 				 NULL),
 
 	[STATE_CONNECTING] =
-		SMF_CREATE_STATE(state_connecting_entry, NULL, NULL,
+		SMF_CREATE_STATE(state_connecting_entry, state_connecting_run, NULL,
 				 &states[STATE_RUNNING],
 				 &states[STATE_CONNECTING_ATTEMPT]),
 
 	[STATE_CONNECTING_ATTEMPT] =
 		SMF_CREATE_STATE(state_connecting_attempt_entry, NULL, NULL,
 				 &states[STATE_CONNECTING],
+				 &states[STATE_PROVISIONED]),
+
+	[STATE_PROVISIONED] =
+		SMF_CREATE_STATE(state_connecting_provisioned_entry, state_connecting_provisioned_run,
+				 NULL,
+				 &states[STATE_CONNECTING_ATTEMPT],
+				 NULL),
+
+	[STATE_PROVISIONING] =
+		SMF_CREATE_STATE(state_connecting_provisioning_entry, state_connecting_provisioning_run, NULL,
+				 &states[STATE_CONNECTING_ATTEMPT],
 				 NULL),
 
 	[STATE_CONNECTING_BACKOFF] =
@@ -220,6 +256,7 @@ static void connect_to_cloud(const struct cloud_state_object *state_object)
 {
 	int err;
 	char buf[NRF_CLOUD_CLIENT_ID_MAX_LEN];
+	enum priv_cloud_msg msg = CLOUD_CONNECTION_FAILED;
 
 	err = nrf_cloud_client_id_get(buf, sizeof(buf));
 	if (err == 0) {
@@ -233,15 +270,25 @@ static void connect_to_cloud(const struct cloud_state_object *state_object)
 
 	err = nrf_cloud_coap_connect(APP_VERSION_STRING);
 	if (err == 0) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
+		LOG_INF("nRF Cloud CoAP connection successful");
 
-		return;
+		msg = CLOUD_CONNECTION_SUCCESS;
+	} else if (err == -EACCES || err == -ENOEXEC || err == -ECONNREFUSED) {
+		LOG_WRN("nrf_cloud_coap_connect, error: %d", err);
+		LOG_WRN("nRF Cloud CoAP connection failed, unauthorized or invalid credentials");
+
+		msg = CLOUD_NOT_AUTHENTICATED;
+	} else {
+		LOG_WRN("nRF Cloud CoAP connection refused");
+
+		msg = CLOUD_CONNECTION_FAILED;
 	}
 
-	/* Connection failed, retry */
-	LOG_ERR("nrf_cloud_coap_connect, error: %d", err);
-
-	smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
+	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
 }
 
 static uint32_t calculate_backoff_time(uint32_t attempts)
@@ -280,6 +327,94 @@ static void backoff_timer_work_fn(struct k_work *work)
 	}
 }
 
+static void nrf_provisioning_callback(const struct nrf_provisioning_callback_data *event)
+{
+	int err;
+	enum priv_cloud_msg msg = CLOUD_PROVISIONING_FINISHED;
+	enum network_msg_type nw_msg = NETWORK_DISCONNECT;
+
+	switch (event->type) {
+	case NRF_PROVISIONING_EVENT_NEED_LTE_DEACTIVATED:
+		LOG_WRN("nRF Provisioning requires device to go offline");
+
+		nw_msg = NETWORK_DISCONNECT;
+
+		err = zbus_chan_pub(&NETWORK_CHAN, &nw_msg, K_SECONDS(1));
+		if (err) {
+			LOG_ERR("zbus_chan_pub, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
+
+		return;
+	case NRF_PROVISIONING_EVENT_NEED_LTE_ACTIVATED:
+		LOG_WRN("nRF Provisioning requires device to go online");
+
+		nw_msg = NETWORK_CONNECT;
+
+		err = zbus_chan_pub(&NETWORK_CHAN, &nw_msg, K_SECONDS(1));
+		if (err) {
+			LOG_ERR("zbus_chan_pub, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
+
+		return;
+	case NRF_PROVISIONING_EVENT_DONE:
+		LOG_WRN("Provisioning finished");
+
+		msg = CLOUD_PROVISIONING_FINISHED;
+		k_sleep(K_SECONDS(10));
+		break;
+	case NRF_PROVISIONING_EVENT_NO_COMMANDS:
+		LOG_WRN("No commands from the nRF Provisioning Service to process");
+
+		msg = CLOUD_PROVISIONING_FINISHED;
+		k_sleep(K_SECONDS(10));
+		break;
+	case NRF_PROVISIONING_EVENT_FAILED_TOO_MANY_COMMANDS:
+		LOG_ERR("Provisioning failed, too many commands for the device to handle");
+
+		msg = CLOUD_PROVISIONING_FINISHED;
+		k_sleep(K_SECONDS(10));
+		return;
+	case NRF_PROVISIONING_EVENT_FAILED:
+		LOG_ERR("Provisioning failed");
+
+		msg = CLOUD_PROVISIONING_FAILED;
+		break;
+	case NRF_PROVISIONING_EVENT_FAILED_NO_VALID_DATETIME:
+		LOG_ERR("Provisioning failed, no valid datetime reference");
+
+		SEND_FATAL_ERROR();
+		return;
+	case NRF_PROVISIONING_EVENT_FAILED_DEVICE_NOT_CLAIMED:
+		LOG_WRN("Provisioning failed, device not claimed");
+		LOG_WRN("Claim the device using the device's attestation token on nrfcloud.com");
+		LOG_WRN("\r\n\n%.*s.%.*s\r\n", event->token->attest_sz, event->token->attest,
+					       event->token->cose_sz, event->token->cose);
+		msg = CLOUD_PROVISIONING_FAILED;
+		break;
+	case NRF_PROVISIONING_EVENT_FAILED_WRONG_ROOT_CA:
+		LOG_ERR("Provisioning failed, wrong CA certificate");
+
+		SEND_FATAL_ERROR();
+		return;
+	case NRF_PROVISIONING_EVENT_FATAL_ERROR:
+		LOG_ERR("Provisioning error");
+
+		SEND_FATAL_ERROR();
+		return;
+	default:
+		/* Don't care */
+		return;
+	}
+
+	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
 /* State handlers */
 
 static void state_running_entry(void *obj)
@@ -297,20 +432,13 @@ static void state_running_entry(void *obj)
 
 		return;
 	}
-}
 
-static void state_running_run(void *obj)
-{
-	struct cloud_state_object const *state_object = obj;
+	err = nrf_provisioning_init(nrf_provisioning_callback);
+	if (err) {
+		LOG_ERR("nrf_provisioning_init, error: %d", err);
+		SEND_FATAL_ERROR();
 
-	if (state_object->chan == &NETWORK_CHAN) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
-
-		if (msg.type == NETWORK_DISCONNECTED) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
-
-			return;
-		}
+		return;
 	}
 }
 
@@ -354,6 +482,22 @@ static void state_connecting_entry(void *obj)
 	LOG_DBG("%s", __func__);
 
 	state_object->connection_attempts = 0;
+	state_object->provisioning_ongoing = false;
+}
+
+static void state_connecting_run(void *obj)
+{
+	struct cloud_state_object *state_object = obj;
+
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		if (msg.type == NETWORK_DISCONNECTED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
+
+			return;
+		}
+	}
 }
 
 static void state_connecting_attempt_entry(void *obj)
@@ -363,8 +507,96 @@ static void state_connecting_attempt_entry(void *obj)
 	LOG_DBG("%s", __func__);
 
 	state_object->connection_attempts++;
+}
+
+static void state_connecting_provisioned_entry(void *obj)
+{
+	struct cloud_state_object *state_object = obj;
+
+	LOG_DBG("%s", __func__);
+
+	state_object->provisioning_ongoing = false;
 
 	connect_to_cloud(state_object);
+}
+
+static void state_connecting_provisioned_run(void *obj)
+{
+	struct cloud_state_object *state_object = obj;
+
+	if (state_object->chan == &PRIV_CLOUD_CHAN) {
+		enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
+
+		if (msg == CLOUD_NOT_AUTHENTICATED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONING]);
+
+			return;
+		} else if (msg == CLOUD_CONNECTION_SUCCESS) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
+
+			return;
+		} else if (msg == CLOUD_CONNECTION_FAILED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
+
+			return;
+		}
+	}
+}
+
+static void state_connecting_provisioning_entry(void *obj)
+{
+	int err;
+
+	struct cloud_state_object *state_object = obj;
+
+	LOG_DBG("%s", __func__);
+
+	state_object->provisioning_ongoing = true;
+
+	err = nrf_provisioning_trigger_manually();
+	if (err) {
+		LOG_ERR("nrf_provisioning_trigger_manually, error: %d", err);
+
+		SEND_FATAL_ERROR();
+		return;
+	}
+}
+
+static void state_connecting_provisioning_run(void *obj)
+{
+	struct cloud_state_object *state_object = obj;
+
+	if (state_object->chan == &PRIV_CLOUD_CHAN) {
+		enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
+
+		if (msg == CLOUD_PROVISIONING_FINISHED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONED]);
+
+			return;
+		} else if (msg == CLOUD_PROVISIONING_FAILED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
+
+			return;
+		}
+	}
+
+	/* Its expected that the device goes online/offline a few times during provisioning.
+	 * Therefore we handle network connected/disconnected events in this state preventing it
+	 * from propagating up the state machine changing the cloud module's connectivity status.
+	 */
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		if (msg.type == NETWORK_DISCONNECTED) {
+			smf_set_handled(SMF_CTX(state_object));
+
+			return;
+	 	} else if (msg.type == NETWORK_CONNECTED) {
+			smf_set_handled(SMF_CTX(state_object));
+
+			return;
+		}
+	}
 }
 
 static void state_connecting_backoff_entry(void *obj)
@@ -375,6 +607,9 @@ static void state_connecting_backoff_entry(void *obj)
 	LOG_DBG("%s", __func__);
 
 	state_object->backoff_time = calculate_backoff_time(state_object->connection_attempts);
+
+	LOG_WRN("Connection attempt failed, backoff time: %u seconds",
+		state_object->backoff_time);
 
 	err = k_work_schedule(&backoff_timer_work, K_SECONDS(state_object->backoff_time));
 	if (err < 0) {
@@ -390,8 +625,16 @@ static void state_connecting_backoff_run(void *obj)
 	if (state_object->chan == &PRIV_CLOUD_CHAN) {
 		const enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
 
-		if (msg == CLOUD_BACKOFF_EXPIRED) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_ATTEMPT]);
+		/* If the backoff timer expired, we can either continue provisioning or
+		 * connect to cloud if already provisioned. The provisioning ongoing flag helps us
+		 * determine what substate of connecting attempt we are attempting to enter.
+		 */
+		if ((msg == CLOUD_BACKOFF_EXPIRED) && !state_object->provisioning_ongoing) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONED]);
+
+			return;
+		} else if ((msg == CLOUD_BACKOFF_EXPIRED) && state_object->provisioning_ongoing) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONING]);
 
 			return;
 		}
@@ -431,6 +674,9 @@ static void state_connected_entry(void *obj)
 static void state_connected_exit(void *obj)
 {
 	int err;
+	struct cloud_msg cloud_msg = {
+		.type = CLOUD_DISCONNECTED,
+	};
 
 	ARG_UNUSED(obj);
 
@@ -441,13 +687,21 @@ static void state_connected_exit(void *obj)
 		LOG_ERR("nrf_cloud_coap_disconnect, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
+
+	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
 }
 
-static void shadow_get(bool delta_only)
+static void shadow_poll(enum shadow_poll_type type)
 {
 	int err;
 	struct cloud_msg msg = {
-		.type = CLOUD_SHADOW_RESPONSE,
+		.type = (type == SHADOW_POLL_DELTA) ? CLOUD_SHADOW_RESPONSE_DELTA : CLOUD_SHADOW_RESPONSE_DESIRED,
 		.response = {
 			.buffer_data_len = sizeof(msg.response.buffer),
 		},
@@ -457,7 +711,7 @@ static void shadow_get(bool delta_only)
 
 	err = nrf_cloud_coap_shadow_get(msg.response.buffer,
 					&msg.response.buffer_data_len,
-					delta_only,
+					(type == SHADOW_POLL_DELTA) ? true : false,
 					COAP_CONTENT_FORMAT_APP_CBOR);
 	if (err == -EACCES) {
 		LOG_WRN("Not connected, error: %d", err);
@@ -480,7 +734,8 @@ static void shadow_get(bool delta_only)
 	}
 
 	if (msg.response.buffer_data_len == 0) {
-		LOG_DBG("No shadow delta changes available");
+		LOG_DBG("Shadow %s section not present",
+			(type == SHADOW_POLL_DELTA) ? "delta" : "desired");
 		return;
 	}
 
@@ -489,13 +744,6 @@ static void shadow_get(bool delta_only)
 	 */
 	if (!memcmp(msg.response.buffer, "\0\0\0\0\0\0\0\0\0\0", 10)) {
 		LOG_WRN("Returned buffeør is empty, ignore");
-		return;
-	}
-
-	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
 		return;
 	}
 
@@ -511,11 +759,19 @@ static void shadow_get(bool delta_only)
 		LOG_ERR("Failed to patch the device shadow, error: %d", err);
 		return;
 	}
+
+	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 }
 
 static void state_connected_ready_entry(void *obj)
 {
 	int err;
+	static bool first = true;
 	struct cloud_msg cloud_msg = {
 		.type = CLOUD_CONNECTED,
 	};
@@ -532,7 +788,17 @@ static void state_connected_ready_entry(void *obj)
 		return;
 	}
 
-	shadow_get(false);
+	/* After an established connection, we poll the entire desired section to get our latest
+	 * configuration. Do this only for the initial connection, not on every
+	 * reconnection.
+	 */
+	if (!first) {
+		return;
+	}
+
+	shadow_poll(SHADOW_POLL_DESIRED);
+
+	first = false;
 }
 
 static void state_connected_ready_run(void *obj)
@@ -676,7 +942,16 @@ static void state_connected_ready_run(void *obj)
 		} else if (msg->type == CLOUD_POLL_SHADOW) {
 			LOG_DBG("Poll shadow trigger received");
 
-			shadow_get(true);
+			/* On shadow poll requests, we only poll for delta changes. This is because
+			 * we have gotten our entire desired section when polling the shadow
+			 * on an established connection.
+			 */
+			shadow_poll(SHADOW_POLL_DELTA);
+		} else if (msg->type == CLOUD_PROVISIONING_REQUEST) {
+			LOG_DBG("Provisioning request received");
+
+			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONING]);
+			return;
 		}
 	}
 }

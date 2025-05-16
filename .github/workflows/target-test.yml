@@ -58,7 +58,7 @@ jobs:
         device: ${{ fromJson(inputs.devices) }}
 
     # Self-hosted runner is labeled according to the device it is linked with
-    runs-on: cia-trd-${{ matrix.device }}
+    runs-on: cia-trd-simen-crap-${{ matrix.device }}
     environment: ${{ matrix.device }}
     name: Target Test - ${{ matrix.device }}
     permissions:
