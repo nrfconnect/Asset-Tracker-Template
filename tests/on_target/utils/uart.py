@@ -216,6 +216,21 @@ class Uart:
                 raise RuntimeError(f"Uart thread stopped, log:\n{self.log}")
             time.sleep(1)
 
+    def wait_for_str_re(self, pattern: str, error_msg: str = "", timeout: int = DEFAULT_WAIT_FOR_STR_TIMEOUT, start_pos: int = 0):
+        start_t = time.time()
+        regex = re.compile(pattern)
+
+        while True:
+            match = regex.search(self.log[start_pos:])
+            if match:
+                # Return the first group if groups exist, else the whole match
+                return match.groups() if match.groups() else match.group(0)
+            if start_t + timeout < time.time():
+                raise AssertionError(f"Pattern '{pattern}' not found in UART log. {error_msg}\n")
+            if self._evt.is_set():
+                raise RuntimeError(f"Uart thread stopped, log:\n{self.log}")
+            time.sleep(1)
+
     def extract_value(self, pattern: str, start_pos: int = 0):
         pattern = re.compile(pattern)
         match = pattern.search(self.log[start_pos:])

@@ -1,5 +1,25 @@
-config-object = {
-    "config": {
-        "update_interval": uint .size 4
-    }
+; Device Shadow Desired Object Definition
+; ---------------------------------------
+; This section defines the structure of the "desired" object in the device shadow.
+; All sections are optional, but if present, they must appear in the specified order when decoding the CBOR buffer.
+;
+; Sections:
+; 1. "config": Contains device configuration parameters.
+;    - "update_interval": (optional) A 4-byte unsigned integer specifying the update interval.
+;    - Additional configuration parameters may be included as key-value pairs (tstr => any).
+;
+; 2. "command": (optional) An array specifying a command for the device to execute.
+;    - Structure: [type, id]
+;      - type: 4-byte unsigned integer indicating the command type.
+;      - id:   4-byte unsigned integer indicating the command ID.
+;
+; Any additional fields may be included as key-value pairs (tstr => any).
+
+desired-object = {
+    ? "config": {
+        ? "update_interval": uint .size 4,
+        * tstr => any
+    },
+    ? "command": [type: uint .size 4, id: uint .size 4],
+    * tstr => any
 }
