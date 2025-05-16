@@ -11,6 +11,7 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <net/nrf_cloud.h>
 #include <net/nrf_cloud_coap.h>
+#include <net/nrf_provisioning.h>
 #include <nrf_cloud_coap_transport.h>
 #include <zephyr/net/coap.h>
 #include <app_version.h>
@@ -79,6 +80,11 @@ ZBUS_CHAN_DEFINE(CLOUD_CHAN,
 
 /* Enumerator to be used in privat cloud channel */
 enum priv_cloud_msg {
+	CLOUD_CONNECTION_FAILED,
+	CLOUD_CONNECTION_SUCCESS,
+	CLOUD_NOT_AUTHENTICATED,
+	CLOUD_PROVISIONING_SUCCESS,
+	CLOUD_PROVISIONING_FAILED,
 	CLOUD_BACKOFF_EXPIRED,
 };
 
@@ -111,6 +117,12 @@ enum cloud_module_state {
 		STATE_CONNECTING,
 			/* The module is trying to connect to cloud */
 			STATE_CONNECTING_ATTEMPT,
+				/* Module is provisioned to nRF Cloud CoAP */
+				STATE_PROVISIONED,
+				/* The module is trying to provision to nRF Cloud CoAP using
+				 * nRF Cloud Provisioning Service
+				 */
+				STATE_PROVISIONING,
 			/* The module is waiting before trying to connect again */
 			STATE_CONNECTING_BACKOFF,
 		/* Cloud connection has been established. Note that because of
@@ -154,6 +166,10 @@ static void state_disconnected_entry(void *obj);
 static void state_disconnected_run(void *obj);
 static void state_connecting_entry(void *obj);
 static void state_connecting_attempt_entry(void *obj);
+static void state_connecting_provisioned_entry(void *obj);
+static void state_connecting_provisioned_run(void *obj);
+static void state_connecting_provisioning_entry(void *obj);
+static void state_connecting_provisioning_run(void *obj);
 static void state_connecting_backoff_entry(void *obj);
 static void state_connecting_backoff_run(void *obj);
 static void state_connecting_backoff_exit(void *obj);
@@ -184,6 +200,17 @@ static const struct smf_state states[] = {
 	[STATE_CONNECTING_ATTEMPT] =
 		SMF_CREATE_STATE(state_connecting_attempt_entry, NULL, NULL,
 				 &states[STATE_CONNECTING],
+				 &states[STATE_PROVISIONED]),
+
+	[STATE_PROVISIONED] =
+		SMF_CREATE_STATE(state_connecting_provisioned_entry, state_connecting_provisioned_run,
+				 NULL,
+				 &states[STATE_CONNECTING_ATTEMPT],
+				 NULL),
+
+	[STATE_PROVISIONING] =
+		SMF_CREATE_STATE(state_connecting_provisioning_entry, state_connecting_provisioning_run, NULL,
+				 &states[STATE_CONNECTING_ATTEMPT],
 				 NULL),
 
 	[STATE_CONNECTING_BACKOFF] =
@@ -220,6 +247,7 @@ static void connect_to_cloud(const struct cloud_state_object *state_object)
 {
 	int err;
 	char buf[NRF_CLOUD_CLIENT_ID_MAX_LEN];
+	enum priv_cloud_msg msg = CLOUD_CONNECTION_FAILED;
 
 	err = nrf_cloud_client_id_get(buf, sizeof(buf));
 	if (err == 0) {
@@ -233,15 +261,25 @@ static void connect_to_cloud(const struct cloud_state_object *state_object)
 
 	err = nrf_cloud_coap_connect(APP_VERSION_STRING);
 	if (err == 0) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
+		LOG_INF("nRF Cloud CoAP connection successful");
 
-		return;
+		msg = CLOUD_CONNECTION_SUCCESS;
+	} else if (err == -EACCES || err == -ENOEXEC) {
+		LOG_WRN("nrf_cloud_coap_connect, error: %d", err);
+		LOG_WRN("nRF Cloud CoAP connection failed, unauthorized");
+
+		msg = CLOUD_NOT_AUTHENTICATED;
+	} else {
+		LOG_WRN("nRF Cloud CoAP connection refused");
+
+		msg = CLOUD_CONNECTION_FAILED;
 	}
 
-	/* Connection failed, retry */
-	LOG_ERR("nrf_cloud_coap_connect, error: %d", err);
-
-	smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
+	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
 }
 
 static uint32_t calculate_backoff_time(uint32_t attempts)
@@ -280,6 +318,81 @@ static void backoff_timer_work_fn(struct k_work *work)
 	}
 }
 
+static void nrf_provisioning_callback(const struct nrf_provisioning_callback_data *event)
+{
+	int err;
+	enum priv_cloud_msg msg = CLOUD_PROVISIONING_SUCCESS;
+	enum network_msg_type nw_msg = NETWORK_DISCONNECT;
+
+	switch (event->type) {
+	case NRF_PROVISIONING_EVENT_NEED_LTE_DEACTIVATED:
+		LOG_WRN("nRF Provisioning requires device to go offline");
+
+		nw_msg = NETWORK_DISCONNECT;
+
+		err = zbus_chan_pub(&NETWORK_CHAN, &nw_msg, K_SECONDS(1));
+		if (err) {
+			LOG_ERR("zbus_chan_pub, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
+
+		return;
+	case NRF_PROVISIONING_EVENT_NEED_LTE_ACTIVATED:
+		LOG_WRN("nRF Provisioning requires device to go online");
+
+		nw_msg = NETWORK_CONNECT;
+
+		err = zbus_chan_pub(&NETWORK_CHAN, &nw_msg, K_SECONDS(1));
+		if (err) {
+			LOG_ERR("zbus_chan_pub, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
+
+		return;
+	case NRF_PROVISIONING_EVENT_DONE:
+		LOG_WRN("Provisioning successful");
+
+		msg = CLOUD_PROVISIONING_SUCCESS;
+		break;
+	case NRF_PROVISIONING_EVENT_FAILED:
+		LOG_ERR("Provisioning failed");
+
+		msg = CLOUD_PROVISIONING_FAILED;
+		break;
+	case NRF_PROVISIONING_EVENT_FAILED_NO_VALID_DATETIME:
+		LOG_ERR("Provisioning failed, no valid datetime reference");
+
+		SEND_FATAL_ERROR();
+		return;
+	case NRF_PROVISIONING_EVENT_FAILED_DEVICE_NOT_CLAIMED:
+		LOG_WRN("Provisioning failed, device not claimed");
+		LOG_WRN("Claim the device using the device's attestation token on nrfcloud.com");
+		LOG_WRN("\r\n\n%.*s.%.*s\r\n", event->token->attest_sz, event->token->attest,
+					       event->token->cose_sz, event->token->cose);
+		msg = CLOUD_PROVISIONING_FAILED;
+		break;
+	case NRF_PROVISIONING_EVENT_FAILED_WRONG_ROOT_CA:
+		LOG_ERR("Provisioning failed, wrong CA certificate");
+
+		SEND_FATAL_ERROR();
+		return;
+	case NRF_PROVISIONING_EVENT_FATAL_ERROR:
+		LOG_ERR("Provisioning error");
+
+		SEND_FATAL_ERROR();
+		return;
+	default:
+		/* Don't care */
+		return;
+	}
+
+	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
 /* State handlers */
 
 static void state_running_entry(void *obj)
@@ -293,6 +406,14 @@ static void state_running_entry(void *obj)
 	err = nrf_cloud_coap_init();
 	if (err) {
 		LOG_ERR("nrf_cloud_coap_init, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+
+	err = nrf_provisioning_init(nrf_provisioning_callback);
+	if (err) {
+		LOG_ERR("nrf_provisioning_init, error: %d", err);
 		SEND_FATAL_ERROR();
 
 		return;
@@ -363,8 +484,96 @@ static void state_connecting_attempt_entry(void *obj)
 	LOG_DBG("%s", __func__);
 
 	state_object->connection_attempts++;
+}
+
+static void state_connecting_provisioned_entry(void *obj)
+{
+	struct cloud_state_object *state_object = obj;
+
+	LOG_DBG("%s", __func__);
 
 	connect_to_cloud(state_object);
+}
+
+static void state_connecting_provisioned_run(void *obj)
+{
+	struct cloud_state_object *state_object = obj;
+
+	LOG_DBG("%s", __func__);
+
+	if (state_object->chan == &PRIV_CLOUD_CHAN) {
+		enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
+
+		if (msg == CLOUD_NOT_AUTHENTICATED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONING]);
+
+			return;
+		}
+
+		if (msg == CLOUD_CONNECTION_SUCCESS) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
+
+			return;
+		} else if (msg == CLOUD_CONNECTION_FAILED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
+
+			return;
+		}
+	}
+}
+
+static void state_connecting_provisioning_entry(void *obj)
+{
+	int err;
+
+	ARG_UNUSED(obj);
+
+	LOG_DBG("%s", __func__);
+
+	err = nrf_provisioning_trigger_manually();
+	if (err) {
+		LOG_ERR("nrf_provisioning_trigger_manually, error: %d", err);
+
+		SEND_FATAL_ERROR();
+		return;
+	}
+}
+
+static void state_connecting_provisioning_run(void *obj)
+{
+	struct cloud_state_object const *state_object = obj;
+
+	if (state_object->chan == &PRIV_CLOUD_CHAN) {
+		enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
+
+		if (msg == CLOUD_PROVISIONING_SUCCESS) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONED]);
+
+			return;
+		} else if (msg == CLOUD_PROVISIONING_FAILED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
+
+			return;
+		}
+	}
+
+	/* Its expected that the device goes online/offline a few times during provisioning.
+	 * Therefore we handle network connected/disconnected events in this state preventing it
+	 * from propagating up the state machine changing the cloud module's connectivity status.
+	 */
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		if (msg.type == NETWORK_DISCONNECTED) {
+			smf_set_handled(SMF_CTX(state_object));
+
+			return;
+	 	} else if (msg.type == NETWORK_CONNECTED) {
+			smf_set_handled(SMF_CTX(state_object));
+
+			return;
+		}
+	}
 }
 
 static void state_connecting_backoff_entry(void *obj)
@@ -375,6 +584,9 @@ static void state_connecting_backoff_entry(void *obj)
 	LOG_DBG("%s", __func__);
 
 	state_object->backoff_time = calculate_backoff_time(state_object->connection_attempts);
+
+	LOG_WRN("Connection attempt failed, backoff time: %u seconds",
+		state_object->backoff_time);
 
 	err = k_work_schedule(&backoff_timer_work, K_SECONDS(state_object->backoff_time));
 	if (err < 0) {
