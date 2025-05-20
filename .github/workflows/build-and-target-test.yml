@@ -27,16 +27,18 @@ jobs:
     outputs:
       devices: ${{ steps.setup.outputs.devices }}
       build_all: ${{ steps.setup.outputs.build_all == 'true' }}
+      push_memory_badges: ${{ steps.setup.outputs.push_memory_badges == 'true' }}
     steps:
       - name: Setup
         id: setup
         run: |
           SCHEDULED=${{ github.event_name == 'schedule' }}
           PUSH=${{ github.event_name == 'push' }}
-          BUILD_ALL=${{ inputs.build_all }}
+          push_memory_badges=false
           if [[ $SCHEDULED == true ]]; then
             devices='["thingy91x","nrf9151dk","ppk_thingy91x"]'
             build_all=true
+            push_memory_badges=true
           elif [[ $PUSH == true ]]; then
             devices='["thingy91x"]'
             build_all=false
@@ -46,8 +48,10 @@ jobs:
           fi
           echo "devices=$devices"
           echo "build_all=$build_all"
+          echo "push_memory_badges=$push_memory_badges"
           echo "devices=$devices" >> $GITHUB_OUTPUT
           echo "build_all=$build_all" >> $GITHUB_OUTPUT
+          echo "push_memory_badges=$push_memory_badges" >> $GITHUB_OUTPUT
   build:
     needs: setup
     uses: ./.github/workflows/build.yml
@@ -67,3 +71,4 @@ jobs:
       artifact_run_id: ${{ needs.build.outputs.run_id }}
       devices: ${{ needs.setup.outputs.devices }}
       test_all: ${{ needs.setup.outputs.build_all == 'true' }}
+      push_memory_badges: ${{ needs.setup.outputs.push_memory_badges == 'true' }}
