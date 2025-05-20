@@ -15,7 +15,7 @@ zephyr_linker_sources(SECTIONS storage_sections.ld)
 
 if(CONFIG_APP_STORAGE_BACKEND_RAM)
 	target_sources(app PRIVATE
-		${CMAKE_CURRENT_SOURCE_DIR}/backends/ram_rb_item_backend.c
+		${CMAKE_CURRENT_SOURCE_DIR}/backends/ram_ring_buffer_backend.c
 	)
 endif()
 

@@ -32,7 +32,7 @@ struct storage_msg {
 	enum storage_msg_type type;
 
 	/* Type of data in buffer */
-	const struct storage_data_type *data_type;
+	enum storage_data_type data_type;
 
 	/* Buffer for data */
 	uint8_t buffer[CONFIG_APP_STORAGE_MSG_BUF_SIZE];

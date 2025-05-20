@@ -13,21 +13,21 @@
 /**
  * @brief Register all enabled data types with the storage module
  *
- * This expands DATA_SOURCE_LIST with STORAGE_DATA_TYPE to register each enabled
+ * This expands DATA_SOURCE_LIST with STORAGE_DATA_TYPE_ADD to register each enabled
  * data source. For example, with CONFIG_APP_POWER enabled, it expands to:
  *
- * STORAGE_DATA_TYPE(battery, POWER_CHAN, struct power_msg, double,
- *                  battery_check, battery_extract)
+ * STORAGE_DATA_TYPE_ADD(battery, POWER_CHAN, struct power_msg, double,
+ *			 battery_check, battery_extract)
  *
  * This creates:
  * 1. Helper functions to process messages:
  *    - battery_should_store(): Filters battery messages
  *    - battery_extract_data(): Extracts battery percentage
- * 2. A storage_data_type struct in the iterable section:
+ * 2. A storage_data struct in the iterable section:
  *    - Links the channel to its processing functions
  *    - Makes the type available to STRUCT_SECTION_FOREACH
  */
-DATA_SOURCE_LIST(STORAGE_DATA_TYPE)
+DATA_SOURCE_LIST(STORAGE_DATA_TYPE_ADD)
 
 /* Power module storage */
 #ifdef CONFIG_APP_POWER

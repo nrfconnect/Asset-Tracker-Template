@@ -112,12 +112,23 @@ static void task_wdt_callback(int channel_id, void *user_data)
 /* Handler for STATE_RUNNING */
 static void state_running_entry(void *o)
 {
+	int err;
+	const struct storage_backend *backend = storage_backend_get();
+
 	ARG_UNUSED(o);
 
 	LOG_DBG("%s", __func__);
+
+	err = backend->init();
+	if (err) {
+		LOG_ERR("Failed to initialize storage backend, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
 }
 
-static void handle_data_message(const struct storage_data_type *type,
+static void handle_data_message(const struct storage_data *type,
 				const uint8_t *buf)
 {
 	int err;
@@ -154,7 +165,7 @@ static void flush_stored_data(void)
 		LOG_ERR("Failed to remove observer from STORAGE_CHAN, error: %d", err);
 	}
 
-	STRUCT_SECTION_FOREACH(storage_data_type, type) {
+	STRUCT_SECTION_FOREACH(storage_data, type) {
 		count = backend->count(type);
 		if (count < 0) {
 			LOG_ERR("Failed to get count for %p, error: %d", type->name, count);
@@ -167,12 +178,12 @@ static void flush_stored_data(void)
 			int ret;
 
 			msg.type = STORAGE_DATA;
-			msg.data_type = type;
+			msg.data_type = type->data_type;
 
 			ret = backend->retrieve(type, data, sizeof(data));
 			if (ret < 0) {
-				LOG_ERR("Failed to retrieve %s data, error: %d",
-					type->name, ret);
+				LOG_ERR("Failed to retrieve %s data, error: %d", type->name, ret);
+
 				break;
 			}
 
@@ -220,8 +231,9 @@ static void state_running_run(void *o)
 	}
 
 	/* Check if message is from a registered data type */
-	STRUCT_SECTION_FOREACH(storage_data_type, type) {
+	STRUCT_SECTION_FOREACH(storage_data, type) {
 		if (state_object->chan == type->chan) {
+			LOG_DBG("Chan: %p, chan name: %s", state_object->chan, state_object->chan->name);
 			handle_data_message(type, state_object->msg_buf);
 
 			return;

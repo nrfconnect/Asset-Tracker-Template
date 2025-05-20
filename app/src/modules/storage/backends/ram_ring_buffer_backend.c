@@ -78,7 +78,7 @@ static struct ram_backend_ctx ctx = {
 	.ring_buf_ptrs = {
 		/* Expands to a list of ring buffer pointers for each data type */
 		DATA_SOURCE_LIST(RAM_RING_BUF_PTR)
-	}
+	},
 };
 
 /**
@@ -90,11 +90,11 @@ static struct ram_backend_ctx ctx = {
  * @param type Storage data type to get index for
  * @return Index into the areas array, or -1 if type not found
  */
-static int get_type_index(const struct storage_data_type *type)
+static int get_type_index(const struct storage_data *type)
 {
 	size_t idx = 0;
 
-	STRUCT_SECTION_FOREACH(storage_data_type, t) {
+	STRUCT_SECTION_FOREACH(storage_data, t) {
 		if (t == type) {
 			return idx;
 		}
@@ -133,8 +133,27 @@ static struct ring_buf *get_ring_buf_ptr(size_t idx)
 static int ram_init(void)
 {
 	/* Count registered types */
-	STRUCT_SECTION_FOREACH(storage_data_type, t) {
+	STRUCT_SECTION_FOREACH(storage_data, t) {
+		int idx = get_type_index(t);
+		struct ring_buf *ring_buf;
+		size_t size;
+
+		if (idx < 0) {
+			LOG_ERR("Failed to get index for %s", t->name);
+			return -EINVAL;
+		}
+
 		ctx.num_registered_types++;
+
+		LOG_DBG("RAM backend initialized with %d types, using %d bytes of RAM",
+			ctx.num_registered_types,
+			(RING_BUF_ITEM_SIZEOF(t->data_size) + RING_BUF_HEADER_SIZE) * RECORDS_PER_TYPE);
+
+		ring_buf = get_ring_buf_ptr(idx);
+		size = ring_buf_capacity_get(ring_buf);
+
+		LOG_DBG("Ring buffer %s initialized with size %u, item size: %u", t->name, size,
+			t->data_size);
 	}
 
 	/* Ensure we don't exceed configured maximum */
@@ -158,13 +177,14 @@ static int ram_init(void)
  *
  * @return 0 on success, negative errno on failure
  */
-static int ram_store(const struct storage_data_type *type, void *data, size_t size)
+static int ram_store(const struct storage_data *type, void *data, size_t size)
 {
 	int err;
 	struct ring_buf *ring_buf;
 	int idx;
 	uint16_t unused_type = 0;
 	uint8_t unused_value = 0;
+	uint8_t size_words = DIV_ROUND_UP(size, sizeof(uint32_t));
 
 	if (!type || !data) {
 		return -EINVAL;
@@ -181,20 +201,28 @@ static int ram_store(const struct storage_data_type *type, void *data, size_t si
 
 	ring_buf = get_ring_buf_ptr(idx);
 
-	if (ring_buf_item_space_get(ring_buf) <= RING_BUF_ITEM_SIZEOF(type->data_size)) {
+	LOG_DBG("idx: %d, ring_buf: %p, data size: %u (%u), free: %u bytes",
+		idx, ring_buf, size, type->data_size, ring_buf_space_get(ring_buf));
+
+	if (ring_buf_item_space_get(ring_buf) < DIV_ROUND_UP(type->data_size, 4)) {
 		uint8_t unused_size = type->data_size;
 
 		LOG_DBG("Full buffer, old data will be overwritten");
+		LOG_DBG("Capacity: %u, free space: %u",
+			ring_buf_capacity_get(ring_buf),
+			ring_buf_item_space_get(ring_buf));
 
 		/* Remove the oldest record in the ring buffer */
 		(void)ring_buf_item_get(ring_buf, &unused_type, &unused_value, NULL, &unused_size);
 	}
 
 	/* Store the data */
-	err = ring_buf_item_put(ring_buf, unused_type, unused_value, data,
-				RING_BUF_ITEM_SIZEOF(size));
+	err = ring_buf_item_put(ring_buf, unused_type, unused_value, data, size_words);
 
-	LOG_DBG("Stored %s item, count: %u", type->name, storage_backend_get()->count(type));
+	LOG_DBG("Stored %s item, count: %u, left: %u bytes, %u items",
+		type->name, storage_backend_get()->count(type),
+		ring_buf_space_get(ring_buf),
+		ring_buf_space_get(ring_buf) / (type->data_size + RING_BUF_HEADER_SIZE * 4));
 
 	/* We should never fail here, as we checked space above */
 	__ASSERT_NO_MSG(err == 0);
@@ -212,7 +240,7 @@ static int ram_store(const struct storage_data_type *type, void *data, size_t si
  * @param size Size of the data buffer in bytes
  * @return Number of bytes read on success, negative errno on failure
  */
-static int ram_retrieve(const struct storage_data_type *type, void *data, size_t size)
+static int ram_retrieve(const struct storage_data *type, void *data, size_t size)
 {
 	int err;
 	size_t bytes_read;
@@ -241,8 +269,8 @@ static int ram_retrieve(const struct storage_data_type *type, void *data, size_t
 
 	bytes_read = size32 * sizeof(uint32_t);
 
-	LOG_DBG("Retrieved item in %s ring buffer, %u left",
-		type->name, storage_backend_get()->count(type));
+	LOG_DBG("Retrieved item in %s ring buffer, size: %u bytes, %u items left",
+		type->name, size, storage_backend_get()->count(type));
 
 	return bytes_read;
 }
@@ -256,7 +284,7 @@ static int ram_retrieve(const struct storage_data_type *type, void *data, size_t
  * @param type Storage data type to count records for
  * @return Number of records on success, negative errno on failure
  */
-static int ram_records_count(const struct storage_data_type *type)
+static int ram_records_count(const struct storage_data *type)
 {
 	int idx;
 	struct ring_buf *ring_buf;
@@ -285,7 +313,7 @@ static int ram_records_count(const struct storage_data_type *type)
 	words_used = capacity_words - words_free;
 
 	/* Calculate the number of items in the ring buffer */
-	item_count = words_used / (RING_BUF_HEADER_SIZE + RING_BUF_ITEM_SIZEOF(type->data_size));
+	item_count = words_used / (RING_BUF_HEADER_SIZE + DIV_ROUND_UP(type->data_size, 4));
 
 	LOG_DBG("Counted %zu items in %s ring buffer", item_count, type->name);
 

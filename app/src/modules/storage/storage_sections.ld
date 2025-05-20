@@ -4,4 +4,4 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-ITERABLE_SECTION_ROM_NUMERIC(storage_data_type, Z_LINK_ITERABLE_SUBALIGN)
+ITERABLE_SECTION_ROM_NUMERIC(storage_data, Z_LINK_ITERABLE_SUBALIGN)

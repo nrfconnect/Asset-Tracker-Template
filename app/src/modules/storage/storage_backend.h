@@ -35,7 +35,7 @@ struct storage_backend {
  * @param size Size of the data in bytes
  * @return 0 on success, negative errno on failure
  */
-int (*store)(const struct storage_data_type *type, void *data, size_t size);
+int (*store)(const struct storage_data *type, void *data, size_t size);
 
 /**
  * @brief Retrieve data from the backend.
@@ -45,7 +45,7 @@ int (*store)(const struct storage_data_type *type, void *data, size_t size);
  * @param size Size of the buffer
  * @return Number of bytes read on success, negative errno on failure
  */
-int (*retrieve)(const struct storage_data_type *type, void *data, size_t size);
+int (*retrieve)(const struct storage_data *type, void *data, size_t size);
 
 /**
  * @brief Get number of records of a specific type.
@@ -53,7 +53,7 @@ int (*retrieve)(const struct storage_data_type *type, void *data, size_t size);
  * @param type Storage data type to count
  * @return Number of records, negative errno on failure
  */
-int (*count)(const struct storage_data_type *type);
+int (*count)(const struct storage_data *type);
 
 	/**
 	 * @brief Clear all stored data.
