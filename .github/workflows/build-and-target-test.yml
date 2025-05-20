@@ -8,8 +8,8 @@ on:
         type: boolean
         required: true
         default: false
-      boards:
-        description: Boards to test, json list
+      devices:
+        description: Devices to test, json list
         type: string
         required: true
         default: '[\"thingy91x\"]'
@@ -25,7 +25,7 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     outputs:
-      boards: ${{ steps.setup.outputs.boards }}
+      devices: ${{ steps.setup.outputs.devices }}
       build_all: ${{ steps.setup.outputs.build_all == 'true' }}
     steps:
       - name: Setup
@@ -35,18 +35,18 @@ jobs:
           PUSH=${{ github.event_name == 'push' }}
           BUILD_ALL=${{ inputs.build_all }}
           if [[ $SCHEDULED == true ]]; then
-            boards='["thingy91x","nrf9151dk","ppk_thingy91x"]'
+            devices='["thingy91x","nrf9151dk","ppk_thingy91x"]'
             build_all=true
           elif [[ $PUSH == true ]]; then
-            boards='["thingy91x"]'
+            devices='["thingy91x"]'
             build_all=false
           else
-            boards=${{ inputs.boards }}
+            devices=${{ inputs.devices }}
             build_all=${{ inputs.build_all }}
           fi
-          echo "boards=$boards"
+          echo "devices=$devices"
           echo "build_all=$build_all"
-          echo "boards=$boards" >> $GITHUB_OUTPUT
+          echo "devices=$devices" >> $GITHUB_OUTPUT
           echo "build_all=$build_all" >> $GITHUB_OUTPUT
   build:
     needs: setup
@@ -65,5 +65,5 @@ jobs:
     with:
       artifact_fw_version: ${{ needs.build.outputs.version }}
       artifact_run_id: ${{ needs.build.outputs.run_id }}
-      devices: ${{ needs.setup.outputs.boards }}
+      devices: ${{ needs.setup.outputs.devices }}
       test_all: ${{ needs.setup.outputs.build_all == 'true' }}
