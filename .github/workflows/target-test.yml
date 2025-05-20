@@ -22,6 +22,11 @@ on:
         type: string
         required: true
         default: '[\"thingy91x\"]'
+      push_memory_badges:
+        type: boolean
+        required: false
+        default: false
+
 
   workflow_dispatch:
     inputs:
