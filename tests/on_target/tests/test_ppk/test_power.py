@@ -119,8 +119,12 @@ def thingy91x_ppk2():
 
     ppk2_dev = PPK2_API(ppk2_port, timeout=1, write_timeout=1, exclusive=True)
 
+    ppk2_dev.set_source_voltage(3300)
+    ppk2_dev.use_ampere_meter()  # set ampere meter mode
+    ppk2_dev.toggle_DUT_power("ON")  # enable DUT power
+
     # get modifier might fail, retry 15 times
-    for _ in range(15):
+    for _ in range(30):
         try:
             ppk2_dev.get_modifiers()
             break
@@ -128,14 +132,7 @@ def thingy91x_ppk2():
             logger.error(f"Failed to get modifiers: {e}")
             time.sleep(5)
     else:
-        pytest.skip("Failed to get ppk modifiers after 10 attempts")
-
-    ppk2_dev.use_ampere_meter()  # set ampere meter mode
-    ppk2_dev.set_source_voltage(3300)
-    ppk2_dev.toggle_DUT_power("OFF")  # disable DUT power
-    time.sleep(2)
-    ppk2_dev.toggle_DUT_power("ON")  # enable DUT power
-    ppk2_dev.start_measuring()
+        pytest.skip("Failed to get ppk modifiers after 30 attempts")
 
     time.sleep(10)
     for _ in range(10):
@@ -173,6 +170,8 @@ def test_power(thingy91x_ppk2, hex_file):
     '''
     flash_device(os.path.abspath(hex_file), serial=SEGGER)
     reset_device(serial=SEGGER)
+    thingy91x_ppk2.ppk2_dev.start_measuring()
+
     try:
         thingy91x_ppk2.t91x_uart.wait_for_str("Connected to Cloud", timeout=120)
     except AssertionError:
