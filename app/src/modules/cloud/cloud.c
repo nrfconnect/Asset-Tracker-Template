@@ -24,6 +24,7 @@
 #include "cloud.h"
 #include "app_common.h"
 #include "network.h"
+#include "storage.h"
 
 #if defined(CONFIG_APP_POWER)
 #include "power.h"
@@ -584,6 +585,38 @@ static void state_connected_ready_run(void *obj)
 
 		default:
 			break;
+		}
+	}
+
+	if (state_object->chan == &STORAGE_CHAN) {
+		struct storage_msg msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+
+		if (msg.type == STORAGE_DATA) {
+			/* Determine what type of data is being sent */
+			switch (msg.data_type) {
+			case STORAGE_TYPE_BATTERY: {
+				double battery_level = *(double *)msg.buffer;
+
+				err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_BATTERY,
+								 battery_level,
+								 NRF_CLOUD_NO_TIMESTAMP,
+								 confirmable);
+				if (err == -ENETUNREACH) {
+					LOG_WRN("Network is unreachable, error: %d", err);
+					return;
+				} else if (err) {
+					LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+					SEND_FATAL_ERROR();
+					return;
+				}
+				break;
+			}
+			default:
+				LOG_WRN("Unhandled data type: %d", msg.data_type);
+				break;
+			}
+
+			return;
 		}
 	}
 

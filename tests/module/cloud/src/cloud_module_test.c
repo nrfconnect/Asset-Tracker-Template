@@ -15,12 +15,16 @@
 #include <zephyr/net/coap.h>
 #include <zephyr/net/coap_client.h>
 #include <zephyr/zbus/zbus.h>
+#include <date_time.h>
 
 #include "environmental.h"
 #include "cloud.h"
+#include "cloud_codec.h"
 #include "power.h"
 #include "network.h"
 #include "app_common.h"
+#include "storage.h"
+#include "expected_environmental_cbor.h"
 
 DEFINE_FFF_GLOBALS;
 
@@ -46,6 +50,13 @@ ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0)
 );
+ZBUS_CHAN_DEFINE(STORAGE_CHAN,
+		 struct storage_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
 
 FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
@@ -62,6 +73,7 @@ FAKE_VALUE_FUNC(int, nrf_cloud_coap_patch, const char *, const char *,
 		const uint8_t *, size_t,
 		enum coap_content_format, bool,
 		coap_client_response_cb_t, void *);
+FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
 
 /* Forward declarations */
 static void dummy_cb(const struct zbus_channel *chan);
@@ -88,6 +100,13 @@ static int nrf_cloud_client_id_get_custom_fake(char *buf, size_t len)
 	TEST_ASSERT(len >= sizeof(FAKE_DEVICE_ID));
 	memcpy(buf, FAKE_DEVICE_ID, sizeof(FAKE_DEVICE_ID));
 
+	return 0;
+}
+
+/* Custom fake for date_time_now that sets a fixed timestamp */
+static int date_time_now_custom_fake(int64_t *time_ms)
+{
+	*time_ms = 1621500000000; /* Fixed timestamp for May 20, 2025 */
 	return 0;
 }
 
@@ -123,8 +142,10 @@ void setUp(void)
 	RESET_FAKE(nrf_cloud_client_id_get);
 	RESET_FAKE(nrf_cloud_coap_json_message_send);
 	RESET_FAKE(nrf_cloud_coap_connect);
+	RESET_FAKE(date_time_now);
 
 	nrf_cloud_client_id_get_fake.custom_fake = nrf_cloud_client_id_get_custom_fake;
+	date_time_now_fake.custom_fake = date_time_now_custom_fake;
 
 	/* Clear all channels */
 	zbus_sub_wait(&location, &chan, K_NO_WAIT);
@@ -255,6 +276,81 @@ void test_connected_disconnected_to_connected_send_payload(void)
 				     msg.payload.buffer, msg.payload.buffer_data_len));
 	TEST_ASSERT_EQUAL(false, nrf_cloud_coap_json_message_send_fake.arg1_val);
 	TEST_ASSERT_EQUAL(false, nrf_cloud_coap_json_message_send_fake.arg2_val);
+}
+
+void test_codec_encode_environmental_data_single(void)
+{
+	int err;
+	struct environmental_msg env_sample = {
+		.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE,
+		.temperature = 20.0f,
+		.humidity = 50.0f,
+		.pressure = 100.0f,
+	};
+	uint8_t payload[128];
+	size_t payload_len = sizeof(payload);
+	size_t payload_out_len;
+
+	err = encode_environmental_sample(payload, payload_len, &payload_out_len, &env_sample, 0);
+
+	TEST_ASSERT_EQUAL(0, err);
+	TEST_ASSERT_EQUAL(payload_out_len, expected_environmental_single_cbor_len);
+
+	/* Test single sample encoding with null parameters */
+	err = encode_environmental_sample(NULL, payload_len, &payload_out_len, &env_sample, 0);
+	TEST_ASSERT_EQUAL(-EINVAL, err);
+
+	err = encode_environmental_sample(payload, payload_len, NULL, &env_sample, 0);
+	TEST_ASSERT_EQUAL(-EINVAL, err);
+
+	err = encode_environmental_sample(payload, payload_len, &payload_out_len, NULL, 0);
+	TEST_ASSERT_EQUAL(-EINVAL, err);
+}
+
+/* Test the environmental data encoding functions */
+void test_codec_encode_environmental_data_array(void)
+{
+	int err;
+	/* Create test environmental data */
+	struct environmental_msg env_samples[33];
+	uint8_t payload[4096];
+	size_t payload_len = sizeof(payload);
+	size_t payload_out_len;
+
+	for (int i = 0; i < 33; i++) {
+		env_samples[i].type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE;
+		env_samples[i].temperature = 20.0f + i;
+		env_samples[i].humidity = 50.0f + i;
+		env_samples[i].pressure = 100.0f + i;
+	};
+
+	/* Test encoding array of samples */
+	err = encode_environmental_data_array(
+		payload, payload_len, &payload_out_len, env_samples, ARRAY_SIZE(env_samples));
+
+	TEST_ASSERT_EQUAL(0, err);
+	TEST_ASSERT_EQUAL(payload_out_len, expected_environmental_cbor_len);
+
+	/* Check that the output matches the expected CBOR */
+	TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_environmental_cbor, payload, payload_out_len);
+
+	/* Test encoding with null parameters */
+	err = encode_environmental_data_array(NULL, payload_len, &payload_out_len, env_samples, 2);
+	TEST_ASSERT_EQUAL(-EINVAL, err);
+
+	err = encode_environmental_data_array(payload, payload_len, NULL, env_samples, 2);
+	TEST_ASSERT_EQUAL(-EINVAL, err);
+
+	err = encode_environmental_data_array(payload, payload_len, &payload_out_len, NULL, 2);
+	TEST_ASSERT_EQUAL(-EINVAL, err);
+
+	err = encode_environmental_data_array(
+		payload, payload_len, &payload_out_len, env_samples, 0);
+	TEST_ASSERT_EQUAL(-EINVAL, err);
+
+	/* Test encoding with buffer too small */
+	err = encode_environmental_data_array(payload, 10, &payload_out_len, env_samples, 2);
+	TEST_ASSERT_EQUAL(-EIO, err);
 }
 
 /* This is required to be added to each test. That is because unity's
