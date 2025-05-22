@@ -15,8 +15,6 @@
 LOG_MODULE_DECLARE(storage, CONFIG_APP_STORAGE_LOG_LEVEL);
 
 #define RECORDS_PER_TYPE	CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE
-/* 1 word for the header of a ring buffer item */
-#define RING_BUF_HEADER_SIZE	1
 
 /**
  * @brief Macro to declare a ring buffer for a specific data type
@@ -25,7 +23,6 @@ LOG_MODULE_DECLARE(storage, CONFIG_APP_STORAGE_LOG_LEVEL);
  * For each data type in DATA_SOURCE_LIST, it declares a ring buffer with:
  * - Name: <type_name>_ring_buf (e.g., battery_ring_buf)
  * - Size: Calculated to hold RECORDS_PER_TYPE items of the data type's size
- *        plus header space for each item
  *
  * @param _name Name of the data type (e.g., battery)
  * @param _c Channel parameter (unused in this macro)
@@ -35,8 +32,7 @@ LOG_MODULE_DECLARE(storage, CONFIG_APP_STORAGE_LOG_LEVEL);
  * @param _efn Extract function parameter (unused in this macro)
  */
 #define RAM_RING_BUF_ADD(_name, _c, _m, _data_type, _cfn, _efn) 				\
-	RING_BUF_ITEM_DECLARE(_name ## _ring_buf,               				\
-		((RING_BUF_ITEM_SIZEOF(_data_type) + RING_BUF_HEADER_SIZE) * RECORDS_PER_TYPE));
+	RING_BUF_DECLARE(_name ## _ring_buf, (sizeof(_data_type) * RECORDS_PER_TYPE));
 
 /**
  * @brief Macro to create a pointer to a ring buffer
@@ -147,7 +143,7 @@ static int ram_init(void)
 
 		LOG_DBG("RAM backend initialized with %d types, using %d bytes of RAM",
 			ctx.num_registered_types,
-			(RING_BUF_ITEM_SIZEOF(t->data_size) + RING_BUF_HEADER_SIZE) * RECORDS_PER_TYPE);
+			sizeof(t->data_size) * RECORDS_PER_TYPE);
 
 		ring_buf = get_ring_buf_ptr(idx);
 		size = ring_buf_capacity_get(ring_buf);
@@ -179,12 +175,9 @@ static int ram_init(void)
  */
 static int ram_store(const struct storage_data *type, void *data, size_t size)
 {
-	int err;
 	struct ring_buf *ring_buf;
 	int idx;
-	uint16_t unused_type = 0;
-	uint8_t unused_value = 0;
-	uint8_t size_words = DIV_ROUND_UP(size, sizeof(uint32_t));
+	uint32_t bytes_written;
 
 	if (!type || !data) {
 		return -EINVAL;
@@ -204,30 +197,32 @@ static int ram_store(const struct storage_data *type, void *data, size_t size)
 	LOG_DBG("idx: %d, ring_buf: %p, data size: %u (%u), free: %u bytes",
 		idx, ring_buf, size, type->data_size, ring_buf_space_get(ring_buf));
 
-	if (ring_buf_item_space_get(ring_buf) < DIV_ROUND_UP(type->data_size, 4)) {
-		uint8_t unused_size = type->data_size;
-
+	/* Check if we need to remove old data to make space */
+	if (ring_buf_space_get(ring_buf) < size) {
 		LOG_DBG("Full buffer, old data will be overwritten");
-		LOG_DBG("Capacity: %u, free space: %u",
-			ring_buf_capacity_get(ring_buf),
-			ring_buf_item_space_get(ring_buf));
 
 		/* Remove the oldest record in the ring buffer */
-		(void)ring_buf_item_get(ring_buf, &unused_type, &unused_value, NULL, &unused_size);
+		bytes_written = ring_buf_get(ring_buf, NULL, type->data_size);
+		if (bytes_written != type->data_size) {
+			LOG_ERR("Failed to discard oldest record data");
+			return -EIO;
+		}
+
+		LOG_DBG("Removed oldest record of size %u", type->data_size);
 	}
 
-	/* Store the data */
-	err = ring_buf_item_put(ring_buf, unused_type, unused_value, data, size_words);
+	/* Store the actual data */
+	bytes_written = ring_buf_put(ring_buf, data, size);
+	if (bytes_written != size) {
+		LOG_ERR("Failed to write all data");
+		return -EIO;
+	}
 
-	LOG_DBG("Stored %s item, count: %u, left: %u bytes, %u items",
+	LOG_DBG("Stored %s item, count: %u, left: %u bytes",
 		type->name, storage_backend_get()->count(type),
-		ring_buf_space_get(ring_buf),
-		ring_buf_space_get(ring_buf) / (type->data_size + RING_BUF_HEADER_SIZE * 4));
+		ring_buf_space_get(ring_buf));
 
-	/* We should never fail here, as we checked space above */
-	__ASSERT_NO_MSG(err == 0);
-
-	return err;
+	return 0;
 }
 
 /**
@@ -242,13 +237,9 @@ static int ram_store(const struct storage_data *type, void *data, size_t size)
  */
 static int ram_retrieve(const struct storage_data *type, void *data, size_t size)
 {
-	int err;
 	size_t bytes_read;
 	struct ring_buf *ring_buf;
 	int idx;
-	uint16_t unused_type;
-	uint8_t unused_value;
-	uint8_t size32 = size / sizeof(uint32_t);
 
 	if (!type || !data) {
 		return -EINVAL;
@@ -261,16 +252,25 @@ static int ram_retrieve(const struct storage_data *type, void *data, size_t size
 
 	ring_buf = get_ring_buf_ptr(idx);
 
-	err = ring_buf_item_get(ring_buf, &unused_type, &unused_value, data, &size32);
-	if (err) {
-		LOG_ERR("Failed to retrieve data: %d", err);
-		return err;
+	if (ring_buf_is_empty(ring_buf)) {
+		return -EAGAIN;
 	}
 
-	bytes_read = size32 * sizeof(uint32_t);
+	/* Ensure buffer is large enough */
+	if (type->data_size > size) {
+		LOG_ERR("Buffer too small for data: needed %u, have %u", type->data_size, size);
+		return -ENOMEM;
+	}
+
+	/* Read the data */
+	bytes_read = ring_buf_get(ring_buf, data, type->data_size);
+	if (bytes_read != type->data_size) {
+		LOG_ERR("Failed to read data: expected %u bytes, got %u", type->data_size, bytes_read);
+		return -EIO;
+	}
 
 	LOG_DBG("Retrieved item in %s ring buffer, size: %u bytes, %u items left",
-		type->name, size, storage_backend_get()->count(type));
+		type->name, bytes_read, storage_backend_get()->count(type));
 
 	return bytes_read;
 }
@@ -288,9 +288,7 @@ static int ram_records_count(const struct storage_data *type)
 {
 	int idx;
 	struct ring_buf *ring_buf;
-	size_t capacity_words;
-	size_t words_used;
-	size_t words_free;
+	size_t bytes_used;
 	size_t item_count;
 
 	if (!type) {
@@ -308,14 +306,13 @@ static int ram_records_count(const struct storage_data *type)
 		return 0;
 	}
 
-	words_free = ring_buf_item_space_get(ring_buf);
-	capacity_words = ring_buf_capacity_get(ring_buf) / 4;
-	words_used = capacity_words - words_free;
+	/* Calculate bytes used (total capacity minus available space) */
+	bytes_used = ring_buf_capacity_get(ring_buf) - ring_buf_space_get(ring_buf);
 
-	/* Calculate the number of items in the ring buffer */
-	item_count = words_used / (RING_BUF_HEADER_SIZE + DIV_ROUND_UP(type->data_size, 4));
+	/* Calculate the number of items (bytes used divided by the size of each item) */
+	item_count = bytes_used / type->data_size;
 
-	LOG_DBG("Counted %zu items in %s ring buffer", item_count, type->name);
+	LOG_DBG("Counted %u items in %s ring buffer", item_count, type->name);
 
 	return item_count;
 }
