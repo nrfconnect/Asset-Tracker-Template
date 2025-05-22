@@ -209,6 +209,7 @@ jobs:
           short_board: thingy91x
           version: ${{ env.VERSION }}-patched
           path: asset-tracker-template/app
+          patched: true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

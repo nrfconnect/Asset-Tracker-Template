@@ -35,6 +35,10 @@ inputs:
     type: boolean
     required: false
     default: false
+  patched:
+    type: boolean
+    required: false
+    default: false
 
 runs:
   using: "composite"
@@ -66,6 +70,10 @@ runs:
             -d build \
             -p --sysbuild \
             -- -DEXTRA_CONF_FILE="$(pwd)/../examples/modules/cloud/overlay-mqtt.conf" 2>&1 | tee ../../artifacts/build_output_${{ inputs.short_board }}_mqtt.log
+        elif [[ "${{ inputs.patched }}" == "true" ]]; then
+          west build -b ${{ inputs.board }} \
+            -d build \
+            -p --sysbuild 2>&1 | tee ../../artifacts/build_output_${{ inputs.short_board }}_patched.log
         else
           west build -b ${{ inputs.board }} \
             -d build \
