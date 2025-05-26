@@ -22,11 +22,6 @@ on:
         type: string
         required: true
         default: '[\"thingy91x\"]'
-      push_memory_badges:
-        type: boolean
-        required: false
-        default: false
-
 
   workflow_dispatch:
     inputs:
@@ -53,11 +48,6 @@ on:
         type: string
         required: true
         default: '[\"thingy91x\"]'
-      push_memory_badges:
-        description: Whether or not to parse thingy91x build log and push memory badges
-        type: boolean
-        required: false
-        default: false
 
 jobs:
   target_test:
@@ -124,14 +114,6 @@ jobs:
               upload-mcu-symbols \
               --check-uploaded \
               asset-tracker-template-${{ inputs.artifact_fw_version }}-debug-${{ vars.DUT_DEVICE_TYPE }}-nrf91.elf
-
-      - name: Generate and Push RAM and FLASH Badges
-        if: ${{ matrix.device == 'thingy91x' && inputs.push_memory_badges }}
-        continue-on-error: true
-        working-directory: asset-tracker-template
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./tests/on_target/scripts/update_memory_badges.sh tests/on_target/artifacts/build_output_thingy91x.log
 
       - name: Target Tests
         working-directory: asset-tracker-template/tests/on_target
