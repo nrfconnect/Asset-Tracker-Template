@@ -58,6 +58,7 @@ jobs:
     secrets: inherit
     with:
       build_all: ${{ needs.setup.outputs.build_all == 'true' }}
+      push_memory_badges: ${{ needs.setup.outputs.push_memory_badges == 'true' }}
   test:
     permissions:
       actions: read
@@ -71,4 +72,3 @@ jobs:
       artifact_run_id: ${{ needs.build.outputs.run_id }}
       devices: ${{ needs.setup.outputs.devices }}
       test_all: ${{ needs.setup.outputs.build_all == 'true' }}
-      push_memory_badges: ${{ needs.setup.outputs.push_memory_badges == 'true' }}

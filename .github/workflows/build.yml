@@ -13,6 +13,11 @@ on:
         type: boolean
         required: false
         default: false
+      push_memory_badges:
+        description: Whether to parse thingy91x build log and push memory badges
+        type: boolean
+        required: false
+        default: false
   workflow_call:
     inputs:
       memfault_fw_type:
@@ -24,6 +29,10 @@ on:
         required: false
         default: false
       build_all:
+        type: boolean
+        required: false
+        default: false
+      push_memory_badges:
         type: boolean
         required: false
         default: false
@@ -130,6 +139,27 @@ jobs:
           short_board: thingy91x
           version: ${{ env.VERSION }}
           path: asset-tracker-template/app
+          push_memory_badges: ${{ inputs.push_memory_badges }}
+
+      - name: Generate Memory Reports and Visualizations
+        if: ${{ inputs.push_memory_badges }}
+        continue-on-error: true
+        working-directory: asset-tracker-template
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Install required packages
+          pip install pandas plotly --break-system-packages
+          
+          # Generate sunburst charts first
+          python3 scripts/sunburst_from_mem_report.py ../artifacts/rom_report_thingy91x.json
+          python3 scripts/sunburst_from_mem_report.py ../artifacts/ram_report_thingy91x.json
+          
+          # Generate badges, history plots, and push everything to gh-pages
+          ./tests/on_target/scripts/update_memory_badges.sh \
+              ../artifacts/build_output_thingy91x.log \
+              ../artifacts/rom_report_thingy91x.html \
+              ../artifacts/ram_report_thingy91x.html
 
       - name: Build (old) thingy91 firmware
         if: ${{ inputs.build_all }}

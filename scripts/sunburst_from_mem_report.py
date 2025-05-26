@@ -34,6 +34,9 @@ def create_sunburst_from_json(json_path, output_html=None):
     records = flatten(root)
     df = pd.DataFrame(records)
 
+    # Determine if it's RAM or ROM from filename
+    memory_type = "RAM" if "ram" in json_path.lower() else "ROM"
+
     # Create sunburst chart with children filling full parent
     fig = px.sunburst(
         df,
@@ -41,10 +44,10 @@ def create_sunburst_from_json(json_path, output_html=None):
         names='label',
         parents='parent',
         values='value',
-        title='Memory Usage Sunburst',
+        title=f'{memory_type} Memory Usage Sunburst',
         branchvalues='total'  # ensure children sum to full parent
     )
-    fig.update_layout(margin=dict(t=30, l=0, r=0, b=0))
+    fig.update_layout(margin=dict(t=80, l=0, r=0, b=0))
 
     if output_html:
         fig.write_html(output_html, include_plotlyjs='cdn', full_html=True)

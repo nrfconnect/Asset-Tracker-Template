@@ -39,6 +39,10 @@ inputs:
     type: boolean
     required: false
     default: false
+  push_memory_badges:
+    type: boolean
+    required: false
+    default: false
 
 runs:
   using: "composite"
@@ -78,12 +82,19 @@ runs:
           west build -b ${{ inputs.board }} \
             -d build \
             -p --sysbuild 2>&1 | tee ../../artifacts/build_output_${{ inputs.short_board }}.log
+          if [[ "${{ inputs.short_board }}" == "thingy91x" ]]; then
+            if [[ "${{ inputs.push_memory_badges }}" == "true" ]]; then
+              west build -d build/app -t rom_report
+              west build -d build/app -t ram_report
+              cp build/app/rom.json ../../artifacts/rom_report_${{ inputs.short_board }}.json
+              cp build/app/ram.json ../../artifacts/ram_report_${{ inputs.short_board }}.json
+            fi
+          fi
         fi
 
     - name: Copy artifacts
       shell: bash
       run: |
-        mkdir -p artifacts
         cp ${{ inputs.path }}/build/merged.hex \
           artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-nrf91.hex
         cp ${{ inputs.path }}/build/app/zephyr/.config \
