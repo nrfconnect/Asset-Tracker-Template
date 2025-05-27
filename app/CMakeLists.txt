@@ -13,6 +13,9 @@ project("Asset Tracker Template")
 zephyr_include_directories(src/common)
 zephyr_include_directories(config)
 
+if(CONFIG_APP_NTN_MODE)
+	add_subdirectory(src/modules/ntn)
+else()
 # Add main application source
 target_sources(app PRIVATE src/main.c)
 
@@ -29,3 +32,4 @@ add_subdirectory_ifdef(CONFIG_APP_LOCATION src/modules/location)
 add_subdirectory_ifdef(CONFIG_APP_CLOUD src/modules/cloud)
 add_subdirectory_ifdef(CONFIG_APP_FOTA src/modules/fota)
 add_subdirectory_ifdef(CONFIG_APP_STORAGE src/modules/storage)
+endif()

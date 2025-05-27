@@ -1,0 +1,155 @@
+# Copyright (c) 2025 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+
+menuconfig APP_NTN
+	bool "NTN"
+	default y if APP_NTN_MODE
+
+if APP_NTN
+
+config APP_NTN_THREAD_STACK_SIZE
+	int "NTN module thread stack size"
+	default 8192
+
+config APP_NTN_BANDLOCK_ENABLE
+	bool "Enable NTN band lock"
+	help
+	  Enable band lock for NTN mode.
+
+if APP_NTN_BANDLOCK_ENABLE
+
+config APP_NTN_BANDLOCK
+	int "NTN band to lock to"
+	default 265
+	help
+	  Band number to lock NTN mode to.
+
+endif # APP_NTN_BANDLOCK_ENABLE
+
+config APP_NTN_CHANNEL_SELECT_ENABLE
+	bool "Enable NTN channel select"
+	help
+	  Enable channel selection for NTN mode.
+
+if APP_NTN_CHANNEL_SELECT_ENABLE
+
+config APP_NTN_CHANNEL_SELECT
+	int "NTN channel to select"
+	default 1
+	help
+	  Channel number to select in NTN mode.
+
+endif # APP_NTN_CHANNEL_SELECT_ENABLE
+
+config APP_NTN_APN_ENABLE
+	bool "Enable NTN APN select"
+	help
+	  Enable APN selection for NTN mode.
+
+if APP_NTN_APN_ENABLE
+
+config APP_NTN_APN
+	string "NTN APN"
+	default ""
+	help
+	  Access Point Name (APN) for NTN connection.
+	  Leave empty to use default APN.
+endif # APP_NTN_APN_ENABLE
+
+config APP_NTN_COPS_ENABLE
+	bool "Enable NTN PLMN select"
+	help
+	  Enable mobile network selection for NTN mode.
+
+if APP_NTN_COPS_ENABLE
+
+config APP_NTN_COPS
+	string "NTN PLMN"
+	default ""
+	help
+	  PLMN for NTN connection.
+
+endif # APP_NTN_COPS_ENABLE
+
+config APP_NTN_DISABLE_EPCO
+	bool "Disable ePCO"
+	help
+	  Disable ePCO.
+
+config APP_NTN_SERVER_ADDR
+	string "NTN server address"
+	default ""
+	help
+	  IP address of the NTN server to connect to.
+
+config APP_NTN_SERVER_PORT
+	int "NTN server port"
+	default 0
+	help
+	  Port number of the NTN server to connect to.
+
+config APP_NTN_LEO
+	bool "Enable LEO NTN"
+	help
+	  Enable LEO NTN.
+
+if APP_NTN_LEO
+
+config APP_NTN_LEO_TIME_OF_PASS
+	string "Time of pass of LEO satellite (UTC)"
+	default "2025-09-29-10:20:00"
+	help
+	  Pre-provision ATT with time of pass in UTC using format: YYYY-MM-DD HH:mm:ss
+	  Example: 2025-09-29 12:00:00 for September 29, 2025 12:00:00 UTC
+
+endif # APP_NTN_LEO
+
+config APP_NTN_THINGY_ROCKS_ENDPOINT
+	bool "Use world.thingy.rocks endpoint"
+	default y
+	help
+	  Use world.thingy.rocks endpoint.
+
+config APP_NTN_TIMER_GNSS_VALUE_SECONDS
+	int "Timer value for GNSS activation"
+	default 300
+	help
+	  Timer value for GNSS activation
+
+config APP_NTN_TIMER_NTN_VALUE_SECONDS
+	int "Timer value for NTN activation"
+	default 20
+	help
+	  Timer value for NTN activation
+
+config APP_NTN_CELLULARPRFL_ENABLE
+	bool "Enable setting of cellular profiles"
+	help
+	  Enable setting of cellular profiles.
+
+config APP_NTN_WATCHDOG_TIMEOUT_SECONDS
+	int "NTN module watchdog timeout in seconds"
+	default 300
+	help
+	  If the NTN module thread is stuck for this amount of time,
+	  the device will reset.
+
+config APP_NTN_MSG_PROCESSING_TIMEOUT_SECONDS
+	int "Maximum time in seconds allowed for processing a single message"
+	default 240
+	help
+	  Maximum time allowed for processing a single message in the NTN module.
+	  Must be less than APP_NTN_WATCHDOG_TIMEOUT_SECONDS.
+
+config APP_NTN_SEND_1200_BYTES
+	bool "Send 1200 bytes"
+	default n
+	help
+	  Send big amount of data.
+
+module = APP_NTN
+module-str = NTN
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # APP_NTN
