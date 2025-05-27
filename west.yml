@@ -9,10 +9,12 @@ manifest:
   remotes:
     - name: ncs
       url-base: https://github.com/nrfconnect
+    - name: gide-remote
+      url-base: https://github.com/DematteisGiacomo
 
   projects:
     - name: nrf
-      remote: ncs
+      remote:  gide-remote
       repo-path: sdk-nrf
-      revision: 810b478aacde5d612130c32c9f0be52ca49aee2a
+      revision: lte_lc_send_cereg_always
       import: true
