@@ -47,6 +47,12 @@ config APP_MSG_PROCESSING_TIMEOUT_SECONDS
 	  Maximum time allowed for processing a single message in the module's state machine.
 	  The value must be smaller than CONFIG_APP_WATCHDOG_TIMEOUT_SECONDS.
 
+config APP_NTN_MODE
+	bool "Enable NTN mode"
+	default false
+	help
+	  Use Non-Terrestrial Network (NTN) for data transmission.
+
 module = APP
 module-str = APP
 source "subsys/logging/Kconfig.template.log_config"
