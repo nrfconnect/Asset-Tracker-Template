@@ -1,223 +1,163 @@
-# Asset Tracker Template
+# Asset Tracker Template - LEO usecase
 
-<table>
-  <tr>
-    <th>Project</th>
-    <td>
-      <a href="https://github.com/nrfconnect/Asset-Tracker-Template/releases"><img src="https://img.shields.io/github/v/release/nrfconnect/Asset-Tracker-Template" alt="Release"></a>
-      <a href="https://sonarcloud.io/dashboard?id=nrfconnect_Asset-Tracker-Template"><img src="https://sonarcloud.io/api/project_badges/measure?project=nrfconnect_Asset-Tracker-Template&metric=alert_status" alt="Quality Gate"></a>
-      <a href="https://sonarcloud.io/dashboard?id=nrfconnect_Asset-Tracker-Template"><img src="https://sonarcloud.io/api/project_badges/measure?project=nrfconnect_Asset-Tracker-Template&metric=coverage" alt="Coverage"></a>
-    </td>
-  </tr>
-  <tr>
-    <th>CI</th>
-    <td>
-      <a href="https://github.com/nrfconnect/Asset-Tracker-Template/actions/workflows/build-and-target-test.yml?query=branch%3Amain+event%3Apush"><img src="https://img.shields.io/github/actions/workflow/status/nrfconnect/Asset-Tracker-Template/build-and-target-test.yml?event=push&branch=main&label=on-commit" alt="On-commit"></a>
-      <a href="https://github.com/nrfconnect/Asset-Tracker-Template/actions/workflows/build-and-target-test.yml?query=branch%3Amain+event%3Aschedule"><img src="https://img.shields.io/github/actions/workflow/status/nrfconnect/Asset-Tracker-Template/build-and-target-test.yml?event=schedule&branch=main&label=nightly" alt="Nightly"></a>
-    </td>
-  </tr>
-  <tr>
-    <th>Metrics</th>
-    <td>
-      <a href="https://nrfconnect.github.io/Asset-Tracker-Template/power_measurements_plot.html"><img src="https://img.shields.io/endpoint?url=https://nrfconnect.github.io/Asset-Tracker-Template/power_badge.json" alt="PSM Current"></a>
-      <a href="https://nrfconnect.github.io/Asset-Tracker-Template/ram_memory_view.html"><img src="https://img.shields.io/endpoint?url=https://nrfconnect.github.io/Asset-Tracker-Template/ram_badge.json" alt="RAM Usage thingy91x"></a>
-      <a href="https://nrfconnect.github.io/Asset-Tracker-Template/flash_memory_view.html"><img src="https://img.shields.io/endpoint?url=https://nrfconnect.github.io/Asset-Tracker-Template/flash_badge.json" alt="FLASH Usage thingy91x"></a>
-    </td>
-  </tr>
-</table>
+This sample demonstrates an Asset Tracker Template variant for LEO/NTN use cases on Nordic nRF91 devices, including NTN shell controls, GNSS positioning, SGP4 pass prediction, and optional Onomondo SoftSIM and Memfault integration. On boot, the app starts a GNSS search, collects location and date/time from the fix, expects TLE data to be provided as input, then runs SGP4 to predict the next satellite pass and waits for that pass window.
 
-## Overview
-
-The Asset Tracker Template is a modular framework for developing IoT applications on nRF91-based devices.
-It is built on the [nRF Connect SDK](https://www.nordicsemi.com/Products/Development-software/nRF-Connect-SDK) and [Zephyr RTOS](https://docs.zephyrproject.org/latest/), and provides a modular, event-driven architecture suitable for battery-powered IoT use cases.
-The framework supports features such as cloud connectivity, location tracking, and sensor data collection.
-
-The system is organized into modules, each responsible for a specific functionality, such as managing network connectivity, handling cloud communication, or collecting environmental data.
-Modules communicate through [zbus](https://docs.zephyrproject.org/latest/services/zbus/index.html) channels, ensuring loose coupling and maintainability.
-
-**Supported hardware**:
-
-* [Thingy:91 X](https://www.nordicsemi.com/Products/Development-hardware/Nordic-Thingy-91-X)
-* [nRF9151 DK](https://www.nordicsemi.com/Products/Development-hardware/nRF9151-DK)
-
-If you're new to nRF91 series and cellular IoT, consider taking the [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals).
-
-## Quick Start
-
-The fastest way to get started is to download and run the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop). It provides a guided setup and provisioning process that gets your device connected to [nRF Cloud](https://nrfcloud.com) in minutes.
-
-Alternatively, you can download pre-built firmware binaries from the latest release and flash them directly to your device. See the [release artifacts](docs/common/release.md) documentation for details.
-
-## Setting up the development environment
-
-To build the firmware from source, you need the nRF Connect SDK development environment ([setup guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation.html)). There are two options for setting up and building the project. For a detailed walkthrough, see the [Getting Started Guide](docs/common/getting_started.md).
-
-### Option 1: nRF Connect for VS Code (Recommended)
-
-Use the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) extension for an integrated development experience:
-
-1. Open VS Code and go to the **nRF Connect** extension.
-2. Select **Create New Application** → **Browse nRF Connect SDK add-on Index**.
-3. Search for **Asset Tracker Template** and create the project.
-4. Use the **Actions** panel in the extension to build and flash the application.
-
-For more details, see the [Getting Started Guide](docs/common/getting_started.md).
-
-### Option 2: Command line
-
-<details>
-<summary><strong>1. Initialize workspace</strong></summary>
-
-1. Install nRF Util. Follow the <a href="https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html">nRF Util documentation</a> for installation instructions.
-
-2. Install sdk-manager:
-
-   ```bash
-   nrfutil install sdk-manager
-   ```
-
-3. Install toolchain:
-
-   ```bash
-   nrfutil sdk-manager install v3.1.0
-   ```
-
-4. Launch toolchain:
-
-   ```bash
-   nrfutil sdk-manager toolchain launch --ncs-version v3.1.0 --terminal
-   ```
-
-   This will launch a new terminal window with the specified toolchain activated, use this terminal in the coming steps.
-
-5. Initialize workspace:
-
-   ```bash
-   west init -m https://github.com/nrfconnect/Asset-Tracker-Template.git --mr main asset-tracker-template
-   cd asset-tracker-template/project/app
-   west update
-   ```
-</details>
-
-<details>
-<summary><strong>2. Build and flash</strong></summary>
-
-**For Thingy:91 X:**
+## Instructions
+Configure UDP endpoint in prj.conf:
 ```shell
-west build --pristine --board thingy91x/nrf9151/ns
-west thingy91x-dfu  # For Thingy:91 X serial bootloader
-# Or with external debugger:
-west flash --erase
+CONFIG_APP_NTN_SERVER_ADDR=""
+CONFIG_APP_NTN_SERVER_PORT=
 ```
 
-**For nRF9151 DK:**
+#### NTN Sateliot - nRF9151 DK - Build Command
+
 ```shell
-west build --pristine --board nrf9151dk/nrf9151/ns
-west flash --erase
+west build app -b nrf9151dk/nrf9151/ns -- -DEXTRA_CONF_FILE=overlay-ntn-sateliot.conf
 ```
-</details>
 
-### Provision device to nRF Cloud
+## Shell commands available
 
-After building and flashing (using either option above), you need to provision the device to connect to [nRF Cloud](https://nrfcloud.com).
+NTN shell commands under `att_ntn`:
 
-<details>
-<summary><strong>Provisioning steps</strong></summary>
+- `att_ntn ntn_trigger`: trigger the NTN state manually.
+- `att_ntn gnss_trigger`: enter the GNSS state manually.
+- `att_ntn sgp4_trigger`: run SGP4 manually using the currently cached GNSS fix and TLE.
+- `att_ntn idle_trigger`: force the NTN module back to the idle state manually.
+- `att_ntn set_time_of_pass "<YYYY-MM-DD-HH:MM:SS>"`: set the next time of pass manually.
+- `att_ntn set_datetime "<YYYY-MM-DD-HH:MM:SS>"`: set the modem date and time manually.
+- `att_ntn set_gnss_location <lat> <lon> <alt_m>`: inject a GNSS fix directly without running the GNSS state.
+- `att_ntn set_tle "<name>" "<line1>" "<line2>"`: provision TLE data directly without fetching it from the network.
+- `att_ntn set_sib32 "<SIBCONFIG: 32,...>"`: provision raw SIB32 prediction data directly from a modem notification string.
 
-1. Get the device attestation token. Open a serial terminal connected to the device (115200 baud) and run the following AT command in the device shell:
+Note: Running SGP4 requires valid datetime and GNSS location data, both provided either manually or through a GNSS search, plus prediction data provided manually as either `TLE` or `SIB32`.
 
-   ```bash
-   at at%attesttoken
-   ```
+```shell
+att_ntn ntn_trigger
+att_ntn gnss_trigger
+att_ntn sgp4_trigger
+att_ntn idle_trigger
+att_ntn set_time_of_pass "2025-10-07-14:30:00"
+att_ntn set_datetime "2025-10-07-14:30:00"
+att_ntn set_gnss_location 57.7089 11.9746 15.0
+att_ntn set_tle "SIOT1" \
+  "1 12345U 24001A   26077.50000000  .00000000  00000-0  00000-0 0  9991" \
+  "2 12345  86.4000 180.0000 0001000   0.0000 180.0000 14.20000000    01"
+att_ntn set_sib32 "SIBCONFIG: 32,\"00000001\",2,1,1138123,1529334,1391197,758633,13719,2572629918,28139,-3,120679,,11,11,,,,3,1138188,1686202,1399132,2534648,10028,2572728485,19572,-3,121275,,11,11,,,"
+```
 
-   *Note: The token is also printed automatically to the serial log on first boot of unprovisioned devices.*
+Example log:
+```shell
+*** Booting Asset Tracker Template v1.3.0-dev-4e16c3b9110f ***
+*** Using nRF Connect SDK v3.2.99-3653fec21b6a ***
+*** Using Zephyr OS v4.2.99-fbabee3e8169 ***
+[00:00:00.257,476] <dbg> ntn_module: state_running_entry: state_running_entry
+[00:00:00.519,897] <inf> nrf_modem_lib_trace: Trace thread ready
+[00:00:00.521,881] <inf> nrf_modem_lib_trace: Trace level override: 2
+[00:00:01.023,498] <wrn> ntn_module: Provide SIB32 or TLE before running SGP4: att_ntn set_sib32 "<SIBCONFIG: 32,...>" or att_ntn set_tle "<name>" "<line1>" "<line2>"
+[00:00:01.023,559] <dbg> ntn_module: state_idle_entry: state_idle_entry
+uart:~$ att_ntn set_datetime "2026-02-12-09:38:29"
+Setting manual date time to: 2026-02-12-09:38:29
+[00:00:04.473,205] <dbg> ntn_module: state_idle_run: state_idle_run
+[00:00:04.483,306] <inf> ntn_module: Applied manual date time: 2026-02-12-09:38:29
+uart:~$ att_ntn set_gnss_location 63.43 10.39 40.0
+Injected GNSS location: lat=63.430000 lon=10.390000 alt=40.00 m
+[00:00:08.321,411] <dbg> ntn_module: state_idle_run: state_idle_run
+[00:00:08.321,533] <inf> ntn_module: Stored manual GNSS location: lat=63.430000 lon=10.390000 alt=40.00
+uart:~$ att_ntn set_sib32 "SIBCONFIG: 32,\"00000001\",2,1,1138123,1529334,139119
+7,758633,13719,2572629918,28139,-3,120679,,11,11,,,,3,1138188,1686202,1399132,25
+34648,10028,2572728485,19572,-3,121275,,11,11,,,"
+Provisioned manual SIB32 prediction data
+[00:00:12.449,829] <dbg> ntn_module: state_idle_run: state_idle_run
+[00:00:12.451,232] <dbg> sgp4_pass_predict: epochStar2jd_satepoch: weekday: 3 unix_time_ms1: 1770889116977
+[00:00:12.451,232] <dbg> sgp4_pass_predict: epochStar2jd_satepoch: unix_time_ms2: 1770629916977
+[00:00:12.451,293] <dbg> sgp4_pass_predict: epochStar2jd_satepoch: unix_time_ms3: 1770595200000
+[00:00:12.454,772] <dbg> sgp4_pass_predict: epochStar2jd_satepoch: weekday: 3 unix_time_ms1: 1770889116981
+[00:00:12.454,772] <dbg> sgp4_pass_predict: epochStar2jd_satepoch: unix_time_ms2: 1770629916981
+[00:00:12.454,833] <dbg> sgp4_pass_predict: epochStar2jd_satepoch: unix_time_ms3: 1770595200000
+[00:00:12.458,007] <inf> ntn_module: Stored SIB32 prediction data; it will be preferred over TLE
+uart:~$ att_ntn set_tle "SATELIOT_1" "1 60550U 24149CL  26041.62762187  .0000312
+4  00000+0  27307-3 0  9999" "2 60550  97.6859 119.6343 0008059 130.5773 229.615
+2 14.97467371 81125"
+Provisioned manual TLE for: SATELIOT_1
+[00:00:15.705,963] <dbg> ntn_module: state_idle_run: state_idle_run
+[00:00:15.706,054] <inf> ntn_module: Stored manual TLE 1/1 for SATELIOT_1
+uart:~$ att_ntn set_tle "SATELIOT_3" "1 60552U 24149CN  26041.67052983  .0000257
+8  00000+0  22594-3 0  9997" "2 60552  97.6924 120.3514 0005931 143.3246 216.838
+3 14.97526427 81146"
+Provisioned manual TLE for: SATELIOT_3
+[00:00:19.290,710] <dbg> ntn_module: state_idle_run: state_idle_run
+[00:00:19.290,802] <inf> ntn_module: Stored manual TLE 2/2 for SATELIOT_3
+uart:~$ att_ntn sgp4_trigger
+Triggering SGP4 manually
+[00:00:22.889,862] <dbg> ntn_module: state_idle_run: state_idle_run
+[00:00:22.889,923] <dbg> ntn_module: state_sgp4_entry: state_sgp4_entry
+[00:00:22.891,784] <dbg> ntn_module: log_stack_usage: Stack before_sgp4: unused=14120 used~=2264/16384
+[00:00:22.893,096] <dbg> sgp4_pass_predict: epochStar2jd_satepoch: weekday: 3 unix_time_ms1: 1770889127419
+[00:00:22.893,127] <dbg> sgp4_pass_predict: epochStar2jd_satepoch: unix_time_ms2: 1770629927419
+[00:00:22.893,188] <dbg> sgp4_pass_predict: epochStar2jd_satepoch: unix_time_ms3: 1770595200000
+[00:00:22.896,636] <dbg> sgp4_pass_predict: epochStar2jd_satepoch: weekday: 3 unix_time_ms1: 1770889127423
+[00:00:22.896,667] <dbg> sgp4_pass_predict: epochStar2jd_satepoch: unix_time_ms2: 1770629927423
+[00:00:22.896,728] <dbg> sgp4_pass_predict: epochStar2jd_satepoch: unix_time_ms3: 1770595200000
+[00:00:22.899,871] <inf> ntn_module: Using SIB32 data to compute next pass
+[00:00:22.900,115] <dbg> sgp4_pass_predict: sat_data_calculate_next_pass: jd_epoch: 2461081.896748
+[00:00:23.043,762] <dbg> sgp4_pass_predict: sat_data_calculate_next_pass: jd_epoch: 2461081.903646
+[00:00:23.121,093] <inf> ntn_module: Selected satellite index 1 of 2
+[00:00:23.121,551] <inf> ntn_module: Next pass: SIB32
+[00:00:23.121,582] <inf> ntn_module: Start: 2026-02-12 10:17:47 UTC
+[00:00:23.121,612] <inf> ntn_module: End: 2026-02-12 10:19:47 UTC
+[00:00:23.121,673] <inf> ntn_module: Max elevation: 44.49 degrees at 2026-02-12 10:18:47 UTC
+[00:00:23.131,835] <inf> ntn_module: Current time: 1770889127, Pass time: 1770891527
+[00:00:23.131,866] <inf> ntn_module: Seconds until pass: 2400
+[00:00:23.131,958] <inf> ntn_module: GNSS timer set to wake up in 2100 seconds
+[00:00:23.131,958] <inf> ntn_module: NTN timer set to wake up in 2380 seconds
+[00:00:23.132,019] <dbg> ntn_module: state_sgp4_exit: state_sgp4_exit
+[00:00:23.132,049] <dbg> ntn_module: state_idle_entry: state_idle_entry
+```
 
-2. Log in to the [nRF Cloud](https://nrfcloud.com) portal.
-3. Navigate to **Security Services** → **Claimed Devices** → **Claim Device**.
-4. Paste the attestation token, set rule to "nRF Cloud Onboarding", and click **Claim Device**.
+<br>
+<br>
 
-    <details>
-    <summary><strong>If "nRF Cloud Onboarding" rule is not showing:</strong></summary>
+## \**Advanced: Onomondo SoftSIM + Memfault + TLE from Cloud **
 
-    Create a new rule using the following configuration:
+![Experimental](https://img.shields.io/badge/status-experimental-orange)
 
-    <img src="docs/images/claim.png" alt="Claim Device" width="300" />
-    </details>
+### Description
+Device boots, connects to nRFCloud via TN SoftSIM, downloads TLE data from shadow (or via HTTP client to if CONFIG_TLE_VIA_HTTP). Then goes to GNSS state and gets fix. After having collected TLE and GNSS, it runs SGP4 and computes next pass. (Note: only one satellite in the shadow limitation). After computing next pass, it schedules gnss_timer and ntn_timer. Gnns_timer to wake up 5 minutes before pass to update location. Ntn_timer to switch to ntn mode and scan for cell. If attach complete, it sends data to Thingy World (https://world.thingy.rocks/). 
 
-5. After claiming, wait for the device to provision credentials and connect to nRF Cloud over CoAP. Once connected, the device will be available under **Device Management** → **Devices**.
+### Instructions
+Follow Onomondo softsim ncs installation: https://github.com/onomondo/nrf-softsim
 
-> [!NOTE]
-> The device polls the provisioning service at its own interval. This means it may take a few minutes for the device to pick up the claim and complete provisioning. If you want a quicker response, press **Button 1** on the device or reset it to trigger an immediate provisioning poll.
+Then clone this branch into samples folder, as in:
+~/ncs-softsim/modules/lib/onomondo-softsim/samples/asset-tracker-template
 
-See [Provisioning to nRF Cloud](docs/common/provisioning.md) for more details.
-</details>
+Copy revision of app/west.yml into root ~/ncs-softsim/modules/lib/onomondo-softsim/west.yml
 
-## System Architecture
+And then west update pointing to onomondo manifest.
 
-Core modules include:
+Add sysbuild.conf as in app/sysbuild.conf with one line:
+```shell
+SB_CONFIG_SOFTSIM_BUNDLE_TEMPLATE_HEX=y
+```
 
-* **[Main](docs/modules/main.md)**: Central coordinator implementing business logic
-* **[Storage](docs/modules/storage.md)**: Data collection and buffering management
-* **[Network](docs/modules/network.md)**: LTE connectivity management
-* **[Cloud](docs/modules/cloud.md)**: nRF Cloud CoAP communication
-* **[Location](docs/modules/location.md)**: GNSS, Wi-Fi, and cellular positioning
-* **[LED](docs/modules/led.md)**: RGB LED control for Thingy:91 X
-* **[Button](docs/modules/button.md)**: User input handling
-* **[FOTA](docs/modules/fota_module.md)**: Firmware over-the-air updates
-* **[Environmental](docs/modules/environmental.md)**: Sensor data collection
-* **[Power](docs/modules/power.md)**: Battery monitoring and power management
+Add overlay-softsim.conf to CmakeLists.txt:
+```shell
+list(APPEND OVERLAY_CONFIG "$ENV{ZEPHYR_BASE}/../modules/lib/onomondo-softsim/samples/asset-tracker-template/app/overlay-softsim.conf")
+```
 
-![System overview](docs/images/system_overview.svg)
+Configure Memfault project key in overlay-memfault.conf:
+```shell
+CONFIG_MEMFAULT_NCS_PROJECT_KEY=""
+```
 
-### Key Features
+Configure softsim static profile in overlay-softsim.conf:
+```shell
+CONFIG_SOFTSIM_STATIC_PROFILE=""
+```
 
-* **State Machine Framework (SMF)**: Predictable behavior with run-to-completion model
-* **Message-Based Communication**: Loose coupling via [zbus](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) channels
-* **Modular Architecture**: Separation of concerns with dedicated threads for blocking operations
-* **Power Optimization**: LTE PSM enabled by default with configurable power-saving features
+Note: Need to patch the shadow with TLE data. See tle_scripts/update_tle.py.
 
-The architecture is detailed in the [Architecture documentation](docs/common/architecture.md).
+## NTN Sateliot - nRF9151 DK
 
-## Table of Content
-
-* [Getting Started](docs/common/getting_started.md)
-* [Provisioning to nRF Cloud](docs/common/provisioning.md)
-* [Architecture](docs/common/architecture.md)
-  * [System Overview](docs/common/architecture.md#system-overview)
-  * [Zbus](docs/common/architecture.md#zbus)
-  * [State Machine Framework](docs/common/architecture.md#state-machine-framework)
-* [Configurability](docs/common/configuration.md)
-  * [Set sampling interval and logic from cloud](docs/common/configuration.md#set-sampling-interval-and-logic-from-cloud)
-  * [Set location method priorities](docs/common/configuration.md#set-location-method-priorities)
-  * [Network configuration](docs/common/configuration.md#network-configuration)
-  * [LED Status Indicators](docs/common/configuration.md#led-status-indicators)
-* [Customization](docs/common/customization.md)
-  * [Add a new zbus event](docs/common/customization.md#add-a-new-zbus-event)
-  * [Add environmental sensor](docs/common/customization.md#add-environmental-sensor)
-  * [Add your own module](docs/common/customization.md#add-your-own-module)
-  * [Enable support for MQTT](docs/common/customization.md#enable-support-for-mqtt)
-* [Location Services](docs/common/location_services.md)
-* [Achieving Low Power](docs/common/low_power.md)
-* [Test and CI Setup](docs/common/test_and_ci_setup.md)
-* [Firmware Updates (FOTA)](docs/common/fota.md)
-* [Tooling and Troubleshooting](docs/common/tooling_troubleshooting.md)
-  * [Shell Commands](docs/common/tooling_troubleshooting.md#shell-commands)
-  * [Debugging Tools](docs/common/tooling_troubleshooting.md#debugging-tools)
-  * [Memfault Remote Debugging](docs/common/tooling_troubleshooting.md#memfault-remote-debugging)
-  * [Modem Tracing](docs/common/tooling_troubleshooting.md#modem-tracing)
-  * [Common Issues and Solutions](docs/common/tooling_troubleshooting.md#common-issues-and-solutions)
-* [Known Issues](docs/common/known_issues.md)
-* [Release artifacts](docs/common/release.md)
-
-### Module Documentation
-
-* [Button](docs/modules/button.md)
-* [Cloud](docs/modules/cloud.md)
-* [Storage](docs/modules/storage.md)
-* [Environmental](docs/modules/environmental.md)
-* [FOTA](docs/modules/fota_module.md)
-* [LED](docs/modules/led.md)
-* [Location](docs/modules/location.md)
-* [Main](docs/modules/main.md)
-* [Network](docs/modules/network.md)
-* [Power](docs/modules/power.md)
+```shell
+west build app -b nrf9151dk/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-ntn-sateliot.conf;overlay-softsim-app.conf;overlay-memfault.conf;overlay-upload-modem-traces-to-memfault.conf"
+```
