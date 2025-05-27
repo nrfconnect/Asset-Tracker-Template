@@ -1,0 +1,91 @@
+# Copyright (c) 2025 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+
+menuconfig APP_NTN
+	bool "NTN module"
+	default y if APP_NTN_MODE
+
+if APP_NTN
+
+config APP_NTN_THREAD_STACK_SIZE
+	int "NTN module thread stack size"
+	default 2048
+
+config APP_NTN_TIMER_TIMEOUT_MINUTES
+	int "NTN timer timeout in minutes"
+	default 15
+	help
+	  Timer timeout for NTN mode before switching back to GNSS mode.
+
+config APP_NTN_BANDLOCK_ENABLE
+	bool "Enable NTN band lock"
+	help
+	  Enable band lock for NTN mode.
+
+if APP_NTN_BANDLOCK_ENABLE
+
+config APP_NTN_BANDLOCK
+	int "NTN band to lock to"
+	default 265
+	help
+	  Band number to lock NTN mode to.
+
+endif # APP_NTN_BANDLOCK_ENABLE
+
+config APP_NTN_CHANNEL_SELECT_ENABLE
+	bool "Enable NTN channel select"
+	help
+	  Enable channel selection for NTN mode.
+
+if APP_NTN_CHANNEL_SELECT_ENABLE
+
+config APP_NTN_CHANNEL_SELECT
+	int "NTN channel to select"
+	default 1
+	help
+	  Channel number to select in NTN mode.
+
+endif # APP_NTN_CHANNEL_SELECT_ENABLE
+
+config APP_NTN_DISABLE_EPCO
+	bool "Disable ePCO"
+	help
+	  Disable ePCO.
+
+config APP_NTN_SERVER_ADDR
+	string "NTN server address"
+	default ""
+	help
+	  IP address of the NTN server to connect to.
+
+config APP_NTN_SERVER_PORT
+	int "NTN server port"
+	default 0
+	help
+	  Port number of the NTN server to connect to.
+
+config APP_NTN_SEND_GNSS_DATA
+	bool "Send GNSS data to UDP endpoint"
+	help
+	  Send GNSS data to UDP endpoint.
+
+config APP_NTN_WATCHDOG_TIMEOUT_SECONDS
+	int "NTN module watchdog timeout in seconds"
+	default 300
+	help
+	  If the NTN module thread is stuck for this amount of time,
+	  the device will reset.
+
+config APP_NTN_MSG_PROCESSING_TIMEOUT_SECONDS
+	int "Maximum time in seconds allowed for processing a single message"
+	default 240
+	help
+	  Maximum time allowed for processing a single message in the NTN module.
+	  Must be less than APP_NTN_WATCHDOG_TIMEOUT_SECONDS.
+
+module = APP_NTN
+module-str = NTN
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # APP_NTN
