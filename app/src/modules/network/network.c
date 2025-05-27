@@ -412,6 +412,21 @@ static void state_disconnected_searching_entry(void *obj)
 
 	LOG_DBG("state_disconnected_searching_entry");
 
+        //TODO add NTN setup here:
+        // at at%xsystemmode=0,0,0,0,1
+        // at AT%LOCATION=2,\"61.3637\",\"5.4001\",\"0\",0,0
+        // at AT%XBANDLOCK=2,,\"255\"
+        // at at%chselect=1,14,228841
+        // at at+cgdcont=0,\"ip\",\"internet.m2mportal.de"
+        // at at at+cfun=1
+
+        // with
+        //     err = nrf_modem_at_printf(CONFIG_APP_NTN_AT_CFUN);
+        //     if (err) {
+        //         LOG_ERR("Failed to set CFUN, error: %d", err);
+        //         return err;
+        //     }
+
 	err = conn_mgr_all_if_connect(true);
 	if (err) {
 		LOG_ERR("conn_mgr_all_if_connect, error: %d", err);
