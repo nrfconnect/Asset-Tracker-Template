@@ -21,9 +21,27 @@ enum storage_msg_type {
 	/* Command to flush stored data */
 	STORAGE_FLUSH = 0x1,
 
+	/* Command to purge all stored data */
+	STORAGE_PURGE,
+
+	/* Command to request stored data using a FIFO */
+	STORAGE_FIFO_REQUEST,
+
+	/* Purge the FIFO */
+	STORAGE_FIFO_PURGE,
+
 	/* Output messages */
 	/* Stored data being flushed */
 	STORAGE_DATA,
+
+	/* FIFO for reading stored data */
+	STORAGE_FIFO_AVAILABLE,
+
+	/* FIFO is not available */
+	STORAGE_FIFO_NOT_AVAILABLE,
+
+	/* FIFO is empty, no stored data */
+	STORAGE_FIFO_EMPTY,
 };
 
 /* Message structure for the storage channel */
@@ -34,15 +52,37 @@ struct storage_msg {
 	/* Type of data in buffer */
 	enum storage_data_type data_type;
 
-	/* Buffer for data */
-	uint8_t buffer[CONFIG_APP_STORAGE_MSG_BUF_SIZE];
+	union {
+		/* Buffer for data */
+		uint8_t buffer[CONFIG_APP_STORAGE_MSG_BUF_SIZE];
 
-	/* Length of data in buffer */
-	size_t buffer_data_len;
+		/* Pointer to the FIFO for reading data */
+		struct k_fifo *fifo;
+	};
+
+	/* For STORAGE_FLUSH, the length of the data in the buffer.
+	 * For STORAGE_FIFO_AVAILABLE, the number of elements in the FIFO.
+	 */
+	size_t data_len;
+};
+struct storage_data_chunk {
+	/* The first word is reserved for internal use */
+	void *fifo_reserved;
+
+	/* Type of data in the chunk */
+	enum storage_data_type type;
+
+	/* Function that must be called when processing of the chunk is finished.
+	 * Failure to call this function will result in a memory leak.
+	 */
+	void (*finished)(struct storage_data_chunk *chunk);
+
+	/* Pointer to the data */
+	union storage_data_type_ptr data;
 };
 
 /* Helper macro to convert message pointer */
-#define MSG_TO_STORAGE_MSG(_msg)	(*(const struct storage_msg *)_msg)
+#define MSG_TO_STORAGE_MSG(_msg)	(const struct storage_msg *)_msg
 
 /* Declare the storage channel */
 ZBUS_CHAN_DECLARE(STORAGE_CHAN);

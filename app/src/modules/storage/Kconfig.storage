@@ -84,6 +84,17 @@ config APP_STORAGE_RAM_LIMIT_KB
 	  MAX_TYPES * MAX_RECORDS_PER_TYPE * RECORD_SIZE bytes.
 	  Set this based on your system's available RAM.
 
+config APP_STORAGE_FIFO_ITEM_COUNT
+	int "FIFO item count"
+	default 20
+	help
+	  Maximum umber of memory slabs available to use in the storage module's FIFO.
+	  The FIFO is used when data is sent from the storage module to other modules.
+	  This option is also used to set the number of each registerd data type that can be stored
+	  in the FIFO.
+	  For example, if set to 20, there will be 20 memory slabs available for each registered
+	  data type, and a total of 20 items can be stored in the FIFO at any time.
+
 if APP_STORAGE_BACKEND_INTERNAL_FLASH
 
 config APP_STORAGE_FLASH_PARTITION_LABEL

@@ -76,6 +76,10 @@ ZBUS_CHAN_DEFINE(STORAGE_CHAN,
 static void state_running_entry(void *o);
 static void state_running_run(void *o);
 
+static K_FIFO_DEFINE(storage_fifo);
+K_MEM_SLAB_DEFINE_STATIC(storage_fifo_slab, sizeof(struct storage_data_chunk),
+			 CONFIG_APP_STORAGE_FIFO_ITEM_COUNT, 4);
+
 /* Defining the storage module states */
 enum storage_module_state {
 	STATE_RUNNING,
@@ -189,7 +193,7 @@ static void flush_stored_data(void)
 
 			memcpy(msg.buffer, data, ret);
 
-			msg.buffer_data_len = ret;
+			msg.data_len = ret;
 
 			ret = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
 			if (ret) {
@@ -209,12 +213,190 @@ static void flush_stored_data(void)
 	}
 }
 
+static void free_fifo_chunk(struct storage_data_chunk *chunk)
+{
+	__ASSERT_NO_MSG(chunk != NULL);
+
+	if (!chunk) {
+		LOG_ERR("Received NULL chunk to free");
+		return;
+	}
+
+	STRUCT_SECTION_FOREACH(storage_data, type) {
+		if (chunk->type == type->data_type) {
+			k_mem_slab_free(type->slab, chunk->data.ptr);
+			k_mem_slab_free(&storage_fifo_slab, (void *)chunk);
+
+			LOG_DBG("Freed FIFO chunk %p of type %d", (void *)chunk, chunk->type);
+
+			return;
+		}
+	}
+
+	LOG_ERR("Unknown data type in FIFO chunk %p: %d", (void *)chunk, chunk->type);
+}
+
+static int populate_fifo(void)
+{
+	int err;
+	const struct storage_backend *backend = storage_backend_get();
+	int element_count_in_fifo = 0;
+
+	/* Iterate over all the registered data types.
+	 * For each type, retrieve stored data from the backend and store it in a mem slab.
+	 * Reference the slab in a FIFO chunk (which is also a mem slab) and put it in the FIFO.
+	 */
+	STRUCT_SECTION_FOREACH(storage_data, type) {
+		int ret;
+		struct storage_data_chunk *chunk;
+		int elements_left = backend->count(type);
+
+		LOG_DBG("Populating FIFO for %s, elements left: %d", type->name, elements_left);
+
+		if (elements_left == 0) {
+			LOG_DBG("No data to store in FIFO for %s", type->name);
+			continue;
+		} else if (elements_left < 0) {
+			LOG_ERR("Failed to get count for %s, error: %d", type->name, elements_left);
+			continue;
+		}
+
+		while (elements_left > 0) {
+			err = k_mem_slab_alloc(&storage_fifo_slab, (void **)&chunk, K_NO_WAIT);
+			if (err) {
+				/* This is not an error, it just means that there is no more
+				* mem slabs available. Just return the number of elements
+				* already in the FIFO.
+				*/
+				LOG_DBG("Cannot allocate new chunk");
+
+				return element_count_in_fifo;
+			}
+
+			LOG_DBG("FIFO chunk allocated: %p", chunk);
+
+			err = k_mem_slab_alloc(type->slab, &chunk->data.ptr, K_NO_WAIT);
+			if (err) {
+				LOG_ERR("Failed to allocate memory for stored data, error: %d",
+					err);
+				k_mem_slab_free(&storage_fifo_slab, chunk);
+
+				/* It should not be possible to fail allocation at this point,
+				 * when we were abla to allocate a chunk first.
+				 * That would indicate a memory leak or a bug in the code.
+				 */
+				__ASSERT_NO_MSG(err == 0);
+
+				return element_count_in_fifo;
+			}
+
+			LOG_DBG("Stored data allocated: %p", chunk->data.ptr);
+
+			ret = backend->retrieve(type, chunk->data.ptr, type->data_size);
+			if (ret < 0) {
+				LOG_ERR("Failed to retrieve %s data, error: %d", type->name, ret);
+				k_mem_slab_free(type->slab, chunk->data.ptr);
+				k_mem_slab_free(&storage_fifo_slab, (void *)chunk);
+
+				return element_count_in_fifo;
+			}
+
+			chunk->type = type->data_type;
+			chunk->finished = free_fifo_chunk;
+
+			k_fifo_put(&storage_fifo, chunk);
+
+			element_count_in_fifo++;
+
+			elements_left--;
+		}
+	}
+
+	return element_count_in_fifo;
+}
+
+static void fifo_purge(struct k_fifo *fifo)
+{
+	struct storage_data_chunk *chunk;
+
+	LOG_DBG("Purging FIFO: %p", fifo);
+
+	while ((chunk = k_fifo_get(fifo, K_NO_WAIT)) != NULL) {
+		LOG_DBG("Purging chunk: %p", chunk);
+
+		chunk->finished(chunk);
+	}
+}
+
+static void storage_purge(void)
+{
+	int err;
+
+	LOG_DBG("Purging storage");
+
+	/* Purge the FIFO */
+	fifo_purge(&storage_fifo);
+
+	/* Clear all stored data */
+	err = storage_backend_get()->clear();
+	if (err) {
+		LOG_ERR("Failed to clear storage backend, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
 static void handle_storage_message(const struct storage_state *state_object)
 {
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
+	LOG_DBG("Received message of type: %d", msg->type);
+
 	if (msg->type == STORAGE_FLUSH) {
 		flush_stored_data();
+	}
+
+	if (msg->type == STORAGE_FIFO_REQUEST) {
+		int ret, err;
+		struct storage_msg response_msg = {
+			.type = STORAGE_FIFO_NOT_AVAILABLE,
+		};
+
+		/* Start populating the FIFO */
+		ret = populate_fifo();
+		if (ret < 0) {
+			/* FIFO is not available */
+			response_msg.type = STORAGE_FIFO_NOT_AVAILABLE;
+		} else if (ret == 0) {
+			/* FIFO is empty */
+			response_msg.type = STORAGE_FIFO_EMPTY;
+		} else {
+			LOG_DBG("FIFO populated with %d records", ret);
+
+			/* FIFO is available */
+			response_msg.type = STORAGE_FIFO_AVAILABLE;
+			response_msg.fifo = &storage_fifo;
+			response_msg.data_len = ret;
+		}
+
+		err = zbus_chan_pub(&STORAGE_CHAN, &response_msg, K_SECONDS(1));
+		if (err) {
+			LOG_ERR("Failed to publish FIFO_NOT_AVAILABLE, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
+	}
+
+	if (msg->type == STORAGE_PURGE) {
+		/* Purge all stored data */
+		storage_purge();
+
+		return;
+	}
+
+	if (msg->type == STORAGE_FIFO_PURGE) {
+		/* Purge the FIFO */
+		fifo_purge(&storage_fifo);
+
+		return;
 	}
 }
 

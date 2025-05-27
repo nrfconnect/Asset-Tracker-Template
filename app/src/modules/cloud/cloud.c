@@ -25,6 +25,7 @@
 #include "app_common.h"
 #include "network.h"
 #include "storage.h"
+#include "cloud_codec.h"
 
 #if defined(CONFIG_APP_POWER)
 #include "power.h"
@@ -55,6 +56,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
 #define CHANNEL_LIST(X)										\
 					 X(NETWORK_CHAN,	struct network_msg)		\
 					 X(CLOUD_CHAN,		struct cloud_msg)		\
+					 X(STORAGE_CHAN,	struct storage_msg)		\
 IF_ENABLED(CONFIG_APP_ENVIRONMENTAL,	(X(ENVIRONMENTAL_CHAN,	struct environmental_msg)))	\
 IF_ENABLED(CONFIG_APP_POWER,		(X(POWER_CHAN,		struct power_msg)))
 
@@ -589,13 +591,13 @@ static void state_connected_ready_run(void *obj)
 	}
 
 	if (state_object->chan == &STORAGE_CHAN) {
-		struct storage_msg msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+		const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
 
-		if (msg.type == STORAGE_DATA) {
+		if (msg->type == STORAGE_DATA) {
 			/* Determine what type of data is being sent */
-			switch (msg.data_type) {
+			switch (msg->data_type) {
 			case STORAGE_TYPE_BATTERY: {
-				double battery_level = *(double *)msg.buffer;
+				double battery_level = *(double *)msg->buffer;
 
 				err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_BATTERY,
 								 battery_level,
@@ -612,11 +614,55 @@ static void state_connected_ready_run(void *obj)
 				break;
 			}
 			default:
-				LOG_WRN("Unhandled data type: %d", msg.data_type);
+				LOG_WRN("Unhandled data type: %d", msg->data_type);
 				break;
 			}
 
 			return;
+		}
+
+		if (msg->type == STORAGE_FIFO_AVAILABLE) {
+			struct storage_data_chunk *chunk;
+			uint8_t cbor_buf[128];
+			size_t cbor_buf_len = sizeof(cbor_buf);
+			size_t cbor_out_len;
+
+			while ((chunk = k_fifo_get(msg->fifo, K_NO_WAIT)) != NULL) {
+				switch (chunk->type) {
+				case STORAGE_TYPE_ENVIRONMENTAL:
+					err = encode_environmental_sample(
+						cbor_buf, cbor_buf_len, &cbor_out_len,
+						chunk->data.ENVIRONMENTAL,
+						0);
+					if (err) {
+						LOG_ERR("Failed to encode environmental samples, error: %d", err);
+						SEND_FATAL_ERROR();
+					}
+
+					err = nrf_cloud_coap_post("msg/d2c", NULL,
+								  cbor_buf, cbor_out_len,
+								  COAP_CONTENT_FORMAT_APP_CBOR,
+								  confirmable, NULL, NULL);
+					if (err == -ENETUNREACH) {
+						LOG_WRN("Network is unreachable, error: %d", err);
+						return;
+					} else if (err) {
+						LOG_ERR("nrf_cloud_coap_post, error: %d", err);
+						SEND_FATAL_ERROR();
+						return;
+					}
+					break;
+				default:
+					LOG_WRN("Unhandled storage data type: %d\n", chunk->type);
+					break;
+				}
+
+				chunk->finished(chunk);
+			}
+
+
+
+
 		}
 	}
 

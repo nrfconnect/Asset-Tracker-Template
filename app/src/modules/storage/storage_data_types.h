@@ -55,12 +55,14 @@
 	IF_ENABLED(CONFIG_APP_LOCATION, (X(LOCATION, LOCATION_CHAN, enum location_msg_type, enum location_msg_type, location_check, location_extract)))  \
 	IF_ENABLED(CONFIG_APP_ENVIRONMENTAL, (X(ENVIRONMENTAL, ENVIRONMENTAL_CHAN, struct environmental_msg, struct environmental_msg, environmental_check, environmental_extract)))
 
-#define STORAGE_DATA_TYPE(_name)		\
+#define STORAGE_DATA_TYPE(_name)								\
 	STORAGE_TYPE_ ## _name
 
 #define _STORAGE_DATA_TYPE_ID(_name, _chan, _msg_type, _data_type, _check_fn, _extract_fn)	\
 	STORAGE_DATA_TYPE(_name),
 
+#define _STORAGE_DATA_TYPE_PTR(_name, _chan, _msg_type, _data_type, _check_fn, _extract_fn)	\
+	_data_type *_name;
 /**
  * @brief Unique identifiers for each type of data that can be stored.
  *
@@ -73,9 +75,27 @@
 enum storage_data_type {
 	STORAGE_DATA_UNKNOWN = 0x0,
 
+	STORAGE_DATA_ALL = 0x1,
+
 	DATA_SOURCE_LIST(_STORAGE_DATA_TYPE_ID)
 
 	STORAGE_DATA_TYPE_COUNT,
+};
+
+/**
+ * @brief Pointer to the message type for each data type
+ *
+ * This union is used to create a pointer to the message type for each data type.
+ * It is automatically populated by the DATA_SOURCE_LIST macro, which creates
+ * a pointer for each entry in the list.
+ * For example, if BATTERY is defined in DATA_SOURCE_LIST, this union will contain:
+ * 	struct power_msg *BATTERY;
+ */
+union storage_data_type_ptr {
+	/* Pointer to the message type */
+	void *ptr;
+
+	DATA_SOURCE_LIST(_STORAGE_DATA_TYPE_PTR)
 };
 
 /** @brief Structure to define a storage data type */
@@ -93,6 +113,9 @@ struct storage_data {
 	 * CONFIG_APP_STORAGE_RECORD_SIZE.
 	 */
 	size_t data_size;
+
+	/* Pointer to the memory slab for this data type */
+	struct k_mem_slab *slab;
 
 	/**
 	 * @brief Function to determine if a message should be stored
@@ -176,6 +199,9 @@ struct storage_data {
 		_extract_fn(m, (_data_type *)data);						\
 	}											\
 												\
+	K_MEM_SLAB_DEFINE_STATIC(_name ## _slab, sizeof(_data_type),				\
+				 CONFIG_APP_STORAGE_FIFO_ITEM_COUNT, 4);			\
+												\
 	STRUCT_SECTION_ITERABLE(storage_data, _STORAGE_TYPE_NAME(_name)) = {			\
 		.name = #_name,									\
 		.chan = &_chan,									\
@@ -183,6 +209,7 @@ struct storage_data {
 		.data_size = sizeof(_data_type),						\
 		.should_store = _name ## _should_store,						\
 		.extract_data = _name ## _extract_data,						\
+		.slab = &_name ## _slab,							\
 	};
 
 #endif /* _STORAGE_DATA_TYPES_H_ */

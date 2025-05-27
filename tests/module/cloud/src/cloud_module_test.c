@@ -73,11 +73,15 @@ FAKE_VALUE_FUNC(int, nrf_cloud_coap_patch, const char *, const char *,
 		const uint8_t *, size_t,
 		enum coap_content_format, bool,
 		coap_client_response_cb_t, void *);
+FAKE_VALUE_FUNC(int, nrf_cloud_coap_post, const char *, const char *,
+		const uint8_t *, size_t,
+		enum coap_content_format, bool,
+		coap_client_response_cb_t, void *);
 FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
 
 /* Forward declarations */
 static void dummy_cb(const struct zbus_channel *chan);
-static void cloud_chan_cb(const struct zbus_channel *chan);
+static void listener_cb(const struct zbus_channel *chan);
 
 /* Define unused subscribers */
 ZBUS_SUBSCRIBER_DEFINE(app, 1);
@@ -87,7 +91,9 @@ ZBUS_SUBSCRIBER_DEFINE(fota, 1);
 ZBUS_SUBSCRIBER_DEFINE(led, 1);
 ZBUS_SUBSCRIBER_DEFINE(location, 1);
 ZBUS_LISTENER_DEFINE(trigger, dummy_cb);
-ZBUS_LISTENER_DEFINE(cloud_test_listener, cloud_chan_cb);
+ZBUS_LISTENER_DEFINE(cloud_test_listener, listener_cb);
+ZBUS_LISTENER_DEFINE(storage_test_listener, listener_cb);
+
 
 #define FAKE_DEVICE_ID		"test_device"
 
@@ -95,10 +101,36 @@ static K_SEM_DEFINE(cloud_disconnected, 0, 1);
 static K_SEM_DEFINE(cloud_connected, 0, 1);
 static K_SEM_DEFINE(data_sent, 0, 1);
 
+static struct storage_msg recv_storage_msg;
+
 static int nrf_cloud_client_id_get_custom_fake(char *buf, size_t len)
 {
 	TEST_ASSERT(len >= sizeof(FAKE_DEVICE_ID));
 	memcpy(buf, FAKE_DEVICE_ID, sizeof(FAKE_DEVICE_ID));
+
+	return 0;
+}
+
+static int nrf_cloud_coap_post_custom_fake(const char *resource, const char *query,
+		const uint8_t *buf, size_t len,
+		enum coap_content_format fmt, bool confirmable,
+		coap_client_response_cb_t cb, void *user)
+{
+	/* The expected data is an array of TEMP + HUMIDITY + PRESSURE arrays, while the encoded
+	 * data is a single array of TEMP + HUMIDITY + PRESSURE values.
+	 * Therefore, we skip the first element of the expected data which would be the
+	 * description of the "outer" array.
+	 */
+	size_t idx = ((nrf_cloud_coap_post_fake.call_count - 1) * len) + 1;
+
+	ARG_UNUSED(resource);
+	ARG_UNUSED(query);
+	ARG_UNUSED(fmt);
+	ARG_UNUSED(confirmable);
+	ARG_UNUSED(cb);
+	ARG_UNUSED(user);
+
+	TEST_ASSERT_EQUAL_HEX8_ARRAY(&expected_environmental_grouped_cbor_20[idx], buf, len);
 
 	return 0;
 }
@@ -115,7 +147,7 @@ static void dummy_cb(const struct zbus_channel *chan)
 	ARG_UNUSED(chan);
 }
 
-static void cloud_chan_cb(const struct zbus_channel *chan)
+static void listener_cb(const struct zbus_channel *chan)
 {
 	if (chan == &CLOUD_CHAN) {
 		const struct cloud_msg *cloud_msg = zbus_chan_const_msg(chan);
@@ -127,6 +159,26 @@ static void cloud_chan_cb(const struct zbus_channel *chan)
 			k_sem_give(&cloud_connected);
 		}
 	}
+
+	if (chan == &STORAGE_CHAN) {
+		const struct storage_msg *storage_msg = zbus_chan_const_msg(chan);
+
+		recv_storage_msg = *storage_msg;
+
+		// if (storage_msg->type == STORAGE_DATA) {
+		// 	recv_storage_msg = *storage_msg;
+		// } else if (storage_msg->type == STORAGE_FLUSH) {
+		// 	k_sem_give(&data_sent);
+		// } else if (storage_msg->type == STORAGE_FIFO_REQUEST) {
+		// 	/* Handle FIFO request */
+		// 	storage_fifo_request_populated();
+		// }
+	}
+}
+
+static void free_fifo_chunk(struct storage_data_chunk *chunk)
+{
+	chunk->data.ptr = NULL;
 }
 
 /* Static observer node for zbus */
@@ -146,6 +198,7 @@ void setUp(void)
 
 	nrf_cloud_client_id_get_fake.custom_fake = nrf_cloud_client_id_get_custom_fake;
 	date_time_now_fake.custom_fake = date_time_now_custom_fake;
+	nrf_cloud_coap_post_fake.custom_fake = nrf_cloud_coap_post_custom_fake;
 
 	/* Clear all channels */
 	zbus_sub_wait(&location, &chan, K_NO_WAIT);
@@ -155,6 +208,10 @@ void setUp(void)
 	zbus_sub_wait(&battery, &chan, K_NO_WAIT);
 
 	zbus_chan_add_obs(&CLOUD_CHAN, &cloud_test_listener, &obs_node, K_NO_WAIT);
+	zbus_chan_add_obs(&STORAGE_CHAN, &cloud_test_listener, &obs_node, K_NO_WAIT);
+
+	/* Reset received message */
+	memset(&recv_storage_msg, 0, sizeof(recv_storage_msg));
 }
 
 void test_initial_transition_to_disconnected(void)
@@ -281,26 +338,20 @@ void test_connected_disconnected_to_connected_send_payload(void)
 void test_codec_encode_environmental_data_single(void)
 {
 	int err;
-	struct environmental_msg env_sample = {
-		.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE,
-		.temperature = 20.0f,
-		.humidity = 50.0f,
-		.pressure = 100.0f,
-	};
 	uint8_t payload[128];
 	size_t payload_len = sizeof(payload);
 	size_t payload_out_len;
 
-	err = encode_environmental_sample(payload, payload_len, &payload_out_len, &env_sample, 0);
+	err = encode_environmental_sample(payload, payload_len, &payload_out_len, env_samples, 0);
 
 	TEST_ASSERT_EQUAL(0, err);
 	TEST_ASSERT_EQUAL(payload_out_len, expected_environmental_single_cbor_len);
 
 	/* Test single sample encoding with null parameters */
-	err = encode_environmental_sample(NULL, payload_len, &payload_out_len, &env_sample, 0);
+	err = encode_environmental_sample(NULL, payload_len, &payload_out_len, env_samples, 0);
 	TEST_ASSERT_EQUAL(-EINVAL, err);
 
-	err = encode_environmental_sample(payload, payload_len, NULL, &env_sample, 0);
+	err = encode_environmental_sample(payload, payload_len, NULL, env_samples, 0);
 	TEST_ASSERT_EQUAL(-EINVAL, err);
 
 	err = encode_environmental_sample(payload, payload_len, &payload_out_len, NULL, 0);
@@ -312,27 +363,19 @@ void test_codec_encode_environmental_data_array(void)
 {
 	int err;
 	/* Create test environmental data */
-	struct environmental_msg env_samples[33];
 	uint8_t payload[4096];
 	size_t payload_len = sizeof(payload);
 	size_t payload_out_len;
-
-	for (int i = 0; i < 33; i++) {
-		env_samples[i].type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE;
-		env_samples[i].temperature = 20.0f + i;
-		env_samples[i].humidity = 50.0f + i;
-		env_samples[i].pressure = 100.0f + i;
-	};
 
 	/* Test encoding array of samples */
 	err = encode_environmental_data_array(
 		payload, payload_len, &payload_out_len, env_samples, ARRAY_SIZE(env_samples));
 
 	TEST_ASSERT_EQUAL(0, err);
-	TEST_ASSERT_EQUAL(payload_out_len, expected_environmental_cbor_len);
+	TEST_ASSERT_EQUAL(payload_out_len, expected_environmental_cbor_33_len);
 
 	/* Check that the output matches the expected CBOR */
-	TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_environmental_cbor, payload, payload_out_len);
+	TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_environmental_cbor_33, payload, payload_out_len);
 
 	/* Test encoding with null parameters */
 	err = encode_environmental_data_array(NULL, payload_len, &payload_out_len, env_samples, 2);
@@ -351,6 +394,63 @@ void test_codec_encode_environmental_data_array(void)
 	/* Test encoding with buffer too small */
 	err = encode_environmental_data_array(payload, 10, &payload_out_len, env_samples, 2);
 	TEST_ASSERT_EQUAL(-EIO, err);
+}
+
+void test_send_storage_fifo_request(void)
+{
+	int err;
+	struct storage_msg msg = {
+		.type = STORAGE_FIFO_REQUEST,
+	};
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	TEST_ASSERT_EQUAL(STORAGE_FIFO_REQUEST, recv_storage_msg.type);
+}
+
+void test_receive_storage_fifo_available(void)
+{
+	int err;
+	struct k_fifo storage_fifo;
+	struct storage_msg msg = {
+		.type = STORAGE_FIFO_AVAILABLE,
+		.fifo = &storage_fifo,
+		.data_len = 0,
+	};
+	struct storage_data_chunk chunks[20] = {0};
+
+	/* Initialize the FIFO */
+	k_fifo_init(&storage_fifo);
+
+	/* Populate environmental samples and storage chunks, then put them in the FIFO.
+	 * This simulates the data that would be stored in the FIFO.
+	 * Each chunk corresponds to an environmental sample.
+	 */
+	for (size_t i = 0; i < ARRAY_SIZE(chunks); i++) {
+		chunks[i].type = STORAGE_TYPE_ENVIRONMENTAL;
+		chunks[i].data.ENVIRONMENTAL = (struct environmental_msg *)&env_samples[i];
+		chunks[i].finished = free_fifo_chunk;
+
+		k_fifo_put(&storage_fifo, &chunks[i]);
+
+		msg.data_len++;
+	};
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	TEST_ASSERT_EQUAL(STORAGE_FIFO_AVAILABLE, recv_storage_msg.type);
+	TEST_ASSERT_EQUAL(msg.data_len, recv_storage_msg.data_len);
+
+	k_sleep(K_SECONDS(1));
+
+	/* Check that the FIFO is now empty and all chunks are "freed" */
+	TEST_ASSERT_NOT_EQUAL(0, k_fifo_is_empty(&storage_fifo));
+
+	for (size_t i = 0; i < ARRAY_SIZE(chunks); i++) {
+		TEST_ASSERT_EQUAL(NULL, chunks[i].data.ptr);
+	}
 }
 
 /* This is required to be added to each test. That is because unity's

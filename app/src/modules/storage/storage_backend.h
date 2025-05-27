@@ -27,33 +27,33 @@ struct storage_backend {
 	 */
 	int (*init)(void);
 
-/**
- * @brief Store data in the backend.
- *
- * @param type Storage data type to store
- * @param data Pointer to the data to store
- * @param size Size of the data in bytes
- * @return 0 on success, negative errno on failure
- */
-int (*store)(const struct storage_data *type, void *data, size_t size);
+	/**
+	 * @brief Store data in the backend.
+	 *
+	 * @param type Storage data type to store
+	 * @param data Pointer to the data to store
+	 * @param size Size of the data in bytes
+	 * @return 0 on success, negative errno on failure
+	 */
+	int (*store)(const struct storage_data *type, void *data, size_t size);
 
-/**
- * @brief Retrieve data from the backend.
- *
- * @param type Storage data type to retrieve
- * @param data Buffer to store the retrieved data
- * @param size Size of the buffer
- * @return Number of bytes read on success, negative errno on failure
- */
-int (*retrieve)(const struct storage_data *type, void *data, size_t size);
+	/**
+	 * @brief Retrieve data from the backend.
+	 *
+	 * @param type Storage data type to retrieve
+	 * @param data Buffer to store the retrieved data
+	 * @param size Size of the buffer
+	 * @return Number of bytes read on success, negative errno on failure
+	 */
+	int (*retrieve)(const struct storage_data *type, void *data, size_t size);
 
-/**
- * @brief Get number of records of a specific type.
- *
- * @param type Storage data type to count
- * @return Number of records, negative errno on failure
- */
-int (*count)(const struct storage_data *type);
+	/**
+	 * @brief Get number of records of a specific type.
+	 *
+	 * @param type Storage data type to count
+	 * @return Number of records, negative errno on failure
+	 */
+	int (*count)(const struct storage_data *type);
 
 	/**
 	 * @brief Clear all stored data.
