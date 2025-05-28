@@ -1,4 +1,4 @@
-# Instructions on how to manage nRFCloud FOTA via REST calls
+# Instructions on how to manage nRFCloud FOTA through REST calls
 
 This document describes how to manage FOTA (Firmware Over The Air) updates using nRF Cloud's REST API. All examples use curl commands and assume you have set your API key in an environment variable:
 
@@ -6,13 +6,13 @@ This document describes how to manage FOTA (Firmware Over The Air) updates using
 export API_KEY="your-nrf-cloud-api-key"
 ```
 
-You can find your API_KEY in "User Account" settings in your nRFCloud profile.
+You can find your API_KEY in "User Account" settings in your nRF Cloud profile.
 
 For reference, see [nRF Cloud REST API](https://api.nrfcloud.com/)
 
 ## Upload Application Firmware
 
-To upload an application firmware to nRF Cloud, you'll need your compiled application binary file (typically found in the build/app/zephyr directory after building the project).
+To upload an application firmware to nRF Cloud, you will need your compiled application binary file (typically found in the build/app/zephyr directory after building the project).
 
 ```bash
 # Set path to your application binary
@@ -49,7 +49,7 @@ curl -X POST "https://api.nrfcloud.com/v1/firmwares" \
 # Extract the bundle ID from the URI path for use in creating FOTA jobs
 ```
 
-The bundle ID will be needed when creating FOTA jobs. For application firmware, it can be extracted from the URI path after "firmware.nrfcloud.com/".
+The bundle ID will be needed when creating FOTA jobs. For application firmware, it can be extracted from the URI path after `firmware.nrfcloud.com/`.
 
 ## List FOTA Jobs
 ```bash
@@ -85,7 +85,7 @@ curl -X GET "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}" \
   -H "Accept: application/json"
 ```
 
-The status will be one of: "QUEUED", "IN_PROGRESS", "FAILED", "SUCCEEDED", "TIMED_OUT", "CANCELLED", "REJECTED", "DOWNLOADING"
+The status will be one of: "QUEUED", "IN_PROGRESS", "FAILED", "SUCCEEDED", "TIMED_OUT", "CANCELLED", "REJECTED", "DOWNLOADING".
 
 ## Update Job Execution State
 ```bash
@@ -97,7 +97,7 @@ curl -X PATCH "https://api.nrfcloud.com/v1/fota-job-executions/${DEVICE_ID}/${JO
   }'
 ```
 
-Valid status values are: "QUEUED", "IN_PROGRESS", "FAILED", "SUCCEEDED", "TIMED_OUT", "CANCELLED", "REJECTED", "DOWNLOADING"
+Valid status values are: "QUEUED", "IN_PROGRESS", "FAILED", "SUCCEEDED", "TIMED_OUT", "CANCELLED", "REJECTED", "DOWNLOADING".
 
 ## Cancel FOTA Job
 ```bash
@@ -120,7 +120,7 @@ curl -X DELETE "https://api.nrfcloud.com/v1/firmwares/${BUNDLE_ID}" \
 
 ## Example Workflow
 
-Here's a complete example workflow for performing a FOTA update:
+The following is a complete example workflow for performing a FOTA update:
 
 ```bash
 # 1. Set up environment variables

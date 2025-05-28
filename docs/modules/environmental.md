@@ -18,9 +18,9 @@ The Environmental module communicates via the zbus channel `ENVIRONMENTAL_CHAN`,
 
 - **ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE**
   Returns collected environmental data with the following fields:
-  - `temperature`: Temperature value in degrees Celsius
-  - `pressure`: Atmospheric pressure in Pascals
-  - `humidity`: Relative humidity percentage
+  - `temperature`: Temperature value in degrees Celsius.
+  - `pressure`: Atmospheric pressure in Pascals.
+  - `humidity`: Relative humidity percentage.
 
 The message structure used by the environmental module is defined in `environmental.h`:
 
@@ -33,8 +33,7 @@ struct environmental_msg {
 };
 ```
 
-## Configurations
-
+## Configuration
 The Environmental module can be configured using the following Kconfig options:
 
 - **CONFIG_APP_ENVIRONMENTAL**

@@ -1,6 +1,6 @@
 # Network module
 
-The Network module manages the cellular connectivity for applications running on nRF91 Series devices. It handles network connection states, system mode configuration, power saving configurations, and network quality monitoring. It utilizes the Zephyr network management APIs and the [LTE Link Control](https://docs.nordicsemi.com/bundle/ncs-2.9.0/page/nrf/libraries/modem/lte_lc.html) library from nRF Connect SDK to control the modem and monitor network events. Internally, the module implements a state machine that uses Zephyr's [State Machine Framework](https://docs.zephyrproject.org/latest/services/smf/index.html).
+The Network module manages the cellular connectivity for applications running on nRF91 Series devices. It handles network connection states, system mode configuration, power saving configurations, and network quality monitoring. It utilizes the Zephyr network management APIs and the [LTE Link Control](https://docs.nordicsemi.com/bundle/ncs-2.9.0/page/nrf/libraries/modem/lte_lc.html) library from the nRF Connect SDK to control the modem and monitor network events. Internally, the module implements a state machine that uses Zephyr's [State Machine Framework](https://docs.zephyrproject.org/latest/services/smf/index.html).
 
 The module is designed to by default search for a suitable network automatically on startup and then maintain the connection for the lifetime of the application.
 The library can also be configured to be fully controlled by the application instead, giving closer control over the LTE link and current consumption.
@@ -53,8 +53,6 @@ struct network_msg {
     };
 };
 ```
-
-## Configurations
 
 ## Configurations
 

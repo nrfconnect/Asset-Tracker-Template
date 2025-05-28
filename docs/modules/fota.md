@@ -2,30 +2,30 @@
 
 The FOTA (Firmware Over-The-Air) module manages remote firmware updates for both application and modem firmware. It handles all the stages of the update process:
 
-*   Polling nRF Cloud for available updates
-*   Downloading firmware images
-*   Applying updates
+* Polling nRF Cloud for available updates.
+* Downloading firmware images.
+* Applying updates.
 
 The update process begins when the module receives a `FOTA_POLL_REQUEST` message, typically triggered by the main application module. When an update is available, the module automatically initiates the download without requiring additional commands.
 
 The module supports three firmware image types:
 
-*   **Application**: Updates the main application firmware
-*   **Delta Modem**: Incremental modem firmware updates for minor version changes
-*   **Full Modem**: Complete modem firmware replacements
+* **Application**: Updates the main application firmware.
+* **Delta Modem**: Incremental modem firmware updates for minor version changes.
+* **Full Modem**: Complete modem firmware replacements.
 
 Application and delta modem images are marked ready for their respective bootloaders after download is completed and applied automatically on the next device reboot. When these downloads complete successfully, the module publishes a `FOTA_SUCCESS_REBOOT_NEEDED` message to indicate that a reboot is required to apply the update.
 
 Full modem updates require that the device disconnects from the network before applying the update. For these updates, the module first sends a `FOTA_IMAGE_APPLY_NEEDED` message. The main application must then:
-1. Disconnect from the cellular network
-2. Send a `FOTA_IMAGE_APPLY` message to the FOTA module
+1. Disconnect from the cellular network.
+2. Send a `FOTA_IMAGE_APPLY` message to the FOTA module.
 3. Wait for the `FOTA_SUCCESS_REBOOT_NEEDED` message that indicates successful application of the new modem firmware.
 
 All update operations feature error handling with appropriate status messages, allowing the application to recover gracefully from download failures or interruptions.
 
 ## Messages
 
-The FOTA module communicates via the zbus channel `FOTA_CHAN`, using input and output messages defined in `fota.h`.
+The FOTA module communicates through the zbus channel `FOTA_CHAN`, using input and output messages defined in `fota.h`.
 All input messages are requests from the application to the FOTA module. The output messages may be responses to input messages or notifications from the FOTA module to the application.
 
 ### Input Messages
@@ -52,7 +52,7 @@ All input messages are requests from the application to the FOTA module. The out
 - **FOTA_SUCCESS_REBOOT_NEEDED**
   Tells the system to reboot after a successful download and image application.
 
-## Configurations
+## Configuration
 
 The following Kconfig options can be used to customize the FOTA module’s behavior:
 

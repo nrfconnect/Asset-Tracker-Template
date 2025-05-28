@@ -1,4 +1,4 @@
-# Configurability
+# Configuration
 
 ## Set sampling interval and logic from cloud
 
@@ -6,37 +6,38 @@ The Asset Tracker can be configured remotely through nRF Cloud's device shadow m
 
 ### Configuration through nRF Cloud UI
 
-**Warning** For new devices, the "View Config" section in the nRF Cloud UI will not be visible. It will become visible once the shadow is patched using the REST call documented below.
+!!! important "important" For new devices, the **View Config** section in the nRF Cloud UI will not be visible. It will become visible once the shadow is patched using the REST call documented below.
 
-1. Log in to [nRF Cloud](https://nrfcloud.com/)
-2. Navigate to "Devices" and select your device
-3. Click on "View Config" in the top bar
-4. Select "Edit Configuration"
+1. Log in to [nRF Cloud](https://nrfcloud.com/).
+2. Navigate to **Devices** and select your device.
+3. Click on **View Config** on the top bar.
+4. Select **Edit Configuration**.
 5. Enter the desired configuration:
 ```json
 {
   "update_interval": 60
 }
 ```
-6. Click "Commit" to apply the changes
+6. Click **Commit** to apply the changes.
 
-The device will receive the new configuration through its shadow and adjust its update interval accordingly.
+The device receives the new configuration through its shadow and adjust its update interval accordingly.
 
 ### Configuration through REST API
 
-Update interval using nrfcloud rest api [nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState)
+Update interval using nrfcloud rest api [nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState).
 ```
 curl -X PATCH   "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state"   -H "Authorization: Bearer $API_KEY"   -H "Content-Type: application/json"   -d '{ "desired": { "config": { "update_interval": <your_value> } } }'
 ```
 
 ### Configuration Flow
+
 1. **Initial Setup**
-   - Device starts with default interval from `CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS`
-   - Upon cloud connection, device automatically requests shadow configuration
+   - The device starts with default interval from `CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS`.
+   - Upon cloud connection, the device automatically requests shadow configuration.
 
 2. **Runtime Configuration**
-   - Cloud module receives and processes shadow updates
-   - Device maintains last known configuration during offline periods
+   - Cloud module receives and processes shadow updates.
+   - Device maintains last known configuration during offline periods.
 
 3. **Impact on Device Behavior**
 The update_interval configuration controls the frequency of:
@@ -51,12 +52,12 @@ The Asset Tracker supports multiple location methods that can be prioritized bas
 
 ### Available Location Methods
 - GNSS (GPS)
-- Wi-Fi positioning
+- Wi-Fi® positioning
 - Cellular positioning
 
 ### Configuration Examples
 
-1. **Thingy91x Configuration** (wifi available):
+1. **Thingy91x Configuration** (Wi-Fi available):
 ```
 CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_FIRST_WIFI=y
 CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_SECOND_GNSS=y
@@ -64,7 +65,7 @@ CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_THIRD_CELLULAR=y
 CONFIG_LOCATION_REQUEST_DEFAULT_WIFI_TIMEOUT=10000
 ```
 
-2. **nRF9151 DK Configuration** (wifi unavailable):
+2. **nRF9151 DK Configuration** (Wi-Fi unavailable):
 ```
 CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_FIRST_GNSS=y
 CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_SECOND_CELLULAR=y
@@ -76,34 +77,34 @@ CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_SECOND_CELLULAR=y
 The Asset Tracker supports both LTE Cat NB1 (NB-IoT) and LTE Cat M1 (LTE-M) cellular connectivity:
 
 - **NB-IoT**: Optimized for:
-  - Low data rate applications
-  - Better coverage
-  - Stationary or low-mobility devices
+  - Low data rate applications.
+  - Better coverage.
+  - Stationary or low-mobility devices.
 
 - **LTE-M**: Better suited for:
-  - Higher data rates
-  - Mobile applications
-  - Lower latency requirements
+  - Higher data rates.
+  - Mobile applications.
+  - Lower latency requirements.
 
 #### Network Mode Selection
 The following network modes are available (`LTE_NETWORK_MODE`):
 
-- **Default**: Use the system mode currently set in the modem
-- **LTE-M**: LTE Cat M1 only
-- **LTE-M and GPS**: LTE Cat M1 with GPS enabled
-- **NB-IoT**: NB-IoT only
-- **NB-IoT and GPS**: NB-IoT with GPS enabled
-- **LTE-M and NB-IoT**: Both LTE-M and NB-IoT enabled
-- **LTE-M, NB-IoT and GPS**: Both LTE modes with GPS enabled
+- **Default**: Use the system mode currently set in the modem.
+- **LTE-M**: LTE Cat M1 only.
+- **LTE-M and GPS**: LTE Cat M1 with GPS enabled.
+- **NB-IoT**: NB-IoT only.
+- **NB-IoT and GPS**: NB-IoT with GPS enabled.
+- **LTE-M and NB-IoT**: Both LTE-M and NB-IoT enabled.
+- **LTE-M, NB-IoT and GPS**: Both LTE modes with GPS .
 
 #### Network Mode Preference
 When multiple network modes are enabled (LTE-M and NB-IoT), you can set preferences (`LTE_MODE_PREFERENCE`):
 
-- **No preference**: Automatically selected by the modem
-- **LTE-M**: Prioritize LTE-M over PLMN selection
-- **NB-IoT**: Prioritize NB-IoT over PLMN selection
-- **LTE-M, PLMN prioritized**: Prefer LTE-M but prioritize staying on home network
-- **NB-IoT, PLMN prioritized**: Prefer NB-IoT but prioritize staying on home network
+- **No preference**: Automatically selected by the modem.
+- **LTE-M**: Prioritize LTE-M over PLMN selection.
+- **NB-IoT**: Prioritize NB-IoT over PLMN selection.
+- **LTE-M, PLMN prioritized**: Prefer LTE-M but prioritize staying on home network.
+- **NB-IoT, PLMN prioritized**: Prefer NB-IoT but prioritize staying on home network.
 
 Example configuration in `prj.conf`:
 ```
@@ -134,26 +135,27 @@ PSM allows the device to enter deep sleep while maintaining network registration
      CONFIG_LTE_PSM_REQ_RAT_SECONDS=60  # 1 minute
      ```
 
-Key aspects:
-- Device negotiates PSM parameters with the network
-- Helps achieve longer battery life
-- Device remains registered but unreachable during sleep
-- Wakes up periodically based on TAU setting
-- Stays active for the duration specified by RAT
+The following are the Key aspects:
+- Device negotiates PSM parameters with the network.
+- Helps achieve longer battery life.
+- Device remains registered but unreachable during sleep.
+- Wakes up periodically based on TAU setting.
+- Stays active for the duration specified by RAT.
 
 
 ### APN (Access Point Name)
 The Access Point Name (APN) is a network identifier used by the device to connect to the cellular network's packet data network. Configuration options:
 
-- **Default APN**: Most carriers automatically configure the correct APN
+- **Default APN**: Most carriers automatically configure the correct APN.
 - **Manual Configuration**: If needed, APN can be configured through Kconfig:
   ```
   CONFIG_PDN_DEFAULT_APN="Access point name"
   ```
 
 Common scenarios for APN configuration:
-- Using a custom/private APN
-- Connecting to specific network services
-- Working with MVNOs (Mobile Virtual Network Operators)
+- Using a custom/private APN.
+- Connecting to specific network services.
+- Working with MVNOs (Mobile Virtual Network Operators).
 
-Note: In most cases, the default APN provided by the carrier should work without additional configuration.
+!!! note "note"
+      In most cases, the default APN provided by the carrier should work without additional configuration.
