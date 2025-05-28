@@ -23,6 +23,7 @@ enum location_msg_type {
 	LOCATION_SEARCH_STARTED = 0x1,
 	LOCATION_SEARCH_DONE,
 	LOCATION_SEARCH_TRIGGER,
+	LOCATION_SEARCH_CANCEL,
 };
 
 #define MSG_TO_LOCATION_TYPE(_msg)	(*(const enum location_msg_type *)_msg)

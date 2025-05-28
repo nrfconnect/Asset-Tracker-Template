@@ -21,4 +21,11 @@ endchoice
 config PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY
 	default y if BOARD_NRF9151DK_NRF9151_NS
 
+# Enable the use of all available RAM for MCUBoot. This means that MCUBoot will use non-secure
+# RAM. Enabling this option sets CONFIG_MCUBOOT_NRF_CLEANUP_NONSECURE_RAM which cleans up
+# non-secure RAM before booting the application. This also includes variables placed
+# in the NO INIT RAM section.
+config MCUBOOT_USE_ALL_AVAILABLE_RAM
+	default y
+
 source "${ZEPHYR_BASE}/share/sysbuild/Kconfig"
