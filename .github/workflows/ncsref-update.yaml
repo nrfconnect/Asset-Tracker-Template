@@ -25,7 +25,6 @@ jobs:
       artifact_run_id: ${{ needs.build.outputs.run_id }}
       devices: '["thingy91x"]'
       test_all: true
-      push_memory_badges: false
   update-pr-state:
     needs: [build, test]
     runs-on: ubuntu-latest
