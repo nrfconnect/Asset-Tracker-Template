@@ -1,13 +1,16 @@
 # Getting Started
 
-On this page, you will find instructions on how to set up the development environment, build the application, and run it on supported hardware.
-We will focus on using command line tools in this document, but you can also use [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) to achieve the same if you prefer that.
+To get started with Asset tracker template, you need to set up the development environment, build the application, and run it on supported hardware.
+You can use any of the following tools, depending on your preferred development environment:
 
-In nRF Connect for VS Code, the Asset Tracker Template is available as an add-on in the `Create New Application` menu:
+* Using Visual Studio Code and the [nRF Connect for VS Code extension](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html)
+* Using command line and nRF Util
+
+In nRF Connect for VS Code, the Asset Tracker Template is available as an add-on in the **Create New Application** menu:
 
 ![Create New Application menu](../images/create_new_app.png)
 
-Select the `Browse nRF Connect SDK add-on Index`option and search for `Asset Tracker Template`.
+Select the **Browse nRF Connect SDK add-on Index** option and search for **Asset Tracker Template**.
 
 ![Asset Tracker Template add-on](../images/addon_att.png)
 
@@ -16,7 +19,7 @@ For more details on how to use the VS Code extension, refer to the [nRF Connect 
 ## Prerequisites
 
 * The nRF Util command line tool and the SDK manager command
-  * First, install nRF Util by following the instructions in the [nRF Util documentation](https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html)
+  * First, install nRF Util by following the instructions in the [nRF Util documentation](https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html).
   * Then, install the SDK manager command by following the instructions in the [sdk-manager command](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-sdk-manager/nrfutil-sdk-manager.html) documentation.
 * nRF Connect SDK toolchain v3.0.0 or later
   * Follow the instructions in the [sdk-manager command](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-sdk-manager/nrfutil-sdk-manager.html) documentation to install v3.0.0 of the nRF Connect SDK toolchain.
@@ -44,9 +47,9 @@ Alternatively, you can run the command with a specific nRF Connect SDK version. 
 nrfutil sdk-manager toolchain launch --ncs-version v3.0.0 -- <your command>
 ```
 
-to run for instance the `west` command with the specified version of toolchain. Creating an alias or shell function for this command can be helpful to avoid typing it in full every time.
+To run for instance the `west` command with the specified version of toolchain. Creating an alias or shell function for this command can be helpful to avoid typing it in full every time.
 
-However, going forward in this document, we will use the `nrfutil toolchain-manager launch --shell` variant to launch the toolchain environment in the shell.
+In this document, the `nrfutil toolchain-manager launch --shell` variant is used to launch the toolchain environment in the shell.
 
 To initialize the workspace folder (`asset-tracker-template`) where the firmware project and all nRF Connect SDK modules will be cloned, run the following commands:
 
@@ -60,11 +63,11 @@ cd asset-tracker-template
 west update
 ```
 
-The template repository is now cloned into the `asset-tracker-template` folder, the west modules are downloaded, and we are ready to build the project.
+The template repository is now cloned into the `asset-tracker-template` folder, the west modules are downloaded, and you are ready to build the project.
 
 ## Building and running
 
-Complete the following steps for building and running:
+Complete the following steps for building and running using command line:
 
 1. Navigate to the application folder:
 
@@ -91,7 +94,7 @@ west thingy91x-dfu
 west flash --erase # The --erase option is optional and will erase the entire flash memory before programming
 ```
 
-The application is now built and flashed to the device. You can open a serial terminal to see the logs fromTest that it all works the application. The default baud rate is 115200. We suggest using the Serial Terminal application that comes with [nRF Connect for Desktop](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop). You can also use other serial terminal applications like PuTTY, Tera Term, or minicom.
+The application is now built and flashed to the device. You can open a serial terminal to see the logs from Test that it all works the application. The default baud rate is 115200. It is recommended to use the Serial Terminal app, which you can install from [nRF Connect for Desktop](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop). You can also use other serial terminal applications like PuTTY, Tera Term, or minicom.
 
 ### Builing with overlays
 
@@ -135,8 +138,8 @@ Refer to the [nRF Cloud Utils](https://github.com/nRFCloud/utils/tree/main) docu
 
 ### Steps
 
-Provisioning the device involves writing credentials to the nRF91 device. To do so, LTE needs to be disabled.
-Open device shell via serial and set network disconnect mode using the following command:
+Provisioning the device involves writing credentials to the nRF91 Series device. To do so, LTE needs to be disabled.
+Open device shell through serial and set network disconnect mode using the following command:
 
 ```shell
 att_network disconnect
@@ -163,7 +166,7 @@ Install credentials onto the device:
 device_credentials_installer -d --ca *_ca.pem --ca-key *_prv.pem --coap --cmd-type at_shell
 ```
 
-Upon success, you can find an `onboard.csv` file with information about your device. We need this file to register the certificate with your account.
+Upon success, you can find an `onboard.csv` file with information about your device. You need this file to register the certificate with your account.
 In this step, you will also be prompted to enter your nRF Cloud API key that you obtained earlier.
 
 ```shell
@@ -172,11 +175,11 @@ nrf_cloud_onboard --api-key $NRFCLOUD_API_KEY --csv onboard.csv
 
 Your device should now be registered to your account on nRF Cloud.
 
-## Test that it all works
+## Testing
 
 To test that everything is working as expected, you can do the following:
 
-* In a web browser, navigate to [nRF Cloud](https://nrfcloud.com) and log in to your account. Navigate to the `Device management` menu and select `Devices`, as shown below. You should now see your device listed in the device overview. Click on the device ID to see the device page.
+* In a web browser, navigate to [nRF Cloud](https://nrfcloud.com) and log in to your account. Navigate to the **Device management** menu and select **Devices**. You should now see your device listed in the device overview. Click on the device ID to see the device page.
 
 ![nRF Cloud device management menu](../images/nrfcloud_devices.png)
 
@@ -186,7 +189,7 @@ To test that everything is working as expected, you can do the following:
 kernel reboot
 ```
 
-* In the serial terminal, you will see the device booting up and connecting to the network. The device will attempt to connect to nRF Cloud using the credentials you provided during provisioning.
+* In the serial terminal, you will see the device booting up and connecting to the network. The device tries to connect to nRF Cloud using the credentials you provided during provisioning.
 
 <details>
 
@@ -277,7 +280,7 @@ Lazy stacking enabled
 
 * In the web browser, you will see the device page updating with the latest information from the device, including the location, battery level, and other sensor data.
 
-* Press button 1 on the device to trigger data sampling and sending to nRF Cloud.
+* Press **Button 1** on the device to trigger data sampling and sending to nRF Cloud.
 
 ![nRF Cloud exmaple data](../images/nrf_cloud_example_data.png)
 

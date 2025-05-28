@@ -14,9 +14,9 @@ The module accepts messages with the following parameters:
   - `blue`: Blue component (0-255)
 
 - **Timing Parameters**
-  - `duration_on_msec`: How long the LED stays on in milliseconds
-  - `duration_off_msec`: How long the LED stays off in milliseconds
-  - `repetitions`: Number of blink cycles (-1 for infinite blinking)
+  - `duration_on_msec`: How long the LED stays on in milliseconds.
+  - `duration_off_msec`: How long the LED stays off in milliseconds.
+  - `repetitions`: Number of blink cycles (-1 for infinite blinking).
 
 The message structure is defined in `led_module.h`:
 
@@ -43,20 +43,20 @@ struct led_msg {
 Instead of using a state machine, the LED module operates as follows:
 
 1. When a message is received on the `LED_CHAN` channel:
-   - Any existing blink pattern is canceled
-   - The new LED state (colors and timing) is saved
-   - The LED is turned on with the specified color
+   - Any existing blink pattern is canceled.
+   - The new LED state (colors and timing) is saved.
+   - The LED is turned on with the specified color.
 
 2. If a blinking pattern is specified (repetitions != 0):
-   - A timer is started with `duration_on_msec`
-   - When the timer expires, the LED toggles between on and off states
-   - The timer alternates between `duration_on_msec` and `duration_off_msec`
-   - This continues until the specified number of repetitions is reached
-   - If repetitions is -1, the blinking continues indefinitely or until a new message is received
+   - A timer is started with `duration_on_msec`.
+   - When the timer expires, the LED toggles between on and off states.
+   - The timer alternates between `duration_on_msec` and `duration_off_msec`.
+   - This continues until the specified number of repetitions is reached.
+   - If repetitions is -1, the blinking continues indefinitely or until a new message is received.
 
 The module handles error cases gracefully and reports issues through logging.
 
-## Configurations
+## Configuration
 
 The LED module uses the following configuration options:
 
@@ -64,7 +64,7 @@ The LED module uses the following configuration options:
   Controls logging level for the LED module.
 
 - **Device Tree Configuration**
-  The module requires three PWM LED aliases in the device tree:
+  The module requires three PWM LED aliases in the devicetree:
   - `pwm-led0`: Red channel
   - `pwm-led1`: Green channel
   - `pwm-led2`: Blue channel
