@@ -12,15 +12,13 @@ The CI pipeline is composed by the following workflows:
 - [.github/workflows/sonarcloud.yml](../../.github/workflows/sonarcloud.yml): for building and running tests on emulation, and run Sonarcloud analysis.
 - [.github/workflows/compliance.yml](../../.github/workflows/compliance.yml): for static compliance checks.
 
-Additionally we are using AI assistant in [.github/workflows/ai-review.yaml](../../.github/workflows/ai-review.yaml). It's an AI reviewer that runs on pull request.
-Developer can choose to run it or not with a label.
+Additionally, AI assistant is used in [.github/workflows/ai-review.yaml](../../.github/workflows/ai-review.yaml). It is an AI reviewer that runs on pull request.
+You can choose to run it or not with a label.
 
 The CI pipeline is triggered as follows:
 
 - Pull Request: `build.yml`, `sonarcloud.yml`, `compliance.yml`. No target tests are run on PR to avoid instabilities.
-
 - Push to main: `build-and-target-test.yml`, `sonarcloud.yml`. Only "fast" targets tests are run. Avoiding excessively time-consuming tests.
-
 - Nightly: `build-and-target-test.yml`. Full set of target tests. Includes "slow" tests such as full modem FOTA test and power consumption test.
 
 ### Hardware Tests
@@ -32,14 +30,14 @@ Tests on target are performed using self-hosted runners. How to set up your own 
 - Tests run on multiple target devices:
   - nRF9151 DK
   - Thingy:91 X
-- Uses self-hosted runners labeled according to the connected device
-- Parallel horizontal execution across different device types
-- Parallel vertical execution on multiple same device jobs
-- Runs in a containerized environment with hardware access
-- `pytest` as test runner
-- Supports Memfault integration for symbol file uploads
-- Generates detailed test reports and logs
-- Flexible test execution with support for specific test markers and paths
+- Uses self-hosted runners labeled according to the connected device.
+- Parallel horizontal execution across different device types.
+- Parallel vertical execution on multiple same device jobs.
+- Runs in a containerized environment with hardware access.
+- `pytest` as test runner.
+- Supports Memfault integration for symbol file uploads.
+- Generates detailed test reports and logs.
+- Flexible test execution with support for specific test markers and paths.
 
 Try out tests locally: [tests/on_target/README.md](../../tests/on_target/README.md)
 
@@ -48,15 +46,15 @@ Try out tests locally: [tests/on_target/README.md](../../tests/on_target/README.
 Emulation tests are implemented as part of the SonarCloud workflow ([.github/workflows/sonarcloud.yml](../../.github/workflows/sonarcloud.yml)). These tests:
 
 - Run on the [`native_sim`](https://docs.nordicsemi.com/bundle/ncs-3.0.1/page/zephyr/boards/native/native_sim/doc/index.html) platform using [Twister](https://docs.nordicsemi.com/bundle/ncs-3.0.1/page/zephyr/develop/test/twister.html)
-- Execute integration tests in an emulated environment
-- Generate code coverage reports
-- Use build wrapper for accurate code analysis
+- Execute integration tests in an emulated environment.
+- Generate code coverage reports.
+- Use build wrapper for accurate code analysis.
 
 ### SonarCloud Analysis
 
 The SonarCloud integration ([.github/workflows/sonarcloud.yml](../../.github/workflows/sonarcloud.yml)) provides:
 
-- Static code analysis for C/C++ files
+- Static code analysis for C/C++ files.
 - Code coverage reporting
 - Pull request analysis and main branch analysis
 - Continuous monitoring of code quality metrics
@@ -76,11 +74,11 @@ Compliance checks are implemented in [.github/workflows/compliance.yml](../../.g
 
 ### Key Features
 
-1. **Modularity**: Each aspect of testing is handled by a dedicated workflow
-2. **Comprehensive Coverage**: Combines hardware testing, emulation, and static analysis
-3. **Detailed Reporting**: Generates test reports, coverage data, and compliance checks
-4. **Flexibility**: Supports different test configurations and target devices
-5. **Quality Assurance**: Multiple layers of validation ensure code quality
+1. **Modularity**: Each aspect of testing is handled by a dedicated workflow.
+2. **Comprehensive Coverage**: Combines hardware testing, emulation, and static analysis.
+3. **Detailed Reporting**: Generates test reports, coverage data, and compliance checks.
+4. **Flexibility**: Supports different test configurations and target devices.
+5. **Quality Assurance**: Multiple layers of validation ensure code quality.
 
 ## Test Results and Artifacts
 

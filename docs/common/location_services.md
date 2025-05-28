@@ -7,33 +7,33 @@ The Asset Tracker uses [nRF Cloud's location services](https://docs.nordicsemi.c
 The following location methods are supported:
 
 1. **GNSS (Global Navigation Satellite System)**
-   - Highest accuracy positioning
-   - Best suited for outdoor use
-   - Higher power consumption compared to other methods
+   - Highest accuracy positioning.
+   - Best suited for outdoor use.
+   - Higher power consumption compared to other methods.
 
 2. **Cellular**
-   - Uses cellular tower information for positioning
-   - Works indoors
-   - Lower power consumption than GNSS
+   - Uses cellular tower information for positioning.
+   - Works indoors.
+   - Lower power consumption than GNSS.
 
 3. **Wi-Fi**
-   - Uses nearby Wi-Fi access points for positioning
-   - Excellent for indoor positioning
-   - Lower power consumption than GNSS
+   - Uses nearby Wi-Fi access points for positioning.
+   - Excellent for indoor positioning.
+   - Lower power consumption than GNSS.
 
 ## Integration with nRF Cloud
 
 The location data is automatically sent to nRF Cloud, allowing you to:
-- Track device location in the nRF Cloud portal
-- Analyze location history
-- Monitor location accuracy and methods used
+- Track device location in the nRF Cloud portal.
+- Analyze location history.
+- Monitor location accuracy and methods used.
 
 ## Power Considerations
 
 Different location methods have different power consumption profiles:
 
-1. GNSS: Highest power consumption, best accuracy
-2. Wi-Fi: Medium power consumption, good accuracy indoors
-3. Cellular: Lowest additional power consumption (modem already active), moderate accuracy
+1. GNSS: Highest power consumption, best accuracy.
+2. Wi-Fi: Medium power consumption, good accuracy indoors.
+3. Cellular: Lowest additional power consumption (modem already active), moderate accuracy.
 
 Each method offers a different balance between power consumption and accuracy, allowing you to choose the most appropriate method for your use case.

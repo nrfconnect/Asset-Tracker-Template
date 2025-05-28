@@ -1,23 +1,19 @@
 # Customization
 
-## Table of Contents
+This guide explains modifying the specific aspects of the template.
 
-This section contains guides for modifying specific aspects of the template.
-
-- [Add a new Zbus event](#add-a-new-zbus-event)
+- [Add a new zbus event](#add-a-new-zbus-event)
 - [Add environmental sensor](#add-environmental-sensor)
 - [Add your own module](#add-your-own-module)
 - [Enable support for MQTT](#enable-support-for-mqtt)
 
-## Add a new ZBus event
+## Add a new zbus event
 
-This guide demonstrates how to add a new event to a module and utilize it in another module within the system. In this example, we will add events to the power module to notify the system when VBUS is connected or disconnected on the Thingy91x.
-The main module will subscribe to these events and request specific LED patterns from the LED module in response.
+This section demonstrates how to add a new event to a module and utilize it in another module within the system. In this example, you can add events to the power module to notify the system when VBUS is connected or disconnected on the Thingy:91 X.
+The main module subscribes to these events and request specific LED patterns from the LED module in response.
 
 When VBUS is connected, the LED will toggle white for 10 seconds.
 When VBUS is disconnected, the LED will toggle purple for 10 seconds.
-
-### TL;DR
 
 To apply all the necessary changes to the template, use the following command:
 
@@ -27,7 +23,9 @@ git apply <path-to-template-dir>/Asset-Tracker-Template/docs/patches/add-event.p
 
 ### Instructions
 
-1. Define the new events in your module's header file (e.g., in `power.h`):
+To add a new zbus event, complete the following procedure:
+
+1. Define the new events in your module's header file (for example, `power.h`):
    ```c
    enum power_msg_type {
        /* ... existing message types ... */
@@ -73,7 +71,7 @@ git apply <path-to-template-dir>/Asset-Tracker-Template/docs/patches/add-event.p
    }
    ```
 
-3. Make sure the channel is included in the subscriber module (e.g., in `main.c`). Add the channel to the channel list:
+3. Make sure the channel is included in the subscriber module (for example, `main.c`). Add the channel to the channel list:
    ```c
    #define LIST_OF_CHANNELS(X)                          \
        X(LED_CHAN,		    enum led_msg_type)          \
@@ -82,7 +80,7 @@ git apply <path-to-template-dir>/Asset-Tracker-Template/docs/patches/add-event.p
        X(TIMER_CHAN,		int)
    ```
 
-4. Implement a handler for the new events in the subscriber module (e.g., in the main module's state machine in `running_run`):
+4. Implement a handler for the new events in the subscriber module (for example, in the main module's state machine in `running_run`):
    ```c
    if (state_object->chan == &POWER_CHAN) {
        struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
@@ -139,11 +137,9 @@ git apply <path-to-template-dir>/Asset-Tracker-Template/docs/patches/add-event.p
 
 ## Add environmental sensor
 
-This guide demonstrates how to add support for the BMM350 magnetometer.
-The environmental module will be updated to sample data from the sensor via the Zephyr Sensor API.
+This section demonstrates how to add support for the BMM350 magnetometer.
+The environmental module will be updated to sample data from the sensor through the Zephyr Sensor API.
 The data is forwarded to nRF Cloud along with all the other data types sampled by the system.
-
-### TL;DR
 
 To add basic support for the BMM350 magnetometer to the template, use the following command:
 
@@ -155,21 +151,21 @@ git apply <path-to-template-dir>/Asset-Tracker-Template/docs/patches/magnetomete
 
 To add a new sensor to the environmental module, ensure that:
 
-1. The sensor is properly configured in the Device Tree (DTS)
-2. The corresponding driver is available in the Zephyr RTOS
-3. The sensor is compatible with the Zephyr Sensor API
+1. The sensor is properly configured in the Device Tree (DTS).
+2. The corresponding driver is available in the Zephyr RTOS.
+3. The sensor is compatible with the Zephyr Sensor API.
 
-In this example, we'll add support for the Bosch BMM350 Magnetometer sensor using the [Zephyr Sensor API](https://docs.zephyrproject.org/latest/hardware/peripherals/sensor/index.html). The BMM350 driver in Zephyr integrates with the Sensor API, making it straightforward to use.
-This guide will apply in general for all sensors that support the Zephyr Sensor API.
+In this example, support for the Bosch BMM350 Magnetometer sensor is added using the [Zephyr Sensor API](https://docs.zephyrproject.org/latest/hardware/peripherals/sensor/index.html). The BMM350 driver in Zephyr integrates with the Sensor API.
+This applies in general for all sensors that support the Zephyr Sensor API.
 
-This guide uses the Thingy91x as an example, as it's a supported board in the template with defined board files in the nRF Connect SDK (NCS).
+Thingy:91 X is used as an example, as it is a supported board in the template with defined board files in the nRF Connect SDK.
 
-1. First, enable the sensor in the Device Tree by setting its status to "okay". This will:
-   - Instantiate the Device Tree node for the sensor
-   - Initialize the driver during boot
-   - Make the sensor ready for use
+1. Enable the sensor in the devicetree by setting its status to "okay". This will:
+   - Instantiate the devicetree node for the sensor.
+   - Initialize the driver during boot.
+   - Make the sensor ready for use.
 
-Add the following to the board-specific Device Tree overlay file (`thingy91x_nrf9151_ns.overlay`):
+Add the following to the board-specific devicetree overlay file (`thingy91x_nrf9151_ns.overlay`):
 
 ```c
 &magnetometer {
@@ -193,7 +189,7 @@ struct environmental_state {
 };
 ```
 
-3. Initialize the device reference using the Device Tree label:
+3. Initialize the device reference using the devicetree label:
 
 ```c
 struct environmental_state environmental_state = {
@@ -286,9 +282,7 @@ Define a custom APP ID for magnetic field data:
 
 ## Add your own module
 
-This guide demonstrates how to create a new module in the template. The dummy module serves as a template for understanding the module architecture and can be used as a foundation for custom modules.
-
-### TL;DR
+The dummy module serves as a template for understanding the module architecture and can be used as a foundation for custom modules.
 
 To add the dummy module to the template, apply the following patch:
 
@@ -296,7 +290,7 @@ To add the dummy module to the template, apply the following patch:
 git apply <path-to-template-dir>/Asset-Tracker-Template/docs/patches/dummy-module.patch
 ```
 
-If you want to generate and apply a dummy module with a custom name other than "Dummy" you can run the following script to rename the module and apply the patch:
+If you want to generate and apply a dummy module with a custom name other than "Dummy", you can run the following script to rename the module and apply the patch:
 
 ```bash
 cd Asset-Tracker-Template
@@ -321,6 +315,8 @@ Patch applied successfully.
 
 ### Instructions
 
+To add your own module, complete the following steps:
+
 1. Create the module directory structure:
 
 ```bash
@@ -328,10 +324,10 @@ mkdir -p app/src/modules/dummy
 ```
 
 2. Create the following files in the module directory:
-   - `dummy.h` - Module interface definitions
-   - `dummy.c` - Module implementation
-   - `Kconfig.dummy` - Module configuration options
-   - `CMakeLists.txt` - Build system configuration
+   - `dummy.h` - Module interface definitions.
+   - `dummy.c` - Module implementation.
+   - `Kconfig.dummy` - Module configuration options.
+   - `CMakeLists.txt` - Build system configuration.
 
 3. In `dummy.h`, define the module's interface:
 
@@ -580,13 +576,13 @@ add_subdirectory(src/modules/dummy)
 
 The dummy module is now ready to use. It provides the following functionality:
 
-- Initializes with a counter value of 0
-- Increments the counter on each sample request
-- Responds with the current counter value using zbus
-- Includes error handling and watchdog support
-- Follows the state machine pattern used by other modules
+- Initializes with a counter value of `0`.
+- Increments the counter on each sample request.
+- Responds with the current counter value using zbus.
+- Includes error handling and watchdog support.
+- Follows the state machine pattern used by other modules.
 
-To test the module, send a `DUMMY_SAMPLE_REQUEST` message to its zbus channel. The module will respond with a `DUMMY_SAMPLE_RESPONSE` containing the incremented counter value.
+To test the module, send a `DUMMY_SAMPLE_REQUEST` message to its zbus channel. The module responds with a `DUMMY_SAMPLE_RESPONSE` containing the incremented counter value.
 
 This dummy module serves as a template that you can extend to implement more complex functionality. You can add additional message types, state variables, and processing logic as needed for your specific use case.
 
@@ -631,7 +627,7 @@ Some of the available options for controlling the MQTT module are:
 
 ### How to use the MQTT Cloud Example
 
-1. **Build and flash with the MQTT overlay**
+1. Build and flash with the MQTT overlay.
 
    In the template's `app` folder, run:
 
@@ -639,9 +635,9 @@ Some of the available options for controlling the MQTT module are:
    west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="$(pwd)/../examples/modules/cloud/overlay-mqtt.conf" && west flash --erase --skip-rebuild
    ```
 
-2. **Observe that the device connects to the broker**
+2. Observe that the device connects to the broker.
 
-3. **Test using shell commands**
+3. Test using shell commands:
 
     ```bash
         uart:~$ att_cloud_publish_mqtt test-payload
@@ -684,7 +680,7 @@ The cloud MQTT module implements an internal state machine to manage the connect
        STATE_CONNECTED --> STATE_DISCONNECTED : exit / mqtt_helper_disconnect()
    ```
 
-### Caveats
+### Limitations
 
 The MQTT cloud module is designed as a demonstration of how to replace the template's default nRF Cloud CoAP-based cloud module with an MQTT-based implementation. It is not intended to be a fully-featured solution and has the following limitations:
 
