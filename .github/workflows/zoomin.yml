@@ -1,0 +1,33 @@
+name: Create Zoomin bundle
+
+on:
+  pull_request:
+    types: [synchronize, opened, reopened]
+    paths:
+      - 'docs/**'
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  create-zoomin-bundle:
+    name: Create Zoomin bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy zoomin properties
+        run: |
+          cp zoomin/custom.properties docs/ \
+          && cp zoomin/tags.yml docs/
+
+      - name: Create zip file
+        run: |
+          zip -r asset-tracker-template.zip \
+          docs/* mkdocs.yml custom.properties tags.yml
+
+      - name: Upload documentation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: asset-tracker-template
+          path: asset-tracker-template.zip
+          retention-days: 7

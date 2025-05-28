@@ -1,8 +1,8 @@
 # Architecture
 
-The Asset Tracker Template application leverages Zephyr features to create a modular, event-driven system. Key to the template architecture are [zbus](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) for inter-module communication and the [State Machine Framework](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html) (SMF) for managing module behavior.
+The Asset Tracker Template leverages Zephyr features to create a modular, event-driven system. The key to the template architecture are [Zephyr bus (zbus)](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) for inter-module communication and the [State Machine Framework](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html) (SMF) for managing module behavior.
 
-This document provides an overview of the architecture and explains how the different modules interact with each other, with a focus on the zbus messaging bus and the State Machine Framework.
+This document provides an overview of the architecture and explains how the different modules interact with each other, with a focus on the zbus messaging and the State Machine Framework.
 
 - [System overview](#system-overview)
 - [Zbus](#zbus)
@@ -12,42 +12,42 @@ This document provides an overview of the architecture and explains how the diff
 
 The Asset Tracker Template is built around a modular architecture where each module is responsible for a specific functionality. The template consists of the following modules:
 
-- **[Main module](../modules/main.md)**: The central coordinator that implements the business logic and controls the overall application flow
-- **[Network module](../modules/network.md)**: Manages LTE connectivity and tracks network status
-- **[Cloud module](../modules/cloud.md)**: Handles communication with nRF Cloud using CoAP
-- **[Location module](../modules/location.md)**: Provides location services using GNSS, Wi-Fi and cellular positioning
-- **[LED module](../modules/led.md)**: Controls RGB LED for visual feedback
-- **[Button module](../modules/button.md)**: Handles button input for user interaction
-- **[FOTA module](../modules/fota.md)**: Manages firmware over-the-air updates
-- **[Environmental module](../modules/environmental.md)**: Collects environmental sensor data (temperature, humidity, pressure)
-- **[Power module](../modules/power.md)**: Monitors battery status and provides power management
+- **[Main module](../modules/main.md)**: The central coordinator that implements the business logic and controls the overall application flow.
+- **[Network module](../modules/network.md)**: Manages LTE connectivity and tracks network status.
+- **[Cloud module](../modules/cloud.md)**: Handles communication with nRF Cloud using CoAP.
+- **[Location module](../modules/location.md)**: Provides location services using GNSS, Wi-Fi, and cellular positioning.
+- **[LED module](../modules/led.md)**: Controls RGB LED for visual feedback.
+- **[Button module](../modules/button.md)**: Handles button input for user interaction.
+- **[FOTA module](../modules/fota.md)**: Manages firmware over-the-air updates.
+- **[Environmental module](../modules/environmental.md)**: Collects environmental sensor data (temperature, humidity, pressure).
+- **[Power module](../modules/power.md)**: Monitors battery status and provides power management.
 
-The diagram below shows the system architecture and how the modules interact with each other. The modules are connected through a zbus messaging bus, which allows them to communicate with each other without being directly aware of each other. This decouples the modules and allows for easier maintenance and extensibility.
+The following diagram shows the system architecture and how the modules interact with each other. The modules are connected through a zbus messaging bus, which allows them to communicate with each other without being directly aware of each other. This decouples the modules and allows for easier maintenance and extensibility.
 
 ![System overview](../images/system_overview.png)
 
-Here's a simplified flow of a typical operation:
+The following steps show the simplified flow of a typical operation:
 
-1. The Main module schedules periodic triggers or responds to button presses reported on the `BUTTON_CHAN` channel
-2. When triggered either by timeout or button press, it requests location data from the Location module on the `LOCATION_CHAN` channel
-3. After location search is completed and reported on the `LOCATION_CHAN`, the Main module requests sensor data from the Environmental module on the `ENVIRONMENTAL_CHAN` channel
-4. Throughout the operation, the Main module controls the LED module over the `LED_CHAN` channel to provide visual feedback about the system state
+1. The Main module schedules periodic triggers or responds to button presses reported on the `BUTTON_CHAN` channel.
+2. When triggered either by timeout or button press, it requests location data from the Location module on the `LOCATION_CHAN` channel.
+3. After the location search is completed and reported on the `LOCATION_CHAN`, the Main module requests sensor data from the Environmental module on the `ENVIRONMENTAL_CHAN` channel.
+4. Throughout the operation, the Main module controls the LED module over the `LED_CHAN` channel to provide visual feedback about the system state.
 
 ### Module Architecture
 
 Each module follows a similar pattern:
 
-1. **State machine**: Most modules implement a state machine using SMF to manage their internal state and behavior
-2. **Message channels**: Each module defines its own zbus channels and message types for communication
-3. **Thread**: Modules that need to perform blocking operations have their own thread
-4. **Initialization**: Modules are initialized at system startup, either through SYS_INIT() or in its dedicated thread
+- **State machine**: Most modules implement a state machine using SMF to manage their internal state and behavior.
+- **Message channels**: Each module defines its own zbus channels and message types for communication.
+- **Thread**: Modules that need to perform blocking operations have their own thread.
+- **Initialization**: Modules are initialized at system startup, either through `SYS_INIT()` or in its dedicated thread.
 
-Modules in the Asset Tracker Template should avoid dependencies and remain unaware of each other whenever possible. This decoupling improves maintainability and extensibility. However, some exceptions exist, such as the Main module, which must interact with other modules to implement the application's business logic.
-Another example is the cloud module that needs to be aware of the network module to know when it is connected to the network and when it is not.
+Modules in the Asset Tracker Template must be independent of each other whenever possible. This decoupling improves maintainability and extensibility. However, some exceptions exist, such as the Main module, which must interact with other modules to implement the application's business logic.
+Another example is the cloud module that needs to be aware of the Network module to know when it is connected to the network and when it is not.
 
 ## Zbus
 
-The [zbus documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) provides a good introduction to the zbus library, and this section will only cover the parts that are relevant for the Asset Tracker Template:
+The [zbus documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) provides a good introduction to the zbus library, and this section only covers the parts that are relevant for the Asset Tracker Template:
 
 - Channels and messages
 - Channel observers: Message subscribers and listeners
@@ -55,7 +55,7 @@ The [zbus documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/zeph
 
 ### Channels and messages
 
-In the Asset Tracker Template, each module defines channels and message types in their own header file. For example, in `modules/network/network.h`, the Network module defines the `NETWORK_CHAN` channel and the `struct network_msg` message type.
+In the Asset Tracker Template, each module defines channels and message types in their own header file. For example, in the `modules/network/network.h` file, the Network module defines the `NETWORK_CHAN` channel and the `struct network_msg` message type.
 Channels are defined using `ZBUS_CHAN_DEFINE`, specifying the channel name, message type and more. For example:
 
 ```c
@@ -68,9 +68,9 @@ ZBUS_CHAN_DEFINE(NETWORK_CHAN,                          /* Channel name */
 );
 ```
 
-In the above example, initial observers are set to `ZBUS_OBSERVERS_EMPTY` to indicate that no observers are initially listening on the channel. However, observers can still be added at compile time using `ZBUS_CHAN_ADD_OBS`. It is also possible to add observers at runtime using `zbus_chan_add_obs`. The reason that we need to set the initial observers to `ZBUS_OBSERVERS_EMPTY` is that the Network module is not aware of any other modules in the system, and doing it this way avoids coupling between modules.
+In the above example, initial observers are set to `ZBUS_OBSERVERS_EMPTY` to indicate that no observers are initially listening on the channel. However, observers can still be added at compile time using `ZBUS_CHAN_ADD_OBS`. It is also possible to add observers at runtime using `ZBUS_CHAN_ADD_OBS`. The reason that you need to set the initial observers to `ZBUS_OBSERVERS_EMPTY` is that the network module is not aware of any other modules in the system, and this avoids coupling between modules.
 
-Message data types may be any valid C type, and their content is specific to the needs of the module. For example from the Network module header file:
+Message data types may be any valid C type, and their content is specific to the needs of the module. For example, from the Network module header file:
 
 ```c
 struct network_msg {
@@ -82,11 +82,11 @@ struct network_msg {
 };
 ```
 
-There are a couple of things to note in the above example on how message types are defined in the Asset Tracker Template:
+The following are a few key points from the above example regarding how message types are defined in the Asset Tracker Template:
 
-- The message type is an enumerator that is specific to the Network module. The message type is typically used in a switch-case statement in the subscriber to determine what action to take and what, if any, other fields in the message to use.
+- The message type is an enumerator that is specific to the Network module. The message type is typically used within a switch-case statement by the subscriber to determine what action to take and what, if any, additional fields in the message to use.
 
-- When there are multiple message types in a message, it is a good practice to use a union to save memory. This is because the message will be allocated on the stack when it is sent, and it is good to keep the message size as small as possible. We have chosen to use anonymous unions in the Asset Tracker Template to avoid having to write the union name when accessing the union members.
+- When there are multiple message types in a message, it is a good practice to use a union to save memory. This is because the message will be allocated on the stack when it is sent, and it is good to keep the message size as small as possible. In the Asset Tracker Template, anonymous unions are used to avoid the need to specify the union name when accessing its members.
 
 ### Observers
 
@@ -94,7 +94,7 @@ A zbus observer is an entity that can receive messages on one or more zbus chann
 
 #### Message subscribers
 
-Used by modules that have their own thread and that perform actions that may block in response to messages.
+The message subscribers are used by modules that have their own thread and that perform actions that may block in response to messages.
 For example, the Network module subscribes to its own `NETWORK_CHAN` channel to receive messages about network events. The module may react to a message by sending some AT command to the modem, which may block until some signalling with the network is done and a response is received. This is why the module has its own thread and needs to be a message subscriber.
 
 A message subscriber will queue up messages that are received while the module is busy processing another message. The module can then process the messages in the order they were received. An incoming message can never interrupt the processing of another message.
@@ -108,7 +108,7 @@ ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network_subscriber, 0);
 
 #### Listeners
 
-Used by modules that do not have their own thread and that does not block when processing messages. A listener will receive a message synchronously in the sender's context. For example, the LED module listens for messages on the `LED_CHAN` channel. When it receives an `LED_RGB_SET` message from the Main module, it will immediately set the RGB LED color without blocking. This happens in the Main module's context. The LED module does not have its own thread and does not block when processing messages, so it can be a listener.
+The listeners are used by modules that do not have their own thread and that do not block when processing messages. A listener receives a message synchronously in the sender's context. For example, the LED module listens for messages on the `LED_CHAN` channel. When it receives an `LED_RGB_SET` message from the Main module, it immediately sets the RGB LED color without blocking. This happens in the Main module's context. The LED module does not have its own thread and does not block when processing messages, so it can be a listener.
 
 A listener is defined using `ZBUS_LISTENER_DEFINE`, and the listener is added to a channel using `ZBUS_CHAN_ADD_LISTENER`. For example, in the LED module it listens for messages on its own channel like this:
 
@@ -136,7 +136,7 @@ err = zbus_chan_pub(LED_CHAN, &msg);
 
 ```
 
-The LED module will receive the message and call the `led_callback` function with the message data, as described in [Listeners](#listeners).
+The LED module receives the message and call the `led_callback` function with the message data, as described in [Listeners](#listeners).
 If the LED module observer were a message subscriber, the message would be queued up until the module is ready to process it.
 
 ## State Machine Framework
@@ -149,9 +149,9 @@ The [documentation on SMF](https://docs.nordicsemi.com/bundle/ncs-latest/page/ze
 
 The state machine implementation follows a run-to-completion model where:
 
-- Message processing and state machine execution, including transitions, complete fully before processing new messages
-- Entry and exit functions are called in the correct order when transitioning states
-- Parent state transitions are handled automatically when transitioning between child states
+- Message processing and state machine execution, including transitions, complete fully before processing new messages.
+- Entry and exit functions are called in the correct order when transitioning states.
+- Parent state transitions are handled automatically when transitioning between child states.
 
 This ensures predictable behavior and proper state cleanup during transitions, as there is no mechanism for interrupting or changing the state machine execution from the outside.
 
@@ -159,10 +159,10 @@ This ensures predictable behavior and proper state cleanup during transitions, a
 
 States are defined using the `SMF_CREATE_STATE` macro, which allows specifying:
 
-- **Entry function:** Called when entering the state
-- **Run function:** Called while in the state
-- **Exit function:** Called when leaving the state
-- **Parent state:** For hierarchical state machines
+- **Entry function:** Called when entering the state.
+- **Run function:** Called while in the state.
+- **Exit function:** Called when leaving the state.
+- **Parent state:** For hierarchical state machines.
 - **Initial transition:** A state may transition to a sub-state upon entry.
 
 Example from the Cloud module:
@@ -180,13 +180,13 @@ Example from the Cloud module:
 
 The framework supports parent-child state relationships, allowing common behavior to be implemented in parent states. For example, in the Network module:
 
-- `STATE_RUNNING` is the top-level state
-- `STATE_DISCONNECTED` and `STATE_CONNECTED` are child states of `STATE_RUNNING`
-- `STATE_DISCONNECTED_IDLE` is a child state of `STATE_DISCONNECTED`
+- `STATE_RUNNING` is the top-level state.
+- `STATE_DISCONNECTED` and `STATE_CONNECTED` are child states of `STATE_RUNNING`.
+- `STATE_DISCONNECTED_IDLE` is a child state of `STATE_DISCONNECTED`.
 
 This hierarchy allows for shared behavior and clean state organization.
 
-Here is the full state machine of the network module, both graphically and SMF implementation:
+Here is the full state machine of the Network module, both graphically and SMF implementation:
 
 ![Network module state diagram](../images/network_module_state_machine.png)
 
@@ -220,10 +220,11 @@ static const struct smf_state states[] = {
 };
 ```
 
-In the image above, the black dots and arrow indicate initial transitions.
-In this case, the initial state is set to `STATE_RUNNING`. In the state machine definition, initial transitions are configured, such that the state machine will end up in `STATE_DISCONNECTED_SEARCHING` when first initialized.
-From there, transitions will follow the arrows according to the messages received and the state machine logic.
-It is important to note that in a hierarchical state machine, the run function of the current state is executed first, and then the run function of the parent state is executed, unless a state transition happens, or the child state marks the message as handled using `smf_state_handled()`.
+In the image, the black dots and arrow indicate initial transitions.
+In this case, the initial state is set to `STATE_RUNNING`. In the state machine definition, initial transitions are configured, such that the state machine ends up in `STATE_DISCONNECTED_SEARCHING` when first initialized.
+From there, transitions follows the arrows according to the messages received and the state machine logic.
+
+!!! important "important" In a hierarchical state machine, the run function of the current state is executed first, and then the run function of the parent state is executed, unless a state transition happens, or the child state marks the message as handled using `smf_state_handled()`.
 
 ### State machine context
 
@@ -268,11 +269,11 @@ This has to be done before the state machine is executed the first time.
 
 The state machine is run using `smf_run_state()`, which:
 
-- Executes the run function of the current state if it is defined
+- Executes the run function of the current state if it is defined.
 - Executes the run function of parent states unless:
-  - A state transition happens
-  - A child state marks the message as handled using `smf_state_handled()`
-- Executes the exit function of the current and parent states when leaving a state
+  - A state transition happens.
+  - A child state marks the message as handled using `smf_state_handled()`.
+- Executes the exit function of the current and parent states when leaving a state.
 
 ### State transitions
 
@@ -283,4 +284,4 @@ smf_set_state(SMF_CTX(state_object), &states[NEW_STATE]);
 ```
 
 A transition to another state has to be the last thing happening in a state handler. This is to ensure correct order of execution of parent state handlers.
-SMF automatically handles the execution of exit and entry functions for all states along the path to the new state
+SMF automatically handles the execution of exit and entry functions for all states along the path to the new state.

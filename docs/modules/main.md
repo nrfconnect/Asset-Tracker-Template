@@ -1,6 +1,6 @@
 # Main Module
 
-The Main module serves as the central control unit of the Asset Tracker Template application. It implements a hierarchical state machine that coordinates the activities of all other modules through [zbus](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) messages.
+The Main module serves as the central control unit of the Asset Tracker Template. It implements a hierarchical state machine that coordinates the activities of all other modules through [zbus](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) messages.
 This module handles the application's business logic, including cloud connectivity, data sampling, firmware updates, configuration updates, and user interactions.
 
 ## Messages
@@ -43,7 +43,7 @@ The Main module uses the following zbus channels, both for subscribing to incomi
   - Handle timer events for sampling.
 
 
-## Configurations
+## Configuration
 
 The Main module can be configured using the following Kconfig options:
 

@@ -1,17 +1,5 @@
 # Tooling and Troubleshooting
 
-## Table of Contents
-
-- [Shell Commands](#shell-commands)
-  - [Available Commands](#available-commands)
-  - [Shell Command Examples](#shell-command-examples)
-- [Debugging Tools](#debugging-tools)
-  - [Low Power Profiling](#low-power-profiling)
-  - [GDB Debugging](#gdb-debugging)
-  - [SEGGER SystemView](#segger-systemview)
-  - [Thread Analysis](#thread-analysis)
-  - [Hardfaults](#hardfaults)
-
 General overview of tools used to troubleshoot the template code and/or modem/network behavior.
 For more knowledge on debugging and troubleshooting [nRF Connect SDK](https://github.com/nrfconnect/sdk-nrf) based applications in general, refer to these links:
 
@@ -24,8 +12,8 @@ For more knowledge on debugging and troubleshooting [nRF Connect SDK](https://gi
 
 The template provides several shell commands for controlling and monitoring device behavior. Connect to the device's UART interface using either:
 
-- Your preferred terminal application (e.g., `putty`, `minicom`, `terraterm`)
-- [nRF Connect for Desktop](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) Serial terminal application
+- [Serial terminal app] ( https://docs.nordicsemi.com/bundle/nrf-connect-serial-terminal/page/index.html) form nRF Connect for Desktop.
+- Your preferred terminal application (for example, `putty`, `minicom`, `terraterm`).
 
 ### Available Commands
 
@@ -103,11 +91,9 @@ OK
 
 To get a rough estimate of the power consumption of the device and what you should expect depending on your network configuration and data transmission, you can use the [Online Power Profiler for LTE](https://devzone.nordicsemi.com/power/w/opp/3/online-power-profiler-for-lte).
 
-For exact measurements, it's recommended to use a Power Analyzer or the [PPK: Power Profiler Kit 2](https://www.nordicsemi.com/Products/Development-hardware/Power-Profiler-Kit-2).
+For exact measurements, it is recommended to use a Power Analyzer or the [PPK: Power Profiler Kit 2](https://www.nordicsemi.com/Products/Development-hardware/Power-Profiler-Kit-2).
 
-For detailed guidance on how the PPK can be used to profile and measure power, see:
-
-- [Power Profiler Kit User Guide](https://docs.nordicsemi.com/bundle/ug_ppk2/page/UG/ppk/PPK_user_guide_Intro.html)
+For detailed guidance on how the PPK can be used to profile and measure power, see the [Power Profiler Kit User Guide](https://docs.nordicsemi.com/bundle/ug_ppk2/page/UG/ppk/PPK_user_guide_Intro.html).
 
 ### GDB Debugging
 
@@ -131,7 +117,7 @@ Common GDB commands:
 (gdb) step
 ```
 
-For more information, see:
+For more information, see the following documentation:
 
 - [West Debugging Guide](https://docs.zephyrproject.org/latest/develop/west/build-flash-debug.html#debugging-west-debug-west-debugserver)
 - [nRF Connect SDK VS Code Debugging](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/debugging-in-vs-code/)
@@ -152,7 +138,7 @@ CONFIG_TRACING=y
 CONFIG_SEGGER_SYSTEMVIEW=y
 ```
 
-And build/flash the template for the respective board.
+And build or flash the template for the respective board.
 Or build with the necessary configurations passed in via the west build command:
 
 ```bash
@@ -232,16 +218,16 @@ The listed configurations configure the thread analyzer to print thread informat
 [00:00:30.728,759] <inf> thread_analyzer:  ISR0                : STACK: unused 1736 usage 312 / 2048 (15 %)
 ```
 
-For more information, see [Zephyr Thread Analyzer](https://docs.zephyrproject.org/latest/services/debugging/thread-analyzer.html)
+For more information, see [Zephyr Thread Analyzer](https://docs.zephyrproject.org/latest/services/debugging/thread-analyzer.html).
 
 ### Hardfaults
 
-When a hardfault occurs, the [LR and PC](https://stackoverflow.com/questions/8236959/what-are-sp-stack-and-lr-in-arm) registers can be looked up in order to find the offending instruction.
+When a hardfault occurs, you can check the [LR and PC](https://stackoverflow.com/questions/8236959/what-are-sp-stack-and-lr-in-arm) registers in order to find the offending instruction.
 For example, in this fault frame the PC is `0x00002681`, thread is `main` and type of error is a stack overflow.
 So in this case, there is no need to look up the PC or LR to understand the issue.
 The main stack size needs to be increased.
 
-For more information on how to debug hardfaults, see [Memfault Cortex Hardfault debug](https://interrupt.memfault.com/blog/cortex-m-hardfault-debug)
+For more information on how to debug hardfaults, see [Memfault Cortex Hardfault debug](https://interrupt.memfault.com/blog/cortex-m-hardfault-debug).
 
 ```bash
 *** Using Zephyr OS v4.0.99-7607c6585566 ***
@@ -262,7 +248,7 @@ For more information on how to debug hardfaults, see [Memfault Cortex Hardfault 
 [00:00:00.897,583] <err> os: Halting system
 ```
 
-However, if the fault source is more ambiguous it might be needed to use Address-2-Line to lookup the offending function.
+However, if the fault source is more ambiguous it might be needed to use `Address-2-Line` to lookup the offending function.
 In this example, the LR address is used to find the function address stored in the LR register.
 This function is the parent in the callstack of the address the PC points to.
 
@@ -312,7 +298,7 @@ Here is some context for the exception:
     SFAR: 0x00000000
 ```
 
-Here we can again lookup the PC and LR in the Non-Secure image to find the offending function:
+Here we can again lookup the PC and LR in the non-Secure image to find the offending function:
 
 ```bash
 ~/dev/projects/att/Asset-Tracker-Template/app add-sensor-docs *18 !5 ❯ a2l 0x0003D7B6
@@ -321,32 +307,33 @@ Here we can again lookup the PC and LR in the Non-Secure image to find the offen
 
 Secure faults will display:
 
-- Fault frame information
-- Non-secure SP and LR registers
-- Violation details
+- Fault frame information.
+- Non-secure SP and LR registers.
+- Violation details.
 
-For more information:
+For more information, refer the following documentation:
 
 - [TF-M Documentation](https://tf-m-user-guide.trustedfirmware.org/)
 - [nRF Connect SDK TF-M Guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/security/tfm/index.html)
 
-**NOTE**
-It may be that upon a hardfault, the fault frame is not printed due to the device rebooting before the log buffer is flushed.
-To circumvent this issue add the following configurations:
+!!! note "Note"
 
-```bash
-CONFIG_LOG_MODE_IMMEDIATE=y
-CONFIG_RESET_ON_FATAL_ERROR=n
-```
+      On hardfault, the fault frame might not be printed due to the device rebooting before the log buffer is flushed.
+      To circumvent this issue add the following configurations:
 
-Note that when enabling immediate logging, it might be necessary to increase the stack size of certain threads due to logging being executed in context which increases stack usage.
+      ```bash
+      CONFIG_LOG_MODE_IMMEDIATE=y
+      CONFIG_RESET_ON_FATAL_ERROR=n
+      ```
+
+When enabling immediate logging, it might be necessary to increase the stack size of certain threads due to logging being executed in context which increases stack usage.
 
 ## Memfault Remote Debugging
 
-The template supports remote debugging via [Memfault](https://memfault.com/).
+The template supports remote debugging using [Memfault](https://memfault.com/).
 Remote debugging enables the device to send metrics suchs as LTE, GNSS and memory statistics as well as coredump captures on crashes to analyse problems across single or fleet of devices once they occur.
 
-For more information see:
+For more information see the following documenation:
 
 - [Memfault Sample](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/samples/debug/memfault/README.html)
 - [Memfault Integration](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/debug/memfault_ncs.html)
@@ -357,11 +344,12 @@ For more information see:
 2. Complete the [Remote Debugging with Memfault](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/exercise-4-remote-debugging-with-memfault/) exercise.
 3. Memfault project key retrieved during the aforementioned steps.
 
-To build the application with support for Memfault you need to build with the Memfault overlay `overlay-memfault.conf`. If you want to capture and send modem traces to Memfault on coredumps, you can include the overlay `overlay-publish-modem-traces-to-memfault.conf`.
+To build the application with support for Memfault, you need to build with the Memfault overlay `overlay-memfault.conf`. If you want to capture and send modem traces to Memfault on coredumps, you can include the overlay `overlay-publish-modem-traces-to-memfault.conf`.
 
-If you also want to upload the [Embedded Trace Buffer](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/debug/etb_trace.html) you can include the overlay `overlay-etb.conf`.
+If you also want to upload the [Embedded Trace Buffer](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/debug/etb_trace.html), you can include the overlay `overlay-etb.conf`.
 
-**Important Note on Data Usage**: Enabling Memfault will increase your device's data usage. This is especially true when using the modem trace upload feature, which can send upwards of 1MB of modem trace data in case of application crashes. Consider this when planning your data usage and costs.
+!!! important "important"
+      Enabling Memfault will increase your device's data usage. This is especially true when using the modem trace upload feature, which can send upwards of 1 MB of modem trace data in case of application crashes. Consider this when planning your data usage and costs.
 
 For detailed build instructions and how to configure the project key, refer to the [Getting Started Guide](getting_started.md) where build instructions for building with Memfault are given.
 To build with all available Memfault functionality:
@@ -374,7 +362,8 @@ Screen capture from a coredump received in Memfault:
 
 ![Memfault UI](../images/memfault.png)
 
-**IMPORTANT** In order to properly use Memfault and be able to decode metrics and coredumps sent from the device, you need to upload the ELF file located in the build folder of the template once you have built the application. This is covered in the [Remote Debugging with Memfault](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/exercise-4-remote-debugging-with-memfault/) developer Academy excersise.
+!!! important "important"
+      In order to properly use Memfault and be able to decode metrics and coredumps sent from the device, you need to upload the ELF file located in the build folder of the template once you have built the application. This is covered in the [Remote Debugging with Memfault](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/exercise-4-remote-debugging-with-memfault/) developer Academy excersise.
 
 #### Test shell commands
 
@@ -388,7 +377,7 @@ uart:~$ mflt_nrf test usagefault
 
 ## Modem Tracing
 
-Capture and analyze modem behavior live (AT, LTE, IP) via Wireshark.
+Capture and analyze modem behavior live (AT, LTE, IP) using Wireshark.
 
 ### UART Tracing
 
@@ -467,9 +456,7 @@ JLinkRTTLogger -Device NRF9160_XXAA -If SWD -Speed 50000 -RTTChannel 0 terminal.
 
 It might be needed to change the channel name depending. Default should be: termina: 0, shell: 1, modem trace: 2.
 
-For more information:
-
-- [nRF Connect SDK Modem Tracing](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrfxlib/nrf_modem/doc/modem_trace.html)
+For more information, see [nRF Connect SDK Modem Tracing](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrfxlib/nrf_modem/doc/modem_trace.html).
 
 ## Common Issues and Solutions
 
@@ -477,24 +464,20 @@ If you are not able to resolve the issue with the tools and instructions given i
 
 ## Network Connection Issues
 
-### Symptoms
-
 - Device fails to connect to network
 - Frequent disconnections
 
-### Debugging Steps
+**Debugging steps:**
 
-1. Capture and analyse modem traces
-2. Attach traces in ticket or issue reported to Nordic via DevZone
+1. Capture and analyse modem traces.
+2. Attach traces in ticket or issue reported to Nordic through DevZone.
 
 ## Hardfault
-
-## Symptons
 
 - Device crashes
 - Reboot loop
 
-Debugging steps
+**Debugging steps:**
 
-- Lookup LR/PC if printed
-- Debug using GDB
+- Lookup LR/PC if printed.
+- Debug using GDB.

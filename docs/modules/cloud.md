@@ -2,17 +2,17 @@
 
 This module connects and manages communication with [nRF Cloud](https://www.nrfcloud.com/) over CoAP using [nRF Cloud CoAP library](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/networking/nrf_cloud_coap.html) in nRF Connect SDK. It controls the cloud connection, sends data to nRF Cloud, and processes incoming data such as device shadow document. The cloud module uses Zephyr’s state machine framework (SMF) and zbus for messaging with other modules.
 
-The module's responsibilities include:
+The module performs the following tasks:
 
 - Establishing and maintaining a connection to nRF Cloud, using CoAP with DTLS connection ID for secure and low-power communication.
 - Managing backoff and retries when connecting to the cloud. See the [Configurations](#configurations) section for more details on how to configure backoff behavior.
-- Publishing sensor data (temperature, pressure, connection quality, etc.) to nRF Cloud. The data is received on the `ENVIRONMENTAL_CHAN` channel when the environmental module publishes it.
+- Publishing sensor data (temperature, pressure, connection quality, and so on) to nRF Cloud. The data is received on the `ENVIRONMENTAL_CHAN` channel when the environmental module publishes it.
 - Requesting and handling shadow updates. Polling the device shadow is triggered by the main module by sending a `CLOUD_POLL_SHADOW` message.
 - Handling network events and transitioning between connection states as described in the [State diagram](#state-diagram) section.
 
-nRF Cloud over CoAP utilizes DTLS connection ID which allows the device to quickly re-establish a secure connection with the cloud after a network disconnection without the need for a full DTLS handshake. The module uses the nRF Cloud CoAP library to handle the CoAP communication and DTLS connection management.
+nRF Cloud over CoAP utilizes DTLS connection ID, which allows the device to quickly re-establish a secure connection with the cloud after a network disconnection without the need for a full DTLS handshake. The module uses the nRF Cloud CoAP library to handle the CoAP communication and DTLS connection management.
 
-Below, the module’s main messages, configurations, and state machine are covered. Refer to the source files (`cloud.c`, `cloud.h`, and `Kconfig.cloud`) for implementation details.
+The following sections cover the module’s main messages, configurations, and state machine. Refer to the source files (`cloud.c`, `cloud.h`, and `Kconfig.cloud`) for implementation details.
 
 ## Messages
 
@@ -49,9 +49,9 @@ struct cloud_msg {
 };
 ```
 
-## Configurations
+## Configuration
 
-Several Kconfig options in `Kconfig.cloud` control this module’s behavior. Below are some notable ones:
+Several Kconfig options in `Kconfig.cloud` control this module’s behavior. The following configuration parameters are associated with this module:
 
 - **CONFIG_APP_CLOUD_SHELL**
   Enables shell support for cloud operations.
@@ -72,12 +72,10 @@ Several Kconfig options in `Kconfig.cloud` control this module’s behavior. Bel
   Specifies backoff strategy (none, linear, or exponential).
 
 - **CONFIG_APP_CLOUD_BACKOFF_TYPE_EXPONENTIAL**
-  Use exponential backoff time. The backoff time is doubled after each failed attempt until the
-  maximum backoff time is reached.
+  Use exponential backoff time. The backoff time is doubled after each failed attempt until the maximum backoff time is reached.
 
 - **CONFIG_APP_CLOUD_BACKOFF_TYPE_LINEAR**
-  Use linear backoff time. The backoff time is incremented by a fixed amount after each failed attempt until
-  the maximum backoff time is reached.
+  Use linear backoff time. The backoff time is incremented by a fixed amount after each failed attempt until the maximum backoff time is reached.
 
 - **CONFIG_APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS**
   If using linear backoff, defines how much time to add after each failed attempt.
@@ -101,7 +99,7 @@ For more details on these and other configurations, refer to `Kconfig.cloud`.
 
 ## State diagram
 
-Below is a simplified representation of the state machine implemented in `cloud.c`. The module starts in the **STATE_RUNNING** context, which immediately transitions to **STATE_DISCONNECTED** upon initialization. From there, network events and internal conditions drive state transitions.
+The following is a simplified representation of the state machine implemented in `cloud.c`. The module starts in the `STATE_RUNNING` context, which immediately transitions to `STATE_DISCONNECTED` upon initialization. From there, network events and internal conditions drive state transitions.
 
 ```mermaid
 stateDiagram-v2
