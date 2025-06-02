@@ -218,6 +218,14 @@ static int uart_enable(void)
 		return -ENODEV;
 	}
 
+#ifdef CONFIG_NRF_MODEM_LIB_TRACE_BACKEND_UART
+	err = nrf_modem_lib_trace_level_set(CONFIG_NRF_MODEM_LIB_TRACE_LEVEL);
+	if (err) {
+		LOG_ERR("nrf_modem_lib_trace_level_set, error: %d", err);
+		return err;
+	}
+#endif
+
 	err = pm_device_action_run(uart0_dev, PM_DEVICE_ACTION_RESUME);
 	if (err && (err != -EALREADY)) {
 		LOG_ERR("pm_device_action_run, error: %d", err);
