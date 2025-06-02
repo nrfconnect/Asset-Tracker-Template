@@ -158,6 +158,11 @@ struct main_state {
 	/* Cloud connection status */
 	bool connected;
 
+	/* Variable used to store the last command executed from cloud.
+	 * Used to prevent executing the same command multiple times.
+	 */
+	struct cloud_command last_command;
+
 	/* Start time of the most recent sampling. This is used to calculate the correct
 	 * time when scheduling the next sampling trigger.
 	 */
@@ -335,6 +340,61 @@ static void timer_work_fn(struct k_work *work)
 	}
 }
 
+static void on_shadow_response(struct main_state *state_object, const struct cloud_msg *msg)
+{
+	int err;
+	struct cloud_command cmd = {
+		.id = UINT32_MAX,
+	};
+	uint32_t interval_sec = UINT32_MAX;
+
+	err = get_update_parameters_from_cbor_response(msg->response.buffer,
+						       msg->response.buffer_data_len,
+						       &interval_sec,
+						       &cmd);
+	if (err) {
+		LOG_ERR("get_update_parameters_from_cbor_response, error: %d", err);
+		return;
+	}
+
+	/* Set new interval if valid and changed from current interval */
+	if ((state_object->interval_sec != interval_sec) &&
+	    (interval_sec != UINT32_MAX)) {
+		state_object->interval_sec = interval_sec;
+
+		LOG_WRN("Received new interval: %d seconds", state_object->interval_sec);
+
+		err = k_work_reschedule(&trigger_work, K_SECONDS(state_object->interval_sec));
+		if (err < 0) {
+			LOG_ERR("k_work_reschedule, error: %d", err);
+			SEND_FATAL_ERROR();
+			return;
+		}
+	}
+
+	/* Handle new command if valid and different from the last executed command */
+	if ((cmd.id == UINT32_MAX) || cmd.id == state_object->last_command.id) {
+		return;
+	}
+
+	if (!strncmp(cmd.name, CLOUD_COMMAND_NAME_PROVISION, sizeof(cmd.name))) {
+		state_object->last_command = cmd;
+
+		LOG_WRN("Received command: %s, ID: %d", cmd.name, cmd.id);
+
+		struct cloud_msg cloud_msg = {
+			.type = CLOUD_PROVISIONING_REQUEST,
+		};
+
+		err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+		if (err) {
+			LOG_ERR("zbus_chan_pub, error: %d", err);
+			SEND_FATAL_ERROR();
+			return;
+		}
+	}
+}
+
 /* Zephyr State Machine framework handlers */
 
 /* STATE_RUNNING */
@@ -443,26 +503,25 @@ static void triggering_run(void *o)
 		if (msg->type == CLOUD_DISCONNECTED) {
 			state_object->connected = false;
 			smf_set_state(SMF_CTX(state_object), &states[STATE_IDLE]);
-			return;
-		}
 
-		if (msg->type == CLOUD_SHADOW_RESPONSE) {
-			err = get_update_interval_from_cbor_response(msg->response.buffer,
-								     msg->response.buffer_data_len,
-								     &state_object->interval_sec);
+			/* Because the location library in the location module performs its own
+			 * calls to cloud we cancel any ongoing location request when the cloud
+			 * connection is lost. This is to prevent the location module from
+			 * attempting to send location data to the cloud when it is not connected.
+			 */
+			enum location_msg_type location_msg = LOCATION_SEARCH_CANCEL;
+
+			err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
 			if (err) {
-				LOG_ERR("get_update_interval_from_cbor_response, error: %d", err);
+				LOG_ERR("zbus_chan_pub, error: %d", err);
+				SEND_FATAL_ERROR();
 				return;
 			}
 
-			LOG_WRN("Received new interval: %d seconds", state_object->interval_sec);
-
-			err = k_work_reschedule(&trigger_work,
-						K_SECONDS(state_object->interval_sec));
-			if (err < 0) {
-				LOG_ERR("k_work_reschedule, error: %d", err);
-				SEND_FATAL_ERROR();
-			}
+			return;
+		} else if (msg->type == CLOUD_SHADOW_RESPONSE) {
+			on_shadow_response(state_object, msg);
+			return;
 		}
 	}
 }

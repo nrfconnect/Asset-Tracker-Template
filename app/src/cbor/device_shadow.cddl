@@ -1,5 +1,11 @@
 config-object = {
-    "config": {
-        "update_interval": uint .size 4
-    }
+    ? "config": {
+        ? "update_interval": uint .size 4,
+        * tstr => any
+    },
+    ? "command": {
+        "name": tstr,
+        "id": uint .size 4
+    },
+    * tstr => any
 }

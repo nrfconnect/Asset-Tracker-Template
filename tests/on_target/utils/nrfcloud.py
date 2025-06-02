@@ -65,6 +65,29 @@ class NRFCloud():
         r.raise_for_status()
         return r
 
+    def claim_device(self, device_id: str, attestation_token: str) -> None:
+        """
+        Add (claim) a provisioned device to nrfcloud.com
+
+        :param device_id: Device ID
+        :param attestation_token: Attestation token for device
+        :return: None
+        """
+        data = json.dumps({
+            "claimToken": attestation_token,
+            "tags": ["nrf-cloud-onboarding"]
+        })
+        self._post(f"/claimed-devices/{device_id}", data=data)
+
+    def delete_provisioned_device(self, device_id: str) -> None:
+        """
+        Delete a claimed device from nrfcloud.com
+
+        :param device_id: Device ID
+        :return: None
+        """
+        self._delete(path=f"/claimed-devices/{device_id}")
+
     def get_devices(self, path: str="", params=None) -> dict:
         return self._get(path=f"/devices{path}", params=params)
 
