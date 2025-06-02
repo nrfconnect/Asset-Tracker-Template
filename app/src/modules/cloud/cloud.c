@@ -538,225 +538,214 @@ static void state_connected_ready_entry(void *obj)
 	shadow_get(false);
 }
 
-static void state_connected_ready_run(void *obj)
+static int send_sensor_data(const char *app_id, double value, bool confirmable)
 {
 	int err;
+
+	err = nrf_cloud_coap_sensor_send(app_id, value, NRF_CLOUD_NO_TIMESTAMP, confirmable);
+	if (err == -ENETUNREACH) {
+		LOG_WRN("Network is unreachable, error: %d", err);
+		return err;
+	} else if (err) {
+		LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+		SEND_FATAL_ERROR();
+		return err;
+	}
+
+	return 0;
+}
+
+static void handle_network_channel(const struct cloud_state_object *state_object, bool confirmable)
+{
+	int err;
+	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+	switch (msg.type) {
+	case NETWORK_DISCONNECTED:
+		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_PAUSED]);
+		break;
+
+	case NETWORK_CONNECTED:
+		smf_set_handled(SMF_CTX(state_object));
+		break;
+
+	case NETWORK_QUALITY_SAMPLE_RESPONSE:
+		err = send_sensor_data(CUSTOM_JSON_APPID_VAL_CONEVAL,
+				       msg.conn_eval_params.energy_estimate,
+				       confirmable);
+		if (err) {
+			return;
+		}
+
+		err = send_sensor_data(NRF_CLOUD_JSON_APPID_VAL_RSRP,
+				       msg.conn_eval_params.rsrp,
+				       confirmable);
+		if (err) {
+			return;
+		}
+		break;
+
+	default:
+		break;
+	}
+}
+
+static void handle_storage_data(const struct storage_msg *msg, bool confirmable)
+{
+	int err;
+
+	switch (msg->data_type) {
+	case STORAGE_TYPE_BATTERY: {
+		double battery_level = *(double *)msg->buffer;
+
+		err = send_sensor_data(CUSTOM_JSON_APPID_VAL_BATTERY, battery_level, confirmable);
+		if (err) {
+			return;
+		}
+		break;
+	}
+	default:
+		LOG_WRN("Unhandled data type: %d", msg->data_type);
+		break;
+	}
+}
+
+static void handle_storage_fifo(const struct storage_msg *msg, bool confirmable)
+{
+	int err;
+	struct storage_data_chunk *chunk;
+	uint8_t cbor_buf[128];
+	size_t cbor_buf_len = sizeof(cbor_buf);
+	size_t cbor_out_len;
+
+	while ((chunk = k_fifo_get(msg->fifo, K_NO_WAIT)) != NULL) {
+		switch (chunk->type) {
+		case STORAGE_TYPE_ENVIRONMENTAL:
+			err = encode_environmental_sample(
+				cbor_buf, cbor_buf_len, &cbor_out_len,
+				chunk->data.ENVIRONMENTAL,
+				0);
+			if (err) {
+				LOG_ERR("Failed to encode environmental samples, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			err = nrf_cloud_coap_post("msg/d2c", NULL,
+						  cbor_buf, cbor_out_len,
+						  COAP_CONTENT_FORMAT_APP_CBOR,
+						  confirmable, NULL, NULL);
+			if (err == -ENETUNREACH) {
+				LOG_WRN("Network is unreachable, error: %d", err);
+			} else if (err) {
+				LOG_ERR("nrf_cloud_coap_post, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			break;
+		default:
+			LOG_WRN("Unhandled storage data type: %d\n", chunk->type);
+			break;
+		}
+
+		chunk->finished(chunk);
+	}
+}
+
+static void handle_storage_channel(const struct cloud_state_object *state_object, bool confirmable)
+{
+	const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+
+	if (msg->type == STORAGE_DATA) {
+		handle_storage_data(msg, confirmable);
+		return;
+	}
+
+	if (msg->type == STORAGE_FIFO_AVAILABLE) {
+		handle_storage_fifo(msg, confirmable);
+	}
+}
+
+#if defined(CONFIG_APP_POWER)
+static void handle_power_channel(const struct cloud_state_object *state_object, bool confirmable)
+{
+	int err;
+	struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
+
+	if (msg.type == POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE) {
+		err = send_sensor_data(CUSTOM_JSON_APPID_VAL_BATTERY, msg.percentage, confirmable);
+		if (err) {
+			return;
+		}
+	}
+}
+#endif /* CONFIG_APP_POWER */
+
+#if defined(CONFIG_APP_ENVIRONMENTAL)
+static void handle_environmental_channel(const struct cloud_state_object *state_object, bool confirmable)
+{
+	int err;
+	struct environmental_msg msg = MSG_TO_ENVIRONMENTAL_MSG(state_object->msg_buf);
+
+	if (msg.type == ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE) {
+		err = send_sensor_data(NRF_CLOUD_JSON_APPID_VAL_TEMP, msg.temperature, confirmable);
+		if (err) {
+			return;
+		}
+
+		err = send_sensor_data(NRF_CLOUD_JSON_APPID_VAL_AIR_PRESS, msg.pressure, confirmable);
+		if (err) {
+			return;
+		}
+
+		err = send_sensor_data(NRF_CLOUD_JSON_APPID_VAL_HUMID, msg.humidity, confirmable);
+		if (err) {
+			return;
+		}
+	}
+}
+#endif /* CONFIG_APP_ENVIRONMENTAL */
+
+static void handle_cloud_channel(const struct cloud_state_object *state_object, bool confirmable)
+{
+	int err;
+	const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
+
+	if (msg->type == CLOUD_PAYLOAD_JSON) {
+		err = nrf_cloud_coap_json_message_send(msg->payload.buffer,
+						       false, confirmable);
+		if (err == -ENETUNREACH) {
+			LOG_WRN("Network is unreachable, error: %d", err);
+			return;
+		} else if (err) {
+			LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+			SEND_FATAL_ERROR();
+			return;
+		}
+	} else if (msg->type == CLOUD_POLL_SHADOW) {
+		LOG_DBG("Poll shadow trigger received");
+		shadow_get(true);
+	}
+}
+
+static void state_connected_ready_run(void *obj)
+{
 	struct cloud_state_object const *state_object = obj;
 	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
 
 	if (state_object->chan == &NETWORK_CHAN) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
-
-		switch (msg.type) {
-		case NETWORK_DISCONNECTED:
-			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_PAUSED]);
-			break;
-
-		case NETWORK_CONNECTED:
-			smf_set_handled(SMF_CTX(state_object));
-			break;
-
-		case NETWORK_QUALITY_SAMPLE_RESPONSE:
-			err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_CONEVAL,
-							 msg.conn_eval_params.energy_estimate,
-							 NRF_CLOUD_NO_TIMESTAMP,
-							 confirmable);
-			if (err == -ENETUNREACH) {
-				LOG_WRN("Network is unreachable, error: %d", err);
-				return;
-			} else if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-				SEND_FATAL_ERROR();
-				return;
-			}
-
-			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_RSRP,
-							 msg.conn_eval_params.rsrp,
-							 NRF_CLOUD_NO_TIMESTAMP,
-							 confirmable);
-			if (err == -ENETUNREACH) {
-				LOG_WRN("Network is unreachable, error: %d", err);
-				return;
-			} else if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-				SEND_FATAL_ERROR();
-				return;
-			}
-
-			break;
-
-		default:
-			break;
-		}
-	}
-
-	if (state_object->chan == &STORAGE_CHAN) {
-		const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
-
-		if (msg->type == STORAGE_DATA) {
-			/* Determine what type of data is being sent */
-			switch (msg->data_type) {
-			case STORAGE_TYPE_BATTERY: {
-				double battery_level = *(double *)msg->buffer;
-
-				err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_BATTERY,
-								 battery_level,
-								 NRF_CLOUD_NO_TIMESTAMP,
-								 confirmable);
-				if (err == -ENETUNREACH) {
-					LOG_WRN("Network is unreachable, error: %d", err);
-					return;
-				} else if (err) {
-					LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-					SEND_FATAL_ERROR();
-					return;
-				}
-				break;
-			}
-			default:
-				LOG_WRN("Unhandled data type: %d", msg->data_type);
-				break;
-			}
-
-			return;
-		}
-
-		if (msg->type == STORAGE_FIFO_AVAILABLE) {
-			struct storage_data_chunk *chunk;
-			uint8_t cbor_buf[128];
-			size_t cbor_buf_len = sizeof(cbor_buf);
-			size_t cbor_out_len;
-
-			while ((chunk = k_fifo_get(msg->fifo, K_NO_WAIT)) != NULL) {
-				switch (chunk->type) {
-				case STORAGE_TYPE_ENVIRONMENTAL:
-					err = encode_environmental_sample(
-						cbor_buf, cbor_buf_len, &cbor_out_len,
-						chunk->data.ENVIRONMENTAL,
-						0);
-					if (err) {
-						LOG_ERR("Failed to encode environmental samples, error: %d", err);
-						SEND_FATAL_ERROR();
-					}
-
-					err = nrf_cloud_coap_post("msg/d2c", NULL,
-								  cbor_buf, cbor_out_len,
-								  COAP_CONTENT_FORMAT_APP_CBOR,
-								  confirmable, NULL, NULL);
-					if (err == -ENETUNREACH) {
-						LOG_WRN("Network is unreachable, error: %d", err);
-						return;
-					} else if (err) {
-						LOG_ERR("nrf_cloud_coap_post, error: %d", err);
-						SEND_FATAL_ERROR();
-						return;
-					}
-					break;
-				default:
-					LOG_WRN("Unhandled storage data type: %d\n", chunk->type);
-					break;
-				}
-
-				chunk->finished(chunk);
-			}
-
-
-
-
-		}
-	}
-
+		handle_network_channel(state_object, confirmable);
+	} else if (state_object->chan == &STORAGE_CHAN) {
+		handle_storage_channel(state_object, confirmable);
 #if defined(CONFIG_APP_POWER)
-	if (state_object->chan == &POWER_CHAN) {
-		struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
-
-		if (msg.type == POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE) {
-			err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_BATTERY,
-							 msg.percentage,
-							 NRF_CLOUD_NO_TIMESTAMP,
-							 confirmable);
-			if (err == -ENETUNREACH) {
-				LOG_WRN("Network is unreachable, error: %d", err);
-				return;
-			} else if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-				SEND_FATAL_ERROR();
-				return;
-			}
-
-			return;
-		}
-	}
+	} else if (state_object->chan == &POWER_CHAN) {
+		handle_power_channel(state_object, confirmable);
 #endif /* CONFIG_APP_POWER */
-
 #if defined(CONFIG_APP_ENVIRONMENTAL)
-	if (state_object->chan == &ENVIRONMENTAL_CHAN) {
-		struct environmental_msg msg = MSG_TO_ENVIRONMENTAL_MSG(state_object->msg_buf);
-
-		if (msg.type == ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE) {
-			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_TEMP,
-							 msg.temperature,
-							 NRF_CLOUD_NO_TIMESTAMP,
-							 confirmable);
-			if (err == -ENETUNREACH) {
-				LOG_WRN("Network is unreachable, error: %d", err);
-				return;
-			} else if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-				SEND_FATAL_ERROR();
-				return;
-			}
-
-			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_AIR_PRESS,
-							 msg.pressure,
-							 NRF_CLOUD_NO_TIMESTAMP,
-							 confirmable);
-			if (err == -ENETUNREACH) {
-				LOG_WRN("Network is unreachable, error: %d", err);
-				return;
-			} else if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-				SEND_FATAL_ERROR();
-				return;
-			}
-
-			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_HUMID,
-							 msg.humidity,
-							 NRF_CLOUD_NO_TIMESTAMP,
-							 confirmable);
-			if (err == -ENETUNREACH) {
-				LOG_WRN("Network is unreachable, error: %d", err);
-				return;
-			} else if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-				SEND_FATAL_ERROR();
-				return;
-			}
-
-			return;
-		}
-	}
+	} else if (state_object->chan == &ENVIRONMENTAL_CHAN) {
+		handle_environmental_channel(state_object, confirmable);
 #endif /* CONFIG_APP_ENVIRONMENTAL */
-
-	if (state_object->chan == &CLOUD_CHAN) {
-		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
-
-		if (msg->type == CLOUD_PAYLOAD_JSON) {
-			err = nrf_cloud_coap_json_message_send(msg->payload.buffer,
-							       false, confirmable);
-			if (err == -ENETUNREACH) {
-				LOG_WRN("Network is unreachable, error: %d", err);
-				return;
-			} else if (err) {
-				LOG_ERR("nrf_cloud_coap_json_message_send, error: %d", err);
-				SEND_FATAL_ERROR();
-				return;
-			}
-		} else if (msg->type == CLOUD_POLL_SHADOW) {
-			LOG_DBG("Poll shadow trigger received");
-
-			shadow_get(true);
-		}
+	} else if (state_object->chan == &CLOUD_CHAN) {
+		handle_cloud_channel(state_object, confirmable);
 	}
 }
 

@@ -291,7 +291,6 @@ const uint8_t expected_environmental_single_cbor[76] = {
 	0xFA, 0x42, 0xC8, 0x00, 0x00,  /* Value 2: Float32, 100.0 (Air pressure) */
 	0x03,                   /* Key 3: unsigned int */
 	0x1B, 0x00, 0x00, 0x01, 0x79, 0x88, 0xEE, 0x77, 0x00,  /* Value 3: Timestamp */
-
 };
 
 const size_t expected_environmental_single_cbor_len = sizeof(expected_environmental_single_cbor);
