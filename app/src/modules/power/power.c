@@ -219,7 +219,7 @@ static int uart_enable(void)
 	}
 
 #ifdef CONFIG_NRF_MODEM_LIB_TRACE_BACKEND_UART
-	err = nrf_modem_lib_trace_level_set(CONFIG_NRF_MODEM_LIB_TRACE_LEVEL);
+	err = nrf_modem_lib_trace_level_set(CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_FULL);
 	if (err) {
 		LOG_ERR("nrf_modem_lib_trace_level_set, error: %d", err);
 		return err;
