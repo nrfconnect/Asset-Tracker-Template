@@ -65,6 +65,7 @@ struct storage_msg {
 	 */
 	size_t data_len;
 };
+
 struct storage_data_chunk {
 	/* The first word is reserved for internal use */
 	void *fifo_reserved;
@@ -78,7 +79,7 @@ struct storage_data_chunk {
 	void (*finished)(struct storage_data_chunk *chunk);
 
 	/* Pointer to the data */
-	union storage_data_type_ptr data;
+	union storage_data_type_buf data;
 };
 
 /* Helper macro to convert message pointer */

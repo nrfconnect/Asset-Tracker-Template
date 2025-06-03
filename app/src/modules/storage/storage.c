@@ -76,9 +76,7 @@ ZBUS_CHAN_DEFINE(STORAGE_CHAN,
 static void state_running_entry(void *o);
 static void state_running_run(void *o);
 
-static K_FIFO_DEFINE(storage_fifo);
-K_MEM_SLAB_DEFINE_STATIC(storage_fifo_slab, sizeof(struct storage_data_chunk),
-			 CONFIG_APP_STORAGE_FIFO_ITEM_COUNT, 4);
+K_FIFO_DEFINE(storage_fifo);
 
 /* Defining the storage module states */
 enum storage_module_state {
@@ -224,8 +222,7 @@ static void free_fifo_chunk(struct storage_data_chunk *chunk)
 
 	STRUCT_SECTION_FOREACH(storage_data, type) {
 		if (chunk->type == type->data_type) {
-			k_mem_slab_free(type->slab, chunk->data.ptr);
-			k_mem_slab_free(&storage_fifo_slab, (void *)chunk);
+			k_mem_slab_free(type->slab, (void *)chunk);
 
 			LOG_DBG("Freed FIFO chunk %p of type %d", (void *)chunk, chunk->type);
 
@@ -238,7 +235,6 @@ static void free_fifo_chunk(struct storage_data_chunk *chunk)
 
 static int populate_fifo(void)
 {
-	int err;
 	const struct storage_backend *backend = storage_backend_get();
 	int element_count_in_fifo = 0;
 
@@ -262,41 +258,21 @@ static int populate_fifo(void)
 		}
 
 		while (elements_left > 0) {
-			err = k_mem_slab_alloc(&storage_fifo_slab, (void **)&chunk, K_NO_WAIT);
-			if (err) {
-				/* This is not an error, it just means that there is no more
-				* mem slabs available. Just return the number of elements
-				* already in the FIFO.
-				*/
-				LOG_DBG("Cannot allocate new chunk");
 
-				return element_count_in_fifo;
-			}
-
-			LOG_DBG("FIFO chunk allocated: %p", chunk);
-
-			err = k_mem_slab_alloc(type->slab, &chunk->data.ptr, K_NO_WAIT);
-			if (err) {
+			ret = k_mem_slab_alloc(type->slab, &chunk->data.ptr, K_NO_WAIT);
+			if (ret) {
 				LOG_ERR("Failed to allocate memory for stored data, error: %d",
-					err);
-				k_mem_slab_free(&storage_fifo_slab, chunk);
-
-				/* It should not be possible to fail allocation at this point,
-				 * when we were abla to allocate a chunk first.
-				 * That would indicate a memory leak or a bug in the code.
-				 */
-				__ASSERT_NO_MSG(err == 0);
+					ret);
 
 				return element_count_in_fifo;
 			}
 
-			LOG_DBG("Stored data allocated: %p", chunk->data.ptr);
+			LOG_DBG("FIFO slab allocated: %p", (void *)chunk);
 
 			ret = backend->retrieve(type, chunk->data.ptr, type->data_size);
 			if (ret < 0) {
 				LOG_ERR("Failed to retrieve %s data, error: %d", type->name, ret);
-				k_mem_slab_free(type->slab, chunk->data.ptr);
-				k_mem_slab_free(&storage_fifo_slab, (void *)chunk);
+				k_mem_slab_free(type->slab, (void *)chunk);
 
 				return element_count_in_fifo;
 			}

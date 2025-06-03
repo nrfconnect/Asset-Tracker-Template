@@ -116,13 +116,6 @@ static int nrf_cloud_coap_post_custom_fake(const char *resource, const char *que
 		enum coap_content_format fmt, bool confirmable,
 		coap_client_response_cb_t cb, void *user)
 {
-	/* The expected data is an array of TEMP + HUMIDITY + PRESSURE arrays, while the encoded
-	 * data is a single array of TEMP + HUMIDITY + PRESSURE values.
-	 * Therefore, we skip the first element of the expected data which would be the
-	 * description of the "outer" array.
-	 */
-	size_t idx = ((nrf_cloud_coap_post_fake.call_count - 1) * len) + 1;
-
 	ARG_UNUSED(resource);
 	ARG_UNUSED(query);
 	ARG_UNUSED(fmt);
@@ -130,7 +123,7 @@ static int nrf_cloud_coap_post_custom_fake(const char *resource, const char *que
 	ARG_UNUSED(cb);
 	ARG_UNUSED(user);
 
-	TEST_ASSERT_EQUAL_HEX8_ARRAY(&expected_environmental_grouped_cbor_20[idx], buf, len);
+	TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_environmental_cbor_13, buf, len);
 
 	return 0;
 }
@@ -139,6 +132,7 @@ static int nrf_cloud_coap_post_custom_fake(const char *resource, const char *que
 static int date_time_now_custom_fake(int64_t *time_ms)
 {
 	*time_ms = 1621500000000; /* Fixed timestamp for May 20, 2025 */
+
 	return 0;
 }
 
@@ -195,6 +189,7 @@ void setUp(void)
 	RESET_FAKE(nrf_cloud_coap_json_message_send);
 	RESET_FAKE(nrf_cloud_coap_connect);
 	RESET_FAKE(date_time_now);
+	RESET_FAKE(nrf_cloud_coap_post);
 
 	nrf_cloud_client_id_get_fake.custom_fake = nrf_cloud_client_id_get_custom_fake;
 	date_time_now_fake.custom_fake = date_time_now_custom_fake;
@@ -256,9 +251,11 @@ void test_connecting_backoff(void)
 void test_transition_disconnected_connected_ready(void)
 {
 	int err;
-	enum network_msg_type status = NETWORK_CONNECTED;
+	struct network_msg msg = {
+		.type = NETWORK_CONNECTED,
+	};
 
-	zbus_chan_pub(&NETWORK_CHAN, &status, K_NO_WAIT);
+	zbus_chan_pub(&NETWORK_CHAN, &msg, K_NO_WAIT);
 
 	err = k_sem_take(&cloud_connected, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
@@ -289,9 +286,11 @@ void test_sending_payload(void)
 void test_connected_to_disconnected(void)
 {
 	int err;
-	enum network_msg_type status = NETWORK_DISCONNECTED;
+	struct network_msg msg = {
+		.type = NETWORK_DISCONNECTED,
+	};
 
-	zbus_chan_pub(&NETWORK_CHAN, &status, K_NO_WAIT);
+	zbus_chan_pub(&NETWORK_CHAN, &msg, K_NO_WAIT);
 
 	/* Transport module needs CPU to run state machine */
 	k_sleep(K_MSEC(100));
@@ -303,7 +302,9 @@ void test_connected_to_disconnected(void)
 void test_connected_disconnected_to_connected_send_payload(void)
 {
 	int err;
-	enum network_msg_type status = NETWORK_CONNECTED;
+	struct network_msg network_msg = {
+		.type = NETWORK_CONNECTED,
+	};
 	struct cloud_msg msg = {
 		.type = CLOUD_PAYLOAD_JSON,
 		.payload.buffer = "{\"Another\": \"1\"}",
@@ -313,7 +314,7 @@ void test_connected_disconnected_to_connected_send_payload(void)
 	/* Reset call count */
 	nrf_cloud_coap_bytes_send_fake.call_count = 0;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &status, K_NO_WAIT);
+	err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Transport module needs CPU to run state machine */
@@ -396,6 +397,33 @@ void test_codec_encode_environmental_data_array(void)
 	TEST_ASSERT_EQUAL(-EIO, err);
 }
 
+void test_codec_encode_environmental_chunk_array(void)
+{
+	int err;
+	/* Create test environmental data */
+	uint8_t payload[4096];
+	size_t payload_len = sizeof(payload);
+	size_t payload_out_len;
+	struct storage_data_chunk chunk_data[20] = {0};
+	struct storage_data_chunk *chunks[20];
+
+	for (size_t i = 0; i < ARRAY_SIZE(chunks); i++) {
+		chunk_data[i].type = STORAGE_TYPE_ENVIRONMENTAL;
+		chunk_data[i].data.ENVIRONMENTAL = env_samples[i];
+		chunks[i] = &chunk_data[i];
+	};
+
+	/* Test encoding array of samples */
+	err = encode_environmental_chunk_array(
+		payload, payload_len, &payload_out_len, chunks, ARRAY_SIZE(chunks));
+
+	TEST_ASSERT_EQUAL(0, err);
+	TEST_ASSERT_EQUAL(payload_out_len, expected_environmental_cbor_20_len);
+
+	/* Check that the output matches the expected CBOR */
+	TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_environmental_cbor_20, payload, payload_out_len);
+}
+
 void test_send_storage_fifo_request(void)
 {
 	int err;
@@ -409,7 +437,7 @@ void test_send_storage_fifo_request(void)
 	TEST_ASSERT_EQUAL(STORAGE_FIFO_REQUEST, recv_storage_msg.type);
 }
 
-void test_receive_storage_fifo_available(void)
+void test_receive_storage_fifo_available_20_chunks(void)
 {
 	int err;
 	struct k_fifo storage_fifo;
@@ -419,6 +447,13 @@ void test_receive_storage_fifo_available(void)
 		.data_len = 0,
 	};
 	struct storage_data_chunk chunks[20] = {0};
+	/* With a 1024-byte buffer and 76 bytes per environmental chunk + 2 byte header,
+	 * we can fit approximately 13 chunks: (1024 - 2) / 76 = 13.44
+	 * The remaining chunks should still be in the FIFO.
+	 */
+	size_t expected_processed_chunks =
+		MIN(ARRAY_SIZE(chunks), (CONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE - 2) /
+		 expected_environmental_single_cbor_len);
 
 	/* Initialize the FIFO */
 	k_fifo_init(&storage_fifo);
@@ -429,7 +464,7 @@ void test_receive_storage_fifo_available(void)
 	 */
 	for (size_t i = 0; i < ARRAY_SIZE(chunks); i++) {
 		chunks[i].type = STORAGE_TYPE_ENVIRONMENTAL;
-		chunks[i].data.ENVIRONMENTAL = (struct environmental_msg *)&env_samples[i];
+		chunks[i].data.ENVIRONMENTAL = env_samples[i];
 		chunks[i].finished = free_fifo_chunk;
 
 		k_fifo_put(&storage_fifo, &chunks[i]);
@@ -445,10 +480,55 @@ void test_receive_storage_fifo_available(void)
 
 	k_sleep(K_SECONDS(1));
 
-	/* Check that the FIFO is now empty and all chunks are "freed" */
-	TEST_ASSERT_NOT_EQUAL(0, k_fifo_is_empty(&storage_fifo));
+	for (size_t i = 0; i < expected_processed_chunks; i++) {
+		TEST_ASSERT_EQUAL(NULL, chunks[i].data.ptr);
+	}
+}
 
+void test_receive_storage_fifo_available_5_chunks(void)
+{
+	int err;
+	struct k_fifo storage_fifo;
+	struct storage_msg msg = {
+		.type = STORAGE_FIFO_AVAILABLE,
+		.fifo = &storage_fifo,
+		.data_len = 0,
+	};
+	struct storage_data_chunk chunks[5] = {0};
+	/* With a 1024-byte buffer and 76 bytes per environmental chunk + 2 byte header,
+	 * we can fit approximately 13 chunks: (1024 - 2) / 76 = 13.44
+	 * The remaining chunks should still be in the FIFO.
+	 */
+	size_t expected_processed_chunks =
+		MIN(ARRAY_SIZE(chunks), (CONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE - 2) /
+		 expected_environmental_single_cbor_len);
+
+	/* Initialize the FIFO */
+	k_fifo_init(&storage_fifo);
+
+	/* Populate environmental samples and storage chunks, then put them in the FIFO.
+	 * This simulates the data that would be stored in the FIFO.
+	 * Each chunk corresponds to an environmental sample.
+	 */
 	for (size_t i = 0; i < ARRAY_SIZE(chunks); i++) {
+		chunks[i].type = STORAGE_TYPE_ENVIRONMENTAL;
+		chunks[i].data.ENVIRONMENTAL = env_samples[i];
+		chunks[i].finished = free_fifo_chunk;
+
+		k_fifo_put(&storage_fifo, &chunks[i]);
+
+		msg.data_len++;
+	};
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	TEST_ASSERT_EQUAL(STORAGE_FIFO_AVAILABLE, recv_storage_msg.type);
+	TEST_ASSERT_EQUAL(msg.data_len, recv_storage_msg.data_len);
+
+	k_sleep(K_SECONDS(1));
+
+	for (size_t i = 0; i < expected_processed_chunks; i++) {
 		TEST_ASSERT_EQUAL(NULL, chunks[i].data.ptr);
 	}
 }
@@ -461,7 +541,6 @@ extern int unity_main(void);
 
 int main(void)
 {
-	/* use the runner from test_runner_generate() */
 	(void)unity_main();
 
 	return 0;

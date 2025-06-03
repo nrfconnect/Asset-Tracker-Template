@@ -57,13 +57,74 @@ static bool encode_sensor_message(zcbor_state_t *state, const char *app_id_str, 
 	return success;
 }
 
+/* Encode an array of environmental messages directly from storage chunks */
+int encode_environmental_chunk_array(uint8_t *payload, size_t payload_len,
+                                	size_t *payload_out_len,
+                                	struct storage_data_chunk **chunks,
+                                	size_t num_chunks)
+{
+	zcbor_state_t states[40]; /* 3 levels of CBOR state nesting */
+	bool success;
+	size_t num_elements = num_chunks * 3; /* 3 messages per sample */
+
+	/* Parameter validation */
+	if (!payload || !payload_out_len || !chunks || num_chunks == 0) {
+		return -EINVAL;
+	}
+
+	/* Initialize CBOR state with total number of elements (3 messages per sample) */
+	zcbor_new_encode_state(states, ARRAY_SIZE(states), payload, payload_len, num_elements);
+
+	/* Start array with total number of elements */
+	success = zcbor_list_start_encode(states, num_elements);
+
+	/* Encode each sample directly from the chunk data */
+	for (size_t i = 0; success && i < num_chunks; i++) {
+		int64_t msg_timestamp = 0;
+		int err;
+		struct storage_data_chunk *chunk = chunks[i];
+
+		err = date_time_now(&msg_timestamp);
+		if (err) {
+			LOG_ERR("Could not get current time: %d", err);
+		}
+
+		switch (chunk->type) {
+		case STORAGE_TYPE_ENVIRONMENTAL:
+			success = encode_sensor_message(states, "TEMP",
+					chunk->data.ENVIRONMENTAL.temperature, msg_timestamp) &&
+				encode_sensor_message(states, "HUMID",
+					chunk->data.ENVIRONMENTAL.humidity, msg_timestamp) &&
+				encode_sensor_message(states, "AIR_PRESS",
+					chunk->data.ENVIRONMENTAL.pressure, msg_timestamp);
+			break;
+		default:
+			LOG_ERR("Unsupported storage data type: %d", chunk->type);
+			return -EINVAL;
+		}
+	}
+
+	/* End the array */
+	success = success && zcbor_list_end_encode(states, num_elements);
+
+	if (!success) {
+		LOG_ERR("Failed to encode environmental samples array");
+		return -EIO;
+	}
+
+	/* Calculate the output length */
+	*payload_out_len = states[0].payload - payload;
+
+	return 0;
+}
+
 /* Encode an array of environmental messages */
 int encode_environmental_data_array(uint8_t *payload, size_t payload_len,
 				    size_t *payload_out_len,
 				    const struct environmental_msg *env_samples,
 				    size_t num_samples)
 {
-	zcbor_state_t states[60]; /* 3 levels of CBOR state nesting */
+	zcbor_state_t states[4]; /* 3 levels of CBOR state nesting */
 	bool success;
 
 	/* Parameter validation */
@@ -79,28 +140,19 @@ int encode_environmental_data_array(uint8_t *payload, size_t payload_len,
 	/* Encode each sample if array start was successful */
 	for (size_t i = 0; success && i < num_samples; i++) {
 		int err;
-		int64_t msg_timestamp;
+		int64_t msg_timestamp = 0;
 
 		err = date_time_now(&msg_timestamp);
 		if (err) {
 			LOG_ERR("Could not get current time: %d", err);
 		}
 
-		/* Chain the encoding of all three messages with && */
-		err = encode_sensor_message(states, "TEMP", (double)env_samples[i].temperature, msg_timestamp);
-		if (err != true) {
-			return -EIO;
-		}
-
-		err = encode_sensor_message(states, "HUMID", (double)env_samples[i].humidity, msg_timestamp);
-		if (err != true) {
-			return -EIO;
-		}
-
-		err = encode_sensor_message(states, "AIR_PRESS", (double)env_samples[i].pressure, msg_timestamp);
-		if (err != true) {
-			return -EIO;
-		}
+		success = encode_sensor_message(states, "TEMP",
+				(double)env_samples[i].temperature, msg_timestamp) &&
+			 encode_sensor_message(states, "HUMID",
+				(double)env_samples[i].humidity, msg_timestamp) &&
+			 encode_sensor_message(states, "AIR_PRESS",
+				(double)env_samples[i].pressure, msg_timestamp);
 	}
 
 	/* End the array */
@@ -131,7 +183,7 @@ int encode_environmental_sample(uint8_t *payload, size_t payload_len,
 		return -EINVAL;
 	}
 
-	/* Initialize CBOR state, eleemnt count is 0 since it is not enforced */
+	/* Initialize CBOR state, element count is 0 since it is not enforced */
 	zcbor_new_encode_state(states, ARRAY_SIZE(states), payload, payload_len, 0);
 
 	/* Use the provided timestamp or get current time */

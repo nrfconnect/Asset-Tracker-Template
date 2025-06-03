@@ -62,7 +62,8 @@
 	STORAGE_DATA_TYPE(_name),
 
 #define _STORAGE_DATA_TYPE_PTR(_name, _chan, _msg_type, _data_type, _check_fn, _extract_fn)	\
-	_data_type *_name;
+	_data_type _name;
+
 /**
  * @brief Unique identifiers for each type of data that can be stored.
  *
@@ -91,7 +92,7 @@ enum storage_data_type {
  * For example, if BATTERY is defined in DATA_SOURCE_LIST, this union will contain:
  * 	struct power_msg *BATTERY;
  */
-union storage_data_type_ptr {
+union storage_data_type_buf{
 	/* Pointer to the message type */
 	void *ptr;
 
@@ -199,7 +200,8 @@ struct storage_data {
 		_extract_fn(m, (_data_type *)data);						\
 	}											\
 												\
-	K_MEM_SLAB_DEFINE_STATIC(_name ## _slab, sizeof(_data_type),				\
+	K_MEM_SLAB_DEFINE_STATIC(_name ## _slab,						\
+				 (sizeof(_data_type) + sizeof(struct storage_data_chunk)),	\
 				 CONFIG_APP_STORAGE_FIFO_ITEM_COUNT, 4);			\
 												\
 	STRUCT_SECTION_ITERABLE(storage_data, _STORAGE_TYPE_NAME(_name)) = {			\

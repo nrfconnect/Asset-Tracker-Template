@@ -614,40 +614,91 @@ static void handle_storage_fifo(const struct storage_msg *msg, bool confirmable)
 {
 	int err;
 	struct storage_data_chunk *chunk;
-	uint8_t cbor_buf[128];
+	uint8_t cbor_buf[CONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE];
 	size_t cbor_buf_len = sizeof(cbor_buf);
 	size_t cbor_out_len;
+	size_t total_expected_cbor_len = CLOUD_CODEC_CBOR_ARRAY_HEADER_SIZE;
+	struct storage_data_chunk *chunks[20] = {0};
+	size_t chunk_count = 0;
 
-	while ((chunk = k_fifo_get(msg->fifo, K_NO_WAIT)) != NULL) {
-		switch (chunk->type) {
-		case STORAGE_TYPE_ENVIRONMENTAL:
-			err = encode_environmental_sample(
-				cbor_buf, cbor_buf_len, &cbor_out_len,
-				chunk->data.ENVIRONMENTAL,
-				0);
-			if (err) {
-				LOG_ERR("Failed to encode environmental samples, error: %d", err);
-				SEND_FATAL_ERROR();
-			}
+	__ASSERT_NO_MSG(msg->fifo);
 
-			err = nrf_cloud_coap_post("msg/d2c", NULL,
-						  cbor_buf, cbor_out_len,
-						  COAP_CONTENT_FORMAT_APP_CBOR,
-						  confirmable, NULL, NULL);
-			if (err == -ENETUNREACH) {
-				LOG_WRN("Network is unreachable, error: %d", err);
-			} else if (err) {
-				LOG_ERR("nrf_cloud_coap_post, error: %d", err);
-				SEND_FATAL_ERROR();
-			}
+	/* Check if the FIFO is empty */
+	if (k_fifo_is_empty(msg->fifo)) {
+		LOG_DBG("FIFO is empty, nothing to send");
+		return;
+	}
 
-			break;
-		default:
-			LOG_WRN("Unhandled storage data type: %d\n", chunk->type);
+	while ((total_expected_cbor_len < cbor_buf_len) && (chunk_count < ARRAY_SIZE(chunks))) {
+		size_t expected_cbor_len = 0;
+
+		/* We peek the head of the FIFO to check the type of the chunk
+		 * and calculate the expected CBOR length.
+		 */
+		chunk = k_fifo_peek_head(msg->fifo);
+		if (!chunk) {
+			LOG_DBG("No more chunks in FIFO");
 			break;
 		}
 
-		chunk->finished(chunk);
+		switch (chunk->type) {
+		case STORAGE_TYPE_ENVIRONMENTAL:
+			expected_cbor_len = CLOUD_CODEC_ENV_ELEMENT_CBOR_SIZE;
+			break;
+		default:
+			LOG_WRN("Unhandled storage data type: %d", chunk->type);
+			break;
+		}
+
+		if ((total_expected_cbor_len + expected_cbor_len) > cbor_buf_len) {
+			LOG_DBG("CBOR buffer is full, cannot add more chunks");
+			break;
+		}
+
+		/* Store the chunk for later processing */
+		chunks[chunk_count++] = chunk;
+		total_expected_cbor_len += expected_cbor_len;
+
+		/* Get the chunk from the FIFO to remove it from the queue now that we have
+		 * the expected size and pointer to the chunk.
+		 */
+		(void)k_fifo_get(msg->fifo, K_NO_WAIT);
+	}
+
+	/* The chunks array is now filled with pointers to the chunks
+	 * that we will process.
+	 */
+	if (chunk_count == 0) {
+		LOG_DBG("No chunks to process");
+		return;
+	}
+
+	err = encode_environmental_chunk_array(
+		cbor_buf, cbor_buf_len, &cbor_out_len, chunks, chunk_count);
+	if (err) {
+		LOG_ERR("Failed to encode environmental samples, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	LOG_DBG("Encoded %u samples to CBOR, length: %u", chunk_count, cbor_out_len);
+
+	/* Free the chunks after encoding */
+	for (size_t i = 0; i < chunk_count; i++) {
+		chunks[i]->finished(chunks[i]);
+	}
+
+	/* Send the encoded CBOR data to the cloud */
+	err = nrf_cloud_coap_post("msg/bulk", NULL,
+				  cbor_buf, cbor_out_len,
+				  COAP_CONTENT_FORMAT_APP_CBOR,
+				  confirmable, NULL, NULL);
+	if (err == -ENETUNREACH) {
+		LOG_WRN("Network is unreachable, error: %d", err);
+	} else if (err) {
+		LOG_ERR("nrf_cloud_coap_post, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
 	}
 }
 
@@ -837,4 +888,5 @@ static void cloud_module_thread(void)
 
 K_THREAD_DEFINE(cloud_module_thread_id,
 		CONFIG_APP_CLOUD_THREAD_STACK_SIZE,
-		cloud_module_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+		cloud_module_thread, NULL, NULL, NULL,
+		K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);

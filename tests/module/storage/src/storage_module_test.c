@@ -269,19 +269,19 @@ static void read_fifo(struct k_fifo *fifo, size_t item_count)
 		case STORAGE_TYPE_BATTERY:
 			if (received_battery_samples_count < ARRAY_SIZE(received_battery_samples)) {
 				received_battery_samples[received_battery_samples_count++] =
-					*chunk->data.BATTERY;
+					chunk->data.BATTERY;
 			}
 			break;
 		case STORAGE_TYPE_ENVIRONMENTAL:
 			if (received_env_samples_count < ARRAY_SIZE(received_env_samples)) {
 				received_env_samples[received_env_samples_count++] =
-					*chunk->data.ENVIRONMENTAL;
+					chunk->data.ENVIRONMENTAL;
 			}
 			break;
 		case STORAGE_TYPE_LOCATION:
 			if (received_location_samples_count < ARRAY_SIZE(received_location_samples)) {
 				received_location_samples[received_location_samples_count++] =
-					*chunk->data.LOCATION;
+					chunk->data.LOCATION;
 			}
 			break;
 		default:
