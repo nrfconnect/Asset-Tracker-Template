@@ -166,7 +166,7 @@ static void listener_cb(const struct zbus_channel *chan)
 
 static void free_fifo_chunk(struct storage_data_chunk *chunk)
 {
-	chunk->data.ptr = NULL;
+	chunk->data.buf = NULL;
 }
 
 void setUp(void)
@@ -474,7 +474,7 @@ void test_receive_storage_fifo_available_20_chunks(void)
 	k_sleep(K_SECONDS(1));
 
 	for (size_t i = 0; i < expected_processed_chunks; i++) {
-		TEST_ASSERT_EQUAL(NULL, chunks[i].data.ptr);
+		TEST_ASSERT_EQUAL(NULL, chunks[i].data.buf);
 	}
 }
 
@@ -524,7 +524,7 @@ void test_receive_storage_fifo_available_5_chunks(void)
 	k_sleep(K_SECONDS(1));
 
 	for (size_t i = 0; i < expected_processed_chunks; i++) {
-		TEST_ASSERT_EQUAL(NULL, chunks[i].data.ptr);
+		TEST_ASSERT_EQUAL(NULL, chunks[i].data.buf);
 	}
 }
 

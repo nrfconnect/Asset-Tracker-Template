@@ -84,17 +84,18 @@ enum storage_data_type {
 };
 
 /**
- * @brief Pointer to the message type for each data type
+ * @brief Buffer for the data type of each storage entry
  *
- * This union is used to create a pointer to the message type for each data type.
- * It is automatically populated by the DATA_SOURCE_LIST macro, which creates
- * a pointer for each entry in the list.
- * For example, if BATTERY is defined in DATA_SOURCE_LIST, this union will contain:
- * 	struct power_msg *BATTERY;
+ * This union provides a buffer for each data type defined in DATA_SOURCE_LIST.
+ * Each member is a value (not a pointer) of the corresponding data type, allowing
+ * storage of the actual data for each type. For example, if BATTERY is defined in
+ * DATA_SOURCE_LIST, this union will contain:
+ *     double BATTERY;
+ * The union is used to allocate enough space for any supported data type.
  */
 union storage_data_type_buf{
 	/* Pointer to the message type */
-	void *ptr;
+	void *buf;
 
 	DATA_SOURCE_LIST(_STORAGE_DATA_TYPE_PTR)
 };

@@ -27,7 +27,20 @@ LOG_MODULE_REGISTER(storage, CONFIG_APP_STORAGE_LOG_LEVEL);
 ZBUS_MSG_SUBSCRIBER_DEFINE(storage_subscriber);
 
 /* Calculate the maximum message size from the list of channels */
-#define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(DATA_SOURCE_LIST)
+
+/* Create channel list from DATA_SOURCE_LIST.
+ * This is used to calculate the maximum message size and to add observers.
+ * The DATA_SOURCE_LIST macro is defined in `storage_data_types.h`.
+ */
+
+/* Calculate maximum size needed for any message type */
+#define STORAGE_SIZE_OF_TYPE(_name, _chan, _msg_type, ...)	sizeof(_msg_type),
+
+#define STORAGE_MAX_MSG_SIZE_FROM_LIST(_DATA_SOURCE_LIST_LIST)	\
+	MAX_N(_DATA_SOURCE_LIST_LIST(STORAGE_SIZE_OF_TYPE) 0)
+
+/* Use the larger of: largest message type or storage_msg struct */
+#define MAX_MSG_SIZE	MAX(STORAGE_MAX_MSG_SIZE_FROM_LIST(DATA_SOURCE_LIST), sizeof(struct storage_msg))
 
 /**
  * @brief Add storage_subscriber as an observer to a channel
@@ -102,7 +115,7 @@ struct storage_state {
 	const struct zbus_channel *chan;
 
 	/* Last received message */
-	uint8_t msg_buf[CONFIG_APP_STORAGE_MSG_BUF_SIZE];
+	uint8_t msg_buf[MAX_MSG_SIZE];
 };
 
 /* Static helper function */
@@ -261,18 +274,16 @@ static int populate_fifo(void)
 		}
 
 		while (elements_left > 0) {
-
-			ret = k_mem_slab_alloc(type->slab, &chunk->data.ptr, K_NO_WAIT);
+			ret = k_mem_slab_alloc(type->slab, (void **)&chunk, K_NO_WAIT);
 			if (ret) {
-				LOG_ERR("Failed to allocate memory for stored data, error: %d",
-					ret);
+				LOG_DBG("Failed to allocate memory for stored data, error: %d", ret);
 
 				return element_count_in_fifo;
 			}
 
 			LOG_DBG("FIFO slab allocated: %p", (void *)chunk);
 
-			ret = backend->retrieve(type, chunk->data.ptr, type->data_size);
+			ret = backend->retrieve(type, &chunk->data.buf, type->data_size);
 			if (ret < 0) {
 				LOG_ERR("Failed to retrieve %s data, error: %d", type->name, ret);
 				k_mem_slab_free(type->slab, (void *)chunk);
