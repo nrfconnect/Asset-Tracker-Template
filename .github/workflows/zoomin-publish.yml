@@ -23,7 +23,7 @@ jobs:
           ssh-keyscan upload-v1.zoominsoftware.io >> ~/.ssh/known_hosts
 
           # prepare key
-          echo "${{ secrets.NCS_ZOOMIN_KEY }}" > zoomin_key
+          echo "${{ secrets.ZOOMIN_KEY }}" > zoomin_key
           chmod 600 zoomin_key
 
           # upload bundle:
