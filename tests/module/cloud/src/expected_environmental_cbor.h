@@ -23,6 +23,7 @@ extern const uint8_t expected_environmental_grouped_cbor_20[];
 extern const size_t expected_environmental_grouped_cbor_20_len;
 extern const uint8_t expected_environmental_cbor_13[];
 extern const size_t expected_environmental_cbor_13_len;
-
+extern const uint8_t expected_environmental_cbor_5[];
+extern const size_t expected_environmental_cbor_5_len;
 
 #endif /* EXPECTED_ENVIRONMENTAL_CBOR_H */

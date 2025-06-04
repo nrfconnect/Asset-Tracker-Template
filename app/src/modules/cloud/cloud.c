@@ -27,14 +27,6 @@
 #include "storage.h"
 #include "cloud_codec.h"
 
-#if defined(CONFIG_APP_POWER)
-#include "power.h"
-#endif /* CONFIG_APP_POWER */
-
-#if defined(CONFIG_APP_ENVIRONMENTAL)
-#include "environmental.h"
-#endif /* CONFIG_APP_ENVIRONMENTAL */
-
 /* Register log module */
 LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 
@@ -56,9 +48,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
 #define CHANNEL_LIST(X)										\
 					 X(NETWORK_CHAN,	struct network_msg)		\
 					 X(CLOUD_CHAN,		struct cloud_msg)		\
-					 X(STORAGE_CHAN,	struct storage_msg)		\
-IF_ENABLED(CONFIG_APP_ENVIRONMENTAL,	(X(ENVIRONMENTAL_CHAN,	struct environmental_msg)))	\
-IF_ENABLED(CONFIG_APP_POWER,		(X(POWER_CHAN,		struct power_msg)))
+					 X(STORAGE_CHAN,	struct storage_msg)
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
@@ -247,11 +237,29 @@ static void connect_to_cloud(const struct cloud_state_object *state_object)
 	smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
 }
 
+/**
+ * @brief Calculate the backoff time for cloud connection retries.
+ *
+ * This function determines the delay before the next cloud connection attempt,
+ * based on the number of previous attempts and the configured backoff strategy.
+ * The backoff can be either exponential or linear, as selected by Kconfig options.
+ *
+ * - Exponential backoff: The delay doubles with each attempt, starting from
+ *   CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS, up to CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS.
+ * - Linear backoff: The delay increases by a fixed increment
+ *   (CONFIG_APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS) for each attempt after the first,
+ *   starting from CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS, up to the maximum.
+ *
+ * The returned value is always capped at CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS.
+ *
+ * @param attempts The current retry attempt number (starting from 1).
+ *
+ * @return The calculated backoff time in seconds.
+ */
 static uint32_t calculate_backoff_time(uint32_t attempts)
 {
 	uint32_t backoff_time = CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS;
 
-	/* Calculate backoff time */
 	if (IS_ENABLED(CONFIG_APP_CLOUD_BACKOFF_TYPE_EXPONENTIAL)) {
 		backoff_time = CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS << (attempts - 1);
 	} else if (IS_ENABLED(CONFIG_APP_CLOUD_BACKOFF_TYPE_LINEAR)) {
@@ -716,46 +724,6 @@ static void handle_storage_channel(const struct cloud_state_object *state_object
 	}
 }
 
-#if defined(CONFIG_APP_POWER)
-static void handle_power_channel(const struct cloud_state_object *state_object, bool confirmable)
-{
-	int err;
-	struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
-
-	if (msg.type == POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE) {
-		err = send_sensor_data(CUSTOM_JSON_APPID_VAL_BATTERY, msg.percentage, confirmable);
-		if (err) {
-			return;
-		}
-	}
-}
-#endif /* CONFIG_APP_POWER */
-
-#if defined(CONFIG_APP_ENVIRONMENTAL)
-static void handle_environmental_channel(const struct cloud_state_object *state_object, bool confirmable)
-{
-	int err;
-	struct environmental_msg msg = MSG_TO_ENVIRONMENTAL_MSG(state_object->msg_buf);
-
-	if (msg.type == ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE) {
-		err = send_sensor_data(NRF_CLOUD_JSON_APPID_VAL_TEMP, msg.temperature, confirmable);
-		if (err) {
-			return;
-		}
-
-		err = send_sensor_data(NRF_CLOUD_JSON_APPID_VAL_AIR_PRESS, msg.pressure, confirmable);
-		if (err) {
-			return;
-		}
-
-		err = send_sensor_data(NRF_CLOUD_JSON_APPID_VAL_HUMID, msg.humidity, confirmable);
-		if (err) {
-			return;
-		}
-	}
-}
-#endif /* CONFIG_APP_ENVIRONMENTAL */
-
 static void handle_cloud_channel(const struct cloud_state_object *state_object, bool confirmable)
 {
 	int err;
@@ -787,14 +755,6 @@ static void state_connected_ready_run(void *obj)
 		handle_network_channel(state_object, confirmable);
 	} else if (state_object->chan == &STORAGE_CHAN) {
 		handle_storage_channel(state_object, confirmable);
-#if defined(CONFIG_APP_POWER)
-	} else if (state_object->chan == &POWER_CHAN) {
-		handle_power_channel(state_object, confirmable);
-#endif /* CONFIG_APP_POWER */
-#if defined(CONFIG_APP_ENVIRONMENTAL)
-	} else if (state_object->chan == &ENVIRONMENTAL_CHAN) {
-		handle_environmental_channel(state_object, confirmable);
-#endif /* CONFIG_APP_ENVIRONMENTAL */
 	} else if (state_object->chan == &CLOUD_CHAN) {
 		handle_cloud_channel(state_object, confirmable);
 	}

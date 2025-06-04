@@ -94,7 +94,6 @@ ZBUS_LISTENER_DEFINE(trigger, dummy_cb);
 ZBUS_LISTENER_DEFINE(cloud_test_listener, listener_cb);
 ZBUS_LISTENER_DEFINE(storage_test_listener, listener_cb);
 
-
 #define FAKE_DEVICE_ID		"test_device"
 
 static K_SEM_DEFINE(cloud_disconnected, 0, 1);
@@ -102,6 +101,8 @@ static K_SEM_DEFINE(cloud_connected, 0, 1);
 static K_SEM_DEFINE(data_sent, 0, 1);
 
 static struct storage_msg recv_storage_msg;
+/* Used to determine which of the CBOR buffers in expected_environmental_cbor.c to use */
+static const uint8_t *expected_cbor_data_ptr;
 
 static int nrf_cloud_client_id_get_custom_fake(char *buf, size_t len)
 {
@@ -123,7 +124,7 @@ static int nrf_cloud_coap_post_custom_fake(const char *resource, const char *que
 	ARG_UNUSED(cb);
 	ARG_UNUSED(user);
 
-	TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_environmental_cbor_13, buf, len);
+	TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_cbor_data_ptr, buf, len);
 
 	return 0;
 }
@@ -158,15 +159,6 @@ static void listener_cb(const struct zbus_channel *chan)
 		const struct storage_msg *storage_msg = zbus_chan_const_msg(chan);
 
 		recv_storage_msg = *storage_msg;
-
-		// if (storage_msg->type == STORAGE_DATA) {
-		// 	recv_storage_msg = *storage_msg;
-		// } else if (storage_msg->type == STORAGE_FLUSH) {
-		// 	k_sem_give(&data_sent);
-		// } else if (storage_msg->type == STORAGE_FIFO_REQUEST) {
-		// 	/* Handle FIFO request */
-		// 	storage_fifo_request_populated();
-		// }
 	}
 }
 
@@ -455,6 +447,8 @@ void test_receive_storage_fifo_available_20_chunks(void)
 		MIN(ARRAY_SIZE(chunks), (CONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE - 2) /
 		 expected_environmental_single_cbor_len);
 
+	expected_cbor_data_ptr = expected_environmental_cbor_13;
+
 	/* Initialize the FIFO */
 	k_fifo_init(&storage_fifo);
 
@@ -505,6 +499,8 @@ void test_receive_storage_fifo_available_5_chunks(void)
 
 	/* Initialize the FIFO */
 	k_fifo_init(&storage_fifo);
+
+	expected_cbor_data_ptr = expected_environmental_cbor_5;
 
 	/* Populate environmental samples and storage chunks, then put them in the FIFO.
 	 * This simulates the data that would be stored in the FIFO.
