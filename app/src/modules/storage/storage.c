@@ -72,6 +72,9 @@ ZBUS_CHAN_DEFINE(STORAGE_CHAN,
 		 ZBUS_MSG_INIT(0)
 );
 
+/* Static observer node for zbus */
+static struct zbus_observer_node obs_node;
+
 /* Forward declarations of state handlers */
 static void state_running_entry(void *o);
 static void state_running_run(void *o);
@@ -205,7 +208,7 @@ static void flush_stored_data(void)
 	}
 
 	/* Re-register storage_subscriber to observe STORAGE_CHAN */
-	err = zbus_chan_add_obs(&STORAGE_CHAN, &storage_subscriber, K_SECONDS(1));
+	err = zbus_chan_add_obs(&STORAGE_CHAN, &storage_subscriber, &obs_node, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("Failed to add observer to STORAGE_CHAN, error: %d", err);
 	}
@@ -420,7 +423,7 @@ static void storage_thread(void)
 		return;
 	}
 
-	err = zbus_chan_add_obs(&STORAGE_CHAN, &storage_subscriber, K_SECONDS(1));
+	err = zbus_chan_add_obs(&STORAGE_CHAN, &storage_subscriber, &obs_node, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("Failed to add observer to STORAGE_CHAN, error: %d", err);
 		SEND_FATAL_ERROR();

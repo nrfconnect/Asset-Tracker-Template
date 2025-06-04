@@ -103,6 +103,8 @@ static K_SEM_DEFINE(data_sent, 0, 1);
 static struct storage_msg recv_storage_msg;
 /* Used to determine which of the CBOR buffers in expected_environmental_cbor.c to use */
 static const uint8_t *expected_cbor_data_ptr;
+/* Static observer node for zbus */
+static struct zbus_observer_node obs_node;
 
 static int nrf_cloud_client_id_get_custom_fake(char *buf, size_t len)
 {
@@ -166,9 +168,6 @@ static void free_fifo_chunk(struct storage_data_chunk *chunk)
 {
 	chunk->data.ptr = NULL;
 }
-
-/* Static observer node for zbus */
-static struct zbus_observer_node obs_node;
 
 void setUp(void)
 {
