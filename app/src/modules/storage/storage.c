@@ -305,32 +305,63 @@ static int populate_fifo(void)
 	return element_count_in_fifo;
 }
 
-static void fifo_purge(struct k_fifo *fifo)
+static void fifo_clear(struct k_fifo *fifo)
 {
 	struct storage_data_chunk *chunk;
 
-	LOG_DBG("Purging FIFO: %p", fifo);
+	LOG_DBG("Deleting FIFO data: %p", fifo);
 
 	while ((chunk = k_fifo_get(fifo, K_NO_WAIT)) != NULL) {
-		LOG_DBG("Purging chunk: %p", chunk);
+		LOG_DBG("Clearing chunk: %p", chunk);
 
 		chunk->finished(chunk);
 	}
 }
 
-static void storage_purge(void)
+static void storage_clear(void)
 {
 	int err;
 
 	LOG_DBG("Purging storage");
 
-	/* Purge the FIFO */
-	fifo_purge(&storage_fifo);
+	/* Clear the FIFO */
+	fifo_clear(&storage_fifo);
 
 	/* Clear all stored data */
 	err = storage_backend_get()->clear();
 	if (err) {
 		LOG_ERR("Failed to clear storage backend, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+static void handle_fifo_request(void)
+{
+	int ret, err;
+	struct storage_msg response_msg = {
+		.type = STORAGE_FIFO_NOT_AVAILABLE,
+	};
+
+	/* Start populating the FIFO */
+	ret = populate_fifo();
+	if (ret < 0) {
+		/* FIFO is not available */
+		response_msg.type = STORAGE_FIFO_NOT_AVAILABLE;
+	} else if (ret == 0) {
+		/* FIFO is empty */
+		response_msg.type = STORAGE_FIFO_EMPTY;
+	} else {
+		LOG_DBG("FIFO populated with %d records", ret);
+
+		/* FIFO is available */
+		response_msg.type = STORAGE_FIFO_AVAILABLE;
+		response_msg.fifo = &storage_fifo;
+		response_msg.data_len = ret;
+	}
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &response_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to publish FIFO_NOT_AVAILABLE, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
 }
@@ -341,52 +372,25 @@ static void handle_storage_message(const struct storage_state *state_object)
 
 	LOG_DBG("Received message of type: %d", msg->type);
 
-	if (msg->type == STORAGE_FLUSH) {
-		flush_stored_data();
-	}
-
-	if (msg->type == STORAGE_FIFO_REQUEST) {
-		int ret, err;
-		struct storage_msg response_msg = {
-			.type = STORAGE_FIFO_NOT_AVAILABLE,
-		};
-
-		/* Start populating the FIFO */
-		ret = populate_fifo();
-		if (ret < 0) {
-			/* FIFO is not available */
-			response_msg.type = STORAGE_FIFO_NOT_AVAILABLE;
-		} else if (ret == 0) {
-			/* FIFO is empty */
-			response_msg.type = STORAGE_FIFO_EMPTY;
-		} else {
-			LOG_DBG("FIFO populated with %d records", ret);
-
-			/* FIFO is available */
-			response_msg.type = STORAGE_FIFO_AVAILABLE;
-			response_msg.fifo = &storage_fifo;
-			response_msg.data_len = ret;
-		}
-
-		err = zbus_chan_pub(&STORAGE_CHAN, &response_msg, K_SECONDS(1));
-		if (err) {
-			LOG_ERR("Failed to publish FIFO_NOT_AVAILABLE, error: %d", err);
-			SEND_FATAL_ERROR();
-		}
-	}
-
-	if (msg->type == STORAGE_PURGE) {
-		/* Purge all stored data */
-		storage_purge();
-
-		return;
-	}
-
-	if (msg->type == STORAGE_FIFO_PURGE) {
-		/* Purge the FIFO */
-		fifo_purge(&storage_fifo);
-
-		return;
+	switch (msg->type) {
+		case STORAGE_FLUSH:
+			flush_stored_data();
+			break;
+		case STORAGE_FLUSH_TO_FIFO:
+			__fallthrough; /* Intentional fallthrough to handle FIFO request */
+		case STORAGE_FIFO_REQUEST:
+			handle_fifo_request();
+			break;
+		case STORAGE_CLEAR:
+			/* Clear all stored data */
+			storage_clear();
+			break;
+		case STORAGE_FIFO_CLEAR:
+			/* Clear all data from the FIFO */
+			fifo_clear(&storage_fifo);
+			break;
+		default:
+			break;
 	}
 }
 

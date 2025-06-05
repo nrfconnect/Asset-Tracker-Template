@@ -655,7 +655,8 @@ static void handle_storage_fifo(const struct storage_msg *msg, bool confirmable)
 			break;
 		default:
 			LOG_WRN("Unhandled storage data type: %d", chunk->type);
-			break;
+			(void)k_fifo_get(msg->fifo, K_NO_WAIT);
+			continue;
 		}
 
 		if ((total_expected_cbor_len + expected_cbor_len) > cbor_buf_len) {
@@ -697,7 +698,7 @@ static void handle_storage_fifo(const struct storage_msg *msg, bool confirmable)
 	}
 
 	/* Send the encoded CBOR data to the cloud */
-	err = nrf_cloud_coap_post("msg/bulk", NULL,
+	err = nrf_cloud_coap_post("msg/d2c", NULL,
 				  cbor_buf, cbor_out_len,
 				  COAP_CONTENT_FORMAT_APP_CBOR,
 				  confirmable, NULL, NULL);

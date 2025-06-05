@@ -7,20 +7,22 @@
 target_include_directories(app PRIVATE .)
 
 target_sources(app PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}/storage.c
-	${CMAKE_CURRENT_SOURCE_DIR}/storage_data_types.c
+    storage.c
+    storage_data_types.c
 )
 
 zephyr_linker_sources(SECTIONS storage_sections.ld)
 
-if(CONFIG_APP_STORAGE_BACKEND_RAM)
-	target_sources(app PRIVATE
-		${CMAKE_CURRENT_SOURCE_DIR}/backends/ram_ring_buffer_backend.c
-	)
-endif()
+target_sources_ifdef(CONFIG_APP_STORAGE_BACKEND_RAM app PRIVATE
+    backends/ram_ring_buffer_backend.c
+)
 
-if(CONFIG_APP_STORAGE_BACKEND_INTERNAL_FLASH)
-	target_sources(app PRIVATE
-		${CMAKE_CURRENT_SOURCE_DIR}/backends/flash_backend.c
-	)
-endif()
+target_sources_ifdef(CONFIG_APP_STORAGE_BACKEND_INTERNAL_FLASH app PRIVATE
+    backends/flash_backend.c
+)
+
+target_sources_ifdef(CONFIG_APP_STORAGE_SHELL app PRIVATE
+    storage_shell.c
+)
+
+target_include_directories(app PRIVATE .)

@@ -127,6 +127,13 @@ config APP_STORAGE_MSG_PROCESSING_TIMEOUT_SECONDS
 	  Maximum time allowed for processing a single message in the storage module.
 	  Must be less than APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS.
 
+config APP_STORAGE_SHELL
+	bool "Enable storage shell commands"
+	default y
+	help
+	  Enable shell commands for interacting with the storage module.
+	  This allows you to manage stored data from the command line.
+
 module = APP_STORAGE
 module-str = Storage
 source "subsys/logging/Kconfig.template.log_config"

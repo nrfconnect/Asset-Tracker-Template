@@ -512,7 +512,7 @@ void test_storage_fifo_request_populated(void)
 	int err;
 	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
 	struct storage_msg request_msg = { .type = STORAGE_FIFO_REQUEST };
-	struct storage_msg purge_msg = { .type = STORAGE_PURGE };
+	struct storage_msg clear_msg = { .type = STORAGE_CLEAR };
 	const uint8_t num_samples = 30;
 
 	for (size_t i = 0; i < num_samples; i++) {
@@ -539,10 +539,10 @@ void test_storage_fifo_request_populated(void)
 			  received_msg.data_len);
 
 	/* Clean up after test */
-	err = zbus_chan_pub(&STORAGE_CHAN, &purge_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
-	/* Allow for storage purge to complete */
+	/* Allow for storage clear to complete */
 	k_sleep(K_SECONDS(1));
 }
 
@@ -551,7 +551,7 @@ void test_storage_fifo_request_and_retrieve(void)
 	int err;
 	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
 	struct storage_msg request_msg = { .type = STORAGE_FIFO_REQUEST };
-	struct storage_msg purge_msg = { .type = STORAGE_PURGE };
+	struct storage_msg clear_msg = { .type = STORAGE_CLEAR };
 	const uint8_t num_samples = 30;
 
 	for (size_t i = 0; i < num_samples; i++) {
@@ -586,10 +586,10 @@ void test_storage_fifo_request_and_retrieve(void)
 	}
 
 	/* Clean up after test */
-	err = zbus_chan_pub(&STORAGE_CHAN, &purge_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
-	/* Allow for storage purge to complete */
+	/* Allow for storage clear to complete */
 	k_sleep(K_SECONDS(1));
 }
 
@@ -604,7 +604,7 @@ void test_storage_fifo_request_multiple(void)
 	int err;
 	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
 	struct storage_msg request_msg = { .type = STORAGE_FIFO_REQUEST };
-	struct storage_msg purge_msg = { .type = STORAGE_PURGE };
+	struct storage_msg clear_msg = { .type = STORAGE_CLEAR };
 	const uint8_t num_samples = CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE;
 	uint8_t samples_left = num_samples;
 	uint8_t recv_samples = 0;
@@ -649,10 +649,57 @@ void test_storage_fifo_request_multiple(void)
 	}
 
 	/* Clean up after test */
-	err = zbus_chan_pub(&STORAGE_CHAN, &purge_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
-	/* Allow for storage purge to complete */
+	/* Allow for storage clear to complete */
+	k_sleep(K_SECONDS(1));
+}
+
+void test_storage_flush_to_fifo(void)
+{
+	int err;
+	struct storage_msg flush_msg = { .type = STORAGE_FLUSH_TO_FIFO };
+	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
+	struct storage_msg clear_msg = { .type = STORAGE_CLEAR };
+	const uint8_t num_samples = 30;
+
+	for (size_t i = 0; i < num_samples; i++) {
+		env_msg.temperature = env_samples[i].temperature;
+		env_msg.humidity = env_samples[i].humidity;
+		env_msg.pressure = env_samples[i].pressure;
+
+		/* Store environmental data */
+		err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &env_msg, K_SECONDS(1));
+		TEST_ASSERT_EQUAL(0, err);
+	}
+
+	/* Request data flush */
+	err = zbus_chan_pub(&STORAGE_CHAN, &flush_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	TEST_ASSERT_EQUAL(STORAGE_FLUSH_TO_FIFO, received_msg.type);
+
+	/* Allow for storage flush to complete */
+	k_sleep(K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(STORAGE_FIFO_AVAILABLE, received_msg.type);
+	TEST_ASSERT_EQUAL(MIN(CONFIG_APP_STORAGE_FIFO_ITEM_COUNT, num_samples),
+			  received_msg.data_len);
+
+	read_fifo(received_msg.fifo, received_msg.data_len);
+
+	for (size_t i = 0; i < received_msg.data_len; i++) {
+		TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].temperature, received_env_samples[i].temperature);
+		TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].humidity, received_env_samples[i].humidity);
+		TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].pressure, received_env_samples[i].pressure);
+	}
+
+	/* Clean up after test */
+	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Allow for storage clear to complete */
 	k_sleep(K_SECONDS(1));
 }
 

@@ -18,20 +18,25 @@ extern "C" {
 /* Message types for the storage channel */
 enum storage_msg_type {
 	/* Input message */
-	/* Command to flush stored data */
+	/* Command to flush stored data one stored item at the time. */
 	STORAGE_FLUSH = 0x1,
 
-	/* Command to purge all stored data */
-	STORAGE_PURGE,
+	/* Flush all stored data into a FIFO. The number of items flushed
+	 * is limited by the FIFO size.
+	 */
+	STORAGE_FLUSH_TO_FIFO,
+
+	/* Command to clear all stored data */
+	STORAGE_CLEAR,
 
 	/* Command to request stored data using a FIFO */
 	STORAGE_FIFO_REQUEST,
 
-	/* Purge the FIFO */
-	STORAGE_FIFO_PURGE,
+	/* Clear all the data in the FIFO */
+	STORAGE_FIFO_CLEAR,
 
 	/* Output messages */
-	/* Stored data being flushed */
+	/* Stored data being flushed as response to a STORAGE_FLUSH message */
 	STORAGE_DATA,
 
 	/* FIFO for reading stored data */
