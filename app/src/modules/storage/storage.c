@@ -276,9 +276,15 @@ static int populate_fifo(void)
 		while (elements_left > 0) {
 			ret = k_mem_slab_alloc(type->slab, (void **)&chunk, K_NO_WAIT);
 			if (ret) {
-				LOG_DBG("Failed to allocate memory for stored data, error: %d", ret);
+				LOG_DBG("No %s slabs left, error: %d", type->name, ret);
 
-				return element_count_in_fifo;
+				/* We are out of slabs for this type, set elements_left to 0
+				 * to stop processing this type.
+				 */
+
+				elements_left = 0;
+
+				continue;
 			}
 
 			LOG_DBG("FIFO slab allocated: %p", (void *)chunk);

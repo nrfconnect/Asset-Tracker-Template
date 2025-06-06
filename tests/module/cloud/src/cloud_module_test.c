@@ -528,6 +528,60 @@ void test_receive_storage_fifo_available_5_chunks(void)
 	}
 }
 
+void test_receive_storage_fifo_available_5_chunks_repeatedly(void)
+{
+	int err;
+	struct k_fifo storage_fifo;
+	struct storage_msg msg = {
+		.type = STORAGE_FIFO_AVAILABLE,
+		.fifo = &storage_fifo,
+		.data_len = 0,
+	};
+	struct storage_data_chunk chunks[5] = {0};
+	/* With a 1024-byte buffer and 76 bytes per environmental chunk + 2 byte header,
+	 * we can fit approximately 13 chunks: (1024 - 2) / 76 = 13.44
+	 * The remaining chunks should still be in the FIFO.
+	 */
+	size_t expected_processed_chunks =
+		MIN(ARRAY_SIZE(chunks), (CONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE - 2) /
+		 expected_environmental_single_cbor_len);
+
+	/* Initialize the FIFO */
+	k_fifo_init(&storage_fifo);
+
+	expected_cbor_data_ptr = expected_environmental_cbor_5;
+
+	for (size_t j = 0; j < 3; j++) {
+		msg.data_len = 0;
+
+		/* Populate environmental samples and storage chunks, then put them in the FIFO.
+		* This simulates the data that would be stored in the FIFO.
+		* Each chunk corresponds to an environmental sample.
+		*/
+		for (size_t i = 0; i < ARRAY_SIZE(chunks); i++) {
+			chunks[i].type = STORAGE_TYPE_ENVIRONMENTAL;
+			chunks[i].data.ENVIRONMENTAL = env_samples[i];
+			chunks[i].finished = free_fifo_chunk;
+
+			k_fifo_put(&storage_fifo, &chunks[i]);
+
+			msg.data_len++;
+		};
+
+		err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+		TEST_ASSERT_EQUAL(0, err);
+
+		TEST_ASSERT_EQUAL(STORAGE_FIFO_AVAILABLE, recv_storage_msg.type);
+		TEST_ASSERT_EQUAL(msg.data_len, recv_storage_msg.data_len);
+
+		k_sleep(K_SECONDS(1));
+
+		for (size_t i = 0; i < expected_processed_chunks; i++) {
+			TEST_ASSERT_EQUAL(NULL, chunks[i].data.buf);
+		}
+	}
+}
+
 /* This is required to be added to each test. That is because unity's
  * main may return nonzero, while zephyr's main currently must
  * return 0 in all cases (other values are reserved).

@@ -656,6 +656,7 @@ static void handle_storage_fifo(const struct storage_msg *msg, bool confirmable)
 		default:
 			LOG_WRN("Unhandled storage data type: %d", chunk->type);
 			(void)k_fifo_get(msg->fifo, K_NO_WAIT);
+			chunk->finished(chunk);
 			continue;
 		}
 

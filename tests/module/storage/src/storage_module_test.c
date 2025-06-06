@@ -457,30 +457,28 @@ void test_receive_mixed_data(void)
 				CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE));
 
 	for (size_t i = 0; i < num_samples; i++) {
-		/* Calculate the index in the original sample arrays based on the actual count
-		 * of received samples, ensuring we compare with the correct expected samples
+		/* Since we only store the first num_samples from each array, and storage
+		 * capacity is sufficient to hold all of them, we compare directly with
+		 * the indices that were actually stored (0 to num_samples-1)
 		 */
-		size_t bat_sample_idx = MAX(num_samples - received_battery_samples_count, 0) + i;
-		size_t env_sample_idx = MAX(num_samples - received_env_samples_count, 0) + i;
-		size_t loc_sample_idx = MAX(num_samples - received_location_samples_count, 0) + i;
 
 		/* Only perform assertions for samples that were actually received */
 		if (i < received_battery_samples_count) {
-			TEST_ASSERT_EQUAL_DOUBLE(battery_samples[bat_sample_idx],
+			TEST_ASSERT_EQUAL_DOUBLE(battery_samples[i],
 						 received_battery_samples[i]);
 		}
 
 		if (i < received_env_samples_count) {
-			TEST_ASSERT_EQUAL_DOUBLE(env_samples[env_sample_idx].temperature,
+			TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].temperature,
 						 received_env_samples[i].temperature);
-			TEST_ASSERT_EQUAL_DOUBLE(env_samples[env_sample_idx].humidity,
+			TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].humidity,
 						 received_env_samples[i].humidity);
-			TEST_ASSERT_EQUAL_DOUBLE(env_samples[env_sample_idx].pressure,
+			TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].pressure,
 						 received_env_samples[i].pressure);
 		}
 
 		if (i < received_location_samples_count) {
-			TEST_ASSERT_EQUAL(location_samples[loc_sample_idx],
+			TEST_ASSERT_EQUAL(location_samples[i],
 					  received_location_samples[i]);
 		}
 	}
@@ -694,6 +692,149 @@ void test_storage_flush_to_fifo(void)
 		TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].humidity, received_env_samples[i].humidity);
 		TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].pressure, received_env_samples[i].pressure);
 	}
+
+	/* Clean up after test */
+	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Allow for storage clear to complete */
+	k_sleep(K_SECONDS(1));
+}
+
+void test_storage_flush_to_fifo_repeatedly(void)
+{
+	int err;
+	struct storage_msg flush_msg = { .type = STORAGE_FLUSH_TO_FIFO };
+	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
+	struct storage_msg clear_msg = { .type = STORAGE_CLEAR };
+	const uint8_t num_samples = 20;
+
+	for (size_t i = 0; i < 3; i++) {
+		for (size_t i = 0; i < num_samples; i++) {
+			env_msg.temperature = env_samples[i].temperature;
+			env_msg.humidity = env_samples[i].humidity;
+			env_msg.pressure = env_samples[i].pressure;
+
+			/* Store environmental data */
+			err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &env_msg, K_SECONDS(1));
+			TEST_ASSERT_EQUAL(0, err);
+		}
+
+		/* Request data flush */
+		err = zbus_chan_pub(&STORAGE_CHAN, &flush_msg, K_SECONDS(1));
+		TEST_ASSERT_EQUAL(0, err);
+
+		TEST_ASSERT_EQUAL(STORAGE_FLUSH_TO_FIFO, received_msg.type);
+
+		/* Allow for storage flush to complete */
+		k_sleep(K_SECONDS(1));
+
+		TEST_ASSERT_EQUAL(STORAGE_FIFO_AVAILABLE, received_msg.type);
+		TEST_ASSERT_EQUAL(MIN(CONFIG_APP_STORAGE_FIFO_ITEM_COUNT, num_samples),
+				  received_msg.data_len);
+
+		read_fifo(received_msg.fifo, received_msg.data_len);
+
+		for (size_t j = 0; j < received_msg.data_len; j++) {
+			TEST_ASSERT_EQUAL_DOUBLE(env_samples[j].temperature,
+						 received_env_samples[j].temperature);
+			TEST_ASSERT_EQUAL_DOUBLE(env_samples[j].humidity,
+						 received_env_samples[j].humidity);
+			TEST_ASSERT_EQUAL_DOUBLE(env_samples[j].pressure,
+						 received_env_samples[j].pressure);
+		}
+	}
+
+	/* Clean up after test */
+	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Allow for storage clear to complete */
+	k_sleep(K_SECONDS(1));
+}
+
+void test_storage_flush_to_fifo_mixed_data(void)
+{
+	int err;
+	struct power_msg bat_msg = { .type = POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE };
+	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
+	enum location_msg_type loc_msg;
+	struct storage_msg flush_msg = { .type = STORAGE_FLUSH_TO_FIFO };
+	struct storage_msg clear_msg = { .type = STORAGE_CLEAR };
+	const uint8_t num_samples = 30;
+	const uint8_t data_types_count = 3;
+	const uint8_t max_fifo_items = CONFIG_APP_STORAGE_FIFO_ITEM_COUNT * data_types_count;
+	uint8_t total_samples_expected = num_samples * data_types_count;
+	uint8_t total_samples_received = 0;
+
+	for (size_t i = 0; i < num_samples; i++) {
+		bat_msg.percentage = battery_samples[i];
+		env_msg.temperature = env_samples[i].temperature;
+		env_msg.humidity = env_samples[i].humidity;
+		env_msg.pressure = env_samples[i].pressure;
+		loc_msg = location_samples[i];
+
+		err = zbus_chan_pub(&LOCATION_CHAN, &loc_msg, K_SECONDS(1));
+		TEST_ASSERT_EQUAL(0, err);
+
+		/* Store battery data */
+		err = zbus_chan_pub(&POWER_CHAN, &bat_msg, K_SECONDS(1));
+		TEST_ASSERT_EQUAL(0, err);
+
+		/* Store environmental data */
+		err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &env_msg, K_SECONDS(1));
+		TEST_ASSERT_EQUAL(0, err);
+	}
+
+	k_sleep(K_SECONDS(10));
+
+	do {
+		err = zbus_chan_pub(&STORAGE_CHAN, &flush_msg, K_SECONDS(1));
+		TEST_ASSERT_EQUAL(0, err);
+
+		TEST_ASSERT_EQUAL(STORAGE_FLUSH_TO_FIFO, received_msg.type);
+
+		k_sleep(K_SECONDS(10));
+
+		if (total_samples_received >= total_samples_expected) {
+			TEST_ASSERT_EQUAL(STORAGE_FIFO_EMPTY, received_msg.type);
+			break;
+		}
+
+		TEST_ASSERT_EQUAL(STORAGE_FIFO_AVAILABLE, received_msg.type);
+
+		printk("max_fifo_items: %d, total_samples_expected: %d, total_samples_received: %d\n",
+		       max_fifo_items, total_samples_expected, total_samples_received);
+		TEST_ASSERT_EQUAL(
+				  MIN(max_fifo_items,
+				      total_samples_expected - total_samples_received),
+				received_msg.data_len);
+
+		read_fifo(received_msg.fifo, received_msg.data_len);
+
+		/* Since we stored the first num_samples from each array and storage capacity
+		* is sufficient to hold all of them, we compare directly with the indices
+		* that were actually stored (0 to num_samples-1)
+		*/
+		for (size_t i = 0; i < received_battery_samples_count; i++) {
+			TEST_ASSERT_EQUAL_DOUBLE(battery_samples[i], received_battery_samples[i]);
+		}
+
+		for (size_t i = 0; i < received_env_samples_count; i++) {
+			TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].temperature,
+						received_env_samples[i].temperature);
+			TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].humidity,
+						received_env_samples[i].humidity);
+			TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].pressure,
+						received_env_samples[i].pressure);
+		}
+
+		for (size_t i = 0; i < received_location_samples_count; i++) {
+			TEST_ASSERT_EQUAL(location_samples[i], received_location_samples[i]);
+		}
+
+		total_samples_received += received_msg.data_len;
+	} while (received_msg.data_len > 0);
 
 	/* Clean up after test */
 	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
