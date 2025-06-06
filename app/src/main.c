@@ -562,12 +562,12 @@ static void wait_for_trigger_entry(void *o)
 	}
 
 #if defined(CONFIG_APP_LED)
-	/* Light green pattern for wait state */
+	/* Blue pattern for wait state */
 	struct led_msg led_msg = {
 		.type = LED_RGB_SET,
 		.red = 0,
-		.green = 255,
-		.blue = 8,
+		.green = 0,
+		.blue = 55,
 		.duration_on_msec = 250,
 		.duration_off_msec = 2000,
 		.repetitions = 10,
