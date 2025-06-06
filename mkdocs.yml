@@ -54,10 +54,20 @@ nav:
   - Overview: index.md
   - Getting Started: common/getting_started.md
   - Architecture: common/architecture.md
-  - Configuration: common/Configuration.md
+  - Configuration: common/configuration.md
   - Customization: common/customization.md
   - Location Services: common/location_services.md
   - nRF Cloud Fota: common/nrfcloud_fota.md
   - Testing and CI Setup: common/test_and_ci_setup.md
   - Tooling and Troubleshooting: common/tooling_troubleshooting.md
-  - Application modules: modules/index.md
+  - Application modules:
+    - Main module: modules/main.md
+    - Button module: modules/button.md
+    - Cloud module: modules/cloud.md
+    - Environmental module: modules/environmental.md
+    - FOTA module: modules/fota.md
+    - LED module: modules/led.md
+    - Location module: modules/location.md
+    - Network module: modules/network.md
+    - Power module: modules/power.md
+  - Release notes: common/release_notes.md

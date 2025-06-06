@@ -1,4 +1,4 @@
-# FOTA Module
+# FOTA module
 
 The FOTA (Firmware Over-The-Air) module manages remote firmware updates for both application and modem firmware. It handles all the stages of the update process:
 

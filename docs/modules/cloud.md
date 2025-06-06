@@ -49,7 +49,7 @@ struct cloud_msg {
 };
 ```
 
-## Configuration
+## Configurations
 
 Several Kconfig options in `Kconfig.cloud` control this module’s behavior. The following configuration parameters are associated with this module:
 

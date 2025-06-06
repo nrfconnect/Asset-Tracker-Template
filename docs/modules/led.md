@@ -1,4 +1,4 @@
-# LED Module
+# LED module
 
 The LED module controls the LEDs on the device using PWM (Pulse Width Modulation) and timers to created blinking patterns. For devices with RGB LEDs, the module can set specific colors. For devices without RGB LEDs, the colors will map to regular LEDs instead.
 
