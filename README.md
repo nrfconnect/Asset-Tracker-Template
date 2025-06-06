@@ -115,7 +115,7 @@ For detailed setup including nRF Cloud provisioning and advanced build configura
 
 * [Getting Started](docs/common/getting_started.md)
 * [Architecture](docs/common/architecture.md)
-* [Configurability](docs/common/configurability.md)
+* [Configurability](docs/common/configuration.md)
 * [Customization](docs/common/customization.md)
   * [Enable support for MQTT](docs/common/customization.md#enable-support-for-mqtt)
 * [Location Services](docs/common/location_services.md)
