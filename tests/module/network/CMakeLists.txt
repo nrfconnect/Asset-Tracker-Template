@@ -9,6 +9,13 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(network_module_test)
 
+if (CONFIG_ASAN)
+  message(STATUS "Enabling AddressSanitizer for native_sim targets")
+  add_compile_options(-fsanitize=address)
+  add_link_options(-fsanitize=address)
+  link_libraries(-Wl,--push-state -Wl,--as-needed -lasan -Wl,--pop-state)
+endif()
+
 test_runner_generate(src/main.c)
 
 target_sources(app
