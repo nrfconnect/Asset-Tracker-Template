@@ -115,13 +115,28 @@ For detailed setup including nRF Cloud provisioning and advanced build configura
 
 * [Getting Started](docs/common/getting_started.md)
 * [Architecture](docs/common/architecture.md)
+  * [System Overview](docs/common/architecture.md#system-overview)
+  * [Zbus](docs/common/architecture.md#zbus)
+  * [State Machine Framework](docs/common/architecture.md#state-machine-framework)
 * [Configurability](docs/common/configuration.md)
+  * [Set sampling interval and logic from cloud](docs/common/configuration.md#set-sampling-interval-and-logic-from-cloud)
+  * [Set location method priorities](docs/common/configuration.md#set-location-method-priorities)
+  * [Network configuration](docs/common/configuration.md#network-configuration)
+  * [LED Status Indicators](docs/common/configuration.md#led-status-indicators)
 * [Customization](docs/common/customization.md)
+  * [Add a new zbus event](docs/common/customization.md#add-a-new-zbus-event)
+  * [Add environmental sensor](docs/common/customization.md#add-environmental-sensor)
+  * [Add your own module](docs/common/customization.md#add-your-own-module)
   * [Enable support for MQTT](docs/common/customization.md#enable-support-for-mqtt)
 * [Location Services](docs/common/location_services.md)
 * [Test and CI Setup](docs/common/test_and_ci_setup.md)
 * [nRF Cloud FOTA](docs/common/nrfcloud_fota.md)
 * [Tooling and Troubleshooting](docs/common/tooling_troubleshooting.md)
+  * [Shell Commands](docs/common/tooling_troubleshooting.md#shell-commands)
+  * [Debugging Tools](docs/common/tooling_troubleshooting.md#debugging-tools)
+  * [Memfault Remote Debugging](docs/common/tooling_troubleshooting.md#memfault-remote-debugging)
+  * [Modem Tracing](docs/common/tooling_troubleshooting.md#modem-tracing)
+  * [Common Issues and Solutions](docs/common/tooling_troubleshooting.md#common-issues-and-solutions)
 
 ### Modules
 

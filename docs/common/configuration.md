@@ -159,3 +159,40 @@ Common scenarios for APN configuration:
 
 !!! note "note"
       In most cases, the default APN provided by the carrier should work without additional configuration.
+
+## LED Status Indicators
+
+The Asset Tracker Template uses LED colors to indicate different device states:
+- **Yellow** (Blinking, 10 repetitions): Device is idle and disconnected from cloud.
+- **Green** (Blinking, 10 repetitions): Device is connected to cloud and actively sampling data.
+- **Blue** (Blinking, 10 repetitions): Device is in lower power mode state between samples.
+- **Purple** (Blinking, 10 repetitions): FOTA download in progress.
+
+### Example: Setting LED Colors
+
+You can control the LED colors through the LED module using zbus messages. The following is an example of how to set different LED patterns:
+
+```c
+/* Set yellow blinking pattern for idle state */
+struct led_msg led_msg = {
+    .type = LED_RGB_SET,
+    .red = 255,
+    .green = 255,
+    .blue = 0,
+    .duration_on_msec = 250,
+    .duration_off_msec = 2000,
+    .repetitions = 10,
+};
+
+/* Publish the message to LED_CHAN */
+int err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+if (err) {
+    LOG_ERR("zbus_chan_pub, error: %d", err);
+    return;
+}
+```
+
+The LED message structure allows you to:
+- Set RGB values for color (`0-255` for each component).
+- Define on/off durations in milliseconds.
+- Specify number of repetitions (`-1` for continuous blinking).
