@@ -6,13 +6,13 @@ Code analysis is performed through compliance checks and SonarCloud analysis.
 ## CI Pipeline Structure
 
 The CI pipeline is composed by the following workflows:
-- [.github/workflows/build.yml](../../.github/workflows/build.yml): for building the devices firmware.
-- [.github/workflows/target-test.yml](../../.github/workflows/target-test.yml): for running tests on real hardware.
-- [.github/workflows/build-and-target-test.yml](../../.github/workflows/build-and-target-test.yml): workflow that glues together build.yml and target-test.yml.
-- [.github/workflows/sonarcloud.yml](../../.github/workflows/sonarcloud.yml): for building and running tests on emulation, and run Sonarcloud analysis.
-- [.github/workflows/compliance.yml](../../.github/workflows/compliance.yml): for static compliance checks.
+- [.github/workflows/build.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/build.yml): For building the devices firmware.
+- [.github/workflows/target-test.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/target-test.yml): For running tests on real hardware.
+- [.github/workflows/build-and-target-test.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/build-and-target-test.yml): Workflow that glues together build.yml and target-test.yml.
+- [.github/workflows/sonarcloud.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/sonarcloud.yml): For building and running tests on emulation, and run Sonarcloud analysis.
+- [.github/workflows/compliance.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/compliance.yml): For static compliance checks.
 
-Additionally, AI assistant is used in [.github/workflows/ai-review.yaml](../../.github/workflows/ai-review.yaml). It is an AI reviewer that runs on pull request.
+Additionally, AI assistant is used in [.github/workflows/ai-review.yaml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/ai-review.yaml). It is an AI reviewer that runs on pull request.
 You can choose to run it or not with a label.
 
 The CI pipeline is triggered as follows:
@@ -23,7 +23,7 @@ The CI pipeline is triggered as follows:
 
 ### Hardware Tests
 
-Run by [.github/workflows/target-test.yml](../../.github/workflows/target-test.yml) workflow, implementation details in [tests/on_target](../../tests/on_target) folder.
+Run by [.github/workflows/target-test.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/target-test.yml) workflow, implementation details in the [tests/on_target](https://github.com/nrfconnect/Asset-Tracker-Template/tree/main/tests/on_target) folder.
 
 Tests on target are performed using self-hosted runners. How to set up your own instance for your project: [About Self Hosted](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/about-self-hosted-runners)
 
@@ -39,11 +39,11 @@ Tests on target are performed using self-hosted runners. How to set up your own 
 - Generates detailed test reports and logs.
 - Flexible test execution with support for specific test markers and paths.
 
-Try out tests locally: [tests/on_target/README.md](../../tests/on_target/README.md)
+Try out tests locally: [tests/on_target/README.md](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/tests/on_target/README.md)
 
 ### Emulated Target Tests
 
-Emulation tests are implemented as part of the SonarCloud workflow ([.github/workflows/sonarcloud.yml](../../.github/workflows/sonarcloud.yml)). These tests:
+Emulation tests are implemented as part of the SonarCloud workflow ([.github/workflows/sonarcloud.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/sonarcloud.yml)). These tests:
 
 - Run on the [`native_sim`](https://docs.nordicsemi.com/bundle/ncs-3.0.1/page/zephyr/boards/native/native_sim/doc/index.html) platform using [Twister](https://docs.nordicsemi.com/bundle/ncs-3.0.1/page/zephyr/develop/test/twister.html)
 - Execute integration tests in an emulated environment.
@@ -52,7 +52,7 @@ Emulation tests are implemented as part of the SonarCloud workflow ([.github/wor
 
 ### SonarCloud Analysis
 
-The SonarCloud integration ([.github/workflows/sonarcloud.yml](../../.github/workflows/sonarcloud.yml)) provides:
+The SonarCloud integration ([.github/workflows/sonarcloud.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/sonarcloud.yml)) provides:
 
 - Static code analysis for C/C++ files.
 - Code coverage reporting
@@ -62,7 +62,7 @@ The SonarCloud integration ([.github/workflows/sonarcloud.yml](../../.github/wor
 
 ### Compliance Testing
 
-Compliance checks are implemented in [.github/workflows/compliance.yml](../../.github/workflows/compliance.yml) and include:
+Compliance checks are implemented in [.github/workflows/compliance.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/compliance.yml) and include:
 
 - Codeowners validation
 - Devicetree compliance

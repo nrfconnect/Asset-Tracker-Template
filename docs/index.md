@@ -14,7 +14,7 @@ The framework is designed for customization, allowing you to:
 * Modify existing modules to suit specific requirements.
 * Contribute to the open-source project by submitting improvements, bug fixes, or new features.
 
-More information on how to customize the template can be found in the [Customization](docs/common/customization.md) document.
+More information on how to customize the template can be found in the [Customization](common/customization.md) document.
 
 **Supported and verified hardware**:
 

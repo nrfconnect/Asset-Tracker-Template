@@ -284,5 +284,5 @@ Lazy stacking enabled
 
 ![nRF Cloud exmaple data](../images/nrf_cloud_example_data.png)
 
-If you experience issues, check the logs in the serial terminal for any error messages. You can find troubleshooting tips in the [Troubleshooting](../troubleshooting.md) section of the documentation.
+If you experience issues, check the logs in the serial terminal for any error messages. You can find troubleshooting tips in the [Troubleshooting](tooling_troubleshooting.md) section of the documentation.
 You can also open a support ticket on [DevZone](https://devzone.nordicsemi.com) for further assistance.
