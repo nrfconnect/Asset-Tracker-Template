@@ -18,7 +18,7 @@ When VBUS is disconnected, the LED will toggle purple for 10 seconds.
 To apply all the necessary changes to the template, use the following command:
 
 ```bash
-git apply <path-to-template-dir>/Asset-Tracker-Template/docs/patches/add-event.patch
+git apply <path-to-template-dir>/Asset-Tracker-Template/patches/add-event.patch
 ```
 
 ### Instructions
@@ -144,7 +144,7 @@ The data is forwarded to nRF Cloud along with all the other data types sampled b
 To add basic support for the BMM350 magnetometer to the template, use the following command:
 
 ```bash
-git apply <path-to-template-dir>/Asset-Tracker-Template/docs/patches/magnetometer.patch
+git apply <path-to-template-dir>/Asset-Tracker-Template/patches/magnetometer.patch
 ```
 
 ### Instructions
@@ -287,7 +287,7 @@ The dummy module serves as a template for understanding the module architecture 
 To add the dummy module to the template, apply the following patch:
 
 ```bash
-git apply <path-to-template-dir>/Asset-Tracker-Template/docs/patches/dummy-module.patch
+git apply <path-to-template-dir>/Asset-Tracker-Template/patches/dummy-module.patch
 ```
 
 If you want to generate and apply a dummy module with a custom name other than "Dummy", you can run the following script to rename the module and apply the patch:
@@ -306,7 +306,7 @@ Follow the instructions to rename and apply the patch:
 ===== Patch Module Renamer =====
 
 Enter the new module name (e.g. new-name): accelerometer
-Enter the full path to the patch file: /<path-to-template-dir>/Asset-Tracker-Template/docs/patches/dummy-module.patch
+Enter the full path to the patch file: /<path-to-template-dir>/Asset-Tracker-Template/patches/dummy-module.patch
 
 Patched file written to: /tmp/accelerometer-module.patch
 Do you want to apply the changes now with 'git apply'? (y/N): y

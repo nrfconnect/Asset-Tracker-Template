@@ -24,7 +24,7 @@ More information on how to customize the template can be found in the [Customiza
 If you are not familiar with the nRF91 Series SiPs and cellular in general, it is recommended to go through the [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals) to get a better understanding of the technology and how to customize the template for your needs.
 
 
-### Key Technical Features
+## Key Technical Features
 
 Following are the key features of the template:
 

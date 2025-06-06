@@ -150,11 +150,11 @@ jobs:
         run: |
           # Install required packages
           pip install pandas plotly --break-system-packages
-          
+
           # Generate sunburst charts first
           python3 scripts/sunburst_from_mem_report.py ../artifacts/rom_report_thingy91x.json
           python3 scripts/sunburst_from_mem_report.py ../artifacts/ram_report_thingy91x.json
-          
+
           # Generate badges, history plots, and push everything to gh-pages
           ./tests/on_target/scripts/update_memory_badges.sh \
               ../artifacts/build_output_thingy91x.log \
@@ -226,9 +226,9 @@ jobs:
       - name: Apply patches for Thingy91x firmware
         if: ${{ inputs.build_all }}
         run: |
-          git apply docs/patches/magnetometer.patch
-          git apply docs/patches/dummy-module.patch
-          git apply docs/patches/add-event.patch
+          git apply patches/magnetometer.patch
+          git apply patches/dummy-module.patch
+          git apply patches/add-event.patch
         working-directory: asset-tracker-template
 
       - name: Build patched thingy91x firmware
