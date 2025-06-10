@@ -134,6 +134,13 @@ config APP_STORAGE_SHELL
 	  Enable shell commands for interacting with the storage module.
 	  This allows you to manage stored data from the command line.
 
+config APP_STORAGE_SHELL_STATS
+	bool "Enable storage shell stats commands"
+	help
+	  Enable shell commands for displaying statistics about the storage module.
+	  This includes information about stored records, types, and memory usage.
+	  Enabling this option will increase the code size of the storage module.
+
 module = APP_STORAGE
 module-str = Storage
 source "subsys/logging/Kconfig.template.log_config"

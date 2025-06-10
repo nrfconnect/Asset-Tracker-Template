@@ -35,6 +35,11 @@ enum storage_msg_type {
 	/* Clear all the data in the FIFO */
 	STORAGE_FIFO_CLEAR,
 
+	/* Command to get storage statistics.
+	 * The command must be enabled with CONFIG_APP_STORAGE_SHELL_STATS.
+	 */
+	STORAGE_STATS,
+
 	/* Output messages */
 	/* Stored data being flushed as response to a STORAGE_FLUSH message */
 	STORAGE_DATA,

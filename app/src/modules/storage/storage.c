@@ -372,6 +372,43 @@ static void handle_fifo_request(void)
 	}
 }
 
+#if IS_ENABLED(CONFIG_APP_STORAGE_SHELL_STATS)
+static void handle_storage_stats(void)
+{
+	const struct storage_backend *backend = storage_backend_get();
+	int total_records = 0;
+	int total_types = 0;
+
+	LOG_INF("=== Storage Statistics ===");
+	LOG_INF("Backend: %s", backend ? "Available" : "Not available");
+
+	if (!backend) {
+		LOG_ERR("No storage backend available");
+		return;
+	}
+
+	/* Iterate through all registered storage data types */
+	STRUCT_SECTION_FOREACH(storage_data, type) {
+		int count = backend->count(type);
+
+		if (count < 0) {
+			LOG_ERR("Failed to get count for %s, error: %d", type->name, count);
+			continue;
+		}
+
+		LOG_INF("%s: %d records", type->name, count);
+
+		total_records += count;
+		total_types++;
+	}
+
+	LOG_INF("Total: %d records across %d data types", total_records, total_types);
+	LOG_INF("Max records per type: %d", CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE);
+	LOG_INF("Record size: %d bytes", CONFIG_APP_STORAGE_RECORD_SIZE);
+	LOG_INF("========================");
+}
+#endif /* CONFIG_APP_STORAGE_SHELL_STATS */
+
 static void handle_storage_message(const struct storage_state *state_object)
 {
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
@@ -395,6 +432,12 @@ static void handle_storage_message(const struct storage_state *state_object)
 			/* Clear all data from the FIFO */
 			fifo_clear(&storage_fifo);
 			break;
+#if IS_ENABLED(CONFIG_APP_STORAGE_SHELL_STATS)
+		case STORAGE_STATS:
+			/* Show storage statistics */
+			handle_storage_stats();
+			break;
+#endif /* CONFIG_APP_STORAGE_SHELL_STATS */
 		default:
 			break;
 	}

@@ -47,6 +47,7 @@ static int cmd_storage_fifo_request(const struct shell *sh, size_t argc, char **
 	}
 
 	shell_print(sh, "Storage FIFO request initiated.");
+
 	return 0;
 }
 
@@ -86,11 +87,35 @@ static int cmd_storage_fifo_clear(const struct shell *sh, size_t argc, char **ar
 	return 0;
 }
 
+static int cmd_storage_stats(const struct shell *sh, size_t argc, char **argv)
+{
+#if IS_ENABLED(CONFIG_APP_STORAGE_SHELL_STATS)
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	struct storage_msg msg = { .type = STORAGE_STATS };
+	int err;
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		shell_error(sh, "Failed to publish STORAGE_STATS: %d", err);
+		return err;
+	}
+
+	shell_print(sh, "Storage statistics request initiated.");
+#else
+	shell_error(sh, "Storage statistics command is not enabled in the shell.");
+#endif /* CONFIG_APP_STORAGE_SHELL_STATS */
+
+	return 0;
+}
+
 SHELL_STATIC_SUBCMD_SET_CREATE(storage_sub_cmds,
 	SHELL_CMD(flush, NULL, "Flush stored data", cmd_storage_flush),
 	SHELL_CMD(fifo_request, NULL, "Request data from FIFO", cmd_storage_fifo_request),
 	SHELL_CMD(clear, NULL, "Clear all stored data", cmd_storage_clear),
 	SHELL_CMD(fifo_clear, NULL, "Clear FIFO data", cmd_storage_fifo_clear),
+	SHELL_CMD(stats, NULL, "Show storage statistics", cmd_storage_stats),
 	SHELL_SUBCMD_SET_END
 );
 
