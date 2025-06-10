@@ -225,11 +225,11 @@ jobs:
       # Asset Tracker Template firmware build with patches for Thingy91x
       - name: Apply patches for Thingy91x firmware
         if: ${{ inputs.build_all }}
-        run: |
-          git apply patches/magnetometer.patch
-          git apply patches/dummy-module.patch
-          git apply patches/add-event.patch
         working-directory: asset-tracker-template
+        run: |
+          git apply ../patches/magnetometer.patch
+          git apply ../patches/dummy-module.patch
+          git apply ../patches/add-event.patch
 
       - name: Build patched thingy91x firmware
         if: ${{ inputs.build_all }}
