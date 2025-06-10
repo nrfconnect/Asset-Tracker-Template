@@ -388,7 +388,7 @@ void test_codec_encode_environmental_data_array(void)
 	TEST_ASSERT_EQUAL(-EIO, err);
 }
 
-void test_codec_encode_environmental_chunk_array(void)
+void test_codec_encode_data_chunk_array(void)
 {
 	int err;
 	/* Create test environmental data */
@@ -405,7 +405,7 @@ void test_codec_encode_environmental_chunk_array(void)
 	};
 
 	/* Test encoding array of samples */
-	err = encode_environmental_chunk_array(
+	err = encode_data_chunk_array(
 		payload, payload_len, &payload_out_len, chunks, ARRAY_SIZE(chunks));
 
 	TEST_ASSERT_EQUAL(0, err);

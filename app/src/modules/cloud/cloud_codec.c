@@ -57,13 +57,13 @@ static bool encode_sensor_message(zcbor_state_t *state, const char *app_id_str, 
 	return success;
 }
 
-/* Encode an array of environmental messages directly from storage chunks */
-int encode_environmental_chunk_array(uint8_t *payload, size_t payload_len,
+/* Encode an array of sensor messages directly from storage chunks */
+int encode_data_chunk_array(uint8_t *payload, size_t payload_len,
                                 	size_t *payload_out_len,
                                 	struct storage_data_chunk **chunks,
                                 	size_t num_chunks)
 {
-	zcbor_state_t states[40]; /* 3 levels of CBOR state nesting */
+	zcbor_state_t states[4]; /* 3 levels of CBOR state nesting */
 	bool success;
 	size_t num_elements = num_chunks * 3; /* 3 messages per sample */
 
@@ -97,6 +97,10 @@ int encode_environmental_chunk_array(uint8_t *payload, size_t payload_len,
 					chunk->data.ENVIRONMENTAL.humidity, msg_timestamp) &&
 				encode_sensor_message(states, "AIR_PRESS",
 					chunk->data.ENVIRONMENTAL.pressure, msg_timestamp);
+			break;
+		case STORAGE_TYPE_BATTERY:
+			success = encode_sensor_message(states, "BATTERY",
+					(double)chunk->data.BATTERY, msg_timestamp);
 			break;
 		default:
 			LOG_ERR("Unsupported storage data type: %d", chunk->type);

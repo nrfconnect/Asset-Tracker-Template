@@ -653,6 +653,9 @@ static void handle_storage_fifo(const struct storage_msg *msg, bool confirmable)
 		case STORAGE_TYPE_ENVIRONMENTAL:
 			expected_cbor_len = CLOUD_CODEC_ENV_ELEMENT_CBOR_SIZE;
 			break;
+		case STORAGE_TYPE_BATTERY:
+			expected_cbor_len = CLOUD_CODEC_BATTERY_ELEMENT_CBOR_SIZE;
+			break;
 		default:
 			LOG_WRN("Unhandled storage data type: %d", chunk->type);
 			(void)k_fifo_get(msg->fifo, K_NO_WAIT);
@@ -683,7 +686,7 @@ static void handle_storage_fifo(const struct storage_msg *msg, bool confirmable)
 		return;
 	}
 
-	err = encode_environmental_chunk_array(
+	err = encode_data_chunk_array(
 		cbor_buf, cbor_buf_len, &cbor_out_len, chunks, chunk_count);
 	if (err) {
 		LOG_ERR("Failed to encode environmental samples, error: %d", err);

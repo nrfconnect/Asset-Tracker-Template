@@ -22,6 +22,7 @@ extern "C" {
  * temperature, humidity, and pressure fields.
  */
 #define CLOUD_CODEC_ENV_ELEMENT_CBOR_SIZE 		76
+#define CLOUD_CODEC_BATTERY_ELEMENT_CBOR_SIZE		26
 
 #define CLOUD_CODEC_CBOR_ARRAY_HEADER_SIZE		2
 
@@ -44,7 +45,7 @@ extern "C" {
  * @retval -ENOMEM Buffer too small for the encoded data
  * @retval -EIO Encoding operation failed
  */
-int encode_environmental_chunk_array(uint8_t *payload, size_t payload_len,
+int encode_data_chunk_array(uint8_t *payload, size_t payload_len,
                                       size_t *payload_out_len,
                                       struct storage_data_chunk **chunks,
                                       size_t num_chunks);
