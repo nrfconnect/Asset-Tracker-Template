@@ -12,6 +12,8 @@ project("Asset Tracker Template")
 # Include files that are common for all modules
 target_include_directories(app PRIVATE src/common)
 
+zephyr_include_directories(config)
+
 # Add main application source
 target_sources(app PRIVATE src/main.c)
 
