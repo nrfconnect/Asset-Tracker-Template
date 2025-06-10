@@ -21,7 +21,6 @@
 #include "storage_data_types.h"
 #include "power.h"
 #include "environmental.h"
-#include "location.h"
 #include "app_common.h"
 
 DEFINE_FFF_GLOBALS;
@@ -46,14 +45,6 @@ ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
 		 ZBUS_MSG_INIT(0)
 );
 
-ZBUS_CHAN_DEFINE(LOCATION_CHAN,
-		 enum location_msg_type,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-
 /* Forward declarations */
 static void dummy_cb(const struct zbus_channel *chan);
 static void storage_chan_cb(const struct zbus_channel *chan);
@@ -63,12 +54,10 @@ ZBUS_LISTENER_DEFINE(trigger, dummy_cb);
 ZBUS_LISTENER_DEFINE(storage_test_listener, storage_chan_cb);
 ZBUS_LISTENER_DEFINE(power_test_listener, dummy_cb);
 ZBUS_LISTENER_DEFINE(environmental_test_listener, dummy_cb);
-ZBUS_LISTENER_DEFINE(location_test_listener, dummy_cb);
 
 ZBUS_CHAN_ADD_OBS(STORAGE_CHAN, storage_test_listener, 0);
 ZBUS_CHAN_ADD_OBS(POWER_CHAN, power_test_listener, 0);
 ZBUS_CHAN_ADD_OBS(ENVIRONMENTAL_CHAN, environmental_test_listener, 0);
-ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, location_test_listener, 0);
 
 // /* Test data */
 static const double battery_samples[] = {
@@ -193,28 +182,11 @@ static const struct environmental_msg env_samples[] = {
 	{.temperature = 105.0, .humidity = 450.0, .pressure = 973.25},
 };
 
-static const enum location_msg_type location_samples[] = {
-	0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-	10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
-	20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
-	30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
-	40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
-	50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
-	60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
-	70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-	80, 81, 82, 83, 84, 85, 86, 87, 88, 89,
-	90, 91, 92, 93, 94, 95, 96, 97, 98, 99,
-	100, 101, 102, 103, 104, 105, 106, 107, 108, 109,
-};
-
 static double received_battery_samples[ARRAY_SIZE(battery_samples)];
 static uint8_t received_battery_samples_count = 0;
 
 static struct environmental_msg received_env_samples[ARRAY_SIZE(env_samples)];
 static uint8_t received_env_samples_count = 0;
-
-static enum location_msg_type received_location_samples[ARRAY_SIZE(location_samples)];
-static uint8_t received_location_samples_count = 0;
 
 /* Variables to store received data */
 static struct storage_msg received_msg;
@@ -242,10 +214,6 @@ static void storage_chan_cb(const struct zbus_channel *chan)
 		case STORAGE_TYPE_ENVIRONMENTAL:
 			received_env_samples[received_env_samples_count++] =
 				*(struct environmental_msg *)msg->buffer;
-			break;
-		case STORAGE_TYPE_LOCATION:
-			received_location_samples[received_location_samples_count++] =
-				*(enum location_msg_type *)msg->buffer;
 			break;
 		default:
 			break;
@@ -278,12 +246,6 @@ static void read_fifo(struct k_fifo *fifo, size_t item_count)
 					chunk->data.ENVIRONMENTAL;
 			}
 			break;
-		case STORAGE_TYPE_LOCATION:
-			if (received_location_samples_count < ARRAY_SIZE(received_location_samples)) {
-				received_location_samples[received_location_samples_count++] =
-					chunk->data.LOCATION;
-			}
-			break;
 		default:
 			printk("Unknown storage type: %d\n", chunk->type);
 			break;
@@ -301,12 +263,9 @@ void setUp(void)
 
 	received_battery_samples_count = 0;
 	received_env_samples_count = 0;
-	received_location_samples_count = 0;
 
 	memset(&received_battery_samples, 0, sizeof(received_battery_samples));
 	memset(&received_env_samples, 0, sizeof(received_env_samples));
-	memset(&received_location_samples, 0, sizeof(received_location_samples));
-
 	memset(&received_msg, 0, sizeof(received_msg));
 }
 
@@ -340,35 +299,6 @@ void test_store_retrieve_battery(void)
 
 		/* Verify received data */
 		TEST_ASSERT_EQUAL_DOUBLE(battery_samples[sample_idx], received_battery_samples[i]);
-	}
-}
-
-void test_store_retrieve_location(void)
-{
-	int err;
-	enum location_msg_type loc_msg = LOCATION_SEARCH_STARTED;
-	struct storage_msg flush_msg = {
-		.type = STORAGE_FLUSH
-	};
-
-	for (size_t i = 0; i < ARRAY_SIZE(location_samples); i++) {
-		loc_msg = location_samples[i];
-
-		/* Store location data */
-		err = zbus_chan_pub(&LOCATION_CHAN, &loc_msg, K_SECONDS(1));
-		TEST_ASSERT_EQUAL(0, err);
-	}
-
-	err = zbus_chan_pub(&STORAGE_CHAN, &flush_msg, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	k_sleep(K_SECONDS(10));
-
-	for (size_t i = 0; i < CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE; i++) {
-		const size_t sample_idx =
-			(ARRAY_SIZE(location_samples) - CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE) + i;
-
-		TEST_ASSERT_EQUAL(location_samples[sample_idx], received_location_samples[i]);
 	}
 }
 
@@ -419,7 +349,6 @@ void test_receive_mixed_data(void)
 	struct environmental_msg env_msg = {
 		.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE,
 	};
-	enum location_msg_type loc_msg = LOCATION_SEARCH_STARTED;
 	struct storage_msg flush_msg = {
 		.type = STORAGE_FLUSH
 	};
@@ -430,10 +359,6 @@ void test_receive_mixed_data(void)
 		env_msg.temperature = env_samples[i].temperature;
 		env_msg.humidity = env_samples[i].humidity;
 		env_msg.pressure = env_samples[i].pressure;
-		loc_msg = location_samples[i];
-
-		err = zbus_chan_pub(&LOCATION_CHAN, &loc_msg, K_SECONDS(1));
-		TEST_ASSERT_EQUAL(0, err);
 
 		/* Store battery data */
 		err = zbus_chan_pub(&POWER_CHAN, &bat_msg, K_SECONDS(1));
@@ -452,8 +377,6 @@ void test_receive_mixed_data(void)
 	TEST_ASSERT_EQUAL(received_battery_samples_count, MIN(num_samples,
 				CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE));
 	TEST_ASSERT_EQUAL(received_env_samples_count, MIN(num_samples,
-				CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE));
-	TEST_ASSERT_EQUAL(received_location_samples_count, MIN(num_samples,
 				CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE));
 
 	for (size_t i = 0; i < num_samples; i++) {
@@ -475,11 +398,6 @@ void test_receive_mixed_data(void)
 						 received_env_samples[i].humidity);
 			TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].pressure,
 						 received_env_samples[i].pressure);
-		}
-
-		if (i < received_location_samples_count) {
-			TEST_ASSERT_EQUAL(location_samples[i],
-					  received_location_samples[i]);
 		}
 	}
 }
@@ -758,11 +676,10 @@ void test_storage_flush_to_fifo_mixed_data(void)
 	int err;
 	struct power_msg bat_msg = { .type = POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE };
 	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
-	enum location_msg_type loc_msg;
 	struct storage_msg flush_msg = { .type = STORAGE_FLUSH_TO_FIFO };
 	struct storage_msg clear_msg = { .type = STORAGE_CLEAR };
 	const uint8_t num_samples = 30;
-	const uint8_t data_types_count = 3;
+	const uint8_t data_types_count = 2;
 	const uint8_t max_fifo_items = CONFIG_APP_STORAGE_FIFO_ITEM_COUNT * data_types_count;
 	uint8_t total_samples_expected = num_samples * data_types_count;
 	uint8_t total_samples_received = 0;
@@ -772,10 +689,6 @@ void test_storage_flush_to_fifo_mixed_data(void)
 		env_msg.temperature = env_samples[i].temperature;
 		env_msg.humidity = env_samples[i].humidity;
 		env_msg.pressure = env_samples[i].pressure;
-		loc_msg = location_samples[i];
-
-		err = zbus_chan_pub(&LOCATION_CHAN, &loc_msg, K_SECONDS(1));
-		TEST_ASSERT_EQUAL(0, err);
 
 		/* Store battery data */
 		err = zbus_chan_pub(&POWER_CHAN, &bat_msg, K_SECONDS(1));
@@ -803,7 +716,8 @@ void test_storage_flush_to_fifo_mixed_data(void)
 
 		TEST_ASSERT_EQUAL(STORAGE_FIFO_AVAILABLE, received_msg.type);
 
-		printk("max_fifo_items: %d, total_samples_expected: %d, total_samples_received: %d\n",
+		printk("max_fifo_items: %d, total_samples_expected: %d, "
+			"total_samples_received: %d\n",
 		       max_fifo_items, total_samples_expected, total_samples_received);
 		TEST_ASSERT_EQUAL(
 				  MIN(max_fifo_items,
@@ -827,10 +741,6 @@ void test_storage_flush_to_fifo_mixed_data(void)
 						received_env_samples[i].humidity);
 			TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].pressure,
 						received_env_samples[i].pressure);
-		}
-
-		for (size_t i = 0; i < received_location_samples_count; i++) {
-			TEST_ASSERT_EQUAL(location_samples[i], received_location_samples[i]);
 		}
 
 		total_samples_received += received_msg.data_len;
