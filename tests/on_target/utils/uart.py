@@ -223,7 +223,12 @@ class Uart:
             return match.groups()
         return None
 
-    def wait_for_str_with_retries(self, msgs: Union[str, list], max_retries: int = 2, timeout: int = DEFAULT_WAIT_FOR_STR_TIMEOUT, error_msg: str = "", reset_func=None) -> None:
+    def wait_for_str_with_retries(
+            self, msgs: Union[str, list],
+            max_retries: int = 2,
+            timeout: int = DEFAULT_WAIT_FOR_STR_TIMEOUT,
+            error_msg: str = "",
+            reset_func=None) -> None:
         retries = 0
         while retries <= max_retries:
             try:
