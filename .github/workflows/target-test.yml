@@ -16,7 +16,7 @@ on:
       pytest_path:
         type: string
         required: false
-        default: tests
+        default: tests/test_functional
       devices:
         description: JSON array of devices. e.g. [\"thingy91x\",\"nrf9151dk\"]
         type: string
@@ -125,18 +125,18 @@ jobs:
             pytest_marker=(-m "not slow")
           fi
           if [[ '${{ matrix.device }}' == 'ppk_thingy91x' ]]; then
-            # For PPK device, only run tests/test_ppk
-            pytest -v "${pytest_marker[@]}" \
-              --junit-xml=results/test-results.xml \
-              --html=results/test-results.html --self-contained-html \
-              tests/test_ppk
+            PYTEST_PATH=tests/test_ppk
+          elif [[ '${{ matrix.device }}' == 'gnss_nrf9151dk' ]]; then
+            PYTEST_PATH=tests/test_gnss
           else
-            pytest -v "${pytest_marker[@]}" \
-              --junit-xml=results/test-results.xml \
-              --html=results/test-results.html --self-contained-html \
-              --ignore=tests/test_ppk \
-              ${{ inputs.pytest_path }}
+            PYTEST_PATH=${{ inputs.pytest_path }}
           fi
+
+          pytest -v "${pytest_marker[@]}" \
+            --junit-xml=results/test-results.xml \
+            --html=results/test-results.html --self-contained-html \
+            ${PYTEST_PATH}
+          
         shell: bash
         env:
           SEGGER: ${{ env.RUNNER_SERIAL_NUMBER }}
