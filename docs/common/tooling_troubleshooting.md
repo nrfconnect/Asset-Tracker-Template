@@ -12,7 +12,7 @@ For more knowledge on debugging and troubleshooting [nRF Connect SDK](https://gi
 
 The template provides several shell commands for controlling and monitoring device behavior. Connect to the device's UART interface using either:
 
-- [Serial terminal app] ( https://docs.nordicsemi.com/bundle/nrf-connect-serial-terminal/page/index.html) form nRF Connect for Desktop.
+- [Serial terminal app](https://docs.nordicsemi.com/bundle/nrf-connect-serial-terminal/page/index.html) form nRF Connect for Desktop.
 - Your preferred terminal application (for example, `putty`, `minicom`, `terraterm`).
 
 ### Available Commands
@@ -131,7 +131,7 @@ Analyze thread execution and scheduling using [SEGGER SystemView](https://www.se
 
 #### Configuration
 
-Add to `prj.conf`:
+Add the following configuration to the `prj.conf` file:
 
 ```bash
 CONFIG_TRACING=y

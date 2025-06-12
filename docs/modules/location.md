@@ -12,7 +12,7 @@ The module performs the following tasks:
 
 The location module works in conjunction with the network module, as GNSS functionality can only be initialized after the modem is initialized and enabled. It uses the Location library's event handler to process various location-related events and publish status updates through the zbus messaging system.
 
-Below, the module's main messages, configurations, and state machine are covered. Refer to the source files (`location.c`, `location.h`, and `Kconfig.location`) for implementation details.
+In the following sections, the module's main messages, configurations, and state machine are covered. Refer to the source files (`location.c`, `location.h`, and `Kconfig.location`) for implementation details.
 
 ## Messages
 
@@ -45,22 +45,23 @@ enum location_msg_type {
 
 Several Kconfig options in `Kconfig.location` control this module's behavior. The following configuration parameters are associated with this module::
 
-- **CONFIG_APP_LOCATION**
+- **CONFIG_APP_LOCATION:**
   Enables the location module. Automatically selected if **CONFIG_LOCATION** is enabled.
 
-- **CONFIG_APP_LOCATION_THREAD_STACK_SIZE**
+- **CONFIG_APP_LOCATION_THREAD_STACK_SIZE:**
   Stack size for the location module's main thread.
 
-- **CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS**
+- **CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS:**
   Watchdog timeout for the module's thread (default: 120 seconds).
   This covers both:
+
   - Waiting for an incoming message in zbus_sub_wait_msg()
   - Time spent processing the message, defined by the **CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS** Kconfig option.
 
   Must be larger than **CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS**.
   A small difference between the two can mean more frequent watchdog feeds, which increases power consumption.
 
-- **CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS**
+- **CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS:**
   Maximum time allowed for processing a single message (default: 60 seconds).
   Must be smaller than the value set in the **CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS** Kconfig option.
 

@@ -9,11 +9,13 @@ The LED module uses the zbus channel `LED_CHAN` to receive control commands. Oth
 The module accepts messages with the following parameters:
 
 - **Color Values**
+
   - `red`: Red component (0-255)
   - `green`: Green component (0-255)
   - `blue`: Blue component (0-255)
 
 - **Timing Parameters**
+
   - `duration_on_msec`: How long the LED stays on in milliseconds.
   - `duration_off_msec`: How long the LED stays off in milliseconds.
   - `repetitions`: Number of blink cycles (-1 for infinite blinking).
@@ -43,11 +45,13 @@ struct led_msg {
 Instead of using a state machine, the LED module operates as follows:
 
 1. When a message is received on the `LED_CHAN` channel:
+
    - Any existing blink pattern is canceled.
    - The new LED state (colors and timing) is saved.
    - The LED is turned on with the specified color.
 
 2. If a blinking pattern is specified (repetitions != 0):
+
    - A timer is started with `duration_on_msec`.
    - When the timer expires, the LED toggles between on and off states.
    - The timer alternates between `duration_on_msec` and `duration_off_msec`.
@@ -60,11 +64,12 @@ The module handles error cases gracefully and reports issues through logging.
 
 The LED module uses the following configuration options:
 
-- **CONFIG_APP_LED_LOG_LEVEL**
+- **CONFIG_APP_LED_LOG_LEVEL:**
   Controls logging level for the LED module.
 
-- **Device Tree Configuration**
+- **Devicetree Configuration:**
   The module requires three PWM LED aliases in the devicetree:
+
   - `pwm-led0`: Red channel
   - `pwm-led1`: Green channel
   - `pwm-led2`: Blue channel

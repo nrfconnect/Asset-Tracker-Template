@@ -50,6 +50,10 @@ plugins:
   - macros
   - search
 
+extra:
+  # Abbreviation snippets
+  NCS: nRF Connect SDK
+
 nav:
   - Overview: index.md
   - Getting Started: common/getting_started.md

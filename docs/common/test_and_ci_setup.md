@@ -28,8 +28,8 @@ Run by [.github/workflows/target-test.yml](https://github.com/nrfconnect/Asset-T
 Tests on target are performed using self-hosted runners. How to set up your own instance for your project: [About Self Hosted](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/about-self-hosted-runners)
 
 - Tests run on multiple target devices:
-  - nRF9151 DK
-  - Thingy:91 X
+    - nRF9151 DK
+    - Thingy:91 X
 - Uses self-hosted runners labeled according to the connected device.
 - Parallel horizontal execution across different device types.
 - Parallel vertical execution on multiple same device jobs.
@@ -73,6 +73,8 @@ Compliance checks are implemented in [.github/workflows/compliance.yml](https://
 - Kernel coding style checks (checkpatch)
 
 ### Key Features
+
+The following are the key features of testing:
 
 1. **Modularity**: Each aspect of testing is handled by a dedicated workflow.
 2. **Comprehensive Coverage**: Combines hardware testing, emulation, and static analysis.

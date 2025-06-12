@@ -6,7 +6,7 @@ This document describes how to manage FOTA (Firmware Over The Air) updates using
 export API_KEY="your-nrf-cloud-api-key"
 ```
 
-You can find your API_KEY in "User Account" settings in your nRF Cloud profile.
+You can find your `API_KEY` in **User Account** settings in your nRF Cloud profile.
 
 For reference, see [nRF Cloud REST API](https://api.nrfcloud.com/)
 
@@ -52,6 +52,7 @@ curl -X POST "https://api.nrfcloud.com/v1/firmwares" \
 The bundle ID will be needed when creating FOTA jobs. For application firmware, it can be extracted from the URI path after `firmware.nrfcloud.com/`.
 
 ## List FOTA Jobs
+
 ```bash
 curl -X GET "https://api.nrfcloud.com/v1/fota-jobs" \
   -H "Authorization: Bearer ${API_KEY}" \
@@ -59,6 +60,7 @@ curl -X GET "https://api.nrfcloud.com/v1/fota-jobs" \
 ```
 
 ## Create FOTA Job
+
 ```bash
 curl -X POST "https://api.nrfcloud.com/v1/fota-jobs" \
   -H "Authorization: Bearer ${API_KEY}" \
@@ -72,6 +74,7 @@ curl -X POST "https://api.nrfcloud.com/v1/fota-jobs" \
 The response will include a `jobId` that can be used to track the job status.
 
 ## Apply FOTA Job
+
 ```bash
 curl -X POST "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}/apply" \
   -H "Authorization: Bearer ${API_KEY}" \
@@ -79,15 +82,26 @@ curl -X POST "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}/apply" \
 ```
 
 ## Check FOTA Status
+
 ```bash
 curl -X GET "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}" \
   -H "Authorization: Bearer ${API_KEY}" \
   -H "Accept: application/json"
 ```
 
-The status will be one of: "QUEUED", "IN_PROGRESS", "FAILED", "SUCCEEDED", "TIMED_OUT", "CANCELLED", "REJECTED", "DOWNLOADING".
+The status will be one of the following:
+
+- `QUEUED`,
+- `IN_PROGRESS`
+- `FAILED`
+- `SUCCEEDED`
+- `TIMED_OUT`
+- `CANCELLED`
+- `REJECTED`
+- `DOWNLOADING`
 
 ## Update Job Execution State
+
 ```bash
 curl -X PATCH "https://api.nrfcloud.com/v1/fota-job-executions/${DEVICE_ID}/${JOB_ID}" \
   -H "Authorization: Bearer ${API_KEY}" \
@@ -97,9 +111,19 @@ curl -X PATCH "https://api.nrfcloud.com/v1/fota-job-executions/${DEVICE_ID}/${JO
   }'
 ```
 
-Valid status values are: "QUEUED", "IN_PROGRESS", "FAILED", "SUCCEEDED", "TIMED_OUT", "CANCELLED", "REJECTED", "DOWNLOADING".
+The valid status values are:
+
+- `QUEUED`,
+- `IN_PROGRESS`
+- `FAILED`
+- `SUCCEEDED`
+- `TIMED_OUT`
+- `CANCELLED`
+- `REJECTED`
+- `DOWNLOADING`
 
 ## Cancel FOTA Job
+
 ```bash
 curl -X PUT "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}/cancel" \
   -H "Authorization: Bearer ${API_KEY}" \
@@ -107,12 +131,14 @@ curl -X PUT "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}/cancel" \
 ```
 
 ## Delete FOTA Job
+
 ```bash
 curl -X DELETE "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}" \
   -H "Authorization: Bearer ${API_KEY}"
 ```
 
 ## Delete Firmware Bundle
+
 ```bash
 curl -X DELETE "https://api.nrfcloud.com/v1/firmwares/${BUNDLE_ID}" \
   -H "Authorization: Bearer ${API_KEY}"
@@ -122,61 +148,76 @@ curl -X DELETE "https://api.nrfcloud.com/v1/firmwares/${BUNDLE_ID}" \
 
 The following is a complete example workflow for performing a FOTA update:
 
-```bash
-# 1. Set up environment variables
-export API_KEY="your-nrf-cloud-api-key"
-export BIN_FILE="build/zephyr/app_signed.bin"  # Your compiled application binary
-export DEVICE_ID="your-device-id"
+1. Set up environment variables:
 
-# 2. Create manifest and upload firmware
-cat > manifest.json << EOF
-{
-    "name": "Application Update",
-    "description": "New firmware version",
-    "fwversion": "1.0.0",
-    "format-version": 1,
-    "files": [
-        {
-            "file": "$(basename ${BIN_FILE})",
-            "type": "application",
-            "size": $(stat -f%z ${BIN_FILE})
-        }
-    ]
-}
-EOF
+    ```bash
+    export API_KEY="your-nrf-cloud-api-key"
+    export BIN_FILE="build/zephyr/app_signed.bin"  # Your compiled application binary
+    export DEVICE_ID="your-device-id"
+    ```
 
-zip -j firmware.zip ${BIN_FILE} manifest.json
+1. Create manifest and upload firmware:
 
-curl -X POST "https://api.nrfcloud.com/v1/firmwares" \
-  -H "Authorization: Bearer ${API_KEY}" \
-  -H "Content-Type: application/zip" \
-  --data-binary @firmware.zip
+    ```bash
+    cat > manifest.json << EOF
+    {
+        "name": "Application Update",
+        "description": "New firmware version",
+        "fwversion": "1.0.0",
+        "format-version": 1,
+        "files": [
+            {
+                "file": "$(basename ${BIN_FILE})",
+                "type": "application",
+                "size": $(stat -f%z ${BIN_FILE})
+            }
+        ]
+    }
+    EOF
 
-export BUNDLE_ID=<your_bundle_id>
+    zip -j firmware.zip ${BIN_FILE} manifest.json
 
-# 3. Create and apply FOTA job
-curl -X POST "https://api.nrfcloud.com/v1/fota-jobs" \
-  -H "Authorization: Bearer ${API_KEY}" \
-  -H "Content-Type: application/json" \
-  -d "{\"deviceIds\": [\"${DEVICE_ID}\"], \"bundleId\": \"${BUNDLE_ID}\"}" \
-  | jq -r '.jobId'
+    curl -X POST "https://api.nrfcloud.com/v1/firmwares" \
+      -H "Authorization: Bearer ${API_KEY}" \
+      -H "Content-Type: application/zip" \
+      --data-binary @firmware.zip
 
-export JOB_ID=<your_job_id>
+    export BUNDLE_ID=<your_bundle_id>
+    ```
 
-curl -X POST "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}/apply" \
-  -H "Authorization: Bearer ${API_KEY}"
+1. Create and apply FOTA job:
 
-# 4. Monitor job status
-curl -X GET "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}" \
-  -H "Authorization: Bearer ${API_KEY}" \
-  -H "Accept: application/json"
+    ```bash
+    curl -X POST "https://api.nrfcloud.com/v1/fota-jobs" \
+      -H "Authorization: Bearer ${API_KEY}" \
+      -H "Content-Type: application/json" \
+      -d "{\"deviceIds\": [\"${DEVICE_ID}\"], \"bundleId\": \"${BUNDLE_ID}\"}" \
+      | jq -r '.jobId'
 
-# 5. Clean up (optional)
-# Delete job after completion
-curl -X DELETE "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}" \
-  -H "Authorization: Bearer ${API_KEY}"
+    export JOB_ID=<your_job_id>
 
-# Delete firmware bundle if no longer needed
-curl -X DELETE "https://api.nrfcloud.com/v1/firmwares/${BUNDLE_ID}" \
-  -H "Authorization: Bearer ${API_KEY}"
-```
+    curl -X POST "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}/apply" \
+      -H "Authorization: Bearer ${API_KEY}"
+    ```
+
+1. Monitor job status:
+
+    ```bash
+    curl -X GET "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}" \
+      -H "Authorization: Bearer ${API_KEY}" \
+      -H "Accept: application/json"
+    ```
+
+1. Clean up (optional).
+1. Delete job after completion:
+
+    ```bash
+    curl -X DELETE "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}" \
+      -H "Authorization: Bearer ${API_KEY}"
+
+1. Delete firmware bundle if no longer needed:
+
+    ```bash
+    curl -X DELETE "https://api.nrfcloud.com/v1/firmwares/${BUNDLE_ID}" \
+    -H "Authorization: Bearer ${API_KEY}"
+    ```

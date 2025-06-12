@@ -10,56 +10,35 @@ It subscribes to messages on the following zbus channels:
 
 The Main module uses the following zbus channels, both for subscribing to incoming data and publishing outbound requests or status updates:
 
-* **BUTTON_CHAN**
-  - Processes user button presses for manually triggering data samples.
-
-* **CLOUD_CHAN**
-  - Receive connectivity status (connected, disconnected) and cloud response data.
-  - Trigger device shadow polling to retrieve configuration updates.
-
-* **ENVIRONMENTAL_CHAN**
-  - Request sensor data from the environmental module.
-
-* **FOTA_CHAN**
-  - Poll for FOTA updates and manage the FOTA process.
-  - Apply FOTA updates to install the new firmware image.
-
-* **LED_CHAN**
-  - Update LED pattern to indicate system state.
-
-* **LOCATION_CHAN**
-  - Requests new location data when a sample is due.
-
-* **NETWORK_CHAN**
-  - Control LTE network connection.
-  - Track cellular connectivity events.
-  - Request network quality samples.
-
-* **POWER_CHAN**
-  - Request battery status.
-  - Initiate low-power mode.
-
-* **TIMER_CHAN**
-  - Handle timer events for sampling.
-
+| Zbus Channels       | Description                                                                                   |
+|---------------------|-----------------------------------------------------------------------------------------------|
+| **BUTTON_CHAN**     | Processes user button presses for manually triggering data samples.                           |
+| **CLOUD_CHAN**      | Receive connectivity status (connected, disconnected) and cloud response data. Trigger device shadow polling to retrieve configuration updates. |
+| **ENVIRONMENTAL_CHAN** | Request sensor data from the environmental module.                                           |
+| **FOTA_CHAN**       | Poll for FOTA updates and manage the FOTA process. Apply FOTA updates to install the new firmware image. |
+| **LED_CHAN**        | Update LED pattern to indicate system state.                                                  |
+| **LOCATION_CHAN**   | Requests new location data when a sample is due.                                              |
+| **NETWORK_CHAN**    | Control LTE network connection. Track cellular connectivity events. Request network quality samples. |
+| **POWER_CHAN**      | Request battery status. Initiate low-power mode.                                              |
+| **TIMER_CHAN**      | Handle timer events for sampling.                                                         |
 
 ## Configuration
 
 The Main module can be configured using the following Kconfig options:
 
-* **CONFIG_APP_LOG_LEVEL**
+* **CONFIG_APP_LOG_LEVEL:**
   Controls logging level for the main module.
 
-* **CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS**
+* **CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS:**
   Default data sampling interval.
 
-* **CONFIG_APP_REQUEST_NETWORK_QUALITY**
+* **CONFIG_APP_REQUEST_NETWORK_QUALITY:**
   When enabled, requests network quality metrics during regular sampling.
 
-* **CONFIG_APP_MSG_PROCESSING_TIMEOUT_SECONDS**
+* **CONFIG_APP_MSG_PROCESSING_TIMEOUT_SECONDS:**
   Maximum time allowed for processing a single message.
 
-* **CONFIG_APP_WATCHDOG_TIMEOUT_SECONDS**
+* **CONFIG_APP_WATCHDOG_TIMEOUT_SECONDS:**
   Defines the watchdog timeout for the main module.
 
 

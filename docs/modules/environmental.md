@@ -11,13 +11,14 @@ The Environmental module communicates via the zbus channel `ENVIRONMENTAL_CHAN`,
 
 ### Input Messages
 
-- **ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST**
+- **ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST:**
   Requests the module to take new sensor readings from the environmental sensor.
 
 ### Output Messages
 
-- **ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE**
+- **ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE:**
   Returns collected environmental data with the following fields:
+
   - `temperature`: Temperature value in degrees Celsius.
   - `pressure`: Atmospheric pressure in Pascals.
   - `humidity`: Relative humidity percentage.
@@ -36,19 +37,19 @@ struct environmental_msg {
 ## Configuration
 The Environmental module can be configured using the following Kconfig options:
 
-- **CONFIG_APP_ENVIRONMENTAL**
+- **CONFIG_APP_ENVIRONMENTAL:**
   Enables the Environmental module.
 
-- **CONFIG_APP_ENVIRONMENTAL_THREAD_STACK_SIZE**
+- **CONFIG_APP_ENVIRONMENTAL_THREAD_STACK_SIZE:**
   Size of the stack for the environmental module's thread.
 
-- **CONFIG_APP_ENVIRONMENTAL_WATCHDOG_TIMEOUT_SECONDS**
+- **CONFIG_APP_ENVIRONMENTAL_WATCHDOG_TIMEOUT_SECONDS:**
   Defines the watchdog timeout for the environmental module.
 
-- **CONFIG_APP_ENVIRONMENTAL_MSG_PROCESSING_TIMEOUT_SECONDS**
+- **CONFIG_APP_ENVIRONMENTAL_MSG_PROCESSING_TIMEOUT_SECONDS:**
   Maximum time allowed for processing a single message.
 
-- **CONFIG_APP_ENVIRONMENTAL_LOG_LEVEL_INF/_ERR/_WRN/_DBG**
+- **CONFIG_APP_ENVIRONMENTAL_LOG_LEVEL_INF/_ERR/_WRN/_DBG:**
   Controls logging level for the environmental module.
 
 For more details on Kconfig options, see the `Kconfig.environmental` file in the module's directory.
