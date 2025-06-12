@@ -224,7 +224,9 @@ In the image, the black dots and arrow indicate initial transitions.
 In this case, the initial state is set to `STATE_RUNNING`. In the state machine definition, initial transitions are configured, such that the state machine ends up in `STATE_DISCONNECTED_SEARCHING` when first initialized.
 From there, transitions follows the arrows according to the messages received and the state machine logic.
 
-!!! important "important" In a hierarchical state machine, the run function of the current state is executed first, and then the run function of the parent state is executed, unless a state transition happens, or the child state marks the message as handled using `smf_state_handled()`.
+!!! important "Important"
+
+    In a hierarchical state machine, the run function of the current state is executed first, and then the run function of the parent state is executed, unless a state transition happens, or the child state marks the message as handled using `smf_state_handled()`.
 
 ### State machine context
 

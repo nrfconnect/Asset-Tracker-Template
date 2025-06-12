@@ -20,21 +20,21 @@ The cloud module publishes and receives messages over the zbus channel `CLOUD_CH
 
 ### Input Messages
 
-- **CLOUD_POLL_SHADOW**
+- **CLOUD_POLL_SHADOW:**
   Instructs the module to poll the device shadow on nRF Cloud. The device shadow may contain configuration updates for the device.
 
-- **CLOUD_PAYLOAD_JSON**
+- **CLOUD_PAYLOAD_JSON:**
   Sends raw JSON data to nRF Cloud.
 
 ### Output Messages
 
-- **CLOUD_DISCONNECTED**
+- **CLOUD_DISCONNECTED:**
   Indicates that the cloud connection is not established (or has been lost).
 
-- **CLOUD_CONNECTED**
+- **CLOUD_CONNECTED:**
   Indicates that the module is connected to nRF Cloud and ready to send data.
 
-- **CLOUD_SHADOW_RESPONSE**
+- **CLOUD_SHADOW_RESPONSE:**
   Returns shadow data or a shadow delta received from nRF Cloud.
 
 The message structure used by the cloud module is defined in `cloud.h`:
@@ -53,46 +53,46 @@ struct cloud_msg {
 
 Several Kconfig options in `Kconfig.cloud` control this module’s behavior. The following configuration parameters are associated with this module:
 
-- **CONFIG_APP_CLOUD_SHELL**
+- **CONFIG_APP_CLOUD_SHELL:**
   Enables shell support for cloud operations.
 
-- **CONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE**
+- **CONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE:**
   Defines the maximum size for JSON payloads sent to the cloud.
 
-- **CONFIG_APP_CLOUD_SHADOW_RESPONSE_BUFFER_MAX_SIZE**
+- **CONFIG_APP_CLOUD_SHADOW_RESPONSE_BUFFER_MAX_SIZE:**
   Sets the maximum buffer size for receiving shadow data.
 
-- **CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES**
+- **CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES:**
   Uses confirmable CoAP messages for reliability.
 
-- **CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS**
+- **CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS:**
   Starting delay (in seconds) before reconnect attempts.
 
-- **CONFIG_APP_CLOUD_BACKOFF_TYPE**
+- **CONFIG_APP_CLOUD_BACKOFF_TYPE:**
   Specifies backoff strategy (none, linear, or exponential).
 
-- **CONFIG_APP_CLOUD_BACKOFF_TYPE_EXPONENTIAL**
+- **CONFIG_APP_CLOUD_BACKOFF_TYPE_EXPONENTIAL:**
   Use exponential backoff time. The backoff time is doubled after each failed attempt until the maximum backoff time is reached.
 
-- **CONFIG_APP_CLOUD_BACKOFF_TYPE_LINEAR**
+- **CONFIG_APP_CLOUD_BACKOFF_TYPE_LINEAR:**
   Use linear backoff time. The backoff time is incremented by a fixed amount after each failed attempt until the maximum backoff time is reached.
 
-- **CONFIG_APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS**
+- **CONFIG_APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS:**
   If using linear backoff, defines how much time to add after each failed attempt.
 
-- **CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS**
+- **CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS:**
   Maximum reconnect backoff limit.
 
-- **CONFIG_APP_CLOUD_THREAD_STACK_SIZE**
+- **CONFIG_APP_CLOUD_THREAD_STACK_SIZE:**
   Stack size for the cloud module’s main thread.
 
-- **CONFIG_APP_CLOUD_MESSAGE_QUEUE_SIZE**
+- **CONFIG_APP_CLOUD_MESSAGE_QUEUE_SIZE:**
   Zbus message queue size.
 
-- **CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS**
+- **CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS:**
   Watchdog timeout for the module’s thread. Must be larger than the message processing timeout.
 
-- **CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS**
+- **CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS:**
   Maximum time allowed for processing a single incoming message.
 
 For more details on these and other configurations, refer to `Kconfig.cloud`.
