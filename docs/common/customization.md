@@ -134,6 +134,7 @@ To add a new zbus event, complete the following procedure:
         }
     }
     ```
+
 1. Test the implementation by connecting and disconnecting VBUS to verify the LED patterns change as expected.
 
 ## Add environmental sensor
@@ -163,9 +164,9 @@ Thingy:91 X is used as an example, as it is a supported board in the template wi
 
 1. Enable the sensor in the devicetree by setting its status to "okay". This will perform the following:
 
-   - Instantiate the devicetree node for the sensor.
-   - Initialize the driver during boot.
-   - Make the sensor ready for use.
+    - Instantiate the devicetree node for the sensor.
+    - Initialize the driver during boot.
+    - Make the sensor ready for use.
 
     Add the following to the board-specific devicetree overlay file (`thingy91x_nrf9151_ns.overlay`):
 
@@ -206,7 +207,7 @@ Thingy:91 X is used as an example, as it is a supported board in the template wi
      static void sample_sensors(const struct device *const bme680, const struct device *const bmm350)
     ```
 
-   And update the function call:
+    And update the function call:
 
     ```c
      sample_sensors(state_object->bme680, state_object->bmm350);
@@ -214,7 +215,7 @@ Thingy:91 X is used as an example, as it is a supported board in the template wi
 
 1. Implement sensor data acquisition using the Zephyr Sensor API:
 
-     ```c
+    ```c
      err = sensor_sample_fetch(bmm350);
     if (err) {
         LOG_ERR("Failed to fetch magnetometer sample: %d", err);
@@ -327,10 +328,10 @@ To add your own module, complete the following steps:
 
 2. Create the following files in the module directory:
 
-   - `dummy.h` - Module interface definitions.
-   - `dummy.c` - Module implementation.
-   - `Kconfig.dummy` - Module configuration options.
-   - `CMakeLists.txt` - Build system configuration.
+    - `dummy.h` - Module interface definitions.
+    - `dummy.c` - Module implementation.
+    - `Kconfig.dummy` - Module configuration options.
+    - `CMakeLists.txt` - Build system configuration.
 
 3. In `dummy.h`, define the module's interface:
 
@@ -633,11 +634,11 @@ The following are some of the available options for controlling the MQTT module:
 
 1. Build and flash with the MQTT overlay.
 
-   In the template's `app` folder, run:
+    In the template's `app` folder, run:
 
-   ```sh
-   west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="$(pwd)/../examples/modules/cloud/overlay-mqtt.conf" && west flash --erase --skip-rebuild
-   ```
+    ```sh
+    west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="$(pwd)/../examples/modules/cloud/overlay-mqtt.conf" && west flash --erase --skip-rebuild
+    ```
 
 1. Observe that the device connects to the broker.
 

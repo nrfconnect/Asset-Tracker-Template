@@ -72,23 +72,4 @@ The Network module can be configured using the following Kconfig options:
 
 The Network module implements a state machine with the following states and transitions:
 
-```mermaid
-stateDiagram-v2
-    [*] --> STATE_RUNNING
-
-    state STATE_RUNNING {
-        [*] --> STATE_DISCONNECTED
-
-        STATE_DISCONNECTED --> STATE_CONNECTED : NETWORK_CONNECTED
-        STATE_CONNECTED --> STATE_DISCONNECTING : NETWORK_DISCONNECT
-        STATE_DISCONNECTING --> STATE_DISCONNECTED_IDLE : NETWORK_DISCONNECTED
-
-        state STATE_DISCONNECTED {
-            [*] --> STATE_DISCONNECTED_SEARCHING
-
-            STATE_DISCONNECTED_SEARCHING --> STATE_DISCONNECTED_IDLE : NETWORK_SEARCH_STOP/NETWORK_DISCONNECT
-            STATE_DISCONNECTED_IDLE --> STATE_DISCONNECTED_SEARCHING : NETWORK_CONNECT
-        }
-    }
-
-```
+![Network module state diagram](../images/network_module_state_diagram.svg "Network module state diagram")

@@ -46,39 +46,4 @@ The Main module can be configured using the following Kconfig options:
 
 The Main module implements a hierarchical state machine with the following states:
 
-```mermaid
-stateDiagram-v2
-    [*] --> STATE_RUNNING
-
-    state STATE_RUNNING {
-        [*] --> STATE_IDLE
-
-        STATE_IDLE --> STATE_TRIGGERING : CLOUD_CONNECTED_READY_TO_SEND
-        STATE_TRIGGERING --> STATE_IDLE : CLOUD_DISCONNECTED/CLOUD_CONNECTED_PAUSED
-
-        state STATE_TRIGGERING {
-            [*] --> STATE_SAMPLE_DATA
-            STATE_WAIT_FOR_TRIGGER --> STATE_SAMPLE_DATA : timer_trigger/button_press
-
-            STATE_SAMPLE_DATA --> STATE_WAIT_FOR_TRIGGER : LOCATION_SEARCH_DONE
-        }
-    }
-
-    STATE_RUNNING --> STATE_FOTA : FOTA_DOWNLOADING_UPDATE
-
-    state STATE_FOTA {
-        [*] --> STATE_FOTA_DOWNLOADING
-
-        STATE_FOTA_DOWNLOADING --> STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT : FOTA_SUCCESS_REBOOT_NEEDED
-        STATE_FOTA_DOWNLOADING --> STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE : FOTA_IMAGE_APPLY_NEEDED
-
-        STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT --> STATE_FOTA_REBOOTING : NETWORK_DISCONNECTED
-
-        STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE --> STATE_FOTA_APPLYING_IMAGE : NETWORK_DISCONNECTED
-        STATE_FOTA_APPLYING_IMAGE --> STATE_FOTA_REBOOTING : FOTA_SUCCESS_REBOOT_NEEDED
-
-        STATE_FOTA_REBOOTING --> [*] : sys_reboot()
-    }
-
-    STATE_FOTA --> STATE_RUNNING : FOTA_DOWNLOAD_CANCELED/TIMED_OUT/FAILED
-```
+![Main module state diagram](../images/main_module_state_diagram.svg "Main module state diagram")
