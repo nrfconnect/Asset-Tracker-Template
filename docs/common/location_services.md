@@ -7,16 +7,19 @@ The Asset Tracker uses [nRF Cloud's location services](https://docs.nordicsemi.c
 The following location methods are supported:
 
 * **GNSS (Global Navigation Satellite System)**
+
    - Highest accuracy positioning.
    - Best suited for outdoor use.
    - Higher power consumption compared to other methods.
 
 * **Cellular**
+
    - Uses cellular tower information for positioning.
    - Works indoors.
    - Lower power consumption than GNSS.
 
 * **Wi-Fi**
+
    - Uses nearby Wi-Fi access points for positioning.
    - Excellent for indoor positioning.
    - Lower power consumption than GNSS.
@@ -24,6 +27,7 @@ The following location methods are supported:
 ## Integration with nRF Cloud
 
 The location data is automatically sent to nRF Cloud, allowing you to:
+
 - Track device location in the nRF Cloud portal.
 - Analyze location history.
 - Monitor location accuracy and methods used.

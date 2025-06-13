@@ -4,9 +4,15 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
     paths:
       - docs
   workflow_dispatch:
+    push:
+    branches:
+      - main
 
 jobs:
   create-zoomin-bundle:
