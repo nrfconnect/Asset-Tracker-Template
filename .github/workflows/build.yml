@@ -227,9 +227,9 @@ jobs:
         if: ${{ inputs.build_all }}
         working-directory: asset-tracker-template
         run: |
-          git apply ../patches/magnetometer.patch
-          git apply ../patches/dummy-module.patch
-          git apply ../patches/add-event.patch
+          git apply patches/magnetometer.patch
+          git apply patches/dummy-module.patch
+          git apply patches/add-event.patch
 
       - name: Build patched thingy91x firmware
         if: ${{ inputs.build_all }}
