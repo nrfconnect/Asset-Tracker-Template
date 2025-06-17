@@ -227,6 +227,10 @@ jobs:
         if: ${{ inputs.build_all }}
         working-directory: asset-tracker-template
         run: |
+          ls
+          ls ..
+          ls patches
+
           git apply patches/magnetometer.patch
           git apply patches/dummy-module.patch
           git apply patches/add-event.patch
