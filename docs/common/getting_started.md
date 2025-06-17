@@ -288,7 +288,7 @@ To test that everything is working as expected, you can do the following:
 
 1. Press **Button 1** on the device to trigger data sampling and sending to nRF Cloud.
 
-    ![nRF Cloud exmaple data](../images/nrf_cloud_example_data.png)
+    ![nRF Cloud example data](../images/nrf_cloud_example_data.png)
 
 If you experience issues, check the logs in the serial terminal for any error messages. You can find troubleshooting tips in the [Troubleshooting](tooling_troubleshooting.md) section of the documentation.
 You can also open a support ticket on [DevZone](https://devzone.nordicsemi.com) for further assistance.

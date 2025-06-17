@@ -39,8 +39,7 @@ To add a new zbus event, complete the following procedure:
     };
     ```
 
-1. Implement publishing VBUS connected/disconnected events in the appropiate handler in `power.c: event_callback()`:
-
+2. Implement publishing VBUS connected/disconnected events in the appropriate handler in `power.c: event_callback()`:
     ```c
     if (pins & BIT(NPM1300_EVENT_VBUS_DETECTED)) {
         LOG_DBG("VBUS detected");
