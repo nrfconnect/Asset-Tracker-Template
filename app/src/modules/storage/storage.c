@@ -40,7 +40,8 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(storage_subscriber);
 	MAX_N(_DATA_SOURCE_LIST_LIST(STORAGE_SIZE_OF_TYPE) 0)
 
 /* Use the larger of: largest message type or storage_msg struct */
-#define MAX_MSG_SIZE	MAX(STORAGE_MAX_MSG_SIZE_FROM_LIST(DATA_SOURCE_LIST), sizeof(struct storage_msg))
+#define MAX_MSG_SIZE	MAX(STORAGE_MAX_MSG_SIZE_FROM_LIST(DATA_SOURCE_LIST), \
+			    sizeof(struct storage_msg))
 
 /**
  * @brief Add storage_subscriber as an observer to a channel
@@ -91,19 +92,40 @@ static struct zbus_observer_node obs_node;
 /* Forward declarations of state handlers */
 static void state_running_entry(void *o);
 static void state_running_run(void *o);
+static void state_pass_through_entry(void *o);
+static void state_pass_through_run(void *o);
+static void state_buffer_entry(void *o);
+static void state_buffer_run(void *o);
 
 K_FIFO_DEFINE(storage_fifo);
 
 /* Defining the storage module states */
 enum storage_module_state {
 	STATE_RUNNING,
+	STATE_PASS_THROUGH,
+	STATE_BUFFER,
 };
 
 /* Construct state table */
 static const struct smf_state states[] = {
-	[STATE_RUNNING] = SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
-					   NULL, /* No parent state */
-					   NULL), /* No initial transition */
+	[STATE_RUNNING] =
+#if IS_ENABLED(CONFIG_APP_STORAGE_INITIAL_MODE_PASS_THROUGH)
+		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
+				 NULL, /* No parent state */
+				 &states[STATE_PASS_THROUGH]), /* Initial transition */
+#elif IS_ENABLED(CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER)
+		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
+				 NULL, /* No parent state */
+				 &states[STATE_BUFFER]), /* Initial transition */
+#endif /* CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER */
+	[STATE_PASS_THROUGH] =
+		SMF_CREATE_STATE(state_pass_through_entry, state_pass_through_run, NULL,
+				 &states[STATE_RUNNING],
+				 NULL),
+	[STATE_BUFFER] =
+		SMF_CREATE_STATE(state_buffer_entry, state_buffer_run, NULL,
+				 &states[STATE_RUNNING],
+				 NULL),
 };
 
 /* Storage module state object */
@@ -118,32 +140,13 @@ struct storage_state {
 	uint8_t msg_buf[MAX_MSG_SIZE];
 };
 
-/* Static helper function */
+/* Static helper functions */
 static void task_wdt_callback(int channel_id, void *user_data)
 {
 	LOG_ERR("Watchdog expired, Channel: %d, Thread: %s",
 		channel_id, k_thread_name_get((k_tid_t)user_data));
 
 	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
-}
-
-/* Handler for STATE_RUNNING */
-static void state_running_entry(void *o)
-{
-	int err;
-	const struct storage_backend *backend = storage_backend_get();
-
-	ARG_UNUSED(o);
-
-	LOG_DBG("%s", __func__);
-
-	err = backend->init();
-	if (err) {
-		LOG_ERR("Failed to initialize storage backend, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
 }
 
 static void handle_data_message(const struct storage_data *type,
@@ -164,6 +167,31 @@ static void handle_data_message(const struct storage_data *type,
 	err = backend->store(type, data, type->data_size);
 	if (err) {
 		LOG_ERR("Failed to store %s data, error: %d", type->name, err);
+	}
+}
+
+static void pass_through_data_msg(const struct storage_data *type,
+				  const uint8_t *buf)
+{
+	int err;
+	struct storage_msg msg = {
+		.type = STORAGE_DATA,
+		.data_type = type->data_type,
+		.data_len = type->data_size,
+	};
+
+	LOG_DBG("Pass-through data message for %s", type->name);
+
+	/* Pass through only relevant data */
+	if (!type->should_store(buf)) {
+		return;
+	}
+
+	type->extract_data(buf, msg.buffer);
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to publish %s data, error: %d", type->name, err);
 	}
 }
 
@@ -409,28 +437,45 @@ static void handle_storage_stats(void)
 }
 #endif /* CONFIG_APP_STORAGE_SHELL_STATS */
 
-static void handle_storage_message(const struct storage_state *state_object)
+/* Handler for STATE_RUNNING */
+static void state_running_entry(void *o)
 {
-	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
+	int err;
+	const struct storage_backend *backend = storage_backend_get();
 
-	LOG_DBG("Received message of type: %d", msg->type);
+	ARG_UNUSED(o);
 
-	switch (msg->type) {
-		case STORAGE_FLUSH:
-			flush_stored_data();
-			break;
-		case STORAGE_FLUSH_TO_FIFO:
-			__fallthrough; /* Intentional fallthrough to handle FIFO request */
-		case STORAGE_FIFO_REQUEST:
-			handle_fifo_request();
-			break;
+	LOG_DBG("%s", __func__);
+
+	err = backend->init();
+	if (err) {
+		LOG_ERR("Failed to initialize storage backend, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+}
+
+
+static void state_running_run(void *o)
+{
+	const struct storage_state *state_object = (const struct storage_state *)o;
+	struct storage_msg *msg = (struct storage_msg *)state_object->msg_buf;
+
+	LOG_DBG("%s", __func__);
+
+	if (state_object->chan == &STORAGE_CHAN) {
+		switch (msg->type) {
 		case STORAGE_CLEAR:
 			/* Clear all stored data */
 			storage_clear();
 			break;
-		case STORAGE_FIFO_CLEAR:
-			/* Clear all data from the FIFO */
-			fifo_clear(&storage_fifo);
+		case STORAGE_FLUSH_TO_FIFO: __fallthrough;
+		case STORAGE_FIFO_REQUEST:
+			handle_fifo_request();
+			break;
+		case STORAGE_FLUSH:
+			flush_stored_data();
 			break;
 #if IS_ENABLED(CONFIG_APP_STORAGE_SHELL_STATS)
 		case STORAGE_STATS:
@@ -440,20 +485,68 @@ static void handle_storage_message(const struct storage_state *state_object)
 #endif /* CONFIG_APP_STORAGE_SHELL_STATS */
 		default:
 			break;
+		}
+
+		/* No need to check for other channels. */
+		return;
 	}
 }
 
-static void state_running_run(void *o)
+static void state_pass_through_entry(void *o)
+{
+	ARG_UNUSED(o);
+
+	LOG_DBG("%s", __func__);
+}
+
+static void state_pass_through_run(void *o)
 {
 	const struct storage_state *state_object = (const struct storage_state *)o;
+	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 	LOG_DBG("%s", __func__);
 
+	/* Check if message is from a registered data type */
+	STRUCT_SECTION_FOREACH(storage_data, type) {
+		if (state_object->chan == type->chan) {
+			LOG_DBG("Chan: %p, chan name: %s", state_object->chan, state_object->chan->name);
+			pass_through_data_msg(type, state_object->msg_buf);
+
+			return;
+		}
+	}
+
 	if (state_object->chan == &STORAGE_CHAN) {
-		handle_storage_message(state_object);
+		switch (msg->type) {
+		case STORAGE_MODE_PASSTHROUGH:
+			LOG_DBG("Already in pass-through mode, ignoring message");
+			smf_set_handled(SMF_CTX(state_object));
+			break;
+		case STORAGE_MODE_BUFFER:
+			LOG_DBG("Switching to buffer mode");
+			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER]);
+			break;
+		default:
+			break;
+		}
 
 		return;
 	}
+}
+
+static void state_buffer_entry(void *o)
+{
+	ARG_UNUSED(o);
+
+	LOG_DBG("%s", __func__);
+}
+
+static void state_buffer_run(void *o)
+{
+	const struct storage_state *state_object = (const struct storage_state *)o;
+	struct storage_msg *msg = (struct storage_msg *)state_object->msg_buf;
+
+	LOG_DBG("%s", __func__);
 
 	/* Check if message is from a registered data type */
 	STRUCT_SECTION_FOREACH(storage_data, type) {
@@ -463,6 +556,23 @@ static void state_running_run(void *o)
 
 			return;
 		}
+	}
+
+	if (state_object->chan == &STORAGE_CHAN) {
+		switch (msg->type) {
+		case STORAGE_MODE_BUFFER:
+			LOG_DBG("Already in buffer mode, ignoring message");
+			smf_set_handled(SMF_CTX(state_object));
+			break;
+		case STORAGE_MODE_PASSTHROUGH:
+			LOG_DBG("Switching to pass-through mode");
+			smf_set_state(SMF_CTX(state_object), &states[STATE_PASS_THROUGH]);
+			return;
+		default:
+			break;
+		}
+
+		return;
 	}
 }
 

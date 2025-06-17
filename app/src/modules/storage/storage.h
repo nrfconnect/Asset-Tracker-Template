@@ -17,9 +17,24 @@ extern "C" {
 
 /* Message types for the storage channel */
 enum storage_msg_type {
-	/* Input message */
+	/* Input messages */
+
+	/* Command to pass through data without buffering.
+	 * When this mode is enabled, the storage module will not store any data, out push it
+	 * directly out as a STORAGE_DATA message.
+	 */
+	STORAGE_MODE_PASSTHROUGH,
+
+
+	/* In buffer mode, the storage module will store data in the configured storage backend.
+	 * If the backend is not available, the data will be lost.
+	 * If the storage is full, the oldest data will be removed to make space for new data.
+	 * The data will be flushed to the FIFO when STORAGE_FLUSH_TO_FIFO is called.
+	 */
+	STORAGE_MODE_BUFFER,
+
 	/* Command to flush stored data one stored item at the time. */
-	STORAGE_FLUSH = 0x1,
+	STORAGE_FLUSH,
 
 	/* Flush all stored data into a FIFO. The number of items flushed
 	 * is limited by the FIFO size.
@@ -47,7 +62,9 @@ enum storage_msg_type {
 	/* FIFO for reading stored data */
 	STORAGE_FIFO_AVAILABLE,
 
-	/* FIFO is not available */
+	/* FIFO is not available.
+	 * This can happen if there was an error when reading stored data into the FIFO.
+	 */
 	STORAGE_FIFO_NOT_AVAILABLE,
 
 	/* FIFO is empty, no stored data */

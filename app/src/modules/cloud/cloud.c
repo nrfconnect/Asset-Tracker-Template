@@ -612,6 +612,29 @@ static void handle_storage_data(const struct storage_msg *msg, bool confirmable)
 		}
 		break;
 	}
+	case STORAGE_TYPE_ENVIRONMENTAL: {
+		struct environmental_msg *env_msg = (struct environmental_msg *)msg->buffer;
+
+		err = send_sensor_data(NRF_CLOUD_JSON_APPID_VAL_TEMP, env_msg->temperature,
+				       confirmable);
+		if (err) {
+			return;
+		}
+
+		err = send_sensor_data(NRF_CLOUD_JSON_APPID_VAL_AIR_PRESS, env_msg->pressure,
+				       confirmable);
+		if (err) {
+			return;
+		}
+
+		err = send_sensor_data(NRF_CLOUD_JSON_APPID_VAL_HUMID, env_msg->humidity,
+				       confirmable);
+		if (err) {
+			return;
+		}
+
+		break;
+	}
 	default:
 		LOG_WRN("Unhandled data type: %d", msg->data_type);
 		break;

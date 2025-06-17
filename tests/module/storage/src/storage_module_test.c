@@ -754,6 +754,73 @@ void test_storage_flush_to_fifo_mixed_data(void)
 	k_sleep(K_SECONDS(1));
 }
 
+void test_storage_set_passthrough_mode(void)
+{
+	int err;
+	struct storage_msg passthrough_msg = {
+		.type = STORAGE_MODE_PASSTHROUGH,
+	};
+
+	/* Publish the pass-through message */
+	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	k_sleep(K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(STORAGE_MODE_PASSTHROUGH, received_msg.type);
+}
+
+void test_storage_passthrough_data(void)
+{
+	int err;
+	struct storage_msg pass_through_msg = {
+		.type = STORAGE_MODE_PASSTHROUGH,
+	};
+	struct power_msg power_msg = {
+		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE,
+		.percentage = 98.0, /* Initial value, will be set later */
+	};
+	struct environmental_msg env_msg = {
+		.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE,
+		.temperature = 25.0,
+		.humidity = 50.0,
+		.pressure = 1013.25
+	};
+
+	/* Set storage to pass-through mode */
+	err = zbus_chan_pub(&STORAGE_CHAN, &pass_through_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	TEST_ASSERT_EQUAL(STORAGE_MODE_PASSTHROUGH, received_msg.type);
+
+	err = zbus_chan_pub(&POWER_CHAN, &power_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Wait for the message to be processed */
+	k_sleep(K_SECONDS(1));
+
+	/* Verify that the received message is of type STORAGE_DATA */
+	TEST_ASSERT_EQUAL(STORAGE_DATA, received_msg.type);
+	TEST_ASSERT_EQUAL(STORAGE_TYPE_BATTERY, received_msg.data_type);
+	TEST_ASSERT_EQUAL_DOUBLE(power_msg.percentage, *(double *)received_msg.buffer);
+
+	err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &env_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Wait for the message to be processed */
+	k_sleep(K_SECONDS(1));
+
+	/* Verify that the received message is of type STORAGE_DATA */
+	TEST_ASSERT_EQUAL(STORAGE_DATA, received_msg.type);
+	TEST_ASSERT_EQUAL(STORAGE_TYPE_ENVIRONMENTAL, received_msg.data_type);
+	TEST_ASSERT_EQUAL_DOUBLE(env_msg.temperature,
+				 ((struct environmental_msg *)received_msg.buffer)->temperature);
+	TEST_ASSERT_EQUAL_DOUBLE(env_msg.humidity,
+				 ((struct environmental_msg *)received_msg.buffer)->humidity);
+	TEST_ASSERT_EQUAL_DOUBLE(env_msg.pressure,
+				 ((struct environmental_msg *)received_msg.buffer)->pressure);
+}
+
 extern int unity_main(void);
 
 int main(void)

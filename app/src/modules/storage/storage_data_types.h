@@ -52,7 +52,6 @@
  */
 #define DATA_SOURCE_LIST(X)										   \
 	IF_ENABLED(CONFIG_APP_POWER, (X(BATTERY, POWER_CHAN, struct power_msg, double, battery_check, battery_extract)))	   \
-	IF_ENABLED(CONFIG_APP_LOCATION, (X(LOCATION, LOCATION_CHAN, enum location_msg_type, enum location_msg_type, location_check, location_extract)))  \
 	IF_ENABLED(CONFIG_APP_ENVIRONMENTAL, (X(ENVIRONMENTAL, ENVIRONMENTAL_CHAN, struct environmental_msg, struct environmental_msg, environmental_check, environmental_extract)))
 
 #define STORAGE_DATA_TYPE(_name)								\

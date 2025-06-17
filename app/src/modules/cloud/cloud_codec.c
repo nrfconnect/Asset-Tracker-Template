@@ -24,8 +24,8 @@ LOG_MODULE_REGISTER(cloud_codec, 4);
 #define CBOR_TAG_TS     3
 
 /* Encode a sensor message with efficient short-circuit error handling */
-static bool encode_sensor_message(zcbor_state_t *state, const char *app_id_str, double value,
-				  uint64_t timestamp)
+static bool encode_sensor_msg_float(zcbor_state_t *state, const char *app_id_str, double value,
+				    uint64_t timestamp)
 {
 	bool success;
 
@@ -91,15 +91,15 @@ int encode_data_chunk_array(uint8_t *payload, size_t payload_len,
 
 		switch (chunk->type) {
 		case STORAGE_TYPE_ENVIRONMENTAL:
-			success = encode_sensor_message(states, "TEMP",
+			success = encode_sensor_msg_float(states, "TEMP",
 					chunk->data.ENVIRONMENTAL.temperature, msg_timestamp) &&
-				encode_sensor_message(states, "HUMID",
+				  encode_sensor_msg_float(states, "HUMID",
 					chunk->data.ENVIRONMENTAL.humidity, msg_timestamp) &&
-				encode_sensor_message(states, "AIR_PRESS",
+				  encode_sensor_msg_float(states, "AIR_PRESS",
 					chunk->data.ENVIRONMENTAL.pressure, msg_timestamp);
 			break;
 		case STORAGE_TYPE_BATTERY:
-			success = encode_sensor_message(states, "BATTERY",
+			success = encode_sensor_msg_float(states, "BATTERY",
 					(double)chunk->data.BATTERY, msg_timestamp);
 			break;
 		default:
@@ -151,11 +151,11 @@ int encode_environmental_data_array(uint8_t *payload, size_t payload_len,
 			LOG_ERR("Could not get current time: %d", err);
 		}
 
-		success = encode_sensor_message(states, "TEMP",
+		success = encode_sensor_msg_float(states, "TEMP",
 				(double)env_samples[i].temperature, msg_timestamp) &&
-			 encode_sensor_message(states, "HUMID",
+			 encode_sensor_msg_float(states, "HUMID",
 				(double)env_samples[i].humidity, msg_timestamp) &&
-			 encode_sensor_message(states, "AIR_PRESS",
+			 encode_sensor_msg_float(states, "AIR_PRESS",
 				(double)env_samples[i].pressure, msg_timestamp);
 	}
 
@@ -201,9 +201,9 @@ int encode_environmental_sample(uint8_t *payload, size_t payload_len,
 	success = zcbor_list_start_encode(states, 3);
 
 	/* Chain the encoding of all three messages with && */
-	success = encode_sensor_message(states, "TEMP", (double)sample->temperature, timestamp) &&
-		  encode_sensor_message(states, "HUMID", (double)sample->humidity, timestamp) &&
-		  encode_sensor_message(states, "AIR_PRESS", (double)sample->pressure, timestamp);
+	success = encode_sensor_msg_float(states, "TEMP", (double)sample->temperature, timestamp) &&
+		  encode_sensor_msg_float(states, "HUMID", (double)sample->humidity, timestamp) &&
+		  encode_sensor_msg_float(states, "AIR_PRESS", (double)sample->pressure, timestamp);
 
 	/* End the array */
 	success = success && zcbor_list_end_encode(states, 3);
