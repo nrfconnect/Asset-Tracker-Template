@@ -54,11 +54,6 @@ The Environmental module can be configured using the following Kconfig options:
 
 For more details on Kconfig options, see the `Kconfig.environmental` file in the module's directory.
 
-## State diagram
+## State
 
-The environmental module implements a very simple state machine with only one state:
-
-```mermaid
-stateDiagram-v2
-    [*] --> STATE_RUNNING
-```
+The environmental module implements a very simple state machine with only one state, `STATE_RUNNING`.

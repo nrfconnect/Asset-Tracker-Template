@@ -8,7 +8,7 @@ export API_KEY="your-nrf-cloud-api-key"
 
 You can find your `API_KEY` in **User Account** settings in your nRF Cloud profile.
 
-For reference, see [nRF Cloud REST API](https://api.nrfcloud.com/)
+For reference, see [nRF Cloud REST API](https://api.nrfcloud.com/).
 
 ## Upload Application Firmware
 
@@ -214,6 +214,7 @@ The following is a complete example workflow for performing a FOTA update:
     ```bash
     curl -X DELETE "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}" \
       -H "Authorization: Bearer ${API_KEY}"
+    ```
 
 1. Delete firmware bundle if no longer needed:
 

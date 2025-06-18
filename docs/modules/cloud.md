@@ -101,31 +101,4 @@ For more details on these and other configurations, refer to `Kconfig.cloud`.
 
 The following is a simplified representation of the state machine implemented in `cloud.c`. The module starts in the `STATE_RUNNING` context, which immediately transitions to `STATE_DISCONNECTED` upon initialization. From there, network events and internal conditions drive state transitions.
 
-```mermaid
-stateDiagram-v2
-    [*] --> STATE_RUNNING
-
-    STATE_RUNNING --> STATE_DISCONNECTED: NETWORK_DISCONNECTED
-
-    state STATE_RUNNING {
-        [*] --> STATE_DISCONNECTED
-
-        STATE_DISCONNECTED --> STATE_CONNECTING: NETWORK_CONNECTED
-
-        STATE_CONNECTING --> STATE_CONNECTED: CLOUD_CONN_SUCCESS
-
-        state STATE_CONNECTING {
-            [*] --> STATE_CONNECTING_ATTEMPT
-
-            STATE_CONNECTING_ATTEMPT --> STATE_CONNECTING_BACKOFF: CLOUD_CONN_FAILED
-            STATE_CONNECTING_BACKOFF --> STATE_CONNECTING_ATTEMPT: CLOUD_BACKOFF_EXPIRED
-        }
-
-        state STATE_CONNECTED {
-            [*] --> STATE_CONNECTED_READY_TO_SEND
-
-            STATE_CONNECTED_READY_TO_SEND --> STATE_CONNECTED_PAUSED: NETWORK_DISCONNECTED
-            STATE_CONNECTED_PAUSED --> STATE_CONNECTED_READY_TO_SEND: NETWORK_CONNECTED
-        }
-    }
-```
+![Cloud module state diagram](../images/cloud_module_state_diagram.svg "Cloud module state diagram")

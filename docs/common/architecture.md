@@ -24,7 +24,7 @@ The Asset Tracker Template is built around a modular architecture where each mod
 
 The following diagram shows the system architecture and how the modules interact with each other. The modules are connected through a zbus messaging bus, which allows them to communicate with each other without being directly aware of each other. This decouples the modules and allows for easier maintenance and extensibility.
 
-![System overview](../images/system_overview.png)
+![System overview](../images/system_overview.svg)
 
 The following steps show the simplified flow of a typical operation:
 
@@ -186,9 +186,9 @@ The framework supports parent-child state relationships, allowing common behavio
 
 This hierarchy allows for shared behavior and clean state organization.
 
-Here is the full state machine of the Network module, both graphically and SMF implementation:
+The following shows the full state machine of the Network module, both graphically and in SMF implementation:
 
-![Network module state diagram](../images/network_module_state_machine.png)
+![Network module state diagram](../images/network_module_state_diagram.svg)
 
 ```c
 static const struct smf_state states[] = {
