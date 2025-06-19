@@ -778,7 +778,6 @@ void test_storage_passthrough_data(void)
 	};
 	struct power_msg power_msg = {
 		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE,
-		.percentage = 98.0, /* Initial value, will be set later */
 	};
 	struct environmental_msg env_msg = {
 		.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE,
@@ -793,32 +792,39 @@ void test_storage_passthrough_data(void)
 
 	TEST_ASSERT_EQUAL(STORAGE_MODE_PASSTHROUGH, received_msg.type);
 
-	err = zbus_chan_pub(&POWER_CHAN, &power_msg, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
+	for (int i = 0; i < 10; i++) {
+		power_msg.percentage = battery_samples[i];
 
-	/* Wait for the message to be processed */
-	k_sleep(K_SECONDS(1));
+		err = zbus_chan_pub(&POWER_CHAN, &power_msg, K_SECONDS(1));
+		TEST_ASSERT_EQUAL(0, err);
 
-	/* Verify that the received message is of type STORAGE_DATA */
-	TEST_ASSERT_EQUAL(STORAGE_DATA, received_msg.type);
-	TEST_ASSERT_EQUAL(STORAGE_TYPE_BATTERY, received_msg.data_type);
-	TEST_ASSERT_EQUAL_DOUBLE(power_msg.percentage, *(double *)received_msg.buffer);
+		/* Wait for the message to be processed */
+		k_sleep(K_SECONDS(1));
 
-	err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &env_msg, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
+		/* Verify that the received message is of type STORAGE_DATA */
+		TEST_ASSERT_EQUAL(STORAGE_DATA, received_msg.type);
+		TEST_ASSERT_EQUAL(STORAGE_TYPE_BATTERY, received_msg.data_type);
+		TEST_ASSERT_EQUAL_DOUBLE(power_msg.percentage, *(double *)received_msg.buffer);
 
-	/* Wait for the message to be processed */
-	k_sleep(K_SECONDS(1));
+		env_msg = env_samples[i];
+		env_msg.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE;
 
-	/* Verify that the received message is of type STORAGE_DATA */
-	TEST_ASSERT_EQUAL(STORAGE_DATA, received_msg.type);
-	TEST_ASSERT_EQUAL(STORAGE_TYPE_ENVIRONMENTAL, received_msg.data_type);
-	TEST_ASSERT_EQUAL_DOUBLE(env_msg.temperature,
-				 ((struct environmental_msg *)received_msg.buffer)->temperature);
-	TEST_ASSERT_EQUAL_DOUBLE(env_msg.humidity,
-				 ((struct environmental_msg *)received_msg.buffer)->humidity);
-	TEST_ASSERT_EQUAL_DOUBLE(env_msg.pressure,
-				 ((struct environmental_msg *)received_msg.buffer)->pressure);
+		err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &env_msg, K_SECONDS(1));
+		TEST_ASSERT_EQUAL(0, err);
+
+		/* Wait for the message to be processed */
+		k_sleep(K_SECONDS(1));
+
+		/* Verify that the received message is of type STORAGE_DATA */
+		TEST_ASSERT_EQUAL(STORAGE_DATA, received_msg.type);
+		TEST_ASSERT_EQUAL(STORAGE_TYPE_ENVIRONMENTAL, received_msg.data_type);
+		TEST_ASSERT_EQUAL_DOUBLE(env_msg.temperature,
+			((struct environmental_msg *)received_msg.buffer)->temperature);
+		TEST_ASSERT_EQUAL_DOUBLE(env_msg.humidity,
+			((struct environmental_msg *)received_msg.buffer)->humidity);
+		TEST_ASSERT_EQUAL_DOUBLE(env_msg.pressure,
+			((struct environmental_msg *)received_msg.buffer)->pressure);
+	}
 }
 
 extern int unity_main(void);
