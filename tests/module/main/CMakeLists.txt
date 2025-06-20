@@ -35,6 +35,7 @@ zephyr_include_directories(../../../app/src/modules/environmental)
 zephyr_include_directories(../../../app/src/modules/fota)
 zephyr_include_directories(../../../app/src/modules/location)
 zephyr_include_directories(../../../app/src/modules/led)
+zephyr_include_directories(${ZEPHYR_BASE}/../nrfxlib/nrf_modem/include)
 
 target_link_options(app PRIVATE --whole-archive)
 
@@ -66,6 +67,11 @@ target_compile_definitions(app PRIVATE
 	-DCONFIG_APP_ENVIRONMENTAL=1
 	-DZEPHYR_INCLUDE_SYS_REBOOT_H_
 	-DCONFIG_APP_REQUEST_NETWORK_QUALITY=1
+	-DCONFIG_LOCATION_SERVICE_EXTERNAL
+	-DCONFIG_LOCATION_METHOD_CELLULAR=1
+	-DCONFIG_LOCATION_METHOD_WIFI=1
+	-DCONFIG_LOCATION_METHODS_LIST_SIZE=3
+	-DCONFIG_NRF_CLOUD_AGNSS=y
 )
 
 # CONSIDER: REUSING THE CODEC GENERATION LOGIC FROM THE MAIN APP
