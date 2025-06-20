@@ -13,7 +13,6 @@
 #include <modem/location.h>
 #include <nrf_modem_gnss.h>
 #include <date_time.h>
-#include <net/nrf_cloud.h>
 #include <modem/nrf_modem_lib.h>
 
 #include "app_common.h"
@@ -28,20 +27,20 @@ BUILD_ASSERT(CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS >
 
 /* Define channels provided by this module */
 ZBUS_CHAN_DEFINE(LOCATION_CHAN,
-		 enum location_msg_type,
+		 struct location_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0)
 );
 
+#define MAX_MSG_SIZE sizeof(struct location_msg)
+
 /* Define listener for this module */
 ZBUS_MSG_SUBSCRIBER_DEFINE(location);
 
 /* Observe channels */
 ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, location, 0);
-
-#define MAX_MSG_SIZE sizeof(enum location_msg_type)
 
 /* Forward declarations */
 static void location_event_handler(const struct location_event_data *event_data);
@@ -129,9 +128,43 @@ static void location_wdt_callback(int channel_id, void *user_data)
 static void status_send(enum location_msg_type status)
 {
 	int err;
-	enum location_msg_type location_status = status;
+	struct location_msg location_msg = {
+		.type = status
+	};
 
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_status, K_SECONDS(1));
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+}
+
+static void cloud_request_send(const struct location_data_cloud *cloud_request)
+{
+	int err;
+	struct location_msg location_msg = {
+		.type = LOCATION_CLOUD_REQUEST,
+		.cloud_request = *cloud_request
+	};
+
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+}
+
+static void agnss_request_send(const struct nrf_modem_gnss_agnss_data_frame *agnss_request)
+{
+	int err;
+	struct location_msg location_msg = {
+		.type = LOCATION_AGNSS_REQUEST,
+		.agnss_request = *agnss_request
+	};
+
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -152,9 +185,9 @@ void trigger_location_update(void)
 	}
 }
 
-void handle_location_chan(enum location_msg_type location_msg_type)
+void handle_location_chan(const struct location_msg *location_msg)
 {
-	if (location_msg_type == LOCATION_SEARCH_TRIGGER) {
+	if (location_msg->type == LOCATION_SEARCH_TRIGGER) {
 		LOG_DBG("Location search trigger received, getting location");
 		trigger_location_update();
 	}
@@ -184,7 +217,7 @@ static void state_running_run(void *obj)
 	struct location_state_object const *state_object = obj;
 
 	if (state_object->chan == &LOCATION_CHAN) {
-		handle_location_chan(MSG_TO_LOCATION_TYPE(state_object->msg_buf));
+		handle_location_chan(MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf));
 	}
 }
 
@@ -192,6 +225,7 @@ static void location_print_data_details(enum location_method method,
 					const struct location_data_details *details)
 {
 	LOG_DBG("Elapsed method time: %d ms", details->elapsed_time_method);
+
 #if defined(CONFIG_LOCATION_METHOD_GNSS)
 	if (method == LOCATION_METHOD_GNSS) {
 		LOG_DBG("Satellites tracked: %d", details->gnss.satellites_tracked);
@@ -200,12 +234,14 @@ static void location_print_data_details(enum location_method method,
 		LOG_DBG("GNSS execution time: %d ms", details->gnss.pvt_data.execution_time);
 	}
 #endif
+
 #if defined(CONFIG_LOCATION_METHOD_CELLULAR)
 	if (method == LOCATION_METHOD_CELLULAR || method == LOCATION_METHOD_WIFI_CELLULAR) {
 		LOG_DBG("Neighbor cells: %d", details->cellular.ncells_count);
 		LOG_DBG("GCI cells: %d", details->cellular.gci_cells_count);
 	}
 #endif
+
 #if defined(CONFIG_LOCATION_METHOD_WIFI)
 	if (method == LOCATION_METHOD_WIFI || method == LOCATION_METHOD_WIFI_CELLULAR) {
 		LOG_DBG("Wi-Fi APs: %d", details->wifi.ap_count);
@@ -281,6 +317,20 @@ static void location_event_handler(const struct location_event_data *event_data)
 			"unknown");
 
 		location_print_data_details(event_data->method, &event_data->fallback.details);
+		break;
+	case LOCATION_EVT_CLOUD_LOCATION_EXT_REQUEST:
+		LOG_DBG("Cloud location request received from location library");
+		cloud_request_send(&event_data->cloud_location_request);
+		break;
+#if defined(CONFIG_NRF_CLOUD_AGNSS)
+	case LOCATION_EVT_GNSS_ASSISTANCE_REQUEST:
+		LOG_DBG("A-GNSS assistance request received from location library");
+		agnss_request_send(&event_data->agnss_request);
+		break;
+#endif
+	case LOCATION_EVT_RESULT_UNKNOWN:
+		LOG_DBG("Location result unknown");
+		status_send(LOCATION_SEARCH_DONE);
 		break;
 	default:
 		LOG_DBG("Getting location: Unknown event %d", event_data->id);

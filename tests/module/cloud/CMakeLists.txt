@@ -25,9 +25,11 @@ zephyr_include_directories(../../../app/src/common)
 zephyr_include_directories(../../../app/src/modules/power)
 zephyr_include_directories(../../../app/src/modules/network)
 zephyr_include_directories(../../../app/src/modules/environmental)
+zephyr_include_directories(../../../app/src/modules/location)
 zephyr_include_directories(${NRF_DIR}/subsys/net/lib/nrf_cloud/include)
 zephyr_include_directories(${NRF_DIR}/subsys/net/lib/nrf_cloud/coap/include)
 zephyr_include_directories(${NRF_DIR}/../modules/lib/cjson)
+zephyr_include_directories(${ZEPHYR_BASE}/../nrfxlib/nrf_modem/include)
 
 target_link_options(app PRIVATE --whole-archive)
 
@@ -53,4 +55,10 @@ target_compile_definitions(app PRIVATE
 	-DCONFIG_COAP_CLIENT_MESSAGE_SIZE=1024
 	-DCONFIG_COAP_CLIENT_MAX_REQUESTS=5
 	-DCONFIG_COAP_CLIENT_BLOCK_SIZE=1024
+	-DCONFIG_APP_LOCATION=1
+	-DCONFIG_LOCATION_SERVICE_EXTERNAL
+	-DCONFIG_LOCATION_METHOD_CELLULAR=1
+	-DCONFIG_LOCATION_METHOD_WIFI=1
+	-DCONFIG_LOCATION_METHODS_LIST_SIZE=3
+	-DCONFIG_NRF_CLOUD_AGNSS=y
 )

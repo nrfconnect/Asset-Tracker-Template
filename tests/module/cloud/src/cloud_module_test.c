@@ -20,6 +20,7 @@
 #include "cloud.h"
 #include "power.h"
 #include "network.h"
+#include "location.h"
 #include "app_common.h"
 
 DEFINE_FFF_GLOBALS;
@@ -47,6 +48,14 @@ ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
 		 ZBUS_MSG_INIT(0)
 );
 
+ZBUS_CHAN_DEFINE(LOCATION_CHAN,
+		 struct location_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
+
 FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
 FAKE_VALUE_FUNC(int, nrf_cloud_client_id_get, char *, size_t);
@@ -62,6 +71,15 @@ FAKE_VALUE_FUNC(int, nrf_cloud_coap_patch, const char *, const char *,
 		const uint8_t *, size_t,
 		enum coap_content_format, bool,
 		coap_client_response_cb_t, void *);
+FAKE_VALUE_FUNC(int, nrf_cloud_coap_location_get,
+		struct nrf_cloud_rest_location_request const *,
+		struct nrf_cloud_location_result *const);
+FAKE_VALUE_FUNC(int, nrf_cloud_coap_agnss_data_get,
+		struct nrf_cloud_rest_agnss_request const *,
+		struct nrf_cloud_rest_agnss_result *);
+FAKE_VOID_FUNC(location_cloud_location_ext_result_set, enum location_ext_result,
+	       struct location_data *);
+FAKE_VALUE_FUNC(int, location_agnss_data_process, const char *, size_t);
 
 /* Forward declarations */
 static void dummy_cb(const struct zbus_channel *chan);

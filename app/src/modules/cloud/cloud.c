@@ -11,6 +11,7 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <net/nrf_cloud.h>
 #include <net/nrf_cloud_coap.h>
+#include <net/nrf_cloud_rest.h>
 #include <nrf_cloud_coap_transport.h>
 #include <zephyr/net/coap.h>
 #include <app_version.h>
@@ -24,6 +25,7 @@
 #include "cloud.h"
 #include "app_common.h"
 #include "network.h"
+#include "location.h"
 
 #if defined(CONFIG_APP_POWER)
 #include "power.h"
@@ -48,14 +50,15 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
 
 /* Define the channels that the module subscribes to, their associated message types
  * and the subscriber that will receive the messages on the channel.
- * ENVIRONMENTAL_CHAN and POWER_CHAN are optional and are only included if the
+ * ENVIRONMENTAL_CHAN, POWER_CHAN, and LOCATION_CHAN are optional and are only included if the
  * corresponding module is enabled.
  */
 #define CHANNEL_LIST(X)										\
 					 X(NETWORK_CHAN,	struct network_msg)		\
 					 X(CLOUD_CHAN,		struct cloud_msg)		\
 IF_ENABLED(CONFIG_APP_ENVIRONMENTAL,	(X(ENVIRONMENTAL_CHAN,	struct environmental_msg)))	\
-IF_ENABLED(CONFIG_APP_POWER,		(X(POWER_CHAN,		struct power_msg)))
+IF_ENABLED(CONFIG_APP_POWER,		(X(POWER_CHAN,		struct power_msg)))		\
+IF_ENABLED(CONFIG_APP_LOCATION,		(X(LOCATION_CHAN,	struct location_msg)))
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
@@ -443,6 +446,118 @@ static void state_connected_exit(void *obj)
 	}
 }
 
+#if defined(CONFIG_APP_LOCATION)
+/* Handle cloud location requests from the location module */
+static void handle_cloud_location_request(const struct location_data_cloud *request)
+{
+	int err;
+	struct location_data location = { 0 };
+	struct nrf_cloud_rest_location_request loc_req = {
+		.cell_info = (struct lte_lc_cells_info *)request->cell_data,
+		.wifi_info = (struct wifi_scan_info *)request->wifi_data,
+		.config = NULL
+	};
+	struct nrf_cloud_location_result result = { 0 };
+
+	LOG_DBG("Handling cloud location request");
+
+#if defined(CONFIG_LOCATION_METHOD_CELLULAR)
+	if (request->cell_data != NULL) {
+		LOG_DBG("Cellular data present: current cell ID: %d, neighbor cells: %d",
+			request->cell_data->current_cell.id,
+			request->cell_data->ncells_count);
+	}
+#endif
+
+#if defined(CONFIG_LOCATION_METHOD_WIFI)
+	if (request->wifi_data != NULL) {
+		LOG_DBG("Wi-Fi data present: %d APs", request->wifi_data->cnt);
+	}
+#endif
+
+	/* Send location request to nRF Cloud */
+	err = nrf_cloud_coap_location_get(&loc_req, &result);
+	if (err == -EACCES) {
+		LOG_WRN("Not connected to nRF Cloud, error: %d", err);
+		location_cloud_location_ext_result_set(LOCATION_EXT_RESULT_ERROR, NULL);
+		return;
+	} else if (err == -ETIMEDOUT) {
+		LOG_WRN("Location request timed out, error: %d", err);
+		location_cloud_location_ext_result_set(LOCATION_EXT_RESULT_ERROR, NULL);
+		return;
+	} else if (err == -ENETUNREACH) {
+		LOG_WRN("Network is unreachable, error: %d", err);
+		location_cloud_location_ext_result_set(LOCATION_EXT_RESULT_ERROR, NULL);
+		return;
+	} else if (err) {
+		LOG_ERR("nrf_cloud_coap_location_get failed, error: %d", err);
+		location_cloud_location_ext_result_set(LOCATION_EXT_RESULT_ERROR, NULL);
+		return;
+	}
+
+	LOG_INF("Location result: lat: %f, lon: %f, accuracy: %f",
+		result.lat, result.lon, (double)result.unc);
+
+	/* Convert result to location_data format */
+	location.latitude = result.lat;
+	location.longitude = result.lon;
+	location.accuracy = (double)result.unc;
+
+	/* Send successful result back to location library */
+	location_cloud_location_ext_result_set(LOCATION_EXT_RESULT_SUCCESS, &location);
+}
+
+#if defined(CONFIG_NRF_CLOUD_AGNSS)
+/* Handle A-GNSS data requests from the location module */
+static void handle_agnss_request(const struct nrf_modem_gnss_agnss_data_frame *request)
+{
+	int err;
+	static char agnss_buf[NRF_CLOUD_AGNSS_MAX_DATA_SIZE];
+	struct nrf_cloud_rest_agnss_request agnss_req = {
+		.type = NRF_CLOUD_REST_AGNSS_REQ_CUSTOM,
+		.agnss_req = (struct nrf_modem_gnss_agnss_data_frame *)request,
+		.net_info = NULL,
+		.filtered = false,
+		.mask_angle = 0
+	};
+	struct nrf_cloud_rest_agnss_result result = {
+		.buf = agnss_buf,
+		.buf_sz = sizeof(agnss_buf),
+		.agnss_sz = 0
+	};
+
+	LOG_DBG("Handling A-GNSS data request");
+
+	/* Send A-GNSS request to nRF Cloud */
+	err = nrf_cloud_coap_agnss_data_get(&agnss_req, &result);
+	if (err == -EACCES) {
+		LOG_WRN("Not connected to nRF Cloud, error: %d", err);
+		return;
+	} else if (err == -ETIMEDOUT) {
+		LOG_WRN("A-GNSS request timed out, error: %d", err);
+		return;
+	} else if (err == -ENETUNREACH) {
+		LOG_WRN("Network is unreachable, error: %d", err);
+		return;
+	} else if (err) {
+		LOG_ERR("nrf_cloud_coap_agnss_data_get failed, error: %d", err);
+		return;
+	}
+
+	LOG_DBG("A-GNSS data received, size: %d bytes", result.agnss_sz);
+
+	/* Process the A-GNSS data */
+	err = location_agnss_data_process(result.buf, result.agnss_sz);
+	if (err) {
+		LOG_ERR("Failed to process A-GNSS data, error: %d", err);
+		return;
+	}
+
+	LOG_DBG("A-GNSS data processed successfully");
+}
+#endif /* CONFIG_NRF_CLOUD_AGNSS */
+#endif /* CONFIG_APP_LOCATION */
+
 static void shadow_get(bool delta_only)
 {
 	int err;
@@ -658,6 +773,32 @@ static void state_connected_ready_run(void *obj)
 		}
 	}
 #endif /* CONFIG_APP_ENVIRONMENTAL */
+
+#if defined(CONFIG_APP_LOCATION)
+	if (state_object->chan == &LOCATION_CHAN) {
+		const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+
+		switch (msg->type) {
+		case LOCATION_CLOUD_REQUEST:
+			LOG_DBG("Cloud location request received");
+			handle_cloud_location_request(&msg->cloud_request);
+			break;
+
+#if defined(CONFIG_NRF_CLOUD_AGNSS)
+		case LOCATION_AGNSS_REQUEST:
+			LOG_DBG("A-GNSS data request received");
+			handle_agnss_request(&msg->agnss_request);
+			break;
+#endif /* CONFIG_NRF_CLOUD_AGNSS */
+
+		default:
+			LOG_DBG("Unhandled location message type: %d", msg->type);
+			break;
+		}
+
+		return;
+	}
+#endif /* CONFIG_APP_LOCATION */
 
 	if (state_object->chan == &CLOUD_CHAN) {
 		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);

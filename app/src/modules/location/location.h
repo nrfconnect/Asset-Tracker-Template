@@ -9,6 +9,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
+#include <modem/location.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,9 +24,21 @@ enum location_msg_type {
 	LOCATION_SEARCH_STARTED = 0x1,
 	LOCATION_SEARCH_DONE,
 	LOCATION_SEARCH_TRIGGER,
+	LOCATION_CLOUD_REQUEST,
+	LOCATION_AGNSS_REQUEST,
 };
 
-#define MSG_TO_LOCATION_TYPE(_msg)	(*(const enum location_msg_type *)_msg)
+/* Structure to pass location data through zbus */
+struct location_msg {
+	enum location_msg_type type;
+	union {
+		struct location_data_cloud cloud_request;
+		struct nrf_modem_gnss_agnss_data_frame agnss_request;
+	};
+};
+
+#define MSG_TO_LOCATION_TYPE(_msg)	(((const struct location_msg *)_msg)->type)
+#define MSG_TO_LOCATION_MSG_PTR(_msg)	(((const struct location_msg *)_msg))
 
 #ifdef __cplusplus
 }
