@@ -9,8 +9,11 @@ The module's responsibilities include:
 - Managing different location methods (GNSS, cellular, Wi-Fi) and fallback scenarios
 - Updating system time using GNSS time data when available
 - Publishing location status updates to other modules
+- Supporting external location services for custom cloud integration
 
 The location module works in conjunction with the network module, as GNSS functionality can only be initialized after the modem is initialized and enabled. It uses the Location library's event handler to process various location-related events and publish status updates through the zbus messaging system.
+
+This application uses external location services (`CONFIG_LOCATION_SERVICE_EXTERNAL`) which means that location data such as cellular neighbor cell information, Wi-Fi access point data, and A-GNSS requests are sent to the application for processing instead of being handled directly by nRF Cloud location services.
 
 Below, the module's main messages, configurations, and state machine are covered. Refer to the source files (`location.c`, `location.h`, and `Kconfig.location`) for implementation details.
 
@@ -31,6 +34,12 @@ The location module publishes and receives messages over the zbus channel `LOCAT
 - **LOCATION_SEARCH_DONE**
   Indicates that a location search has completed (successfully or with error/timeout).
 
+- **LOCATION_CLOUD_REQUEST**
+  Contains cellular neighbor cell and/or Wi-Fi access point information that should be sent to cloud services for location resolution.
+
+- **LOCATION_AGNSS_REQUEST**
+  Indicates that A-GNSS assistance data is needed for GNSS positioning.
+
 The message types used by the location module are defined in `location.h`:
 
 ```c
@@ -38,6 +47,8 @@ enum location_msg_type {
     LOCATION_SEARCH_STARTED = 0x1,
     LOCATION_SEARCH_DONE,
     LOCATION_SEARCH_TRIGGER,
+    LOCATION_CLOUD_REQUEST,
+    LOCATION_AGNSS_REQUEST,
 };
 ```
 

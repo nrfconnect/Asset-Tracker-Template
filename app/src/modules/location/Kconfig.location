@@ -7,6 +7,7 @@ menuconfig APP_LOCATION
 	bool "Location"
 	default y if LOCATION
 	select LOCATION_DATA_DETAILS
+	select LOCATION_SERVICE_EXTERNAL
 
 if APP_LOCATION
 
