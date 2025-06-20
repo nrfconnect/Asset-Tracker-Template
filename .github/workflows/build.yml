@@ -227,13 +227,6 @@ jobs:
         if: ${{ inputs.build_all }}
         working-directory: asset-tracker-template
         run: |
-          if [ ! -f patches/magnetometer.patch ]; then
-            echo "Magnetometer patch not found, debug print start"
-            pwd
-            ls -l
-            ls -l patches/
-          fi
-
           git apply patches/magnetometer.patch
           git apply patches/dummy-module.patch
           git apply patches/add-event.patch
