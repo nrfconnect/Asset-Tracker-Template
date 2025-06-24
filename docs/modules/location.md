@@ -67,6 +67,6 @@ Several Kconfig options in `Kconfig.location` control this module's behavior. Th
 
 For more details on these configurations, refer to `Kconfig.location`.
 
-## State diagram
+## State machine
 
-The following is a representation of the state machine implemented in `location.c`. The module uses a single state (**STATE_RUNNING**) with an entry function (`location_init()`) that initializes the location library and a run function that processes incoming messages.
+The state machine implemented in `location.c`. The module uses a single state (**STATE_RUNNING**) with an entry function (`location_init()`) that initializes the location library and a run function that processes incoming messages.

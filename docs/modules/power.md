@@ -57,7 +57,7 @@ See the `Kconfig.power` file in the module's directory for more details on the a
 - The Power module uses `npm1300_charger` as specified by device tree.
 - The two UART devices `uart0_dev` and `uart1_dev` defined in device tree will be enabled or disabled based on VBUS events.
 
-## State diagram
+## State machine
 
 The Power module uses a minimal state machine with a single state, **STATE_RUNNING**. In this state, the module:
 
