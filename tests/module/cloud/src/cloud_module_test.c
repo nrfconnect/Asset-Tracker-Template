@@ -128,9 +128,6 @@ static void cloud_chan_cb(const struct zbus_channel *chan)
 	}
 }
 
-/* Static observer node for zbus */
-static struct zbus_observer_node obs_node;
-
 void setUp(void)
 {
 	const struct zbus_channel *chan;
@@ -151,7 +148,7 @@ void setUp(void)
 	zbus_sub_wait(&led, &chan, K_NO_WAIT);
 	zbus_sub_wait(&battery, &chan, K_NO_WAIT);
 
-	zbus_chan_add_obs(&CLOUD_CHAN, &cloud_test_listener, &obs_node, K_NO_WAIT);
+	zbus_chan_add_obs(&CLOUD_CHAN, &cloud_test_listener, K_NO_WAIT);
 }
 
 void test_initial_transition_to_disconnected(void)

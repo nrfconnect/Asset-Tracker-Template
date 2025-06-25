@@ -149,9 +149,6 @@ static void publish_test_payload(void)
 	k_sleep(K_MSEC(100));
 }
 
-/* Static observer node for zbus */
-static struct zbus_observer_node obs_node;
-
 void setUp(void)
 {
 	/* Reset fakes */
@@ -168,7 +165,7 @@ void setUp(void)
 	hw_id_get_fake.custom_fake = hw_id_get_custom_fake;
 	mqtt_helper_init_fake.custom_fake = mqtt_helper_init_custom_fake;
 
-	zbus_chan_add_obs(&CLOUD_CHAN, &cloud_test_listener, &obs_node, K_NO_WAIT);
+	zbus_chan_add_obs(&CLOUD_CHAN, &cloud_test_listener, K_NO_WAIT);
 }
 
 void tearDown(void)
