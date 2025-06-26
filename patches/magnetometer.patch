@@ -1,11 +1,11 @@
-diff --git a/app/boards/thingy91x_nrf9151_ns.overlay b/app/boards/thingy91x_nrf9151_ns.overlay
+diff --git i/app/boards/thingy91x_nrf9151_ns.overlay w/app/boards/thingy91x_nrf9151_ns.overlay
 index e68d98b..1901eca 100644
---- a/app/boards/thingy91x_nrf9151_ns.overlay
-+++ b/app/boards/thingy91x_nrf9151_ns.overlay
+--- i/app/boards/thingy91x_nrf9151_ns.overlay
++++ w/app/boards/thingy91x_nrf9151_ns.overlay
 @@ -10,6 +10,10 @@
  	status = "okay";
  };
-
+ 
 +&magnetometer {
 +	status = "okay";
 +};
@@ -13,22 +13,22 @@ index e68d98b..1901eca 100644
  / {
  	chosen {
  		zephyr,wifi = &nordic_wlan0;
-diff --git a/app/src/modules/cloud/cloud.c b/app/src/modules/cloud/cloud.c
-index 9696914..a701140 100644
---- a/app/src/modules/cloud/cloud.c
-+++ b/app/src/modules/cloud/cloud.c
-@@ -38,6 +38,7 @@ LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
-
+diff --git i/app/src/modules/cloud/cloud.c w/app/src/modules/cloud/cloud.c
+index 41bed92..278398e 100644
+--- i/app/src/modules/cloud/cloud.c
++++ w/app/src/modules/cloud/cloud.c
+@@ -40,6 +40,7 @@ LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
+ 
  #define CUSTOM_JSON_APPID_VAL_CONEVAL "CONEVAL"
  #define CUSTOM_JSON_APPID_VAL_BATTERY "BATTERY"
 +#define CUSTOM_JSON_APPID_VAL_MAGNETIC "MAGNETIC_FIELD"
-
+ 
  BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
  	     CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS,
-@@ -776,6 +777,33 @@ static void state_connected_ready_run(void *o)
+@@ -776,6 +777,32 @@ static void state_connected_ready_run(void *obj)
+ 				SEND_FATAL_ERROR();
  				return;
  			}
-
 +			char message[100] = { 0 };
 +
 +			err = snprintk(message, sizeof(message),
@@ -55,18 +55,17 @@ index 9696914..a701140 100644
 +				SEND_FATAL_ERROR();
 +				return;
 +			}
-+
+ 
  			return;
  		}
- 	}
-diff --git a/app/src/modules/environmental/environmental.c b/app/src/modules/environmental/environmental.c
-index 9caa7aa..5767f91 100644
---- a/app/src/modules/environmental/environmental.c
-+++ b/app/src/modules/environmental/environmental.c
-@@ -65,10 +65,16 @@ struct environmental_state_object {
+diff --git i/app/src/modules/environmental/environmental.c w/app/src/modules/environmental/environmental.c
+index c4820f2..9d0fa1c 100644
+--- i/app/src/modules/environmental/environmental.c
++++ w/app/src/modules/environmental/environmental.c
+@@ -64,10 +64,16 @@ struct environmental_state_object {
  	/* Pointer to the BME680 sensor device */
  	const struct device *const bme680;
-
+ 
 +	/* Pointer to the BMM350 sensor device */
 +	const struct device *const bmm350;
 +
@@ -78,12 +77,12 @@ index 9caa7aa..5767f91 100644
 +	/* Magnetic field values */
 +	double magnetic_field[3];
  };
-
+ 
  /* Forward declarations of state handlers */
 @@ -79,12 +85,13 @@ static const struct smf_state states[] = {
  		SMF_CREATE_STATE(NULL, state_running_run, NULL, NULL, NULL),
  };
-
+ 
 -static void sample_sensors(const struct device *const bme680)
 +static void sample_sensors(const struct device *const bme680, const struct device *const bmm350)
  {
@@ -92,13 +91,13 @@ index 9caa7aa..5767f91 100644
  	struct sensor_value press = { 0 };
  	struct sensor_value humidity = { 0 };
 +	struct sensor_value magnetic_field[3] = { { 0 }, { 0 }, { 0 } };
-
+ 
  	err = sensor_sample_fetch(bme680);
  	if (err) {
 @@ -114,17 +121,37 @@ static void sample_sensors(const struct device *const bme680)
  		return;
  	}
-
+ 
 +	err = sensor_sample_fetch(bmm350);
 +	if (err) {
 +		LOG_ERR("sensor_sample_fetch, error: %d", err);
@@ -122,19 +121,19 @@ index 9caa7aa..5767f91 100644
 +		.magnetic_field[1] = sensor_value_to_double(&magnetic_field[1]),
 +		.magnetic_field[2] = sensor_value_to_double(&magnetic_field[2]),
  	};
-
+ 
  	/* Log the environmental values and limit to 2 decimals */
  	LOG_DBG("Temperature: %.2f C, Pressure: %.2f Pa, Humidity: %.2f %%",
  		msg.temperature, msg.pressure, msg.humidity);
-
+ 
 +	LOG_DBG("Magnetic field data: X: %.2f G, Y: %.2f G, Z: %.2f G",
 +		msg.magnetic_field[0], msg.magnetic_field[1], msg.magnetic_field[2]);
 +
  	err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &msg, K_NO_WAIT);
  	if (err) {
  		LOG_ERR("zbus_chan_pub, error: %d", err);
-@@ -152,7 +179,7 @@ static void state_running_run(void *o)
-
+@@ -152,7 +179,7 @@ static void state_running_run(void *obj)
+ 
  		if (msg.type == ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST) {
  			LOG_DBG("Environmental values sample request received, getting data");
 -			sample_sensors(state_object->bme680);
@@ -142,25 +141,25 @@ index 9caa7aa..5767f91 100644
  		}
  	}
  }
-@@ -170,6 +197,7 @@ static void env_module_thread(void)
+@@ -168,6 +195,7 @@ static void env_module_thread(void)
  	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
  	struct environmental_state_object environmental_state = {
  		.bme680 = DEVICE_DT_GET(DT_NODELABEL(bme680)),
 +		.bmm350 = DEVICE_DT_GET(DT_NODELABEL(magnetometer)),
  	};
-
+ 
  	LOG_DBG("Environmental module task started");
-diff --git a/app/src/modules/environmental/environmental.h b/app/src/modules/environmental/environmental.h
+diff --git i/app/src/modules/environmental/environmental.h w/app/src/modules/environmental/environmental.h
 index 12e1c46..5c896b3 100644
---- a/app/src/modules/environmental/environmental.h
-+++ b/app/src/modules/environmental/environmental.h
+--- i/app/src/modules/environmental/environmental.h
++++ w/app/src/modules/environmental/environmental.h
 @@ -47,6 +47,9 @@ struct environmental_msg {
-
+ 
  	/** Contains the current pressure in Pa. */
  	double pressure;
 +
 +	/** Contains the current magnetic field values in gauss. */
 +	double magnetic_field[3];
  };
-
+ 
  #define MSG_TO_ENVIRONMENTAL_MSG(_msg)	(*(const struct environmental_msg *)_msg)
