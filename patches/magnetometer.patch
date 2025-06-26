@@ -25,7 +25,7 @@ index 9696914..a701140 100644
 
  BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
  	     CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS,
-@@ -672,6 +673,33 @@ static void state_connected_ready_run(void *o)
+@@ -776,6 +777,33 @@ static void state_connected_ready_run(void *o)
  				return;
  			}
 
