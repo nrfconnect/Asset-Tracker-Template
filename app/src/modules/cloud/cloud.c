@@ -779,6 +779,8 @@ static void state_connected_ready_run(void *obj)
 
 			return;
 		}
+
+		return;
 	}
 #endif /* CONFIG_APP_ENVIRONMENTAL */
 
@@ -800,7 +802,6 @@ static void state_connected_ready_run(void *obj)
 #endif /* CONFIG_NRF_CLOUD_AGNSS */
 
 		default:
-			LOG_DBG("Unhandled location message type: %d", msg->type);
 			break;
 		}
 
