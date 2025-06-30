@@ -250,6 +250,7 @@ static void location_print_data_details(enum location_method method,
 }
 
 /* Take time from PVT data and apply it to system time. */
+#if defined(CONFIG_LOCATION_METHOD_GNSS)
 static void apply_gnss_time(const struct nrf_modem_gnss_pvt_data_frame *pvt_data)
 {
 	struct tm gnss_time = {
@@ -263,6 +264,7 @@ static void apply_gnss_time(const struct nrf_modem_gnss_pvt_data_frame *pvt_data
 
 	date_time_set(&gnss_time);
 }
+#endif /* CONFIG_LOCATION_METHOD_GNSS */
 
 static void location_event_handler(const struct location_event_data *event_data)
 {
@@ -274,6 +276,7 @@ static void location_event_handler(const struct location_event_data *event_data)
 			(double) event_data->location.accuracy,
 			location_method_str(event_data->method));
 
+#if defined(CONFIG_LOCATION_METHOD_GNSS)
 		if (event_data->method == LOCATION_METHOD_GNSS) {
 			struct nrf_modem_gnss_pvt_data_frame pvt_data =
 				event_data->location.details.gnss.pvt_data;
@@ -285,6 +288,7 @@ static void location_event_handler(const struct location_event_data *event_data)
 				LOG_WRN("Got GNSS location without valid time data");
 			}
 		}
+#endif /* CONFIG_LOCATION_METHOD_GNSS */
 
 		status_send(LOCATION_SEARCH_DONE);
 		break;
