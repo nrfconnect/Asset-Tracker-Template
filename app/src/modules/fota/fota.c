@@ -300,8 +300,12 @@ static void state_polling_for_update_entry(void *obj)
 	/* Start the FOTA processing */
 	int err = nrf_cloud_fota_poll_process(&state_object->fota_ctx);
 
-	switch (err) {
-	case -EAGAIN:
+	if ((err == -EINVAL) || (err == -ENOTRECOVERABLE)) {
+		LOG_DBG("nrf_cloud_fota_poll_process, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	} else if (err) {
 		LOG_DBG("No FOTA job available");
 
 		enum fota_msg_type evt = FOTA_NO_AVAILABLE_UPDATE;
@@ -311,23 +315,11 @@ static void state_polling_for_update_entry(void *obj)
 			LOG_ERR("zbus_chan_pub, error: %d", err);
 			SEND_FATAL_ERROR();
 		}
-		break;
-	case -ENOTRECOVERABLE:
-		__fallthrough;
-	case -ENETUNREACH:
-		LOG_WRN("Failed to poll for a FOTA update, network is unreachable");
-		break;
-	case -ENOENT:
-		LOG_DBG("FOTA job finished, status reported to nRF Cloud");
-		break;
-	case 0:
-		LOG_DBG("Job available, FOTA processing started");
-		break;
-	default:
-		LOG_ERR("nrf_cloud_fota_poll_process, error: %d", err);
-		SEND_FATAL_ERROR();
-		break;
+
+		return;
 	}
+
+	LOG_DBG("Job available, FOTA processing started");
 }
 
 static void state_polling_for_update_run(void *obj)
