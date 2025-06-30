@@ -85,6 +85,7 @@ ZBUS_CHAN_DEFINE(CLOUD_CHAN,
 /* Enumerator to be used in privat cloud channel */
 enum priv_cloud_msg {
 	CLOUD_BACKOFF_EXPIRED,
+	CLOUD_SEND_REQUEST_FAILED,
 };
 
 /* Create private cloud channel for internal messaging that is not intended for external use.
@@ -279,6 +280,18 @@ static void backoff_timer_work_fn(struct k_work *work)
 	ARG_UNUSED(work);
 
 	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+static void send_request_failed(void)
+{
+	int err;
+	enum priv_cloud_msg cloud_msg = CLOUD_SEND_REQUEST_FAILED;
+
+	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -487,21 +500,16 @@ static void handle_cloud_location_request(const struct location_data_cloud *requ
 
 	/* Send location request to nRF Cloud */
 	err = nrf_cloud_coap_location_get(&loc_req, &result);
-	if (err == -EACCES) {
-		LOG_WRN("Not connected to nRF Cloud, error: %d", err);
+	if (err == COAP_RESPONSE_CODE_NOT_FOUND) {
+		LOG_WRN("nRF Cloud CoAP location coordinates not found, error: %d", err);
 		location_cloud_location_ext_result_set(LOCATION_EXT_RESULT_ERROR, NULL);
-		return;
-	} else if (err == -ETIMEDOUT) {
-		LOG_WRN("Location request timed out, error: %d", err);
-		location_cloud_location_ext_result_set(LOCATION_EXT_RESULT_ERROR, NULL);
-		return;
-	} else if (err == -ENETUNREACH) {
-		LOG_WRN("Network is unreachable, error: %d", err);
-		location_cloud_location_ext_result_set(LOCATION_EXT_RESULT_ERROR, NULL);
+
 		return;
 	} else if (err) {
-		LOG_ERR("nrf_cloud_coap_location_get failed, error: %d", err);
+		LOG_ERR("nrf_cloud_coap_location_get, error: %d", err);
 		location_cloud_location_ext_result_set(LOCATION_EXT_RESULT_ERROR, NULL);
+
+		send_request_failed();
 		return;
 	}
 
@@ -540,17 +548,10 @@ static void handle_agnss_request(const struct nrf_modem_gnss_agnss_data_frame *r
 
 	/* Send A-GNSS request to nRF Cloud */
 	err = nrf_cloud_coap_agnss_data_get(&agnss_req, &result);
-	if (err == -EACCES) {
-		LOG_WRN("Not connected to nRF Cloud, error: %d", err);
-		return;
-	} else if (err == -ETIMEDOUT) {
-		LOG_WRN("A-GNSS request timed out, error: %d", err);
-		return;
-	} else if (err == -ENETUNREACH) {
-		LOG_WRN("Network is unreachable, error: %d", err);
-		return;
-	} else if (err) {
-		LOG_ERR("nrf_cloud_coap_agnss_data_get failed, error: %d", err);
+	if (err) {
+		LOG_ERR("nrf_cloud_coap_agnss_data_get, error: %d", err);
+
+		send_request_failed();
 		return;
 	}
 
@@ -584,23 +585,10 @@ static void shadow_get(bool delta_only)
 					&msg.response.buffer_data_len,
 					delta_only,
 					COAP_CONTENT_FORMAT_APP_CBOR);
-	if (err == -EACCES) {
-		LOG_WRN("Not connected, error: %d", err);
-		return;
-	} else if (err == -ETIMEDOUT) {
-		LOG_WRN("Request timed out, error: %d", err);
-		return;
-	} else if (err == -ENETUNREACH) {
-		LOG_WRN("Network is unreachable, error: %d", err);
-		return;
-	} else if (err > 0) {
-		LOG_WRN("Cloud error: %d", err);
-		return;
-	} else if (err == -E2BIG) {
-		LOG_WRN("The provided buffer is not large enough, error: %d", err);
-		return;
-	} else if (err) {
-		LOG_ERR("Failed to request shadow delta: %d", err);
+	if (err) {
+		LOG_ERR("nrf_cloud_coap_shadow_get, error: %d", err);
+
+		send_request_failed();
 		return;
 	}
 
@@ -633,7 +621,9 @@ static void shadow_get(bool delta_only)
 				   NULL,
 				   NULL);
 	if (err) {
-		LOG_ERR("Failed to patch the device shadow, error: %d", err);
+		LOG_ERR("nrf_cloud_coap_patch, error: %d", err);
+
+		send_request_failed();
 		return;
 	}
 }
@@ -666,29 +656,37 @@ static void state_connected_ready_run(void *obj)
 	struct cloud_state_object const *state_object = obj;
 	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
 
+	if (state_object->chan == &PRIV_CLOUD_CHAN) {
+		enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
+
+		if (msg == CLOUD_SEND_REQUEST_FAILED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
+
+			return;
+		}
+	}
+
 	if (state_object->chan == &NETWORK_CHAN) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		switch (msg.type) {
 		case NETWORK_DISCONNECTED:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_PAUSED]);
-			break;
 
+			return;
 		case NETWORK_CONNECTED:
 			smf_set_handled(SMF_CTX(state_object));
-			break;
 
+			return;
 		case NETWORK_QUALITY_SAMPLE_RESPONSE:
 			err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_CONEVAL,
 							 msg.conn_eval_params.energy_estimate,
 							 NRF_CLOUD_NO_TIMESTAMP,
 							 confirmable);
-			if (err == -ENETUNREACH) {
-				LOG_WRN("Network is unreachable, error: %d", err);
-				return;
-			} else if (err) {
+			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-				SEND_FATAL_ERROR();
+
+				send_request_failed();
 				return;
 			}
 
@@ -696,12 +694,10 @@ static void state_connected_ready_run(void *obj)
 							 msg.conn_eval_params.rsrp,
 							 NRF_CLOUD_NO_TIMESTAMP,
 							 confirmable);
-			if (err == -ENETUNREACH) {
-				LOG_WRN("Network is unreachable, error: %d", err);
-				return;
-			} else if (err) {
+			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-				SEND_FATAL_ERROR();
+
+				send_request_failed();
 				return;
 			}
 
@@ -721,12 +717,10 @@ static void state_connected_ready_run(void *obj)
 							 msg.percentage,
 							 NRF_CLOUD_NO_TIMESTAMP,
 							 confirmable);
-			if (err == -ENETUNREACH) {
-				LOG_WRN("Network is unreachable, error: %d", err);
-				return;
-			} else if (err) {
+			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-				SEND_FATAL_ERROR();
+
+				send_request_failed();
 				return;
 			}
 
@@ -744,12 +738,10 @@ static void state_connected_ready_run(void *obj)
 							 msg.temperature,
 							 NRF_CLOUD_NO_TIMESTAMP,
 							 confirmable);
-			if (err == -ENETUNREACH) {
-				LOG_WRN("Network is unreachable, error: %d", err);
-				return;
-			} else if (err) {
+			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-				SEND_FATAL_ERROR();
+
+				send_request_failed();
 				return;
 			}
 
@@ -757,12 +749,10 @@ static void state_connected_ready_run(void *obj)
 							 msg.pressure,
 							 NRF_CLOUD_NO_TIMESTAMP,
 							 confirmable);
-			if (err == -ENETUNREACH) {
-				LOG_WRN("Network is unreachable, error: %d", err);
-				return;
-			} else if (err) {
+			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-				SEND_FATAL_ERROR();
+
+				send_request_failed();
 				return;
 			}
 
@@ -770,12 +760,10 @@ static void state_connected_ready_run(void *obj)
 							 msg.humidity,
 							 NRF_CLOUD_NO_TIMESTAMP,
 							 confirmable);
-			if (err == -ENETUNREACH) {
-				LOG_WRN("Network is unreachable, error: %d", err);
-				return;
-			} else if (err) {
+			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-				SEND_FATAL_ERROR();
+
+				send_request_failed();
 				return;
 			}
 
@@ -817,12 +805,10 @@ static void state_connected_ready_run(void *obj)
 		if (msg->type == CLOUD_PAYLOAD_JSON) {
 			err = nrf_cloud_coap_json_message_send(msg->payload.buffer,
 							       false, confirmable);
-			if (err == -ENETUNREACH) {
-				LOG_WRN("Network is unreachable, error: %d", err);
-				return;
-			} else if (err) {
+			if (err) {
 				LOG_ERR("nrf_cloud_coap_json_message_send, error: %d", err);
-				SEND_FATAL_ERROR();
+
+				send_request_failed();
 				return;
 			}
 		} else if (msg->type == CLOUD_POLL_SHADOW) {
