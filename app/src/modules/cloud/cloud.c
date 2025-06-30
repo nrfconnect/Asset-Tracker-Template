@@ -41,6 +41,8 @@ LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 #define CUSTOM_JSON_APPID_VAL_CONEVAL "CONEVAL"
 #define CUSTOM_JSON_APPID_VAL_BATTERY "BATTERY"
 
+#define AGNSS_MAX_DATA_SIZE 3800
+
 BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
 	     CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS,
 	     "Watchdog timeout must be greater than maximum message processing time");
@@ -520,7 +522,7 @@ static void handle_cloud_location_request(const struct location_data_cloud *requ
 static void handle_agnss_request(const struct nrf_modem_gnss_agnss_data_frame *request)
 {
 	int err;
-	static char agnss_buf[NRF_CLOUD_AGNSS_MAX_DATA_SIZE];
+	static char agnss_buf[AGNSS_MAX_DATA_SIZE];
 	struct nrf_cloud_rest_agnss_request agnss_req = {
 		.type = NRF_CLOUD_REST_AGNSS_REQ_CUSTOM,
 		.agnss_req = (struct nrf_modem_gnss_agnss_data_frame *)request,
