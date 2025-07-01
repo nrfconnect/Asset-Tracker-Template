@@ -1,7 +1,7 @@
-diff --git i/app/boards/thingy91x_nrf9151_ns.overlay w/app/boards/thingy91x_nrf9151_ns.overlay
+diff --git a/app/boards/thingy91x_nrf9151_ns.overlay b/app/boards/thingy91x_nrf9151_ns.overlay
 index e68d98b..1901eca 100644
---- i/app/boards/thingy91x_nrf9151_ns.overlay
-+++ w/app/boards/thingy91x_nrf9151_ns.overlay
+--- a/app/boards/thingy91x_nrf9151_ns.overlay
++++ b/app/boards/thingy91x_nrf9151_ns.overlay
 @@ -10,6 +10,10 @@
  	status = "okay";
  };
@@ -13,22 +13,22 @@ index e68d98b..1901eca 100644
  / {
  	chosen {
  		zephyr,wifi = &nordic_wlan0;
-diff --git i/app/src/modules/cloud/cloud.c w/app/src/modules/cloud/cloud.c
-index 41bed92..278398e 100644
---- i/app/src/modules/cloud/cloud.c
-+++ w/app/src/modules/cloud/cloud.c
-@@ -40,6 +40,7 @@ LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
+diff --git a/app/src/modules/cloud/cloud.c b/app/src/modules/cloud/cloud.c
+index dcf9739..389fcf4 100644
+--- a/app/src/modules/cloud/cloud.c
++++ b/app/src/modules/cloud/cloud.c
+@@ -41,6 +41,7 @@ LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
  
  #define CUSTOM_JSON_APPID_VAL_CONEVAL "CONEVAL"
  #define CUSTOM_JSON_APPID_VAL_BATTERY "BATTERY"
 +#define CUSTOM_JSON_APPID_VAL_MAGNETIC "MAGNETIC_FIELD"
  
- BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
- 	     CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS,
-@@ -776,6 +777,32 @@ static void state_connected_ready_run(void *obj)
- 				SEND_FATAL_ERROR();
+ #define AGNSS_MAX_DATA_SIZE 3800
+ 
+@@ -831,6 +832,33 @@ static void state_connected_ready_run(void *obj)
  				return;
  			}
+ 
 +			char message[100] = { 0 };
 +
 +			err = snprintk(message, sizeof(message),
@@ -55,13 +55,14 @@ index 41bed92..278398e 100644
 +				SEND_FATAL_ERROR();
 +				return;
 +			}
- 
++
  			return;
  		}
-diff --git i/app/src/modules/environmental/environmental.c w/app/src/modules/environmental/environmental.c
+ 
+diff --git a/app/src/modules/environmental/environmental.c b/app/src/modules/environmental/environmental.c
 index c4820f2..9d0fa1c 100644
---- i/app/src/modules/environmental/environmental.c
-+++ w/app/src/modules/environmental/environmental.c
+--- a/app/src/modules/environmental/environmental.c
++++ b/app/src/modules/environmental/environmental.c
 @@ -64,10 +64,16 @@ struct environmental_state_object {
  	/* Pointer to the BME680 sensor device */
  	const struct device *const bme680;
@@ -149,10 +150,10 @@ index c4820f2..9d0fa1c 100644
  	};
  
  	LOG_DBG("Environmental module task started");
-diff --git i/app/src/modules/environmental/environmental.h w/app/src/modules/environmental/environmental.h
+diff --git a/app/src/modules/environmental/environmental.h b/app/src/modules/environmental/environmental.h
 index 12e1c46..5c896b3 100644
---- i/app/src/modules/environmental/environmental.h
-+++ w/app/src/modules/environmental/environmental.h
+--- a/app/src/modules/environmental/environmental.h
++++ b/app/src/modules/environmental/environmental.h
 @@ -47,6 +47,9 @@ struct environmental_msg {
  
  	/** Contains the current pressure in Pa. */
