@@ -220,6 +220,47 @@ static void verify_agnss_request(const struct nrf_modem_gnss_agnss_data_frame *e
 	}
 }
 
+/* Helper function to verify GNSS location data payload */
+static void verify_gnss_location_data(const struct location_data *expected_location)
+{
+	struct location_msg received_msg;
+	int err;
+	const struct zbus_channel *chan;
+
+	err = zbus_sub_wait_msg(&test_subscriber, &chan, &received_msg, K_MSEC(100));
+	TEST_ASSERT_EQUAL(0, err);
+
+	TEST_ASSERT_EQUAL(LOCATION_GNSS_DATA, received_msg.type);
+
+	/* Verify GNSS location data payload */
+	TEST_ASSERT_EQUAL_DOUBLE(expected_location->latitude, received_msg.gnss_data.latitude);
+	TEST_ASSERT_EQUAL_DOUBLE(expected_location->longitude, received_msg.gnss_data.longitude);
+	TEST_ASSERT_EQUAL_DOUBLE(expected_location->accuracy, received_msg.gnss_data.accuracy);
+	TEST_ASSERT_EQUAL(expected_location->datetime.valid, received_msg.gnss_data.datetime.valid);
+
+	if (expected_location->datetime.valid) {
+		TEST_ASSERT_EQUAL(expected_location->datetime.year,
+				  received_msg.gnss_data.datetime.year);
+		TEST_ASSERT_EQUAL(expected_location->datetime.month,
+				  received_msg.gnss_data.datetime.month);
+		TEST_ASSERT_EQUAL(expected_location->datetime.day,
+				  received_msg.gnss_data.datetime.day);
+		TEST_ASSERT_EQUAL(expected_location->datetime.hour,
+				  received_msg.gnss_data.datetime.hour);
+		TEST_ASSERT_EQUAL(expected_location->datetime.minute,
+				  received_msg.gnss_data.datetime.minute);
+		TEST_ASSERT_EQUAL(expected_location->datetime.second,
+				  received_msg.gnss_data.datetime.second);
+		TEST_ASSERT_EQUAL(expected_location->datetime.ms,
+				  received_msg.gnss_data.datetime.ms);
+	}
+
+	err = zbus_sub_wait_msg(&test_subscriber, &chan, &received_msg, K_MSEC(100));
+	TEST_ASSERT_EQUAL(0, err);
+
+	TEST_ASSERT_EQUAL(LOCATION_SEARCH_DONE, received_msg.type);
+}
+
 /* Helper function to simulate location events through the registered handler */
 static void simulate_location_event(const struct location_event_data *event_data)
 {
@@ -253,6 +294,13 @@ void setUp(void)
 	task_wdt_feed_fake.return_val = 0;
 	task_wdt_add_fake.return_val = 1;
 	date_time_set_fake.return_val = 0;
+
+	const struct zbus_channel *chan;
+	struct location_msg received_msg;
+
+	while (zbus_sub_wait_msg(&test_subscriber, &chan, &received_msg, K_NO_WAIT) == 0) {
+		/* Purge all messages from the channel */
+	}
 
 	/* Wait for module initialization */
 	k_sleep(K_MSEC(100));
@@ -321,6 +369,59 @@ void test_location_event_handler_basic(void)
 
 	/* Verify location done message was published */
 	verify_location_status(LOCATION_SEARCH_DONE);
+}
+
+/* Test GNSS location data is sent to cloud when GNSS location is obtained */
+void test_gnss_location_data_sent_to_cloud(void)
+{
+	struct nrf_modem_gnss_pvt_data_frame mock_pvt_data = {
+		.latitude = 63.421,   /* 63.421 degrees */
+		.longitude = 10.437,  /* 10.437 degrees */
+		.accuracy = 5.0,      /* 5.0 meters */
+		.datetime = {
+			.year = 2025,
+			.month = 1,
+			.day = 15,
+			.hour = 12,
+			.minute = 30,
+			.seconds = 45
+		},
+		.execution_time = 30000
+	};
+	struct location_data mock_location = {
+		.latitude = 63.421,
+		.longitude = 10.437,
+		.accuracy = 5.0,
+		.datetime.valid = true,
+		.datetime.year = 2025,
+		.datetime.month = 1,
+		.datetime.day = 15,
+		.datetime.hour = 12,
+		.datetime.minute = 30,
+		.datetime.second = 45,
+		.datetime.ms = 0,
+		.details.gnss.pvt_data = mock_pvt_data,
+		.details.gnss.satellites_tracked = 8,
+		.details.gnss.satellites_used = 2,  /* Adjust to match test expectation */
+		.details.gnss.elapsed_time_gnss = 30000
+	};
+	struct location_event_data mock_event = {
+		.id = LOCATION_EVT_LOCATION,
+		.method = LOCATION_METHOD_GNSS,
+		.location = mock_location
+	};
+
+	/* Simulate GNSS location event */
+	simulate_location_event(&mock_event);
+
+	/* Verify GNSS location data */
+	verify_gnss_location_data(&mock_location);
+
+	/* Give the module time to process */
+	k_sleep(K_MSEC(100));
+
+	/* Verify date_time_set was called with GNSS time */
+	TEST_ASSERT_EQUAL(1, date_time_set_fake.call_count);
 }
 
 /* Test external cloud location request handling */
@@ -771,6 +872,37 @@ void test_location_search_started(void)
 
 	/* Verify location search started message was published */
 	verify_location_status(LOCATION_SEARCH_STARTED);
+}
+
+/* Test that non-GNSS location events don't send GNSS location data */
+void test_cellular_location_no_gnss_data_sent(void)
+{
+	struct location_data mock_location = {
+		.latitude = 63.421,
+		.longitude = 10.437,
+		.accuracy = 500.0,
+		.datetime.valid = false
+	};
+	struct location_event_data mock_event = {
+		.id = LOCATION_EVT_LOCATION,
+		.method = LOCATION_METHOD_CELLULAR,
+		.location = mock_location
+	};
+
+	/* Wait for module initialization */
+	k_sleep(K_MSEC(100));
+
+	/* Simulate cellular location event */
+	simulate_location_event(&mock_event);
+
+	/* Give the module time to process */
+	k_sleep(K_MSEC(100));
+
+	/* Verify only location done message was published (no GNSS data) */
+	verify_location_status(LOCATION_SEARCH_DONE);
+
+	/* Verify date_time_set was NOT called for cellular location */
+	TEST_ASSERT_EQUAL(0, date_time_set_fake.call_count);
 }
 
 /* This is required to be added to each test. That is because unity's

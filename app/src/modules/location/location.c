@@ -172,6 +172,22 @@ static void agnss_request_send(const struct nrf_modem_gnss_agnss_data_frame *agn
 	}
 }
 
+static void gnss_location_send(const struct location_data *location_data)
+{
+	int err;
+	struct location_msg location_msg = {
+		.type = LOCATION_GNSS_DATA,
+		.gnss_data = *location_data
+	};
+
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+}
+
 void trigger_location_update(void)
 {
 	int err;
@@ -287,6 +303,9 @@ static void location_event_handler(const struct location_event_data *event_data)
 				/* this should not happen */
 				LOG_WRN("Got GNSS location without valid time data");
 			}
+
+			/* Send GNSS location data to cloud for reporting */
+			gnss_location_send(&event_data->location);
 		}
 #endif /* CONFIG_LOCATION_METHOD_GNSS */
 

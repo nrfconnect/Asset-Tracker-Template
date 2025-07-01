@@ -10,7 +10,9 @@
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
 #include <modem/location.h>
+#include <modem/lte_lc.h>
 #include <nrf_modem_gnss.h>
+#include <net/wifi_location_common.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,6 +29,7 @@ enum location_msg_type {
 	LOCATION_SEARCH_TRIGGER,
 	LOCATION_CLOUD_REQUEST,
 	LOCATION_AGNSS_REQUEST,
+	LOCATION_GNSS_DATA,
 };
 
 /* Structure to pass location data through zbus */
@@ -35,6 +38,7 @@ struct location_msg {
 	union {
 		struct location_data_cloud cloud_request;
 		struct nrf_modem_gnss_agnss_data_frame agnss_request;
+		struct location_data gnss_data;
 	};
 };
 

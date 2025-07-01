@@ -77,6 +77,8 @@ FAKE_VALUE_FUNC(int, nrf_cloud_coap_location_get,
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_agnss_data_get,
 		struct nrf_cloud_rest_agnss_request const *,
 		struct nrf_cloud_rest_agnss_result *);
+FAKE_VALUE_FUNC(int, nrf_cloud_coap_location_send, const struct nrf_cloud_gnss_data *, bool);
+FAKE_VALUE_FUNC(int64_t, date_time_now, int64_t *);
 FAKE_VOID_FUNC(location_cloud_location_ext_result_set, enum location_ext_result,
 	       struct location_data *);
 FAKE_VALUE_FUNC(int, location_agnss_data_process, const char *, size_t);
@@ -138,8 +140,14 @@ void setUp(void)
 	RESET_FAKE(nrf_cloud_client_id_get);
 	RESET_FAKE(nrf_cloud_coap_json_message_send);
 	RESET_FAKE(nrf_cloud_coap_connect);
+	RESET_FAKE(nrf_cloud_coap_location_send);
+	RESET_FAKE(date_time_now);
 
 	nrf_cloud_client_id_get_fake.custom_fake = nrf_cloud_client_id_get_custom_fake;
+
+	/* Set default return values */
+	nrf_cloud_coap_location_send_fake.return_val = 0;
+	date_time_now_fake.return_val = 1640995200000; /* 2022-01-01 00:00:00 UTC in ms */
 
 	/* Clear all channels */
 	zbus_sub_wait(&location, &chan, K_NO_WAIT);
@@ -237,7 +245,7 @@ void test_connected_to_disconnected(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-void test_connected_disconnected_to_connected_send_payload(void)
+void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 {
 	int err;
 	enum network_msg_type status = NETWORK_CONNECTED;
@@ -270,6 +278,62 @@ void test_connected_disconnected_to_connected_send_payload(void)
 				     msg.payload.buffer, msg.payload.buffer_data_len));
 	TEST_ASSERT_EQUAL(false, nrf_cloud_coap_json_message_send_fake.arg1_val);
 	TEST_ASSERT_EQUAL(false, nrf_cloud_coap_json_message_send_fake.arg2_val);
+
+	status = NETWORK_DISCONNECTED;
+
+	err = zbus_chan_pub(&NETWORK_CHAN, &status, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Transport module needs CPU to run state machine */
+	k_sleep(K_MSEC(100));
+
+	err = k_sem_take(&cloud_disconnected, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+/* Test GNSS location data handling */
+void test_gnss_location_data_handling(void)
+{
+	int err;
+	enum network_msg_type status = NETWORK_CONNECTED;
+	struct location_data mock_location = {
+		.latitude = 63.421,
+		.longitude = 10.437,
+		.accuracy = 5.0,
+		.datetime.valid = true,
+		.datetime.year = 2025,
+		.datetime.month = 1,
+		.datetime.day = 15,
+		.datetime.hour = 12,
+		.datetime.minute = 30,
+		.datetime.second = 45,
+		.datetime.ms = 0
+	};
+	struct location_msg location_msg = {
+		.type = LOCATION_GNSS_DATA,
+		.gnss_data = mock_location
+	};
+
+	/* Connect to cloud */
+	zbus_chan_pub(&NETWORK_CHAN, &status, K_NO_WAIT);
+
+	err = k_sem_take(&cloud_connected, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Send GNSS location data */
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Give the module time to process */
+	k_sleep(K_MSEC(100));
+
+	/* Verify that GNSS location data was sent to nRF Cloud */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_send_fake.call_count);
+
+	/* Basic verification that the function was called with valid arguments */
+	if (nrf_cloud_coap_location_send_fake.call_count > 0) {
+		TEST_ASSERT_NOT_NULL(nrf_cloud_coap_location_send_fake.arg0_val);
+	}
 }
 
 /* This is required to be added to each test. That is because unity's
