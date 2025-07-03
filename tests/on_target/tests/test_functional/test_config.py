@@ -29,7 +29,6 @@ def test_config(dut_cloud, hex_file):
     dut_cloud.uart.wait_for_str_with_retries("Connected to Cloud", max_retries=3, timeout=240, reset_func=reset_device)
 
     dut_cloud.cloud.patch_update_interval(dut_cloud.device_id, interval=TEST_UPDATE_INTERVAL)
-    dut_cloud.uart.wait_for_str(f"main: Received new interval: {TEST_UPDATE_INTERVAL} seconds", timeout=120)
 
     # # Wait for shadow to be reported to cloud
     start = time.time()
@@ -51,6 +50,8 @@ def test_config(dut_cloud, hex_file):
                     continue
         else:
             raise RuntimeError(f"No correct update interval reported back to cloud, desired {TEST_UPDATE_INTERVAL}, reported {update_interval}")
+        # Wait for update interval to be reported in the device log
+        dut_cloud.uart.wait_for_str(f"main: Received new interval: {TEST_UPDATE_INTERVAL} seconds", timeout=120)
     finally:
         # Back to default interval no matter what
         dut_cloud.cloud.patch_update_interval(dut_cloud.device_id, interval=DEFAULT_UPDATE_INTERVAL)
