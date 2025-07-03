@@ -71,8 +71,8 @@ diff --git a/app/src/modules/power/power.c b/app/src/modules/power/power.c
 index b28173d..ce42c7e 100644
 --- a/app/src/modules/power/power.c
 +++ b/app/src/modules/power/power.c
-@@ -244,6 +244,15 @@ static void event_callback(const struct device *dev, struct gpio_callback *cb, u
- 	if (pins & BIT(NPM1300_EVENT_VBUS_DETECTED)) {
+@@ -252,6 +252,15 @@ static void event_callback(const struct device *dev, struct gpio_callback *cb, uint32_t pins)
+ 	if (pins & BIT(NPM13XX_EVENT_VBUS_DETECTED)) {
  		LOG_DBG("VBUS detected");
  
 +		enum power_msg_type msg = POWER_VBUS_CONNECTED;
@@ -87,8 +87,8 @@ index b28173d..ce42c7e 100644
  		err = uart_enable();
  		if (err) {
  			LOG_ERR("uart_enable, error: %d", err);
-@@ -255,6 +264,15 @@ static void event_callback(const struct device *dev, struct gpio_callback *cb, u
- 	if (pins & BIT(NPM1300_EVENT_VBUS_REMOVED)) {
+@@ -263,6 +272,15 @@ static void event_callback(const struct device *dev, struct gpio_callback *cb, uint32_t pins)
+ 	if (pins & BIT(NPM13XX_EVENT_VBUS_REMOVED)) {
  		LOG_DBG("VBUS removed");
  
 +		enum power_msg_type msg = POWER_VBUS_DISCONNECTED;

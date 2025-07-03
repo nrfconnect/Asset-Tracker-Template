@@ -10,8 +10,8 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/pm/device.h>
 #include <zephyr/zbus/zbus.h>
-#include <zephyr/drivers/sensor/npm1300_charger.h>
-#include <zephyr/drivers/mfd/npm1300.h>
+#include <zephyr/drivers/sensor/npm13xx_charger.h>
+#include <zephyr/drivers/mfd/npm13xx.h>
 #include <zephyr/sys/util.h>
 #include <nrf_fuel_gauge.h>
 #include <date_time.h>
@@ -48,14 +48,14 @@ BUILD_ASSERT(CONFIG_APP_POWER_WATCHDOG_TIMEOUT_SECONDS >
 	     CONFIG_APP_POWER_MSG_PROCESSING_TIMEOUT_SECONDS,
 	     "Watchdog timeout must be greater than maximum message processing time");
 
-/* nPM1300 register bitmasks */
+/* nPM13xx register bitmasks */
 
 /* CHARGER.BCHGCHARGESTATUS.TRICKLECHARGE */
-#define NPM1300_CHG_STATUS_TC_MASK BIT(2)
+#define NPM13XX_CHG_STATUS_TC_MASK BIT(2)
 /* CHARGER.BCHGCHARGESTATUS.CONSTANTCURRENT */
-#define NPM1300_CHG_STATUS_CC_MASK BIT(3)
+#define NPM13XX_CHG_STATUS_CC_MASK BIT(3)
 /* CHARGER.BCHGCHARGESTATUS.CONSTANTVOLTAGE */
-#define NPM1300_CHG_STATUS_CV_MASK BIT(4)
+#define NPM13XX_CHG_STATUS_CV_MASK BIT(4)
 
 static const struct device *charger = DEVICE_DT_GET(DT_NODELABEL(npm1300_charger));
 static const struct device *pmic = DEVICE_DT_GET(DT_NODELABEL(pmic_main));
@@ -249,7 +249,7 @@ static void event_callback(const struct device *dev, struct gpio_callback *cb, u
 
 	int err;
 
-	if (pins & BIT(NPM1300_EVENT_VBUS_DETECTED)) {
+	if (pins & BIT(NPM13XX_EVENT_VBUS_DETECTED)) {
 		LOG_DBG("VBUS detected");
 
 		err = uart_enable();
@@ -260,7 +260,7 @@ static void event_callback(const struct device *dev, struct gpio_callback *cb, u
 		}
 	}
 
-	if (pins & BIT(NPM1300_EVENT_VBUS_REMOVED)) {
+	if (pins & BIT(NPM13XX_EVENT_VBUS_REMOVED)) {
 		LOG_DBG("VBUS removed");
 
 		err = uart_disable();
@@ -276,12 +276,12 @@ static int subscribe_to_vsbus_events(const struct device *device, struct gpio_ca
 {
 	int err;
 
-	gpio_init_callback(event_cb, event_callback, BIT(NPM1300_EVENT_VBUS_DETECTED) |
-						     BIT(NPM1300_EVENT_VBUS_REMOVED));
+	gpio_init_callback(event_cb, event_callback, BIT(NPM13XX_EVENT_VBUS_DETECTED) |
+						     BIT(NPM13XX_EVENT_VBUS_REMOVED));
 
-	err = mfd_npm1300_add_callback(device, event_cb);
+	err = mfd_npm13xx_add_callback(device, event_cb);
 	if (err) {
-		LOG_ERR("mfd_npm1300_add_callback, error: %d", err);
+		LOG_ERR("mfd_npm13xx_add_callback, error: %d", err);
 		return err;
 	}
 
@@ -319,7 +319,7 @@ static int charger_read_sensors(float *voltage, float *current, float *temp, int
 
 	*current = (float)value.val1 + ((float)value.val2 / 1000000);
 
-	err = sensor_channel_get(charger, (enum sensor_channel)SENSOR_CHAN_NPM1300_CHARGER_STATUS,
+	err = sensor_channel_get(charger, (enum sensor_channel)SENSOR_CHAN_NPM13XX_CHARGER_STATUS,
 			   &value);
 	if (err) {
 		return err;
@@ -350,9 +350,9 @@ static void sample(int64_t *ref_time)
 
 	delta = (float)k_uptime_delta(ref_time) / 1000.f;
 
-	charging = (chg_status & (NPM1300_CHG_STATUS_TC_MASK |
-				  NPM1300_CHG_STATUS_CC_MASK |
-				  NPM1300_CHG_STATUS_CV_MASK)) != 0;
+	charging = (chg_status & (NPM13XX_CHG_STATUS_TC_MASK |
+				  NPM13XX_CHG_STATUS_CC_MASK |
+				  NPM13XX_CHG_STATUS_CV_MASK)) != 0;
 
 	state_of_charge = nrf_fuel_gauge_process(voltage, current, temp, delta, NULL);
 
