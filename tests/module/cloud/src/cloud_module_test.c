@@ -201,9 +201,11 @@ void test_connecting_backoff(void)
 void test_transition_disconnected_connected_ready(void)
 {
 	int err;
-	enum network_msg_type status = NETWORK_CONNECTED;
+	struct network_msg msg = {
+		.type = NETWORK_CONNECTED
+	};
 
-	zbus_chan_pub(&NETWORK_CHAN, &status, K_NO_WAIT);
+	zbus_chan_pub(&NETWORK_CHAN, &msg, K_NO_WAIT);
 
 	err = k_sem_take(&cloud_connected, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
@@ -234,9 +236,11 @@ void test_sending_payload(void)
 void test_connected_to_disconnected(void)
 {
 	int err;
-	enum network_msg_type status = NETWORK_DISCONNECTED;
+	struct network_msg msg = {
+		.type = NETWORK_DISCONNECTED
+	};
 
-	zbus_chan_pub(&NETWORK_CHAN, &status, K_NO_WAIT);
+	zbus_chan_pub(&NETWORK_CHAN, &msg, K_NO_WAIT);
 
 	/* Transport module needs CPU to run state machine */
 	k_sleep(K_MSEC(100));
@@ -248,7 +252,9 @@ void test_connected_to_disconnected(void)
 void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 {
 	int err;
-	enum network_msg_type status = NETWORK_CONNECTED;
+	struct network_msg network_msg = {
+		.type = NETWORK_CONNECTED
+	};
 	struct cloud_msg msg = {
 		.type = CLOUD_PAYLOAD_JSON,
 		.payload.buffer = "{\"Another\": \"1\"}",
@@ -258,7 +264,7 @@ void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 	/* Reset call count */
 	nrf_cloud_coap_bytes_send_fake.call_count = 0;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &status, K_NO_WAIT);
+	err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Transport module needs CPU to run state machine */
