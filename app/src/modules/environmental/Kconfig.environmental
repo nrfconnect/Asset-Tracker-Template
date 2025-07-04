@@ -28,6 +28,15 @@ config APP_ENVIRONMENTAL_WATCHDOG_TIMEOUT_SECONDS
 	  A small difference between the two can mean more frequent watchdog feeds, which increases
 	  power consumption.
 
+config APP_ENVIRONMENTAL_TIMESTAMP
+	bool "Include timestamp in environmental message"
+	depends on DATE_TIME
+	default y
+	help
+	  Include a timestamp in the environmental message of ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE
+	  type.
+	  The timestamp is the current time in milliseconds since epoch.
+
 config APP_ENVIRONMENTAL_MSG_PROCESSING_TIMEOUT_SECONDS
 	int "Maximum message processing time"
 	default 3

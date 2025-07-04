@@ -800,7 +800,7 @@ static void state_connected_ready_run(void *obj)
 		if (msg.type == ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE) {
 			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_TEMP,
 							 msg.temperature,
-							 NRF_CLOUD_NO_TIMESTAMP,
+							 msg.timestamp,
 							 confirmable);
 			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
@@ -811,7 +811,7 @@ static void state_connected_ready_run(void *obj)
 
 			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_AIR_PRESS,
 							 msg.pressure,
-							 NRF_CLOUD_NO_TIMESTAMP,
+							 msg.timestamp,
 							 confirmable);
 			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
@@ -822,7 +822,7 @@ static void state_connected_ready_run(void *obj)
 
 			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_HUMID,
 							 msg.humidity,
-							 NRF_CLOUD_NO_TIMESTAMP,
+							 msg.timestamp,
 							 confirmable);
 			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);

@@ -78,7 +78,7 @@ FAKE_VALUE_FUNC(int, nrf_cloud_coap_agnss_data_get,
 		struct nrf_cloud_rest_agnss_request const *,
 		struct nrf_cloud_rest_agnss_result *);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_location_send, const struct nrf_cloud_gnss_data *, bool);
-FAKE_VALUE_FUNC(int64_t, date_time_now, int64_t *);
+FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
 FAKE_VOID_FUNC(location_cloud_location_ext_result_set, enum location_ext_result,
 	       struct location_data *);
 FAKE_VALUE_FUNC(int, location_agnss_data_process, const char *, size_t);
@@ -147,7 +147,6 @@ void setUp(void)
 
 	/* Set default return values */
 	nrf_cloud_coap_location_send_fake.return_val = 0;
-	date_time_now_fake.return_val = 1640995200000; /* 2022-01-01 00:00:00 UTC in ms */
 
 	/* Clear all channels */
 	zbus_sub_wait(&location, &chan, K_NO_WAIT);
