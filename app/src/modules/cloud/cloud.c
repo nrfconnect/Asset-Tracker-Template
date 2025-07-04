@@ -779,7 +779,7 @@ static void state_connected_ready_run(void *obj)
 		if (msg.type == POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE) {
 			err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_BATTERY,
 							 msg.percentage,
-							 NRF_CLOUD_NO_TIMESTAMP,
+							 msg.timestamp,
 							 confirmable);
 			if (err) {
 				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
