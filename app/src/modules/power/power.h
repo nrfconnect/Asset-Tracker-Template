@@ -40,6 +40,9 @@ struct power_msg {
 
 	/** Contains the current charge of the battery in percentage. */
 	double percentage;
+
+	/** Timestamp of the sample in milliseconds since epoch. */
+	int64_t timestamp;
 };
 
 #define MSG_TO_POWER_MSG(_msg)	(*(const struct power_msg *)_msg)

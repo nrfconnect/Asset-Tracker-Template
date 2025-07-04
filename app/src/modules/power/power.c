@@ -364,6 +364,13 @@ static void sample(int64_t *ref_time)
 		.percentage = (double)roundf(state_of_charge)
 	};
 
+#if defined(CONFIG_APP_POWER_TIMESTAMP)
+	err = date_time_now(&msg.timestamp);
+	if (err) {
+		LOG_ERR("date_time_now() failed, error: %d, using 0", err);
+	}
+#endif /* CONFIG_APP_POWER_TIMESTAMP */
+
 	err = zbus_chan_pub(&POWER_CHAN, &msg, K_NO_WAIT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
