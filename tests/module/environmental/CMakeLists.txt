@@ -9,13 +9,13 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(environmental_module_test)
 
-test_runner_generate(src/main.c)
+test_runner_generate(src/environmental_module_test.c)
 
 set(ASSET_TRACKER_TEMPLATE_DIR ../../..)
 
 target_sources(app
   PRIVATE
-  src/main.c
+  src/environmental_module_test.c
   src/redef.c
   ../../../app/src/modules/environmental/environmental.c
 )
@@ -35,6 +35,7 @@ target_compile_definitions(app PRIVATE
 	-DCONFIG_APP_ENVIRONMENTAL_MESSAGE_QUEUE_SIZE=5
 	-DCONFIG_APP_ENVIRONMENTAL_MSG_PROCESSING_TIMEOUT_SECONDS=1
 	-DCONFIG_APP_ENVIRONMENTAL_WATCHDOG_TIMEOUT_SECONDS=2
+	-DCONFIG_APP_ENVIRONMENTAL_TIMESTAMP=y
 )
 
 set_property(SOURCE ${ASSET_TRACKER_TEMPLATE_DIR}/app/src/modules/environmental/environmental.c PROPERTY COMPILE_FLAGS
