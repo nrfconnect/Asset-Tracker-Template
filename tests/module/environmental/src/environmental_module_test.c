@@ -35,6 +35,8 @@ static int date_time_now_custom_fake(int64_t *timestamp)
 
 static int date_time_now_error_fake(int64_t *timestamp)
 {
+	ARG_UNUSED(timestamp);
+
 	/* Return error, timestamp should remain 0 */
 	return -ENODATA;
 }
