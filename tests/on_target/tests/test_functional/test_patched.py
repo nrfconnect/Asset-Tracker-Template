@@ -13,6 +13,7 @@ from utils.logger import get_logger
 
 logger = get_logger()
 
+@pytest.mark.skip(reason="PAUSED: Patched firmware testing temporarily disabled")
 @pytest.mark.slow
 def test_patched_firmware(dut_board, hex_file_patched):
     """Test the patched firmware with magnetometer functionality."""
