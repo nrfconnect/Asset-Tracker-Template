@@ -96,6 +96,12 @@ jobs:
 
       - name: Install dependencies
         run: |
+          # The Matter IDL is part of requirements-build.txt, but it's not available 
+          # in pypi so we need to install it from the source code
+          MATTER_IDL_PATH=modules/lib/matter/scripts/py_matter_idl
+          if [ -d $MATTER_IDL_PATH ]; then
+            pip install -e $MATTER_IDL_PATH
+          fi
           pip install -r nrf/scripts/requirements-build.txt
           rm -rf artifacts
           mkdir -p artifacts
