@@ -44,7 +44,7 @@ The template consists of the following modules:
 The image below illustrates the system architecture and the interaction between the modules.
 The zbus channels are indicated with colored arrows showing the direction of communication, with the arrows pointing in to the module that is subscribing to the respective channel.
 
-![System overview](docs/images/system_overview.png)
+![System overview](docs/images/system_overview.svg)
 
 The system archtecture is described in more detail in the [Architecture](docs/common/architecture.md) document.
 
