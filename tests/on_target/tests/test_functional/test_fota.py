@@ -18,7 +18,7 @@ logger = get_logger()
 MFW_202_FILEPATH = "artifacts/mfw_nrf91x1_2.0.2.zip"
 
 # Stable version used for testing
-TEST_APP_VERSION = "0.0.0-foo"
+TEST_APP_VERSION = "1.0.2"
 
 DELTA_MFW_BUNDLEID = "59cec896-c842-40fe-9a95-a4f3e88a4cdb"
 FULL_MFW_BUNDLEID = "d692915d-d978-4c77-ab02-f05f511971f9"
