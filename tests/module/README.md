@@ -14,7 +14,7 @@ docker run --rm -it \
   /bin/bash
 ```
 
-### Commmands
+### Setup Commmands
 ```shell
 cd work/asset-tracker-template/
 west init -l .
@@ -22,6 +22,14 @@ west update -o=--depth=1 -n
 
 pip install -r ../nrf/scripts/requirements-build.txt
 apt-get update && apt install -y curl ruby-full
+```
 
-west twister -T tests/ -C --coverage-platform=native_sim -v --inline-logs --integration
+###  Run tests with Address Sanitizer, Leak Sanitizer and Undefined behaviour sanitizer
+```shell
+west twister -T tests/ -C --coverage-platform=native_sim -v --inline-logs --integration --enable-asan --enable-lsan --enable-ubsan
+```
+
+###  Run tests with Valgrind
+```shell
+west twister -T tests/ -C --coverage-platform=native_sim -v --inline-logs --integration --enable-valgrind
 ```
