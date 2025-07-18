@@ -58,6 +58,11 @@ jobs:
             apt-get update
             apt install -y curl ruby-full
 
+      - name: Run tests with ASAN, no Sonarcloud and build_wrapper
+        working-directory: asset-tracker-template
+        run: |
+          west twister -T tests/ -C --coverage-platform=native_sim -v --inline-logs --integration --enable-asan
+
       - name: Install sonar-scanner and build-wrapper
         uses: SonarSource/sonarcloud-github-c-cpp@v3
 
