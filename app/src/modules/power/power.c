@@ -290,7 +290,7 @@ static int subscribe_to_vsbus_events(const struct device *device, struct gpio_ca
 
 static int charger_read_sensors(float *voltage, float *current, float *temp, int32_t *chg_status)
 {
-	struct sensor_value value;
+	struct sensor_value value = {0};
 	int err;
 
 	err = sensor_sample_fetch(charger);
