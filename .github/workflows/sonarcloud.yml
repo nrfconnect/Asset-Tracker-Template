@@ -61,7 +61,7 @@ jobs:
       - name: Run tests with ASAN, no Sonarcloud and build_wrapper
         working-directory: asset-tracker-template
         run: |
-          west twister -T tests/ -C --coverage-platform=native_sim -v --inline-logs --integration --enable-asan
+          west twister -T tests/ -C --coverage-platform=native_sim -v --inline-logs --integration --enable-asan --enable-lsan --enable-ubsan
 
       - name: Install sonar-scanner and build-wrapper
         uses: SonarSource/sonarcloud-github-c-cpp@v3
