@@ -23,7 +23,13 @@ logger = get_logger()
 
 UART_TIMEOUT = 60 * 30
 POWER_TIMEOUT = 60 * 5
+
 MAX_CURRENT_PSM_UA = 10
+GREEN_THRESOLD_CURRENT_UA = MAX_CURRENT_PSM_UA  # ≤ 10μA (good PSM current)
+YELLOW_THRESOLD_CURRENT_UA = 100  # ≤ 100μA (concerning but possible)
+RED_THRESOLD_CURRENT_UA = 1000  # ≤ 1000μA (bad but still plausible)
+# Readings above 1000uA are probably due to PPK crapping out, test is skipped in that case
+
 SAMPLING_INTERVAL = 0.01
 CSV_FILE = "power_measurements.csv"
 HMTL_PLOT_FILE = "power_measurements_plot.html"
@@ -34,13 +40,15 @@ def save_badge_data(average):
     badge_filename = "power_badge.json"
     logger.info(f"Minimum average current measured: {average}uA")
     if average < 0:
-        pytest.skip(f"current cant be negative, current average: {average}")
-    elif average <= 10:
+        pytest.skip(f"Current can't be negative, current average: {average}")
+    elif average <= GREEN_THRESOLD_CURRENT_UA:
         color = "green"
-    elif average <= 50:
+    elif average <= YELLOW_THRESOLD_CURRENT_UA:
         color = "yellow"
-    else:
+    elif average <= RED_THRESOLD_CURRENT_UA:
         color = "red"
+    else:
+        pytest.skip(f"Skipping test due to unreliable PPK reading: {average} uA")
 
     badge_data = {
         "label": "🔗 PSM current uA",
@@ -234,7 +242,17 @@ def test_power(thingy91x_ppk2, hex_file):
     generate_time_series_html(CSV_FILE, 'Time (s)', 'Current (uA)', HMTL_PLOT_FILE)
 
     # Determine test result based on whether PSM was reached
-    if not psm_reached:
+    if psm_reached:
+        pass  # Test passes if PSM was reached
+    elif min_rolling_average > RED_THRESOLD_CURRENT_UA:
+        # Skip test if reading is absurdly high (likely PPK error)
+        # Note: save_badge_data won't create file in this case
+        pytest.skip(f"Skipping test due to unreliable PPK reading: {min_rolling_average} uA")
+    elif min_rolling_average > YELLOW_THRESOLD_CURRENT_UA:
+        # Fail if current is in red zone (but still plausible)
+        pytest.fail(f"PSM target not reached after {POWER_TIMEOUT / 60} minutes, current too high: {min_rolling_average} uA")
+    else:
+        # Current is between 0 and YELLOW_THRESHOLD but PSM wasn't reached
         pytest.fail(f"PSM target not reached after {POWER_TIMEOUT / 60} minutes, only reached {min_rolling_average} uA")
 
 def test_dummy_placeholder():

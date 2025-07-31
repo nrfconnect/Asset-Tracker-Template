@@ -151,7 +151,7 @@ jobs:
           APP_BUNDLEID: ${{ vars.APP_BUNDLEID }}
 
       - name: Generate and Push Power Badge
-        if: ${{ matrix.device }} == ppk_thingy91x
+        if: ${{ always() && matrix.device == 'ppk_thingy91x' }}
         continue-on-error: true
         working-directory: asset-tracker-template
         env:
