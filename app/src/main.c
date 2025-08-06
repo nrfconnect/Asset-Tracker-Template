@@ -51,7 +51,7 @@ ZBUS_CHAN_DEFINE(TIMER_CHAN,
  */
 #define CHANNEL_LIST(X)						\
 	X(CLOUD_CHAN,		struct cloud_msg)		\
-	X(BUTTON_CHAN,		uint8_t)			\
+	X(BUTTON_CHAN,		struct button_msg)			\
 	X(FOTA_CHAN,		enum fota_msg_type)		\
 	X(NETWORK_CHAN,		struct network_msg)		\
 	X(LOCATION_CHAN,	enum location_msg_type)		\
