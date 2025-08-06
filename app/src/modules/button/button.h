@@ -14,6 +14,26 @@
 extern "C" {
 #endif
 
+/** @brief Button message types */
+enum button_msg_type {
+	/* Output message types */
+
+	/** Short button press detected */
+	BUTTON_PRESS_SHORT = 0x1,
+
+	/** Long button press detected */
+	BUTTON_PRESS_LONG,
+};
+
+/** @brief Button message data structure */
+struct button_msg {
+	enum button_msg_type type;
+	uint8_t button_number;
+};
+
+/** @brief Cast a pointer to a message to a button message */
+#define MSG_TO_BUTTON_MSG(_msg)	(*(const struct button_msg *)_msg)
+
 /* Channels provided by this module */
 ZBUS_CHAN_DECLARE(
 	BUTTON_CHAN
