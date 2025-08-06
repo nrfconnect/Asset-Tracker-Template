@@ -17,6 +17,9 @@ static int cmd_button_press(const struct shell *sh, size_t argc, char **argv)
 {
 	int err;
 	uint8_t button_number;
+	struct button_msg msg = {
+		.type = BUTTON_PRESS_SHORT
+	};
 
 	if (argc != 2) {
 		(void)shell_print(sh, "Invalid number of arguments (%d)", argc);
@@ -31,9 +34,9 @@ static int cmd_button_press(const struct shell *sh, size_t argc, char **argv)
 		return 1;
 	}
 
-	LOG_DBG("Button %d pressed", button_number);
+	msg.button_number = button_number;
 
-	err = zbus_chan_pub(&BUTTON_CHAN, &button_number, K_SECONDS(1));
+	err = zbus_chan_pub(&BUTTON_CHAN, &msg, K_SECONDS(1));
 	if (err) {
 		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
 		return 1;

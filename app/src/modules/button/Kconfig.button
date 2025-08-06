@@ -12,6 +12,14 @@ config APP_BUTTON_SHELL
 	help
 	  Enable shell for the button module.
 
+config APP_BUTTON_LONG_PRESS_TIMEOUT_MS
+	int "Long press timeout in milliseconds"
+	default 3000
+	help
+	  Time in milliseconds that a button must be held to be considered
+	  a long press. Short presses are detected when the button is
+	  released before this timeout expires.
+
 module = APP_BUTTON
 module-str = Button
 source "subsys/logging/Kconfig.template.log_config"

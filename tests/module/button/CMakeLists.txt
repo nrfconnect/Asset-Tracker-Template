@@ -9,11 +9,11 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(environmental_module_test)
 
-test_runner_generate(src/main.c)
+test_runner_generate(src/button_module_test.c)
 
 target_sources(app
   PRIVATE
-  src/main.c
+  src/button_module_test.c
   ../../../app/src/modules/button/button.c
 )
 
@@ -27,5 +27,6 @@ target_link_options(app PRIVATE --whole-archive)
 # Options that cannot be passed through Kconfig fragments
 target_compile_definitions(app PRIVATE
 	-DCONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE=100
-  -DCONFIG_APP_BUTTON_LOG_LEVEL=4
+  -DCONFIG_APP_BUTTON_LOG_LEVEL=0
+  -DCONFIG_APP_BUTTON_LONG_PRESS_TIMEOUT_MS=3000
 )
