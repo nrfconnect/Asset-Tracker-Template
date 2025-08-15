@@ -5,6 +5,7 @@ The storage module provides flexible data storage capabilities for the Asset Tra
 The module's key responsibilities include:
 
 - **Dual-mode operation**: Pass-through mode for real-time data forwarding, buffer mode for persistent storage
+- **Pipe-based data access**: Safe, concurrent access to stored data using Zephyr pipes
 - **Pluggable storage backends**: Support for storage backends with abstraction layer
 - **State machine architecture**: Uses Zephyr's State Machine Framework (SMF) for robust state management
 
@@ -68,8 +69,8 @@ graph TD
     Environmental[Environmental Module] -->|Sensor Data| Storage
     Storage -->|Pass-through Mode| Output[Immediate STORAGE_DATA]
     Storage -->|Buffer Mode| Backend[Storage Backend]
-    Backend -->|FIFO Request| FIFO[Memory Slab FIFO]
-    FIFO -->|Data Chunks| Output
+    Backend -->|Pipe Request| Pipe[Storage Pipe]
+    Pipe -->|Data Stream| Output
 
     subgraph "Storage Backends"
         Backend --> RAM[RAM Storage]
@@ -79,12 +80,12 @@ graph TD
 
 ### Memory Management
 
-The storage module uses Zephyr's memory slab allocator for FIFO operations:
+The storage module uses Zephyr's pipe system for data streaming:
 
-- Each registered data type gets its own memory slab pool
-- FIFO chunks are allocated from type-specific slabs
-- Automatic cleanup through callback functions
-- Configurable pool sizes per data type
+- Built-in pipe buffer for efficient data transfer
+- Automatic memory management handled by pipe infrastructure
+- Configurable pipe buffer size
+- Session-based access control prevents resource conflicts
 
 ## Messages
 
@@ -105,14 +106,11 @@ The storage module communicates through two zbus channels: `STORAGE_CHAN` and `S
 - **`STORAGE_FLUSH`**
   Flushes stored data one item at a time as individual `STORAGE_DATA` messages. Data is sent in FIFO order per type. Available in both operational modes.
 
-- **`STORAGE_FIFO_REQUEST`**
-  Requests access to stored data via FIFO. Populates the internal FIFO with stored data and responds with `STORAGE_FIFO_AVAILABLE`, `STORAGE_FIFO_EMPTY`, or `STORAGE_FIFO_NOT_AVAILABLE`. Available in both operational modes.
+- **`STORAGE_PIPE_REQUEST`**
+  Requests access to stored data via pipe. Responds with `STORAGE_PIPE_AVAILABLE`, `STORAGE_PIPE_EMPTY`, `STORAGE_PIPE_BUSY`, or `STORAGE_PIPE_ERROR`. Available in both operational modes.
 
 - **`STORAGE_CLEAR`**
-  Clears all stored data from the backend and empties the FIFO. Available in both operational modes.
-
-- **`STORAGE_FIFO_CLEAR`**
-  Clears only the FIFO data without affecting stored backend data. Note: This message type is defined but not currently implemented in the main storage module.
+  Clears all stored data from the backend. Available in both operational modes.
 
 **Diagnostics (handled by parent RUNNING state):**
 
@@ -126,16 +124,19 @@ The storage module communicates through two zbus channels: `STORAGE_CHAN` and `S
 - **`STORAGE_DATA`**
   Contains stored data being flushed or forwarded. Includes data type and the actual data payload.
 
-**FIFO Status:**
+**Pipe Status:**
 
-- **`STORAGE_FIFO_AVAILABLE`**
-  FIFO is populated with stored data. Message includes pointer to FIFO and item count.
+- **`STORAGE_PIPE_AVAILABLE`**
+  Pipe is ready for reading. Message includes total item count available.
 
-- **`STORAGE_FIFO_EMPTY`**
-  No stored data available; FIFO is empty.
+- **`STORAGE_PIPE_EMPTY`**
+  No stored data available; pipe is empty.
 
-- **`STORAGE_FIFO_NOT_AVAILABLE`**
-  Error occurred while populating FIFO (e.g., backend failure).
+- **`STORAGE_PIPE_BUSY`**
+  Another module is currently using the pipe session.
+
+- **`STORAGE_PIPE_ERROR`**
+  Error occurred during pipe operation.
 
 ### Message Structure
 
@@ -146,18 +147,18 @@ struct storage_msg {
     /* Type of message */
     enum storage_msg_type type;
 
-    /* Type of data in buffer/FIFO */
+    /* Type of data in buffer */
     enum storage_data_type data_type;
 
     union {
         /* Buffer for data (used with STORAGE_DATA) */
-        uint8_t buffer[];
+        uint8_t buffer[STORAGE_MAX_DATA_SIZE];
 
-        /* Pointer to FIFO (used with STORAGE_FIFO_AVAILABLE) */
-        struct k_fifo *fifo;
+        /* Number of items available (for STORAGE_PIPE_AVAILABLE) */
+        size_t item_count;
     };
 
-    /* Length of data in buffer or number of FIFO items */
+    /* Length of data in buffer or number of pipe items */
     size_t data_len;
 };
 ```
@@ -185,8 +186,8 @@ The storage module is configurable through Kconfig options in `Kconfig.storage`.
 - **`CONFIG_APP_STORAGE_RAM_LIMIT_KB`** (default: 64)
   Maximum RAM usage limit in KB for build-time validation.
 
-- **`CONFIG_APP_STORAGE_FIFO_ITEM_COUNT`** (default: 20)
-  Number of memory slabs available for FIFO operations per data type.
+- **`CONFIG_APP_STORAGE_PIPE_BUFFER_SIZE`** (default: 4096)
+  Size of the internal pipe buffer for streaming stored data.
 
 ### Message Handling
 
@@ -245,15 +246,16 @@ Primary zbus channel for controlling the storage module and receiving control/st
 - `STORAGE_MODE_PASSTHROUGH` - Switch to pass-through mode
 - `STORAGE_MODE_BUFFER` - Switch to buffer mode
 - `STORAGE_FLUSH` - Flush stored data as individual messages
-- `STORAGE_FIFO_REQUEST` - Request FIFO access to stored data
+- `STORAGE_PIPE_REQUEST` - Request pipe access to stored data
 - `STORAGE_CLEAR` - Clear all stored data
 - `STORAGE_STATS` - Display storage statistics
 
 **Output Message Types:**
 
-- `STORAGE_FIFO_AVAILABLE` - FIFO populated with data
-- `STORAGE_FIFO_EMPTY` - No data available
-- `STORAGE_FIFO_NOT_AVAILABLE` - Error accessing data
+- `STORAGE_PIPE_AVAILABLE` - Pipe ready with data
+- `STORAGE_PIPE_EMPTY` - No data available
+- `STORAGE_PIPE_BUSY` - Another session active
+- `STORAGE_PIPE_ERROR` - Error accessing data
 
 #### STORAGE_DATA_CHAN
 
@@ -293,18 +295,28 @@ struct storage_backend {
 };
 ```
 
-### FIFO Data Structure
+### Storage Data Structure
 
-When using FIFO operations, data is provided in `storage_fifo_item` structures:
+When using pipe operations, data is provided in `storage_data_item` structures:
 
 ```c
-struct storage_fifo_item {
-    void *fifo_reserved;                                /* Internal use */
-    enum storage_data_type type;                        /* Data type */
-    void (*finished)(struct storage_fifo_item *item);   /* Cleanup callback */
-    union storage_data_type_buf data;                   /* Actual data */
+struct storage_data_item {
+    enum storage_data_type type;            /* Data type */
+    union storage_data_type_buf data;       /* Actual data */
 };
 ```
+
+### Pipe Read Helper Function
+
+The storage module provides ONE convenience function for reading pipe data:
+
+```c
+int storage_pipe_read(uint32_t session_id, struct storage_data_item *out_item, k_timeout_t timeout);
+```
+
+This is the ONLY direct API function provided by the storage module. It reads stored data through the pipe interface, handling header parsing and data extraction automatically. All other operations (requesting pipe access, session management, etc.) go through zbus messages. You must pass the `session_id` received in the `STORAGE_PIPE_AVAILABLE` response.
+
+**Important**: This function should only be called after receiving a `STORAGE_PIPE_AVAILABLE` message in response to a `STORAGE_PIPE_REQUEST`. When done consuming all items, send `STORAGE_PIPE_CLOSE` with the same session_id.
 
 ## Usage
 
@@ -350,54 +362,71 @@ zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
 /* Process incoming STORAGE_DATA messages on STORAGE_DATA_CHAN */
 ```
 
-**Use FIFO for Batch Access:**
+**Use pipe for batch access:**
 
-For larger numbers of records, it is recommended to use the FIFO mechanism. The FIFO mechanism is a more efficient way to retrieve data from the storage backend, as it allows for batch retrieval of data.
+For larger numbers of records, it is recommended to use the pipe mechanism. The pipe mechanism is a more efficient way to retrieve data from the storage backend, as it allows for batch retrieval of data with proper concurrency control.
 
-When using the FIFO mechanism, the `STORAGE_FIFO_REQUEST` message is used to request access to the FIFO. The storage module will then send a `STORAGE_FIFO_AVAILABLE` message with a pointer to the FIFO and the number of items in the FIFO.
+When using the pipe mechanism, the `STORAGE_PIPE_REQUEST` message is used to request access to stored data. The storage module will respond with one of the following:
 
-The FIFO size is configurable through the `CONFIG_APP_STORAGE_FIFO_ITEM_COUNT` Kconfig option.
-When the FIFO is requested, the storage module automatically populates it with data from the storage backend.
-If no data is available, a `STORAGE_FIFO_EMPTY` message is sent.
-If the amount of data exceeds the FIFO capacity, the FIFO is filled to its maximum size.
-The receiving module processes FIFO items individually and must call the `finished` callback function for each item upon completion.
-To retrieve all stored data, the receiving module should repeatedly send `STORAGE_FIFO_REQUEST` messages until all data has been read, as indicated by a `STORAGE_FIFO_EMPTY` response.
+- `STORAGE_PIPE_AVAILABLE`: Pipe is ready, data available for reading
+- `STORAGE_PIPE_EMPTY`: No stored data available
+- `STORAGE_PIPE_BUSY`: Another module is currently using the pipe
+- `STORAGE_PIPE_ERROR`: An error occurred
 
-The following code snippet shows how to request the FIFO:
+The pipe buffer size is configurable through the `CONFIG_APP_STORAGE_PIPE_BUFFER_SIZE` Kconfig option.
+When the pipe is requested, the storage module automatically populates it with data from the storage backend.
+The receiving module processes pipe data using the `storage_pipe_read()` convenience function.
+Sessions should be explicitly closed by the consumer with `STORAGE_PIPE_CLOSE` when done.
+
+The following code snippet shows how to request the pipe:
 
 ```c
 struct storage_msg msg = {
-    .type = STORAGE_FIFO_REQUEST,
+    .type = STORAGE_PIPE_REQUEST,
 };
 
 zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
 ```
 
-To process the FIFO items, the receiving module can use the following code:
+To process the pipe data, the receiving module can use the following code:
 
 ```c
-/* Wait for STORAGE_FIFO_AVAILABLE response on STORAGE_CHAN */
-if (response.type == STORAGE_FIFO_AVAILABLE) {
-    struct k_fifo *data_fifo = response.fifo;
-    size_t item_count = response.data_len;
+/* Wait for STORAGE_PIPE_AVAILABLE response on STORAGE_CHAN */
+if (response.type == STORAGE_PIPE_AVAILABLE) {
+    size_t total_items = response.data_len;
+    uint32_t session_id = response.session_id;
 
-    /* Process FIFO items */
-    struct storage_fifo_item *item;
-    while ((item = k_fifo_get(data_fifo, K_NO_WAIT)) != NULL) {
-        /* Access data: item->data */
-        /* Call cleanup when done: item->finished(item) */
-        item->finished(item);
+    /* Process pipe data using the convenience function */
+    struct storage_data_item item;
+    while (storage_pipe_read(session_id, &item, K_SECONDS(1)) == 0) {
+        /* Access data: item.data */
+        /* Process based on item.type */
+        switch (item.type) {
+        case STORAGE_TYPE_BATTERY:
+            /* Handle battery data: item.data.BATTERY */
+            break;
+        case STORAGE_TYPE_ENVIRONMENTAL:
+            /* Handle environmental data: item.data.ENVIRONMENTAL */
+            break;
+        /* ... other types ... */
+        }
     }
 
-    /* Request the next chunk */
-    msg.type = STORAGE_FIFO_REQUEST;
+    /* Explicitly close the session when done */
+    struct storage_msg close_msg = {
+        .type = STORAGE_PIPE_CLOSE,
+        .session_id = session_id,
+    };
 
-    zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+    zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_SECONDS(1));
 }
 
-/* When all data has been read, the FIFO will be empty */
-if (response.type == STORAGE_FIFO_EMPTY) {
-    /* All data has been read */
+/* Handle other responses */
+if (response.type == STORAGE_PIPE_EMPTY) {
+    /* No data available */
+}
+if (response.type == STORAGE_PIPE_BUSY) {
+    /* Another module is using the pipe, retry later */
 }
 ```
 

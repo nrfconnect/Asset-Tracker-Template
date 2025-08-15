@@ -113,15 +113,15 @@ static void populate_all_messages(size_t i, struct power_msg *bat_msg,
 	*loc_msg = location_samples[i];
 }
 
-static void request_fifo_and_assert(void)
+static void request_pipe_and_assert(void)
 {
 	int err;
-	struct storage_msg request_msg = { .type = STORAGE_FIFO_REQUEST };
+	struct storage_msg request_msg = { .type = STORAGE_PIPE_REQUEST, .session_id = 0x11111111 };
 
 	err = zbus_chan_pub(&STORAGE_CHAN, &request_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
-	TEST_ASSERT_EQUAL(STORAGE_FIFO_REQUEST, received_msg.type);
+	TEST_ASSERT_EQUAL(STORAGE_PIPE_REQUEST, received_msg.type);
 }
 
 static void storage_chan_cb(const struct zbus_channel *chan)
@@ -156,43 +156,63 @@ static void storage_chan_cb(const struct zbus_channel *chan)
 	}
 }
 
-static void read_fifo(struct k_fifo *fifo, size_t item_count)
+static void read_pipe_data(uint32_t session_id, size_t expected_item_count)
 {
-	while (item_count--) {
-		struct storage_fifo_item *item = k_fifo_get(fifo, K_NO_WAIT);
+	struct storage_data_item tmp;
+	size_t items_read = 0;
 
-		if (item == NULL) {
-			printk("FIFO is empty, no more items to read\n");
-			return;
+	while (items_read < expected_item_count) {
+		int ret = storage_pipe_read(session_id, &tmp, K_SECONDS(5));
+
+		if (ret == -ENODATA) {
+			/* Pipe session ended, no more data */
+			break;
+		} else if (ret == -EAGAIN) {
+			/* Timeout - no more data available */
+			break;
+		} else if (ret < 0) {
+			printk("Error reading from pipe: %d\n", ret);
+			break;
 		}
 
-		switch (item->type) {
+		switch (tmp.type) {
 		case STORAGE_TYPE_BATTERY:
 			if (received_battery_samples_count < ARRAY_SIZE(received_battery_samples)) {
 				received_battery_samples[received_battery_samples_count++] =
-					item->data.BATTERY;
+					tmp.data.BATTERY;
 			}
 			break;
 		case STORAGE_TYPE_ENVIRONMENTAL:
 			if (received_env_samples_count < ARRAY_SIZE(received_env_samples)) {
 				received_env_samples[received_env_samples_count++] =
-					item->data.ENVIRONMENTAL;
+					tmp.data.ENVIRONMENTAL;
 			}
 			break;
 		case STORAGE_TYPE_LOCATION:
 			if (received_location_samples_count <
 			    ARRAY_SIZE(received_location_samples)) {
 				received_location_samples[received_location_samples_count++] =
-					item->data.LOCATION;
+					tmp.data.LOCATION;
 			}
 			break;
 		default:
-			printk("Unknown storage type: %d\n", item->type);
+			printk("Unknown storage type: %d\n", tmp.type);
 			break;
 		}
 
-		item->finished(item);
+		items_read++;
 	}
+
+		/* Send close message when done */
+	struct storage_msg close_msg = {
+		.type = STORAGE_PIPE_CLOSE,
+		.session_id = session_id
+	};
+	int err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Allow time for session to close */
+	k_sleep(K_MSEC(100));
 }
 
 void setUp(void)
@@ -353,28 +373,29 @@ void test_receive_mixed_data(void)
 	}
 }
 
-void test_storage_fifo_request_empty(void)
+void test_storage_pipe_request_empty(void)
 {
 	int err;
 	struct storage_msg msg = {
-		.type = STORAGE_FIFO_REQUEST,
+		.type = STORAGE_PIPE_REQUEST,
+		.session_id = 0x22222222,
 	};
 
-	/* Request FIFO data */
+	/* Request pipe data */
 	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
-	TEST_ASSERT_EQUAL(STORAGE_FIFO_REQUEST, received_msg.type);
+	TEST_ASSERT_EQUAL(STORAGE_PIPE_REQUEST, received_msg.type);
 
-	/* Wait for the FIFO to (not) be populated */
+	/* Wait for the pipe response */
 	k_sleep(K_SECONDS(1));
 
-	/* Check if the FIFO is available */
-	TEST_ASSERT_EQUAL(STORAGE_FIFO_EMPTY, received_msg.type);
+	/* Check if the pipe is empty */
+	TEST_ASSERT_EQUAL(STORAGE_PIPE_EMPTY, received_msg.type);
 	TEST_ASSERT_EQUAL(0, received_msg.data_len);
 }
 
-void test_storage_fifo_request_and_retrieve(void)
+void test_storage_pipe_request_and_retrieve(void)
 {
 	int err;
 	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
@@ -388,17 +409,16 @@ void test_storage_fifo_request_and_retrieve(void)
 		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
 	}
 
-	/* Request FIFO data */
-	request_fifo_and_assert();
+	/* Request pipe data */
+	request_pipe_and_assert();
 
-	/* Wait for the FIFO to be populated */
+	/* Wait for the pipe to be populated */
 	k_sleep(K_SECONDS(1));
 
-	TEST_ASSERT_EQUAL(STORAGE_FIFO_AVAILABLE, received_msg.type);
-	TEST_ASSERT_EQUAL(MIN(CONFIG_APP_STORAGE_FIFO_ITEM_COUNT, num_samples),
-			  received_msg.data_len);
+	TEST_ASSERT_EQUAL(STORAGE_PIPE_AVAILABLE, received_msg.type);
+	TEST_ASSERT_EQUAL(num_samples, received_msg.data_len);
 
-	read_fifo(received_msg.fifo, received_msg.data_len);
+	read_pipe_data(received_msg.session_id, received_msg.data_len);
 
 	for (size_t i = 0; i < received_msg.data_len; i++) {
 		TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].temperature,
@@ -421,15 +441,13 @@ void test_storage_fifo_request_and_retrieve(void)
  * and that it returns the correct number of items each time, and the correct data, until the
  * storage is empty.
  */
-void test_storage_fifo_request_multiple(void)
+void test_storage_pipe_request_multiple(void)
 {
 	int err;
 	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
-	struct storage_msg request_msg = { .type = STORAGE_FIFO_REQUEST };
+	struct storage_msg request_msg = { .type = STORAGE_PIPE_REQUEST, .session_id = 0x11111111 };
 	struct storage_msg clear_msg = { .type = STORAGE_CLEAR };
 	const uint8_t num_samples = CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE;
-	uint8_t samples_left = num_samples;
-	uint8_t recv_samples = 0;
 
 	for (size_t i = 0; i < num_samples; i++) {
 		populate_env_message(i, &env_msg);
@@ -438,34 +456,39 @@ void test_storage_fifo_request_multiple(void)
 		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
 	}
 
-	while (samples_left) {
-		/* Request FIFO data */
-		err = zbus_chan_pub(&STORAGE_CHAN, &request_msg, K_SECONDS(1));
-		TEST_ASSERT_EQUAL(0, err);
+	/* First request should get all data */
+	err = zbus_chan_pub(&STORAGE_CHAN, &request_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
 
-		TEST_ASSERT_EQUAL(STORAGE_FIFO_REQUEST, received_msg.type);
+	TEST_ASSERT_EQUAL(STORAGE_PIPE_REQUEST, received_msg.type);
 
-		/* Wait for the FIFO to be populated */
-		k_sleep(K_SECONDS(1));
+	/* Wait for the pipe to be populated */
+	k_sleep(K_SECONDS(1));
 
-		TEST_ASSERT_EQUAL(STORAGE_FIFO_AVAILABLE, received_msg.type);
-		TEST_ASSERT_EQUAL(MIN(CONFIG_APP_STORAGE_FIFO_ITEM_COUNT, samples_left),
-				  received_msg.data_len);
+	TEST_ASSERT_EQUAL(STORAGE_PIPE_AVAILABLE, received_msg.type);
+	TEST_ASSERT_EQUAL(num_samples, received_msg.data_len);
 
-		read_fifo(received_msg.fifo, received_msg.data_len);
+	read_pipe_data(received_msg.session_id, received_msg.data_len);
 
-		for (size_t i = recv_samples; i < (recv_samples + received_msg.data_len); i++) {
-			TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].temperature,
-						 received_env_samples[i].temperature);
-			TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].humidity,
-						 received_env_samples[i].humidity);
-			TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].pressure,
-						 received_env_samples[i].pressure);
-		}
-
-		recv_samples += received_msg.data_len;
-		samples_left -= received_msg.data_len;
+	for (size_t i = 0; i < num_samples; i++) {
+		TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].temperature,
+					 received_env_samples[i].temperature);
+		TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].humidity,
+					 received_env_samples[i].humidity);
+		TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].pressure,
+					 received_env_samples[i].pressure);
 	}
+
+	/* Second request should return empty since all data was consumed */
+	err = zbus_chan_pub(&STORAGE_CHAN, &request_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	TEST_ASSERT_EQUAL(STORAGE_PIPE_REQUEST, received_msg.type);
+
+	/* Wait for response */
+	k_sleep(K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(STORAGE_PIPE_EMPTY, received_msg.type);
 
 	/* Clean up after test */
 	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
@@ -475,69 +498,32 @@ void test_storage_fifo_request_multiple(void)
 	k_sleep(K_SECONDS(1));
 }
 
-void test_storage_fifo_clear_when_empty(void)
+void test_storage_pipe_clear_when_empty(void)
 {
 	int err;
-	struct storage_msg clear_fifo = { .type = STORAGE_FIFO_CLEAR };
-	struct storage_msg request = { .type = STORAGE_FIFO_REQUEST };
+	struct storage_msg request = { .type = STORAGE_PIPE_REQUEST, .session_id = 0x33333333 };
 
-	/* Clear FIFO when it's already empty should be a no-op */
-	err = zbus_chan_pub(&STORAGE_CHAN, &clear_fifo, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	/* Request FIFO data -> expect EMPTY */
+	/* Request pipe data when storage is empty */
 	err = zbus_chan_pub(&STORAGE_CHAN, &request, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Allow handling */
 	k_sleep(K_SECONDS(1));
 
-	TEST_ASSERT_EQUAL(STORAGE_FIFO_EMPTY, received_msg.type);
+	TEST_ASSERT_EQUAL(STORAGE_PIPE_EMPTY, received_msg.type);
 }
 
-void test_storage_fifo_clear_after_populate(void)
-{
-	int err;
-	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
-	struct storage_msg request = { .type = STORAGE_FIFO_REQUEST };
-	struct storage_msg clear_fifo = { .type = STORAGE_FIFO_CLEAR };
-
-	/* Store some environmental data */
-	for (size_t i = 0; i < 5; i++) {
-		populate_env_message(i, &env_msg);
-		err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &env_msg, K_SECONDS(1));
-		TEST_ASSERT_EQUAL(0, err);
-	}
-
-	/* Request FIFO data -> expect AVAILABLE */
-	err = zbus_chan_pub(&STORAGE_CHAN, &request, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_SECONDS(1));
-	TEST_ASSERT_EQUAL(STORAGE_FIFO_AVAILABLE, received_msg.type);
-
-	/* Clear FIFO without consuming items */
-	err = zbus_chan_pub(&STORAGE_CHAN, &clear_fifo, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_SECONDS(1));
-
-	/* Ask again -> backend is empty (items were moved to FIFO), expect EMPTY */
-	err = zbus_chan_pub(&STORAGE_CHAN, &request, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_SECONDS(1));
-	TEST_ASSERT_EQUAL(STORAGE_FIFO_EMPTY, received_msg.type);
-}
-
-void test_storage_fifo_request_mixed_data(void)
+void test_storage_pipe_request_mixed_data(void)
 {
 	int err;
 	struct power_msg bat_msg = { .type = POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE };
 	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
 	struct location_msg loc_msg = { .type = LOCATION_GNSS_DATA };
-	struct storage_msg fifo_msg = { .type = STORAGE_FIFO_REQUEST };
+	struct storage_msg pipe_msg = { .type = STORAGE_PIPE_REQUEST, .session_id = 0x12345678 };
 	struct storage_msg clear_msg = { .type = STORAGE_CLEAR };
 	const uint8_t num_samples = 30;
 	const uint8_t data_types_count = 3;
-	const uint8_t max_fifo_items = CONFIG_APP_STORAGE_FIFO_ITEM_COUNT * data_types_count;
+
 	uint8_t total_samples_expected = num_samples * data_types_count;
 	uint8_t total_samples_received = 0;
 
@@ -557,29 +543,26 @@ void test_storage_fifo_request_mixed_data(void)
 	k_sleep(K_SECONDS(10));
 
 	do {
-		err = zbus_chan_pub(&STORAGE_CHAN, &fifo_msg, K_SECONDS(1));
+		err = zbus_chan_pub(&STORAGE_CHAN, &pipe_msg, K_SECONDS(1));
 		TEST_ASSERT_EQUAL(0, err);
 
-		TEST_ASSERT_EQUAL(STORAGE_FIFO_REQUEST, received_msg.type);
+		TEST_ASSERT_EQUAL(STORAGE_PIPE_REQUEST, received_msg.type);
 
 		k_sleep(K_SECONDS(10));
 
 		if (total_samples_received >= total_samples_expected) {
-			TEST_ASSERT_EQUAL(STORAGE_FIFO_EMPTY, received_msg.type);
+			TEST_ASSERT_EQUAL(STORAGE_PIPE_EMPTY, received_msg.type);
 			break;
 		}
 
-		TEST_ASSERT_EQUAL(STORAGE_FIFO_AVAILABLE, received_msg.type);
+		TEST_ASSERT_EQUAL(STORAGE_PIPE_AVAILABLE, received_msg.type);
 
-		printk("max_fifo_items: %d, total_samples_expected: %d, "
-			"total_samples_received: %d\n",
-		       max_fifo_items, total_samples_expected, total_samples_received);
-		TEST_ASSERT_EQUAL(
-				  MIN(max_fifo_items,
-				      total_samples_expected - total_samples_received),
+		printk("total_samples_expected: %d, total_samples_received: %d\n",
+		       total_samples_expected, total_samples_received);
+		TEST_ASSERT_EQUAL(total_samples_expected - total_samples_received,
 				received_msg.data_len);
 
-		read_fifo(received_msg.fifo, received_msg.data_len);
+		read_pipe_data(received_msg.session_id, received_msg.data_len);
 
 		/* Since we stored the first num_samples from each array and storage capacity
 		 * is sufficient to hold all of them, we compare directly with the indices
@@ -735,6 +718,79 @@ void test_storage_passthrough_data(void)
 			((struct environmental_msg *)received_msg.buffer)->pressure);
 	}
 }
+
+void test_storage_pipe_busy_in_passthrough_mode(void)
+{
+	int err;
+	struct storage_msg passthrough_msg = { .type = STORAGE_MODE_PASSTHROUGH };
+	struct storage_msg pipe_request = { .type = STORAGE_PIPE_REQUEST, .session_id = 0x44444444 };
+
+	/* Set storage to pass-through mode */
+	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Wait for mode change */
+	k_sleep(K_MSEC(100));
+	TEST_ASSERT_EQUAL(STORAGE_MODE_PASSTHROUGH, received_msg.type);
+
+	/* Request pipe while in pass-through mode - should get BUSY response */
+	err = zbus_chan_pub(&STORAGE_CHAN, &pipe_request, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Wait for response */
+	k_sleep(K_MSEC(100));
+
+	/* Verify we got STORAGE_PIPE_BUSY with correct session_id */
+	TEST_ASSERT_EQUAL(STORAGE_PIPE_BUSY, received_msg.type);
+	TEST_ASSERT_EQUAL(0x44444444, received_msg.session_id);
+}
+
+void test_storage_pipe_busy_when_pipe_active(void)
+{
+	int err;
+	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
+	struct storage_msg buffer_msg = { .type = STORAGE_MODE_BUFFER };
+	struct storage_msg first_request = { .type = STORAGE_PIPE_REQUEST, .session_id = 0x55555555 };
+	struct storage_msg second_request = { .type = STORAGE_PIPE_REQUEST, .session_id = 0x66666666 };
+	struct storage_msg close_msg = { .type = STORAGE_PIPE_CLOSE, .session_id = 0x55555555 };
+
+	/* Ensure we're in buffer mode */
+	err = zbus_chan_pub(&STORAGE_CHAN, &buffer_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(100));
+
+	/* Add some data to storage */
+	for (size_t i = 0; i < 5; i++) {
+		populate_env_message(i, &env_msg);
+		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+	}
+
+	/* First pipe request - should succeed */
+	err = zbus_chan_pub(&STORAGE_CHAN, &first_request, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Wait for response */
+	k_sleep(K_SECONDS(1));
+	TEST_ASSERT_EQUAL(STORAGE_PIPE_AVAILABLE, received_msg.type);
+	TEST_ASSERT_EQUAL(0x55555555, received_msg.session_id);
+
+	/* Second pipe request while first is active - should get BUSY */
+	err = zbus_chan_pub(&STORAGE_CHAN, &second_request, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Wait for response */
+	k_sleep(K_MSEC(100));
+
+	/* Verify we got STORAGE_PIPE_BUSY with correct session_id */
+	TEST_ASSERT_EQUAL(STORAGE_PIPE_BUSY, received_msg.type);
+	TEST_ASSERT_EQUAL(0x66666666, received_msg.session_id);
+
+	/* Clean up - close the first session */
+	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(100));
+}
+
 
 extern int unity_main(void);
 

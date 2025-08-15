@@ -10,6 +10,7 @@
 #include <zephyr/smf.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/sys/iterable_sections.h>
+#include <string.h>
 
 #include "storage.h"
 #include "storage_backend.h"
@@ -22,6 +23,9 @@
 
 /* Register log module */
 LOG_MODULE_REGISTER(storage, CONFIG_APP_STORAGE_LOG_LEVEL);
+
+/* Timeout for pipe operations */
+#define STORAGE_PIPE_TIMEOUT_MS	50
 
 /* Register zbus subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(storage_subscriber);
@@ -108,14 +112,92 @@ static void state_pass_through_entry(void *o);
 static void state_pass_through_run(void *o);
 static void state_buffer_entry(void *o);
 static void state_buffer_run(void *o);
+static void state_buffer_idle_entry(void *o);
+static void state_buffer_idle_run(void *o);
+static void state_buffer_pipe_active_entry(void *o);
+static void state_buffer_pipe_active_run(void *o);
 
-K_FIFO_DEFINE(storage_fifo);
+/* Storage pipe for streaming data to consumers */
+K_PIPE_DEFINE(storage_pipe, CONFIG_APP_STORAGE_PIPE_BUFFER_SIZE, 4);
 
+
+
+/* Storage pipe item header (sent before each data item) */
+struct storage_pipe_header {
+	enum storage_data_type type;
+	size_t data_size;
+	uint32_t checksum;  /* Optional data integrity check */
+};
+
+/* Forward declarations for pipe functions */
+static void populate_pipe(void);
+
+/*
+ * Write all bytes to pipe. The provided timeout is reused for each attempt to keep
+ * logic simple and predictable.
+ * The helper function is needed because k_pipe_write() does not guarantee that all bytes will be
+ * written.
+ * Returns number of bytes written if successful, negative error code if failed.
+ */
+static int pipe_write_all(struct k_pipe *pipe,
+			   const uint8_t *buf,
+			   size_t len,
+			   k_timeout_t timeout)
+{
+	int ret;
+	size_t written = 0;
+
+	while (written < len) {
+		ret = k_pipe_write(pipe, buf + written, len - written, timeout);
+		if (ret < 0) {
+			return ret;
+		}
+
+		if (ret == 0) {
+			continue;
+		}
+
+		written += (size_t)ret;
+	}
+
+	return (int)written;
+}
+
+/*
+ * Read exact number of bytes from pipe. The provided timeout is reused for each attempt to keep
+ * logic simple and predictable.
+ * Returns number of bytes read if successful, negative error code if failed.
+ */
+static int pipe_read_exact(struct k_pipe *pipe,
+			   uint8_t *buf,
+			   size_t len,
+			   k_timeout_t timeout)
+{
+	int ret;
+	size_t read_total = 0;
+
+	while (read_total < len) {
+		ret = k_pipe_read(pipe, buf + read_total, len - read_total, timeout);
+
+		if (ret < 0) {
+			return ret;
+		}
+
+		if (ret == 0) {
+			continue;
+		}
+		read_total += (size_t)ret;
+	}
+
+	return (int)read_total;
+}
 /* Defining the storage module states */
 enum storage_module_state {
 	STATE_RUNNING,
 	STATE_PASS_THROUGH,
 	STATE_BUFFER,
+	STATE_BUFFER_IDLE,
+	STATE_BUFFER_PIPE_ACTIVE,
 };
 
 /* Construct state table */
@@ -137,6 +219,14 @@ static const struct smf_state states[] = {
 	[STATE_BUFFER] =
 		SMF_CREATE_STATE(state_buffer_entry, state_buffer_run, NULL,
 				 &states[STATE_RUNNING],
+				 &states[STATE_BUFFER_IDLE]),
+	[STATE_BUFFER_IDLE] =
+		SMF_CREATE_STATE(state_buffer_idle_entry, state_buffer_idle_run, NULL,
+				 &states[STATE_BUFFER],
+				 NULL),
+	[STATE_BUFFER_PIPE_ACTIVE] =
+		SMF_CREATE_STATE(state_buffer_pipe_active_entry, state_buffer_pipe_active_run, NULL,
+				 &states[STATE_BUFFER],
 				 NULL),
 };
 
@@ -151,6 +241,15 @@ struct storage_state {
 	/* Last received message */
 	uint8_t msg_buf[MAX_MSG_SIZE];
 };
+
+/* Pipe session tracking */
+struct pipe_session {
+	uint32_t session_key;
+	size_t total_items;
+	size_t items_sent;
+};
+
+static struct pipe_session current_session = {0};
 
 /* Static helper functions */
 static void task_wdt_callback(int channel_id, void *user_data)
@@ -201,7 +300,7 @@ static void pass_through_data_msg(const struct storage_data *type,
 
 	type->extract_data(buf, (void *)msg.buffer);
 
-	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &msg, K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
 	if (err) {
 		LOG_ERR("Failed to publish %s data, error: %d", type->name, err);
 		SEND_FATAL_ERROR();
@@ -243,7 +342,8 @@ static void flush_stored_data(void)
 
 			msg.data_len = ret;
 
-			ret = zbus_chan_pub(&STORAGE_DATA_CHAN, &msg, K_SECONDS(1));
+			ret = zbus_chan_pub(&STORAGE_DATA_CHAN, &msg,
+					    K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
 			if (ret) {
 				LOG_ERR("Failed to publish %s data, error: %d", type->name, ret);
 				SEND_FATAL_ERROR();
@@ -254,111 +354,11 @@ static void flush_stored_data(void)
 	}
 }
 
-static void free_fifo_item(struct storage_fifo_item *item)
-{
-	__ASSERT_NO_MSG(item != NULL);
-
-	if (!item) {
-		LOG_ERR("Received NULL item to free");
-		return;
-	}
-
-	if (item->slab) {
-		k_mem_slab_free(item->slab, (void *)item);
-		LOG_DBG("Freed FIFO item %p of type %d", (void *)item, item->type);
-
-		return;
-	}
-
-	LOG_ERR("Missing slab in FIFO item %p: type %d", (void *)item, item->type);
-}
-
-static int populate_fifo(void)
-{
-	const struct storage_backend *backend = storage_backend_get();
-	int element_count_in_fifo = 0;
-
-	/* Iterate over all the registered data types.
-	 * For each type, retrieve stored data from the backend and store it in a mem slab.
-	 * Reference the slab in a FIFO item (which is also a mem slab) and put it in the FIFO.
-	 */
-	STRUCT_SECTION_FOREACH(storage_data, type) {
-		int ret;
-		struct storage_fifo_item *item;
-		int elements_left;
-
-		elements_left = backend->count(type);
-
-		LOG_DBG("Populating FIFO for %s, elements left: %d", type->name, elements_left);
-
-		if (elements_left == 0) {
-			LOG_DBG("No data to store in FIFO for %s", type->name);
-			continue;
-		} else if (elements_left < 0) {
-			LOG_ERR("Failed to get count for %s, error: %d", type->name, elements_left);
-			continue;
-		}
-
-		while (elements_left > 0) {
-			ret = k_mem_slab_alloc(type->slab, (void **)&item, K_NO_WAIT);
-			if (ret) {
-				LOG_DBG("No %s slabs left, error: %d", type->name, ret);
-
-				/* We are out of slabs for this type, set elements_left to 0
-				 * to stop processing this type.
-				 */
-
-				elements_left = 0;
-
-				continue;
-			}
-
-			LOG_DBG("Mem slab allocated: %p", (void *)item);
-
-			ret = backend->retrieve(type, (void *)&item->data, type->data_size);
-			if (ret < 0) {
-				LOG_ERR("Failed to retrieve %s data, error: %d", type->name, ret);
-				k_mem_slab_free(type->slab, (void *)item);
-
-				return element_count_in_fifo;
-			}
-
-			item->type = type->data_type;
-			item->finished = free_fifo_item;
-			item->slab = type->slab;
-
-			k_fifo_put(&storage_fifo, item);
-
-			element_count_in_fifo++;
-
-			elements_left--;
-		}
-	}
-
-	return element_count_in_fifo;
-}
-
-static void fifo_clear(struct k_fifo *fifo)
-{
-	struct storage_fifo_item *item;
-
-	LOG_DBG("Deleting FIFO data: %p", fifo);
-
-	while ((item = k_fifo_get(fifo, K_NO_WAIT)) != NULL) {
-		LOG_DBG("Clearing item: %p", item);
-
-		item->finished(item);
-	}
-}
-
 static void storage_clear(void)
 {
 	int err;
 
 	LOG_DBG("Purging storage");
-
-	/* Clear the FIFO */
-	fifo_clear(&storage_fifo);
 
 	/* Clear all stored data */
 	err = storage_backend_get()->clear();
@@ -368,36 +368,228 @@ static void storage_clear(void)
 	}
 }
 
-static void handle_fifo_request(void)
+/* Drain any remaining data from the pipe */
+static void drain_pipe(void)
 {
-	int ret;
-	struct storage_msg response_msg = {
-		.type = STORAGE_FIFO_NOT_AVAILABLE,
+	uint8_t dummy_buffer[64];
+
+	while (k_pipe_read(&storage_pipe, dummy_buffer, sizeof(dummy_buffer), K_NO_WAIT) > 0) {
+		/* Drain pipe */
+	}
+}
+
+/* Send STORAGE_PIPE_BUSY response */
+static void send_pipe_busy_response(uint32_t session_id)
+{
+	int err;
+	struct storage_msg busy_msg = {
+		.type = STORAGE_PIPE_BUSY,
+		.session_id = session_id
 	};
 
-	/* Start populating the FIFO */
-	ret = populate_fifo();
-	if (ret < 0) {
-		/* FIFO is not available */
-		response_msg.type = STORAGE_FIFO_NOT_AVAILABLE;
-	} else if (ret == 0) {
-		/* FIFO is empty */
-		response_msg.type = STORAGE_FIFO_EMPTY;
-	} else {
-		LOG_DBG("FIFO populated with %d records", ret);
+	err = zbus_chan_pub(&STORAGE_CHAN, &busy_msg, K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to send pipe busy response: %d", err);
+	}
+}
 
-		/* FIFO is available */
-		response_msg.type = STORAGE_FIFO_AVAILABLE;
-		response_msg.fifo = &storage_fifo;
-		response_msg.data_len = ret;
+/* Start a new pipe session.
+ * If the pipe is empty, STORAGE_PIPE_EMPTY is sent and the session is not started.
+ * If the pipe is not empty, the session is started and STORAGE_PIPE_AVAILABLE is sent.
+ * Returns 0 if successful, -ENODATA if pipe is empty, and other error codes if failed.
+ */
+static int start_pipe_session(const struct zbus_channel *requester,
+			      const struct storage_msg *request_msg)
+{
+	int err;
+	const struct storage_backend *backend = storage_backend_get();
+	struct storage_msg response_msg = {
+		.session_id = request_msg->session_id,
+	};
+	size_t total_items = 0;
+
+	/* Count total items available */
+	STRUCT_SECTION_FOREACH(storage_data, type) {
+		int count = backend->count(type);
+
+		if (count > 0) {
+			total_items += count;
+		}
 	}
 
-	ret = zbus_chan_pub(&STORAGE_CHAN, &response_msg, K_SECONDS(1));
-	if (ret) {
-		LOG_ERR("Failed to publish FIFO_NOT_AVAILABLE, error: %d", ret);
+	if (total_items > 0) {
+		/* Clear any stale data from pipe before starting new session */
+		drain_pipe();
+
+		/* Start new session using requester's session ID */
+		current_session.session_key = request_msg->session_id;
+		current_session.total_items = total_items;
+		current_session.items_sent = 0;
+
+		response_msg.type = STORAGE_PIPE_AVAILABLE;
+		response_msg.session_id = current_session.session_key;
+		response_msg.data_len = total_items;
+
+		populate_pipe();
+
+		LOG_DBG("Started pipe session for %s (key %u), %zu items available",
+			requester->name, current_session.session_key, total_items);
+	} else {
+		response_msg.type = STORAGE_PIPE_EMPTY;
+	}
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &response_msg, K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to send pipe response to %s", requester->name);
+
+		return err;
+	}
+
+	return total_items == 0 ? -ENODATA : 0;
+}
+
+/* Populate the pipe with all stored data */
+static void populate_pipe(void)
+{
+	int err;
+	const struct storage_backend *backend = storage_backend_get();
+
+	/* Populate pipe with all stored data */
+	STRUCT_SECTION_FOREACH(storage_data, type) {
+		int count = backend->count(type);
+
+		while (count > 0) {
+			int ret;
+			size_t total_size;
+			uint8_t item_buffer[sizeof(struct storage_pipe_header) +
+					    STORAGE_MAX_DATA_SIZE];
+			struct storage_pipe_header *header =
+				(struct storage_pipe_header *)item_buffer;
+			uint8_t *data = item_buffer + sizeof(struct storage_pipe_header);
+
+			/* Retrieve data from backend */
+			ret = backend->retrieve(type, data, STORAGE_MAX_DATA_SIZE);
+			if (ret < 0) {
+				LOG_ERR("Failed to retrieve %s data: %d", type->name, ret);
+				break;
+			}
+
+			/* Prepare header */
+			header->type = type->data_type;
+			header->data_size = ret;
+
+			/* Create combined buffer for atomic write */
+			total_size = sizeof(struct storage_pipe_header) + header->data_size;
+			if (total_size > sizeof(item_buffer)) {
+				LOG_ERR("Combined data too large: %zu > %zu",
+					total_size, sizeof(item_buffer));
+				goto session_error;
+			}
+
+			/* Write combined buffer atomically to pipe */
+			ret = pipe_write_all(&storage_pipe, item_buffer, total_size,
+					     K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
+			if (ret < 0) {
+				LOG_ERR("Failed to write to pipe: %d", ret);
+
+				goto session_error;
+			}
+
+			__ASSERT_NO_MSG(ret == total_size);
+
+			/* Update session progress */
+			current_session.items_sent++;
+
+			count--;
+
+			LOG_DBG("Sent %s item to pipe (%zu/%zu)",
+				type->name, current_session.items_sent,
+				current_session.total_items);
+		}
+	}
+
+	LOG_DBG("Pipe population complete: %zu/%zu items",
+		current_session.items_sent, current_session.total_items);
+
+	return;
+
+session_error:
+	/* Send error notification */
+	struct storage_msg error_msg = {
+		.type = STORAGE_PIPE_ERROR,
+	};
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &error_msg, K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to send pipe error: %d", err);
 		SEND_FATAL_ERROR();
 	}
 }
+
+/* New API: Read one item from storage pipe */
+int storage_pipe_read(uint32_t session_id, struct storage_data_item *out_item, k_timeout_t timeout)
+{
+	struct storage_pipe_header header;
+	int ret;
+
+	if (!out_item) {
+		return -EINVAL;
+	}
+
+	/* Validate session key */
+	if (current_session.session_key != session_id) {
+		return -EINVAL;
+	}
+
+	/* First, try to read just the header to get the data size */
+	ret = pipe_read_exact(&storage_pipe, (uint8_t *)&header, sizeof(header), timeout);
+	if (ret < 0) {
+		if (ret == -EAGAIN) {
+			/* No more data available - consumer should close session */
+			return -ENODATA;  /* No more data */
+		}
+
+		return ret;  /* Other error */
+	}
+
+	if (ret != sizeof(header)) {
+		LOG_ERR("Incomplete header read: %d/%zu bytes",
+			ret, sizeof(header));
+		return -EIO;
+	}
+
+	/* Validate header */
+	if (header.data_size > sizeof(out_item->data)) {
+		LOG_ERR("Data size too large: %zu > %zu",
+			header.data_size, sizeof(out_item->data));
+		return -EMSGSIZE;
+	}
+
+	/* Read the data portion */
+	ret = pipe_read_exact(&storage_pipe, (uint8_t *)&out_item->data,
+			  header.data_size, timeout);
+	if (ret < 0) {
+		LOG_ERR("Failed to read data from pipe: %d", ret);
+		return ret;
+	}
+
+	if (ret != header.data_size) {
+		LOG_ERR("Incomplete data read: %d/%zu bytes",
+			ret, header.data_size);
+		return -EIO;
+	}
+
+	/* Fill output structure */
+	out_item->type = header.type;
+
+	LOG_DBG("Read storage item: type=%d, size=%zu", header.type, header.data_size);
+
+	/* Session will be closed via explicit STORAGE_PIPE_CLOSE messages */
+
+	return 0;
+}
+
+
 
 #if IS_ENABLED(CONFIG_APP_STORAGE_SHELL_STATS)
 static void handle_storage_stats(void)
@@ -454,7 +646,6 @@ static void state_running_entry(void *o)
 	}
 }
 
-
 static void state_running_run(void *o)
 {
 	const struct storage_state *state_object = (const struct storage_state *)o;
@@ -468,13 +659,7 @@ static void state_running_run(void *o)
 			/* Clear all stored data */
 			storage_clear();
 			break;
-		case STORAGE_FIFO_CLEAR:
-			/* Clear only the FIFO */
-			fifo_clear(&storage_fifo);
-			break;
-		case STORAGE_FIFO_REQUEST:
-			handle_fifo_request();
-			break;
+
 		case STORAGE_FLUSH:
 			flush_stored_data();
 			break;
@@ -526,7 +711,10 @@ static void state_pass_through_run(void *o)
 			break;
 		case STORAGE_MODE_BUFFER:
 			LOG_DBG("Switching to buffer mode");
-			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER]);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
+			break;
+		case STORAGE_PIPE_REQUEST:
+			send_pipe_busy_response(msg->session_id);
 			break;
 		default:
 			break;
@@ -539,11 +727,23 @@ static void state_pass_through_run(void *o)
 static void state_buffer_entry(void *o)
 {
 	ARG_UNUSED(o);
-
 	LOG_DBG("%s", __func__);
 }
 
 static void state_buffer_run(void *o)
+{
+	ARG_UNUSED(o);
+
+	LOG_DBG("%s", __func__);
+}
+
+static void state_buffer_idle_entry(void *o)
+{
+	ARG_UNUSED(o);
+	LOG_DBG("%s", __func__);
+}
+
+static void state_buffer_idle_run(void *o)
 {
 	const struct storage_state *state_object = (const struct storage_state *)o;
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
@@ -571,11 +771,71 @@ static void state_buffer_run(void *o)
 			LOG_DBG("Switching to pass-through mode");
 			smf_set_state(SMF_CTX(state_object), &states[STATE_PASS_THROUGH]);
 			return;
+		case STORAGE_PIPE_REQUEST:
+			LOG_DBG("Pipe request received, switching to pipe active state");
+			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_PIPE_ACTIVE]);
+			break;
+		case STORAGE_PIPE_CLOSE:
+			LOG_WRN("Pipe close request received, no active pipe");
+			break;
 		default:
 			break;
 		}
 
 		return;
+	}
+}
+
+static void state_buffer_pipe_active_entry(void *o)
+{
+	int err;
+	const struct storage_state *state_object = (const struct storage_state *)o;
+	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
+
+	LOG_DBG("%s", __func__);
+
+	err = start_pipe_session(state_object->chan, msg);
+	if (err == -ENODATA) {
+		LOG_WRN("Pipe is empty, switching to STATE_BUFFER_IDLE");
+
+		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
+	} else if (err) {
+		LOG_ERR("Failed to start pipe session, switching to STATE_BUFFER_IDLE");
+		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
+	}
+
+	LOG_DBG("Pipe session started, session key: %u", current_session.session_key);
+}
+
+static void state_buffer_pipe_active_run(void *o)
+{
+	const struct storage_state *state_object = (const struct storage_state *)o;
+	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
+
+	LOG_DBG("%s", __func__);
+
+	if (state_object->chan == &STORAGE_CHAN) {
+		switch (msg->type) {
+		case STORAGE_PIPE_CLOSE:
+			if (current_session.session_key == msg->session_id) {
+				drain_pipe();
+				smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
+			} else {
+				LOG_WRN("Invalid session ID: %u (current: %u)",
+					msg->session_id, current_session.session_key);
+			}
+
+			return;
+		case STORAGE_PIPE_REQUEST:
+			send_pipe_busy_response(msg->session_id);
+			LOG_DBG("Pipe is already active, sent busy response");
+
+			return;
+		default:
+			LOG_DBG("Ignoring message type: %d", msg->type);
+
+			return;
+		}
 	}
 }
 
@@ -600,7 +860,8 @@ static void storage_thread(void)
 		return;
 	}
 
-	err = zbus_chan_add_obs(&STORAGE_CHAN, &storage_subscriber, K_SECONDS(1));
+	err = zbus_chan_add_obs(&STORAGE_CHAN, &storage_subscriber,
+				K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
 	if (err) {
 		LOG_ERR("Failed to add observer to STORAGE_CHAN, error: %d", err);
 		SEND_FATAL_ERROR();

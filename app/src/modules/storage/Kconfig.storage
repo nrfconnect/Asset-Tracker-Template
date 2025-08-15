@@ -70,16 +70,19 @@ config APP_STORAGE_RAM_LIMIT_KB
 	  MAX_TYPES * MAX_RECORDS_PER_TYPE * RECORD_SIZE bytes.
 	  Set this based on your system's available RAM.
 
-config APP_STORAGE_FIFO_ITEM_COUNT
-	int "FIFO item count"
-	default 20
+
+
+config APP_STORAGE_PIPE_BUFFER_SIZE
+	int "Storage pipe buffer size in bytes"
+	default 4096
 	help
-	  Maximum number of memory slabs available to use in the storage module's FIFO.
-	  The FIFO is used when data is sent from the storage module to other modules.
-	  This option is also used to set the number of each registered data type that can be stored
-	  in the FIFO.
-	  For example, if set to 20, there will be 20 memory slabs available for each registered
-	  data type, and a total of 20 items can be stored in the FIFO at any time.
+	  Size of the internal pipe buffer for streaming stored data.
+	  This buffer is used to transfer data from the storage backend
+	  to consuming modules via the pipe interface.
+
+	  Larger buffers can improve throughput but use more RAM.
+	  Must be large enough to hold at least one complete data item
+	  plus its header.
 
 if APP_STORAGE_BACKEND_INTERNAL_FLASH
 

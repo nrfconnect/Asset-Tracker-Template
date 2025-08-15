@@ -29,7 +29,6 @@ enum storage_msg_type {
 	 * In buffer mode, the storage module will store data in the configured storage backend.
 	 * If the backend is not available, the data will be lost.
 	 * If the storage is full, the oldest data will be removed to make space for new data.
-	 * The data will be flushed to the FIFO when STORAGE_FIFO_REQUEST is called.
 	 */
 	STORAGE_MODE_BUFFER,
 
@@ -38,14 +37,11 @@ enum storage_msg_type {
 	 */
 	STORAGE_FLUSH,
 
-	/* Command to clear all stored data in the configured storage backend and the FIFO. */
+	/* Command to clear all stored data in the configured storage backend. */
 	STORAGE_CLEAR,
 
-	/* Command to request stored data using a FIFO */
-	STORAGE_FIFO_REQUEST,
-
-	/* Clear all the data in the FIFO. Data is not removed from the storage backend. */
-	STORAGE_FIFO_CLEAR,
+	/* Command to request stored data using a pipe */
+	STORAGE_PIPE_REQUEST,
 
 	/* Command to print storage statistics.
 	 * The command must be enabled with CONFIG_APP_STORAGE_SHELL_STATS.
@@ -57,28 +53,25 @@ enum storage_msg_type {
 	/* Stored data being flushed as response to a STORAGE_FLUSH message */
 	STORAGE_DATA,
 
-	/* Response to a STORAGE_FIFO_REQUEST message. This message contains a pointer to the FIFO
-	 * in the `fifo` field. The FIFO is populated with stored data, which is removed from the
-	 * storage backend upon transfer to the FIFO.
-	 *
-	 * The `data_len` field indicates the number of elements in the FIFO. The FIFO can hold
-	 * a maximum of CONFIG_APP_STORAGE_FIFO_ITEM_COUNT elements. When the FIFO is at capacity,
-	 * `data_len` will equal CONFIG_APP_STORAGE_FIFO_ITEM_COUNT, and the consumer should issue
-	 * another STORAGE_FIFO_REQUEST to retrieve the next batch of data.
-	 *
-	 * IMPORTANT: The consumer must call the `finished` function for every element in the FIFO.
-	 * Failure to do so will result in memory leaks.
+	/* Response to a STORAGE_PIPE_REQUEST message. Indicates pipe is ready for reading.
+	 * The `data_len` field indicates the total number of items available.
+	 * The `session_id` field echoes back the session ID from the request.
+	 * Use storage_pipe_read() with this session_id to consume data from the pipe.
 	 */
-	STORAGE_FIFO_AVAILABLE,
+	STORAGE_PIPE_AVAILABLE,
 
-	/* FIFO is not available.
-	 * This can happen if there was an error when reading stored data into the FIFO.
-	 * The consumer should call STORAGE_FIFO_REQUEST again to try again.
-	 */
-	STORAGE_FIFO_NOT_AVAILABLE,
+	/* No stored data available - pipe is empty. */
+	STORAGE_PIPE_EMPTY,
 
-	/* FIFO is empty, no stored data to read. */
-	STORAGE_FIFO_EMPTY,
+	/* Error occurred during pipe operation. */
+	STORAGE_PIPE_ERROR,
+
+	/* Pipe is busy - cannot process request at this time. */
+	STORAGE_PIPE_BUSY,
+
+	/* Consumer finished with pipe session. */
+	STORAGE_PIPE_CLOSE,
+
 };
 
 /**
@@ -99,42 +92,59 @@ struct storage_msg {
 		 */
 		uint8_t buffer[STORAGE_MAX_DATA_SIZE];
 
-		/* Pointer to the FIFO for reading data in a STORAGE_FIFO_AVAILABLE message. */
-		struct k_fifo *fifo;
+		/* Number of items available (for STORAGE_PIPE_AVAILABLE message) */
+		size_t item_count;
+
+		/* Session ID for pipe operations */
+		uint32_t session_id;
 	};
 
 	/* For STORAGE_FLUSH, the length of the data in the buffer.
-	 * For STORAGE_FIFO_AVAILABLE, the number of elements in the FIFO.
+	 * For STORAGE_PIPE_AVAILABLE, the number of items available.
 	 */
 	size_t data_len;
 };
 
 /**
- * @brief Structure to define a storage FIFO item
+ * @brief Structure to define a storage data item
  *
- * This structure is used to define the data elements that are added to the FIFO in a
- * STORAGE_FIFO_AVAILABLE message.
+ * This structure is used to hold data items read from the storage pipe.
+ * No internal pointers or memory management required.
  */
-struct storage_fifo_item {
-	/* The first word is reserved for internal use */
-	void *fifo_reserved;
-
+struct storage_data_item {
 	/* Type of data in the item.
 	 * See DATA_SOURCE_LIST in storage_data_types.h for the list of data types.
 	 */
 	enum storage_data_type type;
 
-	/* Function that must be called when processing of the item is finished.
-	 * Failure to call this function will result in a memory leak.
-	 */
-	void (*finished)(struct storage_fifo_item *item);
-
-	/* Slab the item was allocated from (used for freeing without lookups) */
-	struct k_mem_slab *slab;
-
 	/* Inline data */
 	union storage_data_type_buf data;
 };
+
+/**
+ * @brief Read one item from storage pipe (convenience function)
+ *
+ * @details This is the ONLY direct API function provided by the storage module.
+ * It reads stored data through the pipe interface, handling the header parsing
+ * and data extraction automatically. All other operations (requesting pipe access,
+ * closing sessions, etc.) must go through zbus messages.
+ *
+ * This function should only be called after receiving a STORAGE_PIPE_AVAILABLE
+ * message in response to a STORAGE_PIPE_REQUEST. Use the same session_id that
+ * was provided in the original request.
+ *
+ * @param session_id Session ID that was provided in the STORAGE_PIPE_REQUEST
+ * @param out_item Pointer to structure where data will be copied
+ * @param timeout Maximum time to wait for data
+ *
+ * @retval 0 on success, data copied to out_item
+ * @retval -EAGAIN if no data available within timeout
+ * @retval -ENODATA if pipe session ended (no more data)
+ * @retval -EINVAL if out_item is NULL or invalid session_id
+ * @retval -EIO if data corruption detected
+ * @retval -EMSGSIZE if data too large for buffer
+ */
+int storage_pipe_read(uint32_t session_id, struct storage_data_item *out_item, k_timeout_t timeout);
 
 /* Helper macro to convert message pointer */
 #define MSG_TO_STORAGE_MSG(_msg)	(const struct storage_msg *)_msg

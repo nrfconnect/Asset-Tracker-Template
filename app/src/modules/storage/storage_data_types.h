@@ -250,8 +250,8 @@ struct storage_data {
 	}											\
 												\
 	K_MEM_SLAB_DEFINE_STATIC(_name ## _slab,						\
-				 sizeof(struct storage_fifo_item),				\
-				 CONFIG_APP_STORAGE_FIFO_ITEM_COUNT, 4);			\
+				 sizeof(_data_type),						\
+				 CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE, 4);			\
 												\
 	STRUCT_SECTION_ITERABLE(storage_data, _STORAGE_TYPE_NAME(_name)) = {			\
 		.name = #_name,									\
