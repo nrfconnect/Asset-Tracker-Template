@@ -49,6 +49,9 @@ enum storage_msg_type {
 	 */
 	STORAGE_BATCH_REQUEST,
 
+	/* Consumer finished with batch session. */
+	STORAGE_BATCH_CLOSE,
+
 	/* Command to print storage statistics.
 	 * The command must be enabled with CONFIG_APP_STORAGE_SHELL_STATS.
 	 */
@@ -69,33 +72,34 @@ enum storage_msg_type {
 	 */
 	STORAGE_MODE_BUFFER,
 
+	/* Mode change request was rejected due to safety constraints.
+	 * For example, cannot switch to passthrough while batch session is active.
+	 * Contains reject_reason field with details.
+	 */
+	STORAGE_MODE_CHANGE_REJECTED,
+
 	/* Stored data being flushed as response to a STORAGE_FLUSH message */
 	STORAGE_DATA,
 
 	/* Response to a STORAGE_BATCH_REQUEST message. Indicates batch is ready for reading.
 	 * The `data_len` field contains the total number of items available.
 	 * The `session_id` field echoes back the session ID from the request.
-	 * Use storage_batch_read() with this session_id to consume data from the batch.
+	 * Use storage_batch_read() to consume data from the batch.
 	 */
 	STORAGE_BATCH_AVAILABLE,
 
-	/* No stored data available - batch is empty. */
+	/* No stored data available - batch is empty.
+	 * The batch session must still be closed with STORAGE_BATCH_CLOSE.
+	*/
 	STORAGE_BATCH_EMPTY,
 
-	/* Error occurred during batch operation. */
+	/* Error occurred during batch operation.
+	 * The batch session must still be closed with STORAGE_BATCH_CLOSE.
+	 */
 	STORAGE_BATCH_ERROR,
 
 	/* Batch is busy - cannot process request at this time. */
 	STORAGE_BATCH_BUSY,
-
-	/* Consumer finished with batch session. */
-	STORAGE_BATCH_CLOSE,
-
-	/* Mode change request was rejected due to safety constraints.
-	 * For example, cannot switch to passthrough while batch session is active.
-	 * Contains reject_reason field with details.
-	 */
-	STORAGE_MODE_CHANGE_REJECTED,
 };
 
 /**
@@ -173,23 +177,18 @@ struct storage_data_item {
  * closing sessions, etc.) must go through zbus messages.
  *
  * This function should only be called after receiving a STORAGE_BATCH_AVAILABLE
- * message in response to a STORAGE_BATCH_REQUEST. Use the same session_id that
- * was provided in the original request.
+ * message in response to a STORAGE_BATCH_REQUEST.
  *
- * session_id must be non-zero. Passing 0 returns -EINVAL.
- *
- * @param session_id Session ID that was provided in the STORAGE_BATCH_REQUEST
  * @param out_item Pointer to structure where data will be copied
  * @param timeout Maximum time to wait for data
  *
  * @retval 0 on success, data copied to out_item
  * @retval -EAGAIN if no data became available within timeout
- * @retval -EINVAL if out_item is NULL or invalid session_id
+ * @retval -EINVAL if out_item is NULL
  * @retval -EIO if data corruption detected
  * @retval -EMSGSIZE if data too large for buffer
  */
-int storage_batch_read(uint32_t session_id,
-		       struct storage_data_item *out_item,
+int storage_batch_read(struct storage_data_item *out_item,
 		       k_timeout_t timeout);
 
 /* Helper macro to convert message pointer */

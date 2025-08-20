@@ -170,13 +170,13 @@ static void storage_chan_cb(const struct zbus_channel *chan)
 	}
 }
 
-static size_t read_batch_data(uint32_t session_id, size_t expected_item_count)
+static size_t read_batch_data(size_t expected_item_count)
 {
 	struct storage_data_item tmp;
 	size_t items_read = 0;
 
 	while (items_read < expected_item_count) {
-		int ret = storage_batch_read(session_id, &tmp, K_SECONDS(5));
+		int ret = storage_batch_read(&tmp, K_SECONDS(5));
 
 		if (ret == -EAGAIN) {
 			/* Timeout - no more data available in this window */
@@ -392,6 +392,9 @@ void test_storage_batch_request_empty(void)
 	/* Check if the batch is empty */
 	TEST_ASSERT_EQUAL(STORAGE_BATCH_EMPTY, received_msg.type);
 	TEST_ASSERT_EQUAL(0, received_msg.data_len);
+
+	/* Close the batch session as required by API */
+	close_batch_and_assert(received_msg.session_id);
 }
 
 void test_storage_batch_request_and_retrieve(void)
@@ -419,7 +422,7 @@ void test_storage_batch_request_and_retrieve(void)
 	/* Verify we have data available, but don't assume exact count due to buffer limits */
 	TEST_ASSERT_GREATER_THAN(0, received_msg.data_len);
 
-	items_read = read_batch_data(received_msg.session_id, received_msg.data_len);
+	items_read = read_batch_data(received_msg.data_len);
 
 	for (size_t i = 0; i < items_read; i++) {
 		TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].temperature,
@@ -489,7 +492,7 @@ void test_storage_batch_request_multiple(void)
 		/* The data_len reflects items available in batch buffer for this request */
 		TEST_ASSERT_GREATER_THAN(0, received_msg.data_len);
 
-		samples_received = read_batch_data(received_msg.session_id, received_msg.data_len);
+		samples_received = read_batch_data(received_msg.data_len);
 
 		/* Compare received samples iteratively - storage consumes data
 		 * destructively, so we expect samples in sequence: first iteration
@@ -546,6 +549,9 @@ void test_storage_batch_clear_when_empty(void)
 	k_sleep(K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(STORAGE_BATCH_EMPTY, received_msg.type);
+
+	/* Close the batch session as required by API */
+	close_batch_and_assert(received_msg.session_id);
 }
 
 void test_storage_batch_request_mixed_data(void)
@@ -612,7 +618,7 @@ void test_storage_batch_request_mixed_data(void)
 		/* Don't assume batch can fit all remaining data - just verify we got some */
 		TEST_ASSERT_GREATER_THAN(0, received_msg.data_len);
 
-		items_read = read_batch_data(received_msg.session_id, received_msg.data_len);
+		items_read = read_batch_data(received_msg.data_len);
 
 		/* Verify received data matches expected values based on destructive
 		 * consumption. Since storage consumes data destructively, we expect
