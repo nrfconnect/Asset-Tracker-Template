@@ -110,6 +110,7 @@ ZBUS_CHAN_DEFINE(STORAGE_DATA_CHAN,
 static void state_running_entry(void *o);
 static void state_running_run(void *o);
 static void state_passthrough_run(void *o);
+static void state_buffer_run(void *o);
 static void state_buffer_idle_run(void *o);
 static void state_buffer_pipe_active_entry(void *o);
 static void state_buffer_pipe_active_run(void *o);
@@ -124,6 +125,13 @@ struct storage_pipe_header {
 	uint16_t data_size;
 };
 
+/* Pipe session tracking */
+struct pipe_session {
+	uint32_t session_id;
+	size_t total_items;
+	size_t items_sent;
+};
+
 /* Storage module state object */
 struct storage_state {
 	/* This must be first */
@@ -134,13 +142,9 @@ struct storage_state {
 
 	/* Last received message */
 	uint8_t msg_buf[MAX_MSG_SIZE];
-};
 
-/* Pipe session tracking */
-struct pipe_session {
-	uint32_t session_id;
-	size_t total_items;
-	size_t items_sent;
+	/* Current batch session state */
+	struct pipe_session current_session;
 };
 
 /* Defining the storage module states */
@@ -151,8 +155,6 @@ enum storage_module_state {
 	STATE_BUFFER_IDLE,
 	STATE_BUFFER_PIPE_ACTIVE,
 };
-
-static struct pipe_session current_session = {0};
 
 /* Construct state table */
 static const struct smf_state states[] = {
@@ -171,7 +173,7 @@ static const struct smf_state states[] = {
 				 &states[STATE_RUNNING],
 				 NULL),
 	[STATE_BUFFER] =
-		SMF_CREATE_STATE(NULL, NULL, NULL,
+		SMF_CREATE_STATE(NULL, state_buffer_run, NULL,
 				 &states[STATE_RUNNING],
 				 &states[STATE_BUFFER_IDLE]),
 	[STATE_BUFFER_IDLE] =
@@ -447,7 +449,7 @@ static void send_mode_rejected(enum storage_reject_reason reason)
  * @return 0 on success (all data written or pipe full)
  * @return -EIO on data retrieval or size validation error
  */
-static int populate_pipe(void)
+static int populate_pipe(struct storage_state *state_object)
 {
 	const struct storage_backend *backend = storage_backend_get();
 	size_t total_bytes_sent = 0;
@@ -530,7 +532,7 @@ static int populate_pipe(void)
 			__ASSERT_NO_MSG(ret == (int)total_size);
 
 			/* Update session progress and byte tracking */
-			current_session.items_sent++;
+			state_object->current_session.items_sent++;
 			total_bytes_sent += total_size;
 
 			count--;
@@ -538,9 +540,9 @@ static int populate_pipe(void)
 	}
 
 	LOG_DBG("Batch population complete for session 0x%X: %zu/%zu items",
-		current_session.session_id,
-		current_session.items_sent,
-		current_session.total_items);
+		state_object->current_session.session_id,
+		state_object->current_session.items_sent,
+		state_object->current_session.total_items);
 
 	return 0;
 }
@@ -550,7 +552,8 @@ static int populate_pipe(void)
  * If the batch is not empty, the session is started and STORAGE_BATCH_AVAILABLE is sent.
  * Returns 0 if successful, -ENODATA if batch is empty, and other error codes if failed.
  */
-static int start_batch_session(const struct storage_msg *request_msg)
+static int start_batch_session(struct storage_state *state_object,
+			       const struct storage_msg *request_msg)
 {
 	int err;
 	const struct storage_backend *backend = storage_backend_get();
@@ -581,36 +584,36 @@ static int start_batch_session(const struct storage_msg *request_msg)
 	drain_pipe();
 
 	/* Start new session using requester's session ID */
-	current_session.session_id = request_msg->session_id;
-	current_session.total_items = total_items;
-	current_session.items_sent = 0;
+	state_object->current_session.session_id = request_msg->session_id;
+	state_object->current_session.total_items = total_items;
+	state_object->current_session.items_sent = 0;
 
 	/* Try to populate the pipe */
-	err = populate_pipe();
+	err = populate_pipe(state_object);
 	if (err < 0) {
 		/* Error occurred during pipe population */
 		send_batch_error_response(request_msg->session_id);
 
 		LOG_ERR("Failed to populate pipe for session 0x%X: %d",
-			current_session.session_id, err);
+			state_object->current_session.session_id, err);
 
 		return err;
 	}
 
 	/* Success - pipe populated (fully or partially) */
 	send_batch_available_response(request_msg->session_id,
-					current_session.items_sent);
+				      state_object->current_session.items_sent);
 
 	LOG_DBG("Started batch session (session_id 0x%X), %zu items in batch (%zu total)",
-		current_session.session_id, current_session.items_sent, total_items);
+		state_object->current_session.session_id,
+		state_object->current_session.items_sent,
+		total_items);
 
 	return 0;
 }
 
 /* New API: Read one item from storage batch */
-int storage_batch_read(uint32_t session_id,
-		       struct storage_data_item *out_item,
-		       k_timeout_t timeout)
+int storage_batch_read(struct storage_data_item *out_item, k_timeout_t timeout)
 {
 	struct storage_pipe_header header;
 	int ret;
@@ -619,15 +622,9 @@ int storage_batch_read(uint32_t session_id,
 		return -EINVAL;
 	}
 
-	/* Explicitly reject zero session */
-	if (session_id == 0U) {
-		return -EINVAL;
-	}
-
-	/* Validate session key */
-	if (current_session.session_id != session_id) {
-		return -EINVAL;
-	}
+	/* Session validation is implicit - if there's no active session,
+	 * the pipe will be empty and this function will return -EAGAIN.
+	 */
 
 	/* First, try to read just the header to get the data size */
 	ret = pipe_read_exact(&storage_pipe, (uint8_t *)&header,
@@ -795,9 +792,26 @@ static void state_passthrough_run(void *o)
 	}
 }
 
+static void state_buffer_run(void *o)
+{
+	struct storage_state *state_object = (struct storage_state *)o;
+	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
+
+	/* Handle common buffer state messages */
+	if (state_object->chan == &STORAGE_CHAN) {
+		if (msg->type == STORAGE_MODE_BUFFER_REQUEST) {
+			LOG_DBG("Already in buffer mode, sending confirmation");
+			send_mode_confirmed(STORAGE_MODE_BUFFER);
+			smf_set_handled(SMF_CTX(state_object));
+
+			return;
+		}
+	}
+}
+
 static void state_buffer_idle_run(void *o)
 {
-	const struct storage_state *state_object = (const struct storage_state *)o;
+	struct storage_state *state_object = (struct storage_state *)o;
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 	LOG_DBG("%s", __func__);
@@ -813,12 +827,6 @@ static void state_buffer_idle_run(void *o)
 
 	if (state_object->chan == &STORAGE_CHAN) {
 		switch (msg->type) {
-		case STORAGE_MODE_BUFFER_REQUEST:
-			LOG_DBG("Already in buffer mode, sending confirmation");
-			send_mode_confirmed(STORAGE_MODE_BUFFER);
-			smf_set_handled(SMF_CTX(state_object));
-
-			break;
 		case STORAGE_MODE_PASSTHROUGH_REQUEST:
 			LOG_DBG("Switching to passthrough mode (with confirmation)");
 			send_mode_confirmed(STORAGE_MODE_PASSTHROUGH);
@@ -827,9 +835,11 @@ static void state_buffer_idle_run(void *o)
 			return;
 		case STORAGE_BATCH_REQUEST:
 			LOG_DBG("Batch request received, switching to batch active state");
+			/* Set up session ID for the upcoming batch session */
+			state_object->current_session.session_id = msg->session_id;
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_PIPE_ACTIVE]);
 
-			break;
+			return;
 		default:
 			break;
 		}
@@ -839,31 +849,30 @@ static void state_buffer_idle_run(void *o)
 static void state_buffer_pipe_active_entry(void *o)
 {
 	int err;
-	const struct storage_state *state_object = (const struct storage_state *)o;
+	struct storage_state *state_object = (struct storage_state *)o;
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 	LOG_DBG("%s", __func__);
 
-	err = start_batch_session(msg);
+	err = start_batch_session(state_object, msg);
 	if (err == -ENODATA) {
-		/* No data available, return to idle state */
-		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
+		/* No data available, report it */
+		send_batch_empty_response(msg->session_id);
 
 		return;
 	} else if (err) {
-		LOG_ERR("Failed to start pipe session, switching to STATE_BUFFER_IDLE: %d", err);
+		LOG_ERR("Failed to start pipe session: %d", err);
 		send_batch_error_response(msg->session_id);
-		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
 
 		return;
 	}
 
-	LOG_DBG("Batch session started, session_id: %u", current_session.session_id);
+	LOG_DBG("Batch session started, session_id: %u", state_object->current_session.session_id);
 }
 
 static void state_buffer_pipe_active_run(void *o)
 {
-	const struct storage_state *state_object = (const struct storage_state *)o;
+	struct storage_state *state_object = (struct storage_state *)o;
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 	LOG_DBG("%s", __func__);
@@ -877,11 +886,11 @@ static void state_buffer_pipe_active_run(void *o)
 			return;
 
 		case STORAGE_BATCH_CLOSE:
-			if (current_session.session_id == msg->session_id) {
+			if (state_object->current_session.session_id == msg->session_id) {
 				smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
 			} else {
 				LOG_WRN("Invalid session ID: 0x%X (current: 0x%X)",
-					msg->session_id, current_session.session_id);
+					msg->session_id, state_object->current_session.session_id);
 			}
 
 			return;
@@ -889,11 +898,11 @@ static void state_buffer_pipe_active_run(void *o)
 		case STORAGE_BATCH_REQUEST:
 			LOG_DBG("Batch request received, session_id: 0x%X", msg->session_id);
 
-			if (current_session.session_id &&
-			    (current_session.session_id != msg->session_id)) {
+			if (state_object->current_session.session_id &&
+			    (state_object->current_session.session_id != msg->session_id)) {
 				send_batch_busy_response(msg->session_id);
 				LOG_DBG("Session ID mismatch: 0x%X (current: 0x%X)",
-					msg->session_id, current_session.session_id);
+					msg->session_id, state_object->current_session.session_id);
 
 				return;
 			}
@@ -901,21 +910,14 @@ static void state_buffer_pipe_active_run(void *o)
 			/* We allow multiple requests in the same session.
 			 * The batch will be refreshed with new data.
 			 */
-			start_batch_session(msg);
-			LOG_DBG("Session started: 0x%X", current_session.session_id);
+			start_batch_session(state_object, msg);
+			LOG_DBG("Session started: 0x%X", state_object->current_session.session_id);
 
 			break;
 
 		case STORAGE_MODE_PASSTHROUGH_REQUEST:
 			LOG_WRN("Cannot change to passthrough mode while batch session is active");
 			send_mode_rejected(STORAGE_REJECT_BATCH_ACTIVE);
-			smf_set_handled(SMF_CTX(state_object));
-
-			break;
-
-		case STORAGE_MODE_BUFFER_REQUEST:
-			LOG_DBG("Already in buffer mode, sending confirmation");
-			send_mode_confirmed(STORAGE_MODE_BUFFER);
 			smf_set_handled(SMF_CTX(state_object));
 
 			break;
@@ -930,7 +932,7 @@ static void state_buffer_pipe_active_run(void *o)
 
 static void state_buffer_pipe_active_exit(void *o)
 {
-	ARG_UNUSED(o);
+	struct storage_state *state_object = (struct storage_state *)o;
 
 	LOG_DBG("%s", __func__);
 
@@ -938,7 +940,7 @@ static void state_buffer_pipe_active_exit(void *o)
 	drain_pipe();
 
 	/* Clear session state */
-	memset(&current_session, 0, sizeof(current_session));
+	memset(&state_object->current_session, 0, sizeof(state_object->current_session));
 }
 
 static void storage_thread(void)
