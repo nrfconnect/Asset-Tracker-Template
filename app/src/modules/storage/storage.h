@@ -90,7 +90,7 @@ enum storage_msg_type {
 
 	/* No stored data available - batch is empty.
 	 * The batch session must still be closed with STORAGE_BATCH_CLOSE.
-	*/
+	 */
 	STORAGE_BATCH_EMPTY,
 
 	/* Error occurred during batch operation.

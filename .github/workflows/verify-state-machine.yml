@@ -10,6 +10,7 @@ on:
       - "app/src/modules/network/network.c"
       - "app/src/modules/cloud/cloud.c"
       - "app/src/modules/fota/fota.c"
+      - "app/src/modules/storage/storage.c"
       - "tests/state_machines/**/*"
 
 
@@ -39,6 +40,9 @@ jobs:
           - name: FOTA
             c_file: app/src/modules/fota/fota.c
             uml_file: tests/state_machines/source_of_truth/fota.puml
+          - name: STORAGE
+            c_file: app/src/modules/storage/storage.c
+            uml_file: tests/state_machines/source_of_truth/storage.puml
       # Don't cancel all jobs if one fails
       fail-fast: false
 
