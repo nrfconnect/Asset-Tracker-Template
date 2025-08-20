@@ -746,7 +746,7 @@ void test_storage_set_passthrough_mode(void)
 		.type = STORAGE_MODE_PASSTHROUGH_REQUEST,
 	};
 
-	/* Publish the pass-through request */
+	/* Publish the passthrough request */
 	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_request, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
@@ -759,7 +759,7 @@ void test_storage_set_passthrough_mode(void)
 void test_storage_passthrough_data(void)
 {
 	int err;
-	struct storage_msg pass_through_request = {
+	struct storage_msg passthrough_request = {
 		.type = STORAGE_MODE_PASSTHROUGH_REQUEST,
 	};
 	struct power_msg power_msg = {
@@ -772,8 +772,8 @@ void test_storage_passthrough_data(void)
 		.pressure = 1013.25
 	};
 
-	/* Set storage to pass-through mode */
-	err = zbus_chan_pub(&STORAGE_CHAN, &pass_through_request, K_SECONDS(1));
+	/* Set storage to passthrough mode */
+	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_request, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Wait for mode change confirmation */
@@ -817,7 +817,7 @@ void test_storage_passthrough_data(void)
 	}
 }
 
-void test_storage_batch_busy_in_passthrough_mode(void)
+void test_storage_batch_error_in_passthrough_mode(void)
 {
 	int err;
 	struct storage_msg passthrough_request = { .type = STORAGE_MODE_PASSTHROUGH_REQUEST };
@@ -826,7 +826,7 @@ void test_storage_batch_busy_in_passthrough_mode(void)
 		.session_id = 0x44444444
 	};
 
-	/* Set storage to pass-through mode */
+	/* Set storage to passthrough mode */
 	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_request, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
@@ -834,15 +834,15 @@ void test_storage_batch_busy_in_passthrough_mode(void)
 	k_sleep(K_MSEC(100));
 	TEST_ASSERT_EQUAL(STORAGE_MODE_PASSTHROUGH, received_msg.type);
 
-	/* Request batch while in pass-through mode - should get BUSY response */
+	/* Request batch while in passthrough mode - should get ERROR response */
 	err = zbus_chan_pub(&STORAGE_CHAN, &batch_request, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Wait for response */
 	k_sleep(K_MSEC(100));
 
-	/* Verify we got STORAGE_BATCH_BUSY with correct session_id */
-	TEST_ASSERT_EQUAL(STORAGE_BATCH_BUSY, received_msg.type);
+	/* Verify we got STORAGE_BATCH_ERROR with correct session_id */
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_ERROR, received_msg.type);
 	TEST_ASSERT_EQUAL(0x44444444, received_msg.session_id);
 }
 

@@ -124,7 +124,7 @@ static int cmd_storage_mode_passthrough(const struct shell *sh, size_t argc, cha
 		return err;
 	}
 
-	shell_print(sh, "Storage mode set to pass-through.");
+	shell_print(sh, "Storage mode set to passthrough.");
 
 	return 0;
 }
@@ -149,7 +149,7 @@ static int cmd_storage_mode_buffer(const struct shell *sh, size_t argc, char **a
 }
 
 SHELL_STATIC_SUBCMD_SET_CREATE(storage_mode_sub_cmds,
-	SHELL_CMD(passthrough, NULL, "Set storage to pass-through mode",
+	SHELL_CMD(passthrough, NULL, "Set storage to passthrough mode",
 		  cmd_storage_mode_passthrough),
 	SHELL_CMD(buffer, NULL, "Set storage to buffer mode", cmd_storage_mode_buffer),
 	SHELL_SUBCMD_SET_END

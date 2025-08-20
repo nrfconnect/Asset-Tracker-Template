@@ -109,11 +109,7 @@ ZBUS_CHAN_DEFINE(STORAGE_DATA_CHAN,
 /* Forward declarations of state handlers */
 static void state_running_entry(void *o);
 static void state_running_run(void *o);
-static void state_pass_through_entry(void *o);
-static void state_pass_through_run(void *o);
-static void state_buffer_entry(void *o);
-static void state_buffer_run(void *o);
-static void state_buffer_idle_entry(void *o);
+static void state_passthrough_run(void *o);
 static void state_buffer_idle_run(void *o);
 static void state_buffer_pipe_active_entry(void *o);
 static void state_buffer_pipe_active_run(void *o);
@@ -150,7 +146,7 @@ struct pipe_session {
 /* Defining the storage module states */
 enum storage_module_state {
 	STATE_RUNNING,
-	STATE_PASS_THROUGH,
+	STATE_PASSTHROUGH,
 	STATE_BUFFER,
 	STATE_BUFFER_IDLE,
 	STATE_BUFFER_PIPE_ACTIVE,
@@ -161,25 +157,25 @@ static struct pipe_session current_session = {0};
 /* Construct state table */
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
-#if IS_ENABLED(CONFIG_APP_STORAGE_INITIAL_MODE_PASS_THROUGH)
+#if IS_ENABLED(CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH)
 		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
 				 NULL, /* No parent state */
-				 &states[STATE_PASS_THROUGH]), /* Initial transition */
+				 &states[STATE_PASSTHROUGH]), /* Initial transition */
 #elif IS_ENABLED(CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER)
 		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
 				 NULL, /* No parent state */
 				 &states[STATE_BUFFER]), /* Initial transition */
 #endif /* CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER */
-	[STATE_PASS_THROUGH] =
-		SMF_CREATE_STATE(state_pass_through_entry, state_pass_through_run, NULL,
+	[STATE_PASSTHROUGH] =
+		SMF_CREATE_STATE(NULL, state_passthrough_run, NULL,
 				 &states[STATE_RUNNING],
 				 NULL),
 	[STATE_BUFFER] =
-		SMF_CREATE_STATE(state_buffer_entry, state_buffer_run, NULL,
+		SMF_CREATE_STATE(NULL, NULL, NULL,
 				 &states[STATE_RUNNING],
 				 &states[STATE_BUFFER_IDLE]),
 	[STATE_BUFFER_IDLE] =
-		SMF_CREATE_STATE(state_buffer_idle_entry, state_buffer_idle_run, NULL,
+		SMF_CREATE_STATE(NULL, state_buffer_idle_run, NULL,
 				 &states[STATE_BUFFER],
 				 NULL),
 	[STATE_BUFFER_PIPE_ACTIVE] =
@@ -278,7 +274,7 @@ static void handle_data_message(const struct storage_data *type,
 	}
 }
 
-static void pass_through_data_msg(const struct storage_data *type,
+static void passthrough_data_msg(const struct storage_data *type,
 				  const uint8_t *buf)
 {
 	int err;
@@ -288,9 +284,9 @@ static void pass_through_data_msg(const struct storage_data *type,
 		.data_len = (uint16_t)MIN(type->data_size, (size_t)UINT16_MAX),
 	};
 
-	LOG_DBG("Pass-through data message for %s", type->name);
+	LOG_DBG("Passthrough data message for %s", type->name);
 
-	/* Pass through only relevant data */
+	/* Passthrough only relevant data */
 	if (!type->should_store(buf)) {
 		return;
 	}
@@ -677,8 +673,6 @@ int storage_batch_read(uint32_t session_id,
 	return 0;
 }
 
-
-
 #if IS_ENABLED(CONFIG_APP_STORAGE_SHELL_STATS)
 static void handle_storage_stats(void)
 {
@@ -744,15 +738,6 @@ static void state_running_run(void *o)
 	if (state_object->chan == &STORAGE_CHAN) {
 		switch (msg->type) {
 		case STORAGE_CLEAR:
-			/* Disallow clear while a batch session is active */
-			if (current_session.session_id != 0U) {
-				LOG_WRN("Rejecting STORAGE_CLEAR during active batch session 0x%X",
-					current_session.session_id);
-				send_mode_rejected(STORAGE_REJECT_INVALID_REQUEST);
-				smf_set_handled(SMF_CTX(state_object));
-				break;
-			}
-
 			/* Clear all stored data */
 			storage_clear();
 			break;
@@ -769,32 +754,18 @@ static void state_running_run(void *o)
 		default:
 			break;
 		}
-
-		/* No need to check for other channels. */
-		return;
 	}
 }
 
-static void state_pass_through_entry(void *o)
-{
-	ARG_UNUSED(o);
-
-	LOG_DBG("%s", __func__);
-}
-
-static void state_pass_through_run(void *o)
+static void state_passthrough_run(void *o)
 {
 	const struct storage_state *state_object = (const struct storage_state *)o;
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
-	LOG_DBG("%s", __func__);
-
 	/* Check if message is from a registered data type */
 	STRUCT_SECTION_FOREACH(storage_data, type) {
 		if (state_object->chan == type->chan) {
-			LOG_DBG("Chan: %p, chan name: %s",
-				state_object->chan, state_object->chan->name);
-			pass_through_data_msg(type, state_object->msg_buf);
+			passthrough_data_msg(type, state_object->msg_buf);
 
 			return;
 		}
@@ -803,43 +774,25 @@ static void state_pass_through_run(void *o)
 	if (state_object->chan == &STORAGE_CHAN) {
 		switch (msg->type) {
 		case STORAGE_MODE_PASSTHROUGH_REQUEST:
-			LOG_DBG("Already in pass-through mode, sending confirmation");
+			LOG_DBG("Already in passthrough mode, sending confirmation");
 			send_mode_confirmed(STORAGE_MODE_PASSTHROUGH);
 			smf_set_handled(SMF_CTX(state_object));
+
 			break;
 		case STORAGE_MODE_BUFFER_REQUEST:
 			LOG_DBG("Switching to buffer mode (with confirmation)");
 			send_mode_confirmed(STORAGE_MODE_BUFFER);
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
+
 			break;
 		case STORAGE_BATCH_REQUEST:
-			send_batch_busy_response(msg->session_id);
+			send_batch_error_response(msg->session_id);
+
 			break;
 		default:
 			break;
 		}
-
-		return;
 	}
-}
-
-static void state_buffer_entry(void *o)
-{
-	ARG_UNUSED(o);
-	LOG_DBG("%s", __func__);
-}
-
-static void state_buffer_run(void *o)
-{
-	ARG_UNUSED(o);
-
-	LOG_DBG("%s", __func__);
-}
-
-static void state_buffer_idle_entry(void *o)
-{
-	ARG_UNUSED(o);
-	LOG_DBG("%s", __func__);
 }
 
 static void state_buffer_idle_run(void *o)
@@ -852,8 +805,6 @@ static void state_buffer_idle_run(void *o)
 	/* Check if message is from a registered data type */
 	STRUCT_SECTION_FOREACH(storage_data, type) {
 		if (state_object->chan == type->chan) {
-			LOG_DBG("Chan: %p, chan name: %s",
-				state_object->chan, state_object->chan->name);
 			handle_data_message(type, state_object->msg_buf);
 
 			return;
@@ -866,32 +817,22 @@ static void state_buffer_idle_run(void *o)
 			LOG_DBG("Already in buffer mode, sending confirmation");
 			send_mode_confirmed(STORAGE_MODE_BUFFER);
 			smf_set_handled(SMF_CTX(state_object));
+
 			break;
 		case STORAGE_MODE_PASSTHROUGH_REQUEST:
-			/* Safety check: Don't allow mode change if batch session is active */
-			if (current_session.session_id != 0U) {
-				LOG_WRN("Cannot change to passthrough mode, batch 0x%X active",
-					current_session.session_id);
-				send_mode_rejected(STORAGE_REJECT_BATCH_ACTIVE);
-				smf_set_handled(SMF_CTX(state_object));
-				break;
-			}
-			LOG_DBG("Switching to pass-through mode (with confirmation)");
+			LOG_DBG("Switching to passthrough mode (with confirmation)");
 			send_mode_confirmed(STORAGE_MODE_PASSTHROUGH);
-			smf_set_state(SMF_CTX(state_object), &states[STATE_PASS_THROUGH]);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH]);
+
 			return;
 		case STORAGE_BATCH_REQUEST:
 			LOG_DBG("Batch request received, switching to batch active state");
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_PIPE_ACTIVE]);
-			break;
-		case STORAGE_BATCH_CLOSE:
-			LOG_WRN("Batch close request received, no active batch");
+
 			break;
 		default:
 			break;
 		}
-
-		return;
 	}
 }
 
@@ -929,6 +870,12 @@ static void state_buffer_pipe_active_run(void *o)
 
 	if (state_object->chan == &STORAGE_CHAN) {
 		switch (msg->type) {
+		case STORAGE_CLEAR:
+			LOG_WRN("Cannot clear storage while batch session is active");
+			smf_set_handled(SMF_CTX(state_object));
+
+			return;
+
 		case STORAGE_BATCH_CLOSE:
 			if (current_session.session_id == msg->session_id) {
 				smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
@@ -976,7 +923,7 @@ static void state_buffer_pipe_active_run(void *o)
 		default:
 			LOG_DBG("Ignoring message type: %d", msg->type);
 
-			return;
+			break;
 		}
 	}
 }
@@ -985,7 +932,7 @@ static void state_buffer_pipe_active_exit(void *o)
 {
 	ARG_UNUSED(o);
 
-	LOG_DBG("%s - Cleaning up batch session", __func__);
+	LOG_DBG("%s", __func__);
 
 	/* Drain any remaining data from pipe */
 	drain_pipe();

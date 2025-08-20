@@ -20,7 +20,7 @@ extern "C" {
 enum storage_msg_type {
 	/* Input messages */
 
-	/* Request to enable pass through mode.
+	/* Request to enable passthrough mode.
 	 * Storage module will respond with STORAGE_MODE_PASSTHROUGH (confirmation) or
 	 * STORAGE_MODE_CHANGE_REJECTED (if request cannot be fulfilled).
 	 */
@@ -56,7 +56,7 @@ enum storage_msg_type {
 
 	/* Output messages */
 
-	/* Storage module is in pass-through mode.
+	/* Storage module is in passthrough mode.
 	 * In this mode, the storage module will not store any data, but push it
 	 * directly out as a STORAGE_DATA message on STORAGE_DATA_CHAN.
 	 */
@@ -110,7 +110,9 @@ enum storage_reject_reason {
 	/* Cannot change mode due to internal error */
 	STORAGE_REJECT_INTERNAL_ERROR,
 
-	/* Request is invalid or malformed */
+	/* Request is invalid or malformed.
+	 * This message is sent if the request is received while the module is in passthrough mode.
+	 */
 	STORAGE_REJECT_INVALID_REQUEST,
 };
 

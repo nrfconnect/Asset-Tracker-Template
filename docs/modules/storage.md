@@ -1,15 +1,15 @@
 # Storage module
 
-The storage module provides flexible data storage capabilities for the Asset Tracker Template using a state machine-based architecture. It can operate in two primary modes: pass-through mode for real-time data forwarding and buffer mode for persistent data storage with configurable backends.
+The storage module provides flexible data storage capabilities for the Asset Tracker Template using a state machine-based architecture. It can operate in two primary modes: passthrough mode for real-time data forwarding and buffer mode for persistent data storage with configurable backends.
 
 The module's key responsibilities include:
 
-- **Dual-mode operation**: Pass-through mode for real-time data forwarding, buffer mode for persistent storage
+- **Dual-mode operation**: Passthrough mode for real-time data forwarding, buffer mode for persistent storage
 - **Batch-based data access**: Safe, concurrent access to stored data using batch interface
 - **Pluggable storage backends**: Support for storage backends with abstraction layer
 - **State machine architecture**: Uses Zephyr's State Machine Framework (SMF) for robust state management
 
-The storage module implements a hierarchical state machine with a parent state (RUNNING) and two operational child states (PASS_THROUGH, BUFFER). The system uses a registration mechanism that automatically discovers data types from enabled modules. The parent state handles administrative operations while child states determine data flow behavior: either storage in configurable backends or immediate forwarding.
+The storage module implements a hierarchical state machine with a parent state (RUNNING) and two operational child states (PASSTHROUGH, BUFFER). The system uses a registration mechanism that automatically discovers data types from enabled modules. The parent state handles administrative operations while child states determine data flow behavior: either storage in configurable backends or immediate forwarding.
 
 Below, the module's architecture, messages, configurations, and usage are covered. Refer to the source files (`storage.c`, `storage.h`, `storage_backend.h`, and `Kconfig.storage`) for implementation details.
 
@@ -24,20 +24,20 @@ stateDiagram-v2
     [*] --> STATE_RUNNING
 
     state STATE_RUNNING {
-        [*] --> STATE_PASS_THROUGH: CONFIG_APP_STORAGE_INITIAL_MODE_PASS_THROUGH
+        [*] --> STATE_PASSTHROUGH: CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH
         [*] --> STATE_BUFFER: CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER
 
-        STATE_PASS_THROUGH --> STATE_BUFFER: STORAGE_MODE_BUFFER
-        STATE_BUFFER --> STATE_PASS_THROUGH: STORAGE_MODE_PASS_THROUGH
+        STATE_PASSTHROUGH --> STATE_BUFFER: STORAGE_MODE_BUFFER
+        STATE_BUFFER --> STATE_PASSTHROUGH: STORAGE_MODE_PASSTHROUGH
     }
 ```
 
-As indicated in the diagram, the initial transition is to the PASS_THROUGH state if `CONFIG_APP_STORAGE_INITIAL_MODE_PASS_THROUGH` is enabled, otherwise the initial transition is to the BUFFER state if `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER` is enabled.
+As indicated in the diagram, the initial transition is to the PASSTHROUGH state if `CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH` is enabled, otherwise the initial transition is to the BUFFER state if `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER` is enabled.
 
 **State Descriptions:**
 
-- **STATE_RUNNING**: Parent state that handles backend initialization and administrative operations (stats, clear, FIFO operations). Automatically transitions to either PASS_THROUGH or BUFFER mode based on configuration.
-- **STATE_PASS_THROUGH**: Child state where data is forwarded immediately as `STORAGE_DATA` messages without storage
+- **STATE_RUNNING**: Parent state that handles backend initialization and administrative operations (stats, clear, FIFO operations). Automatically transitions to either PASSTHROUGH or BUFFER mode based on configuration.
+- **STATE_PASSTHROUGH**: Child state where data is forwarded immediately as `STORAGE_DATA` messages without storage
 - **STATE_BUFFER**: Child state where data is stored in the configured backend and can be retrieved on demand
 
 ### Storage Backend Architecture
@@ -67,7 +67,7 @@ graph TD
     Power[Power Module] -->|Battery Data| Storage
     Location[Location Module] -->|Location Data| Storage
     Environmental[Environmental Module] -->|Sensor Data| Storage
-    Storage -->|Pass-through Mode| Output[Immediate STORAGE_DATA]
+    Storage -->|Passthrough Mode| Output[Immediate STORAGE_DATA]
     Storage -->|Buffer Mode| Backend[Storage Backend]
     Backend -->|Pipe Request| Pipe[Storage Pipe]
     Pipe -->|Data Stream| Output
@@ -96,10 +96,10 @@ The storage module communicates through two zbus channels: `STORAGE_CHAN` and `S
 **Mode Control:**
 
 - **`STORAGE_MODE_PASSTHROUGH`**
-  Switches the module from buffer mode to pass-through mode. Data from registered channels is immediately forwarded as `STORAGE_DATA` messages without any storage. This message is only processed when in BUFFER state.
+  Switches the module from buffer mode to passthrough mode. Data from registered channels is immediately forwarded as `STORAGE_DATA` messages without any storage. This message is only processed when in BUFFER state.
 
 - **`STORAGE_MODE_BUFFER`**
-  Switches the module from pass-through mode to buffer mode. Data is stored in the configured backend and can be retrieved later. This message is only processed when in PASS_THROUGH state.
+  Switches the module from passthrough mode to buffer mode. Data is stored in the configured backend and can be retrieved later. This message is only processed when in PASSTHROUGH state.
 
 **Data Operations (handled by parent RUNNING state):**
 
@@ -207,8 +207,8 @@ The storage module is configurable through Kconfig options in `Kconfig.storage`.
 
 ### Operational Modes
 
-- **`CONFIG_APP_STORAGE_INITIAL_MODE_PASS_THROUGH`** (default)
-  Automatically transition from RUNNING to PASS_THROUGH state on startup for immediate data forwarding.
+- **`CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH`** (default)
+  Automatically transition from RUNNING to PASSTHROUGH state on startup for immediate data forwarding.
 
 - **`CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER`**
   Automatically transition from RUNNING to BUFFER state on startup for data storage.
@@ -243,7 +243,7 @@ Primary zbus channel for controlling the storage module and receiving control/st
 
 **Input Message Types:**
 
-- `STORAGE_MODE_PASSTHROUGH` - Switch to pass-through mode
+- `STORAGE_MODE_PASSTHROUGH` - Switch to passthrough mode
 - `STORAGE_MODE_BUFFER` - Switch to buffer mode
 - `STORAGE_FLUSH` - Flush stored data as individual messages
 - `STORAGE_BATCH_REQUEST` - Request batch access to stored data
@@ -322,7 +322,7 @@ This is the ONLY direct API function provided by the storage module. It reads st
 
 ### Switching Storage Modes
 
-**Switch to Pass-through Mode:**
+**Switch to Passthrough Mode:**
 
 ```c
 struct storage_msg msg = {
