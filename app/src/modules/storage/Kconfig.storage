@@ -116,12 +116,12 @@ config APP_STORAGE_MSG_PROCESSING_TIMEOUT_SECONDS
 
 choice APP_STORAGE_INITIAL_MODE
 	prompt "Storage module initial mode"
-	default APP_STORAGE_INITIAL_MODE_PASS_THROUGH
+	default APP_STORAGE_INITIAL_MODE_PASSTHROUGH
 	help
 	  Select the initial mode of the storage module.
 
-config APP_STORAGE_INITIAL_MODE_PASS_THROUGH
-	bool "Pass-through mode"
+config APP_STORAGE_INITIAL_MODE_PASSTHROUGH
+	bool "Passthrough mode"
 	help
 	  In this mode, the storage module will pass messages directly to STORAGE_DATA messages
 	  without any buffering of data.
