@@ -27,15 +27,7 @@
 #include "cloud.h"
 #include "app_common.h"
 #include "network.h"
-#include "location.h"
-
-#if defined(CONFIG_APP_POWER)
-#include "power.h"
-#endif /* CONFIG_APP_POWER */
-
-#if defined(CONFIG_APP_ENVIRONMENTAL)
-#include "environmental.h"
-#endif /* CONFIG_APP_ENVIRONMENTAL */
+#include "storage.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
@@ -66,9 +58,8 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
 #define CHANNEL_LIST(X)										\
 					 X(NETWORK_CHAN,	struct network_msg)		\
 					 X(CLOUD_CHAN,		struct cloud_msg)		\
-IF_ENABLED(CONFIG_APP_ENVIRONMENTAL,	(X(ENVIRONMENTAL_CHAN,	struct environmental_msg)))	\
-IF_ENABLED(CONFIG_APP_POWER,		(X(POWER_CHAN,		struct power_msg)))		\
-IF_ENABLED(CONFIG_APP_LOCATION,		(X(LOCATION_CHAN,	struct location_msg)))
+					 X(STORAGE_CHAN,	struct storage_msg)		\
+					 X(STORAGE_DATA_CHAN,	struct storage_msg)
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
@@ -201,6 +192,11 @@ static void state_connected_ready_entry(void *obj);
 static void state_connected_ready_run(void *obj);
 static void state_connected_paused_entry(void *obj);
 static void state_connected_paused_run(void *obj);
+
+/* Forward declarations of location handler */
+#if defined(CONFIG_APP_LOCATION)
+static void handle_location_message(const struct location_msg *msg);
+#endif
 
 /* State machine definition */
 static const struct smf_state states[] = {
@@ -457,6 +453,240 @@ static void nrf_provisioning_callback(const struct nrf_provisioning_callback_dat
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
+	}
+}
+
+/* Storage handling functions */
+
+static int send_storage_data_to_cloud(const struct storage_data_item *item)
+{
+	int err;
+	int64_t timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
+	const bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
+
+	/* Get current timestamp */
+	err = date_time_now(&timestamp_ms);
+	if (err) {
+		LOG_WRN("Failed to get current time, using no timestamp");
+		timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
+	}
+
+	#if defined(CONFIG_APP_POWER)
+	if (item->type == STORAGE_TYPE_BATTERY) {
+		double battery_percentage = item->data.BATTERY;
+
+		err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_BATTERY,
+						 battery_percentage,
+						 timestamp_ms,
+						 confirmable);
+		if (err) {
+			LOG_ERR("Failed to send battery data to cloud, error: %d", err);
+			return err;
+		}
+
+		LOG_DBG("Battery data sent to cloud: %.1f%%", battery_percentage);
+
+		/* Unused variable if no other sources compiled in */
+		(void)confirmable;
+
+		return 0;
+	}
+#endif /* CONFIG_APP_POWER */
+
+#if defined(CONFIG_APP_ENVIRONMENTAL)
+	if (item->type == STORAGE_TYPE_ENVIRONMENTAL) {
+		const struct environmental_msg *env = &item->data.ENVIRONMENTAL;
+
+		err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_TEMP,
+						 env->temperature,
+						 timestamp_ms,
+						 confirmable);
+		if (err) {
+			LOG_ERR("Failed to send temperature data to cloud, error: %d", err);
+			return err;
+		}
+
+		err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_AIR_PRESS,
+						 env->pressure,
+						 timestamp_ms,
+						 confirmable);
+		if (err) {
+			LOG_ERR("Failed to send pressure data to cloud, error: %d", err);
+			return err;
+		}
+
+		err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_HUMID,
+						 env->humidity,
+						 timestamp_ms,
+						 confirmable);
+		if (err) {
+			LOG_ERR("Failed to send humidity data to cloud, error: %d", err);
+			return err;
+		}
+
+		LOG_DBG("Environmental data sent to cloud: T=%.1f°C, P=%.1fhPa, H=%.1f%%",
+			(double)env->temperature, (double)env->pressure, (double)env->humidity);
+
+		return 0;
+	}
+#endif /* CONFIG_APP_ENVIRONMENTAL */
+
+#if defined(CONFIG_APP_LOCATION)
+	if (item->type == STORAGE_TYPE_LOCATION) {
+		const struct location_msg *loc = &item->data.LOCATION;
+
+		handle_location_message(loc);
+
+		return 0;
+	}
+#endif /* CONFIG_APP_LOCATION && CONFIG_LOCATION_METHOD_GNSS */
+
+	LOG_WRN("Unknown storage data type: %d", item->type);
+
+	/* Unused variable if no data sources are enabled */
+	(void)confirmable;
+
+	return -ENOTSUP;
+}
+
+static int request_storage_batch_data(uint32_t session_id)
+{
+	int err;
+	struct storage_msg msg = {
+		.type = STORAGE_BATCH_REQUEST,
+		.session_id = session_id,
+	};
+
+	LOG_DBG("Requesting storage batch data, session_id: 0x%X", msg.session_id);
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to request storage batch data, error: %d", err);
+
+		return err;
+	}
+
+	return 0;
+}
+
+static void handle_storage_batch_available(const struct storage_msg *msg)
+{
+	int err;
+	struct storage_data_item item;
+	uint32_t items_processed = 0;
+	uint32_t items_available = msg->data_len;
+	uint32_t session_id = msg->session_id;
+	struct storage_msg close_msg = {
+		.type = STORAGE_BATCH_CLOSE,
+		.session_id = session_id,
+	};
+	bool session_error = false;
+
+	LOG_INF("Processing storage batch: %u items available", items_available);
+
+	/* Drain the batch buffer: read until timeout, abort on hard error */
+	while (!session_error) {
+		err = storage_batch_read(&item, K_MSEC(500));
+		if (err == -EAGAIN) {
+			LOG_DBG("No more data available in batch (timeout)");
+
+			break;
+		} else if (err) {
+			LOG_ERR("storage_batch_read failed, error: %d", err);
+
+			session_error = true;
+
+			continue;
+		}
+
+		/* Success: send the data item to cloud */
+		err = send_storage_data_to_cloud(&item);
+		if (err) {
+			LOG_ERR("Failed to send storage data to cloud, error: %d", err);
+		}
+
+		items_processed++;
+	}
+
+	LOG_DBG("Processed %u/%u storage items", items_processed, items_available);
+
+	if (!session_error && msg->more_data) {
+		LOG_DBG("More data available in batch, requesting next batch");
+
+		err = request_storage_batch_data(session_id);
+		if (err) {
+			LOG_ERR("Failed to request next storage batch data, error: %d", err);
+		}
+
+		return;
+	}
+
+	/* Close the batch session */
+	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to close storage batch session, error: %d", err);
+	}
+}
+
+static void handle_storage_batch_empty(const struct storage_msg *msg)
+{
+	int err;
+	struct storage_msg close_msg = {
+		.type = STORAGE_BATCH_CLOSE,
+		.session_id = msg->session_id,
+	};
+
+	LOG_DBG("Storage batch is empty, closing session");
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to close empty storage batch session, error: %d", err);
+	}
+}
+
+static void handle_storage_batch_error(const struct storage_msg *msg)
+{
+	int err;
+	struct storage_msg close_msg = {
+		.type = STORAGE_BATCH_CLOSE,
+		.session_id = msg->session_id,
+	};
+
+	LOG_ERR("Storage batch error occurred, closing session");
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to close error storage batch session, error: %d", err);
+	}
+}
+
+static void handle_storage_batch_busy(const struct storage_msg *msg)
+{
+	ARG_UNUSED(msg);
+	LOG_WRN("Storage batch is busy, will retry later");
+	/* Could implement retry logic here if needed */
+}
+
+static void handle_storage_data(const struct storage_msg *msg)
+{
+	int err;
+	/* Handle real-time storage data (from flush or passthrough mode) */
+	struct storage_data_item item;
+
+	/* Extract data from the storage message buffer */
+	if (msg->data_len > sizeof(item.data)) {
+		LOG_ERR("Storage data too large: %d bytes", msg->data_len);
+		return;
+	}
+
+	item.type = msg->data_type;
+
+	memcpy(&item.data, msg->buffer, msg->data_len);
+
+	/* Send to cloud */
+	err = send_storage_data_to_cloud(&item);
+	if (err) {
+		LOG_ERR("Failed to send real-time storage data to cloud, error: %d", err);
 	}
 }
 
@@ -743,8 +973,12 @@ static void state_connected_exit(void *obj)
 static void handle_cloud_location_request(const struct location_data_cloud *request)
 {
 	int err;
-	struct location_data location = { 0 };
-	struct nrf_cloud_rest_location_request loc_req = { 0 };
+	struct nrf_cloud_location_config loc_config = {
+		.do_reply = false,
+	};
+	struct nrf_cloud_rest_location_request loc_req = {
+		.config = &loc_config,
+	};
 	struct nrf_cloud_location_result result = { 0 };
 
 	LOG_DBG("Handling cloud location request");
@@ -789,17 +1023,6 @@ static void handle_cloud_location_request(const struct location_data_cloud *requ
 		send_request_failed();
 		return;
 	}
-
-	LOG_INF("Location result: lat: %f, lon: %f, accuracy: %f",
-		result.lat, result.lon, (double)result.unc);
-
-	/* Convert result to location_data format */
-	location.latitude = result.lat;
-	location.longitude = result.lon;
-	location.accuracy = (double)result.unc;
-
-	/* Send successful result back to location library */
-	location_cloud_location_ext_result_set(LOCATION_EXT_RESULT_SUCCESS, &location);
 }
 
 #if defined(CONFIG_NRF_CLOUD_AGNSS)
@@ -880,7 +1103,6 @@ static void handle_gnss_location_data(const struct location_data *location_data)
 #if defined(CONFIG_LOCATION_DATA_DETAILS)
 #define CLOUD_GNSS_HEADING_ACC_LIMIT (float)60.0
 
-	/* Shorten the name of the struct to make the code more readable */
 	struct location_data_details_gnss gnss = location_data->details.gnss;
 
 	/* If detailed GNSS data is available, include altitude, speed, and heading */
@@ -1003,188 +1225,178 @@ static void state_connected_ready_entry(void *obj)
 	first = false;
 }
 
-static void state_connected_ready_run(void *obj)
+static void handle_priv_cloud_message(struct cloud_state_object const *state_object)
+{
+	enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
+
+	if (msg == CLOUD_SEND_REQUEST_FAILED) {
+		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
+	}
+}
+
+static void handle_network_message(struct cloud_state_object const *state_object)
 {
 	int err;
-	struct cloud_state_object const *state_object = obj;
+	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
 
-	if (state_object->chan == &PRIV_CLOUD_CHAN) {
-		enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
-
-		if (msg == CLOUD_SEND_REQUEST_FAILED) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
-
-			return;
-		}
-	}
-
-	if (state_object->chan == &NETWORK_CHAN) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
-
-		switch (msg.type) {
-		case NETWORK_DISCONNECTED:
-			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_PAUSED]);
-
-			return;
-		case NETWORK_CONNECTED:
-			smf_set_handled(SMF_CTX(state_object));
-
-			return;
-		case NETWORK_QUALITY_SAMPLE_RESPONSE:
-			err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_CONEVAL,
-							 msg.conn_eval_params.energy_estimate,
-							 NRF_CLOUD_NO_TIMESTAMP,
-							 confirmable);
-			if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-
-				send_request_failed();
-				return;
-			}
-
-			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_RSRP,
-							 msg.conn_eval_params.rsrp,
-							 NRF_CLOUD_NO_TIMESTAMP,
-							 confirmable);
-			if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-
-				send_request_failed();
-				return;
-			}
-
-			break;
-
-		default:
-			break;
-		}
-	}
-
-#if defined(CONFIG_APP_POWER)
-	if (state_object->chan == &POWER_CHAN) {
-		struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
-
-		if (msg.type == POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE) {
-			err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_BATTERY,
-							 msg.percentage,
-							 msg.timestamp,
-							 confirmable);
-			if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-
-				send_request_failed();
-				return;
-			}
-
-			return;
-		}
-	}
-#endif /* CONFIG_APP_POWER */
-
-#if defined(CONFIG_APP_ENVIRONMENTAL)
-	if (state_object->chan == &ENVIRONMENTAL_CHAN) {
-		struct environmental_msg msg = MSG_TO_ENVIRONMENTAL_MSG(state_object->msg_buf);
-
-		if (msg.type == ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE) {
-			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_TEMP,
-							 msg.temperature,
-							 msg.timestamp,
-							 confirmable);
-			if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-
-				send_request_failed();
-				return;
-			}
-
-			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_AIR_PRESS,
-							 msg.pressure,
-							 msg.timestamp,
-							 confirmable);
-			if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-
-				send_request_failed();
-				return;
-			}
-
-			err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_HUMID,
-							 msg.humidity,
-							 msg.timestamp,
-							 confirmable);
-			if (err) {
-				LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-
-				send_request_failed();
-				return;
-			}
-
+	switch (msg.type) {
+	case NETWORK_DISCONNECTED:
+		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_PAUSED]);
+		break;
+	case NETWORK_CONNECTED:
+		smf_set_handled(SMF_CTX(state_object));
+		break;
+	case NETWORK_QUALITY_SAMPLE_RESPONSE:
+		err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_CONEVAL,
+						 msg.conn_eval_params.energy_estimate,
+						 NRF_CLOUD_NO_TIMESTAMP,
+						 confirmable);
+		if (err) {
+			LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+			send_request_failed();
 			return;
 		}
 
-		return;
+		err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_RSRP,
+						 msg.conn_eval_params.rsrp,
+						 NRF_CLOUD_NO_TIMESTAMP,
+						 confirmable);
+		if (err) {
+			LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+			send_request_failed();
+		}
+		break;
+	default:
+		break;
 	}
-#endif /* CONFIG_APP_ENVIRONMENTAL */
+}
 
 #if defined(CONFIG_APP_LOCATION)
-	if (state_object->chan == &LOCATION_CHAN) {
-		const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
-
-		switch (msg->type) {
-		case LOCATION_CLOUD_REQUEST:
-			LOG_DBG("Cloud location request received");
-			handle_cloud_location_request(&msg->cloud_request);
-			break;
+static void handle_location_message(const struct location_msg *msg)
+{
+	switch (msg->type) {
+	case LOCATION_CLOUD_REQUEST:
+		LOG_DBG("Cloud location request received");
+		handle_cloud_location_request(&msg->cloud_request);
+		break;
 
 #if defined(CONFIG_NRF_CLOUD_AGNSS)
-		case LOCATION_AGNSS_REQUEST:
-			LOG_DBG("A-GNSS data request received");
-			handle_agnss_request(&msg->agnss_request);
-			break;
+	case LOCATION_AGNSS_REQUEST:
+		LOG_DBG("A-GNSS data request received");
+		handle_agnss_request(&msg->agnss_request);
+		break;
 #endif /* CONFIG_NRF_CLOUD_AGNSS */
 
 #if defined(CONFIG_LOCATION_METHOD_GNSS)
-		case LOCATION_GNSS_DATA:
-			LOG_DBG("GNSS location data received");
-			handle_gnss_location_data(&msg->gnss_data);
-			break;
+	case LOCATION_GNSS_DATA:
+		LOG_DBG("GNSS location data received");
+		handle_gnss_location_data(&msg->gnss_data);
+		break;
 #endif /* CONFIG_LOCATION_METHOD_GNSS */
 
-		default:
-			break;
-		}
-
-		return;
+	default:
+		break;
 	}
+}
 #endif /* CONFIG_APP_LOCATION */
 
-	if (state_object->chan == &CLOUD_CHAN) {
-		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
+static void handle_storage_channel_message(struct cloud_state_object const *state_object)
+{
+	const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
 
-		if (msg->type == CLOUD_PAYLOAD_JSON) {
-			err = nrf_cloud_coap_json_message_send(msg->payload.buffer,
-							       false, confirmable);
-			if (err) {
-				LOG_ERR("nrf_cloud_coap_json_message_send, error: %d", err);
+	switch (msg->type) {
+	case STORAGE_BATCH_AVAILABLE:
+		LOG_DBG("Storage batch available, %d items, session_id: 0x%X",
+			msg->data_len, msg->session_id);
+		handle_storage_batch_available(msg);
+		break;
+	case STORAGE_BATCH_EMPTY:
+		LOG_DBG("Storage batch empty, session_id: 0x%X", msg->session_id);
+		handle_storage_batch_empty(msg);
+		break;
+	case STORAGE_BATCH_ERROR:
+		LOG_ERR("Storage batch error, session_id: 0x%X", msg->session_id);
+		handle_storage_batch_error(msg);
+		break;
+	case STORAGE_BATCH_BUSY:
+		LOG_WRN("Storage batch busy, session_id: 0x%X", msg->session_id);
+		handle_storage_batch_busy(msg);
+		break;
+	default:
+		break;
+	}
+}
 
-				send_request_failed();
-				return;
-			}
-		} else if (msg->type == CLOUD_POLL_SHADOW) {
-			LOG_DBG("Poll shadow trigger received");
+static void handle_storage_data_message(struct cloud_state_object const *state_object)
+{
+	const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
 
-			/* On shadow poll requests, we only poll for delta changes. This is because
-			 * we have gotten our entire desired section when polling the shadow
-			 * on an established connection.
-			 */
-			shadow_poll(SHADOW_POLL_DELTA);
-		} else if (msg->type == CLOUD_PROVISIONING_REQUEST) {
-			LOG_DBG("Provisioning request received");
+	if (msg->type == STORAGE_DATA) {
+		LOG_DBG("Storage data received, type: %d, size: %d",
+			msg->data_type, msg->data_len);
+		handle_storage_data(msg);
+	}
+}
 
-			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONING]);
-			return;
+static void handle_cloud_channel_message(struct cloud_state_object const *state_object)
+{
+	int err;
+	const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
+	const bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
+
+	switch (msg->type) {
+	case CLOUD_PAYLOAD_JSON:
+		err = nrf_cloud_coap_json_message_send(msg->payload.buffer,
+						       false, confirmable);
+		if (err) {
+			LOG_ERR("nrf_cloud_coap_json_message_send, error: %d", err);
+			send_request_failed();
 		}
+		break;
+	case CLOUD_POLL_SHADOW:
+		LOG_DBG("Poll shadow trigger received");
+		/* On shadow poll requests, we only poll for delta changes. This is because
+		 * we have gotten our entire desired section when polling the shadow
+		 * on an established connection.
+		 */
+		shadow_poll(SHADOW_POLL_DELTA);
+		break;
+	case CLOUD_PROVISIONING_REQUEST:
+		LOG_DBG("Provisioning request received");
+		smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONING]);
+		break;
+	default:
+		break;
+	}
+}
+
+static void state_connected_ready_run(void *obj)
+{
+	struct cloud_state_object const *state_object = obj;
+
+	if (state_object->chan == &PRIV_CLOUD_CHAN) {
+		handle_priv_cloud_message(state_object);
+		return;
+	}
+
+	if (state_object->chan == &NETWORK_CHAN) {
+		handle_network_message(state_object);
+		return;
+	}
+
+	if (state_object->chan == &STORAGE_CHAN) {
+		handle_storage_channel_message(state_object);
+		return;
+	}
+
+	if (state_object->chan == &STORAGE_DATA_CHAN) {
+		handle_storage_data_message(state_object);
+		return;
+	}
+
+	if (state_object->chan == &CLOUD_CHAN) {
+		handle_cloud_channel_message(state_object);
 	}
 }
 

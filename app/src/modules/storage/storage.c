@@ -136,6 +136,7 @@ struct pipe_session {
 	uint32_t session_id;
 	size_t total_items;
 	size_t items_sent;
+	bool more_data;
 };
 
 /* Storage module state object */
@@ -382,7 +383,8 @@ static void drain_pipe(void)
 /* Send batch response message with session_id and optional data_len */
 static void send_batch_response(enum storage_msg_type response_type,
 			       uint32_t session_id,
-			       size_t data_len)
+			       size_t data_len,
+			       bool more_data)
 {
 	int err;
 	struct storage_msg response_msg = { 0 };
@@ -390,6 +392,7 @@ static void send_batch_response(enum storage_msg_type response_type,
 	response_msg.type = response_type;
 	response_msg.session_id = session_id;
 	response_msg.data_len = (uint16_t)MIN(data_len, (size_t)UINT16_MAX);
+	response_msg.more_data = more_data;
 
 	err = zbus_chan_pub(&STORAGE_CHAN, &response_msg, K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
 	if (err) {
@@ -401,22 +404,22 @@ static void send_batch_response(enum storage_msg_type response_type,
 /* Convenience wrappers for batch responses */
 static void send_batch_busy_response(uint32_t session_id)
 {
-	send_batch_response(STORAGE_BATCH_BUSY, session_id, 0);
+	send_batch_response(STORAGE_BATCH_BUSY, session_id, 0, false);
 }
 
 static void send_batch_empty_response(uint32_t session_id)
 {
-	send_batch_response(STORAGE_BATCH_EMPTY, session_id, 0);
+	send_batch_response(STORAGE_BATCH_EMPTY, session_id, 0, false);
 }
 
 static void send_batch_error_response(uint32_t session_id)
 {
-	send_batch_response(STORAGE_BATCH_ERROR, session_id, 0);
+	send_batch_response(STORAGE_BATCH_ERROR, session_id, 0, false);
 }
 
-static void send_batch_available_response(uint32_t session_id, size_t item_count)
+static void send_batch_available_response(uint32_t session_id, size_t item_count, bool more_available)
 {
-	send_batch_response(STORAGE_BATCH_AVAILABLE, session_id, item_count);
+	send_batch_response(STORAGE_BATCH_AVAILABLE, session_id, item_count, more_available);
 }
 
 /* Send mode confirmation */
@@ -459,6 +462,8 @@ static int populate_pipe(struct storage_state *state_object)
 {
 	const struct storage_backend *backend = storage_backend_get();
 	size_t total_bytes_sent = 0;
+
+	state_object->current_session.more_data = false;
 
 	/* Populate pipe with all stored data */
 	STRUCT_SECTION_FOREACH(storage_data, type) {
@@ -509,6 +514,8 @@ static int populate_pipe(struct storage_state *state_object)
 			if (total_bytes_sent + total_size > CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE) {
 				/* Pipe buffer full - stop here without consuming data */
 				LOG_DBG("Pipe buffer full");
+
+				state_object->current_session.more_data = true;
 
 				break;
 			}
@@ -608,7 +615,8 @@ static int start_batch_session(struct storage_state *state_object,
 
 	/* Success - pipe populated (fully or partially) */
 	send_batch_available_response(request_msg->session_id,
-				      state_object->current_session.items_sent);
+				      state_object->current_session.items_sent,
+				      state_object->current_session.more_data);
 
 	LOG_DBG("Started batch session (session_id 0x%X), %zu items in batch (%zu total)",
 		state_object->current_session.session_id,
