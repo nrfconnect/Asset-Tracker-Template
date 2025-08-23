@@ -14,6 +14,21 @@ nRF Cloud over CoAP utilizes DTLS connection ID, which allows the device to quic
 
 The following sections cover the module’s main messages, configurations, and state machine. Refer to the source files (`cloud.c`, `cloud.h`, and `Kconfig.cloud`) for implementation details.
 
+### Integration with storage module
+
+The cloud module subscribes to `STORAGE_CHAN` and `STORAGE_DATA_CHAN` to support both buffered and passthrough data flows:
+
+- **Buffered flow (batch)**: The cloud module handles `STORAGE_BATCH_AVAILABLE`,
+  `STORAGE_BATCH_EMPTY`, `STORAGE_BATCH_BUSY`, and `STORAGE_BATCH_ERROR` on `STORAGE_CHAN` and
+  consumes batch items using `storage_batch_read()` until the batch is exhausted, then issues
+  `STORAGE_BATCH_CLOSE`.
+
+- **Passthrough/flush flow**: The cloud module receives `STORAGE_DATA` on `STORAGE_DATA_CHAN` and
+  forwards the contained data to nRF Cloud.
+
+The periodic request interval for buffered data can be configured with
+`CONFIG_APP_STORAGE_DATA_SEND_INTERVAL_SECONDS` in `Kconfig.main`.
+
 ## Messages
 
 The cloud module publishes and receives messages over the zbus channel `CLOUD_CHAN`. All module message types are defined in `cloud.h` and used within `cloud.c`.

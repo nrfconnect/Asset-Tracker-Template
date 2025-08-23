@@ -19,66 +19,9 @@
 #include "fota.h"
 #include "location.h"
 #include "led.h"
+#include "button.h"
+#include "storage.h"
 #include "checks.h"
-
-/* Define the channels for testing */
-ZBUS_CHAN_DEFINE(POWER_CHAN,
-		 struct power_msg,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-ZBUS_CHAN_DEFINE(BUTTON_CHAN,
-		 uint8_t,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-ZBUS_CHAN_DEFINE(NETWORK_CHAN,
-		 struct network_msg,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(.type = NETWORK_DISCONNECTED)
-);
-ZBUS_CHAN_DEFINE(CLOUD_CHAN,
-		 struct cloud_msg,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(.type = CLOUD_DISCONNECTED)
-);
-ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
-		 struct environmental_msg,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-ZBUS_CHAN_DEFINE(FOTA_CHAN,
-		 enum fota_msg_type,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-ZBUS_CHAN_DEFINE(LOCATION_CHAN,
-		 enum location_msg_type,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-ZBUS_CHAN_DEFINE(LED_CHAN,
-		 struct led_msg,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-
 
 DEFINE_FFF_GLOBALS;
 
@@ -91,7 +34,72 @@ FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
 FAKE_VOID_FUNC(date_time_register_handler, date_time_evt_handler_t);
 FAKE_VOID_FUNC(sys_reboot, int);
 
-LOG_MODULE_REGISTER(trigger_module_test, 4);
+LOG_MODULE_REGISTER(main_module_test, 1);
+
+/* Define the channels for testing */
+ZBUS_CHAN_DEFINE(POWER_CHAN,
+	struct power_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(0)
+);
+ZBUS_CHAN_DEFINE(BUTTON_CHAN,
+	struct button_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(0)
+);
+ZBUS_CHAN_DEFINE(NETWORK_CHAN,
+	struct network_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(.type = NETWORK_DISCONNECTED)
+);
+ZBUS_CHAN_DEFINE(CLOUD_CHAN,
+	struct cloud_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(.type = CLOUD_DISCONNECTED)
+);
+ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
+	struct environmental_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(0)
+);
+ZBUS_CHAN_DEFINE(FOTA_CHAN,
+	enum fota_msg_type,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(0)
+);
+ZBUS_CHAN_DEFINE(LOCATION_CHAN,
+	struct location_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(0)
+);
+ZBUS_CHAN_DEFINE(LED_CHAN,
+	struct led_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(0)
+);
+ZBUS_CHAN_DEFINE(STORAGE_CHAN,
+	struct storage_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(0)
+);
 
 void setUp(void)
 {
@@ -109,15 +117,18 @@ void setUp(void)
 static void button_handler(uint32_t button_states, uint32_t has_changed)
 {
 	int err;
-	uint8_t button_number = 1;
+	struct button_msg button_msg = {
+		.type = BUTTON_PRESS_LONG,
+		.button_number = 1
+	};
 
 	if (has_changed & button_states & DK_BTN1_MSK) {
 		LOG_DBG("Button 1 pressed!");
 
-		err = zbus_chan_pub(&BUTTON_CHAN, &button_number, K_SECONDS(1));
+		err = zbus_chan_pub(&BUTTON_CHAN, &button_msg, K_SECONDS(1));
 		if (err) {
 			LOG_ERR("zbus_chan_pub, error: %d", err);
-			SEND_FATAL_ERROR();
+			TEST_FAIL();
 			return;
 		}
 	}
@@ -136,7 +147,9 @@ static void send_cloud_connected(void)
 
 static void send_location_search_done(void)
 {
-	enum location_msg_type msg = LOCATION_SEARCH_DONE;
+	struct location_msg msg = {
+		.type = LOCATION_SEARCH_DONE,
+	};
 
 	int err = zbus_chan_pub(&LOCATION_CHAN, &msg, K_SECONDS(1));
 
@@ -198,48 +211,71 @@ static void send_network_disconnected(void)
 
 	TEST_ASSERT_EQUAL(0, err);
 }
-
-void test_init_to_triggering_state(void)
+static void send_storage_mode_request(enum storage_msg_type mode_type)
 {
-	/* Transition the module into STATE_TRIGGERING */
+	struct storage_msg storage_msg = {
+		.type = mode_type,
+	};
+	int err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+static void send_button_press(enum button_msg_type button_type)
+{
+	struct button_msg button_msg = {
+		.type = button_type,
+		.button_number = 1
+	};
+	int err = zbus_chan_pub(&BUTTON_CHAN, &button_msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+void test_init_to_sample_data_state(void)
+{
+	/* Give the app_main thread time to start and initialize */
+	k_sleep(K_MSEC(500));
+
+	/* The module starts in passthrough mode by default in test config */
+	/* Connect to cloud to trigger sampling */
 	send_cloud_connected();
 
-	/* There's an initial transition to STATE_SAMPLE_DATA, where the entry function
-	 * sends a location search trigger.
-	 */
+	/* Should immediately trigger location search in passthrough mode */
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
 	/* Complete location search */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
 
-	/* FOTA and other sensors are now polled */
-	expect_fota_event(FOTA_POLL_REQUEST);
+	k_sleep(K_SECONDS(1));
+
+	/* In passthrough mode, sensor triggers and cloud polling happen immediately */
 	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	expect_fota_event(FOTA_POLL_REQUEST);
 
 	/* Cleanup */
 	send_cloud_disconnected();
-	expect_location_event(LOCATION_SEARCH_CANCEL);
-	expect_no_events(7200);
+	expect_no_events(1);
 }
 
 void test_button_press_on_connected(void)
 {
-	/* Transition to STATE_SAMPLE_DATA */
+	/* Connect to cloud first */
 	send_cloud_connected();
+
+	/* Initial transition to STATE_SAMPLE_DATA */
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
-	/* Transistion to STATE_WAIT_FOR_TRIGGER */
+	/* Transition to STATE_WAIT_FOR_TRIGGER */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
-	/* Transition back to STATE_SAMPLE_DATA */
+	/* Long button press should trigger poll and data send */
 	button_handler(DK_BTN1_MSK, DK_BTN1_MSK);
-	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
 	/* Cleanup */
 	send_cloud_disconnected();
@@ -261,116 +297,20 @@ void test_button_press_on_disconnected(void)
 	expect_no_events(7200);
 }
 
-void test_trigger_interval_change_in_connected(void)
+void test_fota_downloading(void)
 {
-	/* Transition to STATE_SAMPLE_DATA */
+	/* Ensure cloud is connected */
 	send_cloud_connected();
+	expect_cloud_event(CLOUD_CONNECTED);
+
+	/* A location search trigger should be sent */
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
-	/* As response to the shadow poll, the interval is set to 12 hours. */
-	twelve_hour_interval_set();
-
-	/* Transition to STATE_TRIGGER_WAIT where shadow is polled. */
-	send_location_search_done();
-	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_fota_event(FOTA_POLL_REQUEST);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
-
-	/* Wait for the interval to alomost expire and ensure no events are triggered in
-	 * that time. Repeat this 10 times.
-	 */
-	for (int i = 0; i < 10; i++) {
-		int elapsed_time;
-
-		elapsed_time = wait_for_location_event(LOCATION_SEARCH_TRIGGER,
-						       HOUR_IN_SECONDS * 12);
-		TEST_ASSERT_INT_WITHIN(1, HOUR_IN_SECONDS * 12, elapsed_time);
-
-		send_location_search_done();
-		expect_location_event(LOCATION_SEARCH_DONE);
-		expect_fota_event(FOTA_POLL_REQUEST);
-		expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-		expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
-	}
-
-	/* Cleanup */
-	send_cloud_disconnected();
-	expect_location_event(LOCATION_SEARCH_CANCEL);
-	expect_no_events(WEEK_IN_SECONDS);
-}
-
-void test_trigger_disconnect_and_connect_when_triggering(void)
-{
-	bool first_trigger_after_connect = true;
-
-	/* Transition to STATE_SAMPLE_DATA */
-	send_cloud_connected();
-
-	/* As response to the shadow poll, the interval is set to 12 hours. */
-	twelve_hour_interval_set();
-
-	/* Wait for the interval to alomost expire and ensure no events are triggered in
-	 * that time. Repeat this 10 times. Every second iteration, disconnect and connect.
-	 */
-	for (int i = 0; i < 10; i++) {
-		int elapsed_time;
-		uint32_t timeout = first_trigger_after_connect ? 1 : HOUR_IN_SECONDS * 12;
-
-		elapsed_time = wait_for_location_event(LOCATION_SEARCH_TRIGGER,
-						       HOUR_IN_SECONDS * 12);
-		TEST_ASSERT_INT_WITHIN(1, timeout, elapsed_time);
-
-		send_location_search_done();
-		expect_location_event(LOCATION_SEARCH_DONE);
-		expect_fota_event(FOTA_POLL_REQUEST);
-		expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
-		expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
-
-		first_trigger_after_connect = false;
-
-		/* Disconnect and connect every second iteration */
-		if (i % 2 == 0) {
-			send_cloud_disconnected();
-			expect_location_event(LOCATION_SEARCH_CANCEL);
-			expect_no_events(7200);
-			send_cloud_connected();
-
-			first_trigger_after_connect = true;
-		}
-	}
-
-	/* Cleanup */
-	send_cloud_disconnected();
-	expect_location_event(LOCATION_SEARCH_CANCEL);
-	expect_no_events(WEEK_IN_SECONDS);
-}
-
-void test_fota_downloading_cancel_to_state_idle(void)
-{
 	/* Transition to STATE_FOTA_DOWNLOADING */
 	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
 	expect_fota_event(FOTA_DOWNLOADING_UPDATE);
 
-	/* A cloud ready message and button trigger should now cause no action */
-	send_cloud_connected();
-	expect_no_events(7200);
-	button_handler(DK_BTN1_MSK, DK_BTN1_MSK);
-	expect_no_events(7200);
-
-	/* Cleanup */
-	send_cloud_disconnected();
-	send_fota_msg(FOTA_DOWNLOAD_CANCELED);
-	expect_fota_event(FOTA_DOWNLOAD_CANCELED);
-
-	expect_no_events(7200);
-}
-
-void test_fota_downloading_cancel_to_state_triggering(void)
-{
-	/* Transition to STATE_FOTA_DOWNLOADING */
-	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
-	expect_fota_event(FOTA_DOWNLOADING_UPDATE);
+	k_sleep(K_SECONDS(1));
 
 	/* A cloud ready message and button trigger should now cause no action */
 	send_cloud_connected();
@@ -385,7 +325,6 @@ void test_fota_downloading_cancel_to_state_triggering(void)
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
 	send_location_search_done();
-	expect_location_event(LOCATION_SEARCH_TRIGGER);
 	expect_location_event(LOCATION_SEARCH_DONE);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
@@ -393,12 +332,17 @@ void test_fota_downloading_cancel_to_state_triggering(void)
 
 	/* Cleanup */
 	send_cloud_disconnected();
-	expect_location_event(LOCATION_SEARCH_CANCEL);
-	expect_no_events(7200);
 }
 
 void test_fota_waiting_for_network_disconnect(void)
 {
+	/* Ensure cloud is connected */
+	send_cloud_connected();
+	expect_cloud_event(CLOUD_CONNECTED);
+
+	/* A location search trigger should be sent */
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
 	/* Transition to STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT */
 	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
 	expect_fota_event(FOTA_DOWNLOADING_UPDATE);
@@ -413,6 +357,8 @@ void test_fota_waiting_for_network_disconnect(void)
 	/* Send a NETWORK_DISCONNECTED event to trigger transition to STATE_FOTA_REBOOTING */
 	send_network_disconnected();
 	expect_network_event(NETWORK_DISCONNECTED);
+	send_cloud_disconnected();
+	expect_cloud_event(CLOUD_DISCONNECTED);
 
 	/* Give the system time to reboot */
 	k_sleep(K_SECONDS(10));
@@ -459,7 +405,443 @@ void test_fota_waiting_for_network_disconnect_to_apply_image(void)
 	send_fota_msg(FOTA_DOWNLOAD_CANCELED);
 	expect_fota_event(FOTA_DOWNLOAD_CANCELED);
 
-	expect_no_events(7200);
+	expect_no_events(1);
+}
+
+/* Passthrough Mode Tests */
+void test_passthrough_mode_initialization(void)
+{
+	/* Give the app_main thread time to start and initialize */
+	k_sleep(K_MSEC(500));
+
+	/* App starts in passthrough mode by default in test config */
+	/* Connect to cloud to trigger sampling */
+	send_cloud_connected();
+
+	/* Should immediately trigger location search in passthrough mode */
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Complete location search */
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+
+	/* In passthrough mode, sensor triggers and cloud polling happen immediately */
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	expect_fota_event(FOTA_POLL_REQUEST);
+
+	/* Cleanup */
+	send_cloud_disconnected();
+	expect_no_events(1);
+}
+
+void test_passthrough_sampling_and_immediate_send(void)
+{
+	/* App starts in passthrough mode by default */
+	/* Connect to cloud */
+	send_cloud_connected();
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Complete sampling */
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+
+	/* Verify immediate sensor sampling and cloud polling */
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	expect_fota_event(FOTA_POLL_REQUEST);
+
+	/* Wait for next sample interval and verify automatic triggering */
+	k_sleep(K_SECONDS(CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS));
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Cleanup */
+	send_cloud_disconnected();
+	expect_no_events(1);
+}
+
+void test_passthrough_disconnected_behavior(void)
+{
+	/* App starts in passthrough mode, ensure we're disconnected */
+	send_cloud_disconnected();
+
+	/* In passthrough disconnected mode, no sampling should occur */
+	k_sleep(K_SECONDS(5));
+	expect_no_events(1);
+
+	/* Button presses should be ignored when disconnected */
+	send_button_press(BUTTON_PRESS_SHORT);
+	k_sleep(K_SECONDS(2));
+	expect_no_events(1);
+
+	/* Reconnect should trigger immediate sampling */
+	send_cloud_connected();
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Cleanup */
+	send_cloud_disconnected();
+	expect_no_events(1);
+}
+
+void test_passthrough_button_interactions(void)
+{
+	/* App starts in passthrough mode, connect */
+	send_cloud_connected();
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Complete initial sampling */
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	expect_fota_event(FOTA_POLL_REQUEST);
+
+	/* Short button press should trigger immediate sampling */
+	send_button_press(BUTTON_PRESS_SHORT);
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Complete sampling */
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	expect_fota_event(FOTA_POLL_REQUEST);
+
+	/* Long button press should trigger immediate cloud poll */
+	send_button_press(BUTTON_PRESS_LONG);
+	expect_fota_event(FOTA_POLL_REQUEST);
+
+	/* Cleanup */
+	send_cloud_disconnected();
+	expect_no_events(1);
+}
+
+/* Storage Mode Switching Tests */
+void test_storage_mode_request_handling(void)
+{
+	int err;
+	struct storage_msg storage_msg = {
+		.type = STORAGE_MODE_BUFFER,
+	};
+
+	/* Test that main module can handle storage mode requests */
+	send_storage_mode_request(STORAGE_MODE_BUFFER_REQUEST);
+	expect_storage_event(STORAGE_MODE_BUFFER_REQUEST);
+
+	/* Simulate storage module confirming the mode change */
+	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	expect_storage_event(STORAGE_MODE_BUFFER);
+
+	/* Give time for state transition */
+	k_sleep(K_MSEC(500));
+
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Now test normal operation in buffer mode */
+	send_cloud_connected();
+
+	/* Complete sampling */
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+	/* Put the module back into passthrough mode */
+	send_storage_mode_request(STORAGE_MODE_PASSTHROUGH_REQUEST);
+	expect_storage_event(STORAGE_MODE_PASSTHROUGH_REQUEST);
+
+	/* Simulate storage module confirming the mode change to passthrough */
+	storage_msg.type = STORAGE_MODE_PASSTHROUGH;
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	expect_storage_event(STORAGE_MODE_PASSTHROUGH);
+
+	/* Cleanup */
+	send_cloud_disconnected();
+	expect_no_events(1);
+}
+
+void test_cloud_timer_in_buffer_mode(void)
+{
+	int err;
+	struct storage_msg storage_msg = {
+		.type = STORAGE_MODE_BUFFER,
+	};
+
+	/* Switch to buffer mode first */
+	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	expect_storage_event(STORAGE_MODE_BUFFER);
+
+	/* Expect a location search trigger when entering buffer mode */
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Connect and complete initial sampling */
+	send_cloud_connected();
+	expect_cloud_event(CLOUD_CONNECTED);
+
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+	/* After CONFIG_APP_STORAGE_DATA_SEND_INTERVAL_SECONDS, the module should trigger a
+	 * storage batch request, cloud polling and FOTA poll.
+	 */
+	k_sleep(K_SECONDS(CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS));
+
+	expect_storage_event(STORAGE_BATCH_REQUEST);
+	expect_cloud_event(CLOUD_POLL_SHADOW);
+	expect_fota_event(FOTA_POLL_REQUEST);
+
+	/* Cleanup */
+	send_cloud_disconnected();
+}
+
+void test_timer_cancellation_during_fota(void)
+{
+	int err;
+	struct storage_msg storage_msg = {
+		.type = STORAGE_MODE_BUFFER,
+	};
+
+	/* Switch to buffer mode first */
+	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	expect_storage_event(STORAGE_MODE_BUFFER);
+
+	/* Start normal operation */
+	send_cloud_connected();
+
+	/* We would have received cloud and location events, but they should be ignored in this
+	 * test.
+	 */
+	purge_cloud_events();
+	purge_location_events();
+
+	/* Trigger FOTA */
+	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
+	expect_fota_event(FOTA_DOWNLOADING_UPDATE);
+
+	/* During FOTA, no timer-based events should occur - verify by waiting multiple
+	 * intervals.
+	 */
+	expect_no_events(CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS * 5);
+
+	/* Cancel FOTA and return to normal operation */
+	send_fota_msg(FOTA_DOWNLOAD_CANCELED);
+	expect_fota_event(FOTA_DOWNLOAD_CANCELED);
+
+	/* Should resume normal timer-based operation */
+	k_sleep(K_SECONDS(CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS));
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Cleanup */
+	send_cloud_disconnected();
+}
+
+void test_multiple_cloud_data_send_intervals(void)
+{
+	int err;
+	struct storage_msg storage_msg = {
+		.type = STORAGE_MODE_BUFFER,
+	};
+
+	/* Switch to buffer mode to enable cloud data sending timer */
+	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	expect_storage_event(STORAGE_MODE_BUFFER);
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Connect and complete initial sampling */
+	send_cloud_connected();
+	expect_cloud_event(CLOUD_CONNECTED);
+
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+	/* After CONFIG_APP_STORAGE_DATA_SEND_INTERVAL_SECONDS, the module should trigger a
+	 * storage batch request, cloud polling and FOTA poll.
+	 */
+	 k_sleep(K_SECONDS(CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS));
+	 expect_storage_event(STORAGE_BATCH_REQUEST);
+	 expect_cloud_event(CLOUD_POLL_SHADOW);
+	 expect_fota_event(FOTA_POLL_REQUEST);
+
+	/* Test multiple cloud data send intervals to verify timer restarts correctly */
+	for (int i = 0; i < 3; i++) {
+		/* Wait for cloud timer to expire */
+		k_sleep(K_SECONDS(CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS + 10));
+
+		/* Should trigger storage batch request and cloud polling */
+		expect_storage_event(STORAGE_BATCH_REQUEST);
+		expect_cloud_event(CLOUD_POLL_SHADOW);
+		expect_fota_event(FOTA_POLL_REQUEST);
+
+		/* Longer delay between iterations to avoid queue overflow */
+		k_sleep(K_MSEC(500));
+	}
+
+	/* Cleanup */
+	send_cloud_disconnected();
+}
+
+void test_cloud_data_send_with_sampling_interleaved(void)
+{
+	int err;
+	struct storage_msg storage_msg = {
+		.type = STORAGE_MODE_BUFFER,
+	};
+
+	/* Switch to buffer mode */
+	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	expect_storage_event(STORAGE_MODE_BUFFER);
+
+	/* Connect and complete initial sampling */
+	send_cloud_connected();
+	expect_cloud_event(CLOUD_CONNECTED);
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+	/* After CONFIG_APP_STORAGE_DATA_SEND_INTERVAL_SECONDS, the module should trigger a
+	 * storage batch request, cloud polling and FOTA poll.
+	 */
+	 k_sleep(K_SECONDS(CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS));
+	 expect_storage_event(STORAGE_BATCH_REQUEST);
+	 expect_cloud_event(CLOUD_POLL_SHADOW);
+	 expect_fota_event(FOTA_POLL_REQUEST);
+
+	/* Test interleaved sampling and cloud data sending.
+	 * To trigger immediate sending of data, we use a long button press.
+	 */
+	for (int i = 0; i < 2; i++) {
+		/* Wait for sampling timer */
+		k_sleep(K_SECONDS(CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS));
+		expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+		/* Complete sampling */
+		send_location_search_done();
+		expect_location_event(LOCATION_SEARCH_DONE);
+		expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+		expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+		send_button_press(BUTTON_PRESS_LONG);
+		expect_storage_event(STORAGE_BATCH_REQUEST);
+		expect_cloud_event(CLOUD_POLL_SHADOW);
+		expect_fota_event(FOTA_POLL_REQUEST);
+	}
+
+	/* Cleanup */
+	send_cloud_disconnected();
+}
+
+void test_trigger_interval_change_in_connected(void)
+{
+	int err;
+	struct storage_msg storage_msg = {
+		.type = STORAGE_MODE_PASSTHROUGH
+	};
+
+	/* Ensure passthrough mode */
+	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	expect_storage_event(STORAGE_MODE_PASSTHROUGH);
+
+	/* Connect to cloud */
+	send_cloud_connected();
+
+	/* Initial transition to passthrough mode triggers a sample */
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	expect_fota_event(FOTA_POLL_REQUEST);
+
+	/* As response to the shadow poll, the interval is set to 12 hours. */
+	twelve_hour_interval_set();
+
+	/* Wait for the interval to almost expire and ensure no events are triggered in
+	 * that time. Repeat this 10 times.
+	 */
+	for (int i = 0; i < 10; i++) {
+		int elapsed_time;
+
+		elapsed_time = wait_for_location_event(LOCATION_SEARCH_TRIGGER,
+						       HOUR_IN_SECONDS * 12 + 1);
+		TEST_ASSERT_INT_WITHIN(1, HOUR_IN_SECONDS * 12, elapsed_time);
+
+		send_location_search_done();
+		expect_location_event(LOCATION_SEARCH_DONE);
+		expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+		expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+		expect_fota_event(FOTA_POLL_REQUEST);
+	}
+
+	/* Cleanup */
+	send_cloud_disconnected();
+	expect_no_events(WEEK_IN_SECONDS);
+}
+
+void test_trigger_disconnect_and_connect_when_sampling(void)
+{
+	bool first_trigger_after_connect = true;
+
+	/* Connect to cloud */
+	send_cloud_connected();
+
+	/* As response to the shadow poll, the interval is set to 12 hours. */
+	twelve_hour_interval_set();
+
+	/* Wait for the interval to almost expire and ensure no events are triggered in
+	 * that time. Repeat this 10 times. Every second iteration, disconnect and connect.
+	 */
+	for (int i = 0; i < 10; i++) {
+		int elapsed_time;
+		uint32_t timeout = first_trigger_after_connect ? 1 : HOUR_IN_SECONDS * 12;
+
+		elapsed_time = wait_for_location_event(LOCATION_SEARCH_TRIGGER,
+						       HOUR_IN_SECONDS * 12);
+		TEST_ASSERT_INT_WITHIN(1, timeout, elapsed_time);
+
+		send_location_search_done();
+		expect_location_event(LOCATION_SEARCH_DONE);
+		expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+		expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+		expect_fota_event(FOTA_POLL_REQUEST);
+
+		first_trigger_after_connect = false;
+
+		/* Disconnect and connect every second iteration */
+		if (i % 2 == 0) {
+			send_cloud_disconnected();
+			expect_no_events(7200);
+			send_cloud_connected();
+
+			first_trigger_after_connect = true;
+		}
+	}
+
+	/* Cleanup */
+	send_cloud_disconnected();
+	expect_no_events(WEEK_IN_SECONDS);
 }
 
 /* This is required to be added to each test. That is because unity's

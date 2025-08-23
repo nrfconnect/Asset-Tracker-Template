@@ -35,6 +35,7 @@ zephyr_include_directories(../../../app/src/modules/environmental)
 zephyr_include_directories(../../../app/src/modules/fota)
 zephyr_include_directories(../../../app/src/modules/location)
 zephyr_include_directories(../../../app/src/modules/led)
+zephyr_include_directories(../../../app/src/modules/storage)
 zephyr_include_directories(${ZEPHYR_BASE}/../nrfxlib/nrf_modem/include)
 
 target_link_options(app PRIVATE --whole-archive)
@@ -46,12 +47,13 @@ set_property(SOURCE ${ASSET_TRACKER_TEMPLATE_DIR}/app/src/main.c PROPERTY COMPIL
 
 # Options that cannot be passed through Kconfig fragments
 target_compile_definitions(app PRIVATE
-	-DCONFIG_APP_LOG_LEVEL=4
+	-DCONFIG_APP_LOG_LEVEL=1
 	-DCONFIG_APP_MSG_PROCESSING_TIMEOUT_SECONDS=120
 	-DCONFIG_APP_WATCHDOG_TIMEOUT_SECONDS=180
 	-DCONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE=100
 	-DCONFIG_APP_CLOUD_SHADOW_RESPONSE_BUFFER_MAX_SIZE=512
-	-DCONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS=600
+	-DCONFIG_APP_SENSOR_SAMPLING_INTERVAL_SECONDS=600
+	-DCONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS=3600
 	-DCONFIG_APP_CLOUD_LOG_LEVEL=0
 	-DCONFIG_APP_CLOUD_THREAD_STACK_SIZE=2048
 	-DCONFIG_APP_CLOUD_MESSAGE_QUEUE_SIZE=5
@@ -72,6 +74,7 @@ target_compile_definitions(app PRIVATE
 	-DCONFIG_LOCATION_METHOD_WIFI=1
 	-DCONFIG_LOCATION_METHODS_LIST_SIZE=3
 	-DCONFIG_NRF_CLOUD_AGNSS=y
+	-DCONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH=1
 )
 
 # CONSIDER: REUSING THE CODEC GENERATION LOGIC FROM THE MAIN APP
