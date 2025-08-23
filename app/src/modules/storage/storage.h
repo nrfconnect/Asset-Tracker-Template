@@ -145,11 +145,18 @@ struct storage_msg {
 		enum storage_reject_reason reject_reason;
 	};
 
-	/* Length/count field used by various message types (fixed-width for IPC stability):
+	/* Length/count field used by various message types:
 	 * - STORAGE_BATCH_AVAILABLE: number of items available in batch
 	 * - STORAGE_DATA: size of flushed data
 	 */
-	uint16_t data_len;
+	uint32_t data_len: 31;
+
+	/* Indicates if there is more data to be read from the batch.
+	 * Valid only for STORAGE_BATCH_AVAILABLE messages.
+	 * This is used by the batch reader to determine if it should continue reading after
+	 * the current batch has been read.
+	 */
+	bool more_data: 1;
 };
 
 /**

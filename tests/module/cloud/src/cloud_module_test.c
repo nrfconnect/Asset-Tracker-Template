@@ -11,6 +11,7 @@
 
 #include <unity.h>
 #include <zephyr/fff.h>
+#include <zephyr/kernel.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/net/coap.h>
 #include <zephyr/net/coap_client.h>
@@ -22,6 +23,8 @@
 #include "power.h"
 #include "network.h"
 #include "location.h"
+#include "storage.h"
+#include "storage_data_types.h"
 #include "app_common.h"
 
 DEFINE_FFF_GLOBALS;
@@ -57,6 +60,23 @@ ZBUS_CHAN_DEFINE(LOCATION_CHAN,
 		 ZBUS_MSG_INIT(0)
 );
 
+/* Define storage channels used by the cloud module */
+ZBUS_CHAN_DEFINE(STORAGE_CHAN,
+		 struct storage_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(.type = STORAGE_MODE_PASSTHROUGH)
+);
+
+ZBUS_CHAN_DEFINE(STORAGE_DATA_CHAN,
+		 struct storage_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(.type = STORAGE_DATA)
+);
+
 FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
 FAKE_VALUE_FUNC(int, nrf_cloud_client_id_get, char *, size_t);
@@ -85,6 +105,7 @@ FAKE_VOID_FUNC(location_cloud_location_ext_result_set, enum location_ext_result,
 FAKE_VALUE_FUNC(int, location_agnss_data_process, const char *, size_t);
 FAKE_VALUE_FUNC(int, nrf_provisioning_init, nrf_provisioning_event_cb_t);
 FAKE_VALUE_FUNC(int, nrf_provisioning_trigger_manually);
+FAKE_VALUE_FUNC(int, storage_batch_read, struct storage_data_item *, k_timeout_t);
 
 /* Forward declarations */
 static void dummy_cb(const struct zbus_channel *chan);
@@ -147,11 +168,13 @@ void setUp(void)
 	RESET_FAKE(date_time_now);
 	RESET_FAKE(nrf_provisioning_init);
 	RESET_FAKE(nrf_provisioning_trigger_manually);
+	RESET_FAKE(storage_batch_read);
 
 	nrf_cloud_client_id_get_fake.custom_fake = nrf_cloud_client_id_get_custom_fake;
 
 	/* Set default return values */
 	nrf_cloud_coap_location_send_fake.return_val = 0;
+	storage_batch_read_fake.return_val = -EAGAIN;
 
 	/* Clear all channels */
 	zbus_sub_wait(&location, &chan, K_NO_WAIT);
@@ -301,12 +324,15 @@ void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-/* Test GNSS location data handling */
+/* Test GNSS location data handling via storage module in passthrough mode */
 void test_gnss_location_data_handling(void)
 {
 	int err;
 	struct network_msg network_msg = {
 		.type = NETWORK_CONNECTED
+	};
+	struct storage_msg passthrough_msg = {
+		.type = STORAGE_MODE_PASSTHROUGH
 	};
 	struct location_data mock_location = {
 		.latitude = 63.421,
@@ -325,15 +351,28 @@ void test_gnss_location_data_handling(void)
 		.type = LOCATION_GNSS_DATA,
 		.gnss_data = mock_location
 	};
+	struct storage_msg storage_data_msg = {
+		.type = STORAGE_DATA,
+		.data_type = STORAGE_TYPE_LOCATION,
+		.data_len = sizeof(struct location_msg)
+	};
+
+	/* Copy location message into storage message buffer */
+	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
 
 	/* Connect to cloud */
 	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
 
 	err = k_sem_take(&cloud_connected, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
+	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
 
-	/* Send GNSS location data */
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_NO_WAIT);
+	/* Give the module time to process mode change */
+	k_sleep(K_MSEC(10));
+
+	/* Send GNSS location data via storage data channel (passthrough mode) */
+	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Give the module time to process */

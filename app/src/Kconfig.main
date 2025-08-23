@@ -12,6 +12,13 @@ config APP_MODULE_TRIGGER_TIMEOUT_SECONDS
 	  Timeout for the trigger timer. On timeout, the module will send triggers for
 	  sensor sampling, location search and polling of shadow and FOTA status from cloud.
 
+config APP_STORAGE_DATA_SEND_INTERVAL_SECONDS
+	int "Data sending interval"
+	default 3600
+	help
+	  Interval for requesting data from the storage module to be sent.
+	  The interval only applies if the storage module is in buffer mode.
+
 config APP_REQUEST_NETWORK_QUALITY
 	bool "Request network quality"
 	help
