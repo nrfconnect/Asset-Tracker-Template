@@ -21,6 +21,8 @@
 #include "power.h"
 #include "network.h"
 #include "location.h"
+#include "storage.h"
+#include "storage_data_types.h"
 #include "app_common.h"
 
 DEFINE_FFF_GLOBALS;
@@ -296,12 +298,15 @@ void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-/* Test GNSS location data handling */
+/* Test GNSS location data handling via storage module in passthrough mode */
 void test_gnss_location_data_handling(void)
 {
 	int err;
 	struct network_msg network_msg = {
 		.type = NETWORK_CONNECTED
+	};
+	struct storage_msg passthrough_msg = {
+		.type = STORAGE_MODE_PASSTHROUGH
 	};
 	struct location_data mock_location = {
 		.latitude = 63.421,
@@ -320,15 +325,28 @@ void test_gnss_location_data_handling(void)
 		.type = LOCATION_GNSS_DATA,
 		.gnss_data = mock_location
 	};
+	struct storage_msg storage_data_msg = {
+		.type = STORAGE_DATA,
+		.data_type = STORAGE_TYPE_LOCATION,
+		.data_len = sizeof(struct location_msg)
+	};
+
+	/* Copy location message into storage message buffer */
+	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
 
 	/* Connect to cloud */
 	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
 
 	err = k_sem_take(&cloud_connected, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
+	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
 
-	/* Send GNSS location data */
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_NO_WAIT);
+	/* Give the module time to process mode change */
+	k_sleep(K_MSEC(10));
+
+	/* Send GNSS location data via storage data channel (passthrough mode) */
+	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Give the module time to process */

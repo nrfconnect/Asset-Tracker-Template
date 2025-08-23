@@ -14,6 +14,7 @@ test_runner_generate(src/cloud_module_test.c)
 target_sources(app
   PRIVATE
   src/cloud_module_test.c
+  src/storage_mock.c
   ../../../app/src/modules/cloud/cloud.c
 )
 
@@ -26,6 +27,7 @@ zephyr_include_directories(../../../app/src/modules/power)
 zephyr_include_directories(../../../app/src/modules/network)
 zephyr_include_directories(../../../app/src/modules/environmental)
 zephyr_include_directories(../../../app/src/modules/location)
+zephyr_include_directories(../../../app/src/modules/storage)
 zephyr_include_directories(${NRF_DIR}/subsys/net/lib/nrf_cloud/include)
 zephyr_include_directories(${NRF_DIR}/subsys/net/lib/nrf_cloud/coap/include)
 zephyr_include_directories(${NRF_DIR}/../modules/lib/cjson)

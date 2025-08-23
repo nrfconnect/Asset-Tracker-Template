@@ -15,6 +15,7 @@ rsource "src/modules/led/Kconfig.led"
 rsource "src/modules/fota/Kconfig.fota"
 rsource "src/modules/environmental/Kconfig.environmental"
 rsource "src/modules/button/Kconfig.button"
+rsource "src/modules/storage/Kconfig.storage"
 
 endmenu
 
