@@ -19,66 +19,9 @@
 #include "fota.h"
 #include "location.h"
 #include "led.h"
+#include "button.h"
+#include "storage.h"
 #include "checks.h"
-
-/* Define the channels for testing */
-ZBUS_CHAN_DEFINE(POWER_CHAN,
-		 struct power_msg,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-ZBUS_CHAN_DEFINE(BUTTON_CHAN,
-		 uint8_t,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-ZBUS_CHAN_DEFINE(NETWORK_CHAN,
-		 struct network_msg,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(.type = NETWORK_DISCONNECTED)
-);
-ZBUS_CHAN_DEFINE(CLOUD_CHAN,
-		 struct cloud_msg,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(.type = CLOUD_DISCONNECTED)
-);
-ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
-		 struct environmental_msg,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-ZBUS_CHAN_DEFINE(FOTA_CHAN,
-		 enum fota_msg_type,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-ZBUS_CHAN_DEFINE(LOCATION_CHAN,
-		 enum location_msg_type,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-ZBUS_CHAN_DEFINE(LED_CHAN,
-		 struct led_msg,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-
 
 DEFINE_FFF_GLOBALS;
 
@@ -92,6 +35,81 @@ FAKE_VOID_FUNC(date_time_register_handler, date_time_evt_handler_t);
 FAKE_VOID_FUNC(sys_reboot, int);
 
 LOG_MODULE_REGISTER(trigger_module_test, 4);
+
+/* Define the channels for testing */
+ZBUS_CHAN_DEFINE(POWER_CHAN,
+	struct power_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(0)
+);
+ZBUS_CHAN_DEFINE(BUTTON_CHAN,
+	struct button_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(0)
+);
+ZBUS_CHAN_DEFINE(NETWORK_CHAN,
+	struct network_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(.type = NETWORK_DISCONNECTED)
+);
+ZBUS_CHAN_DEFINE(CLOUD_CHAN,
+	struct cloud_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(.type = CLOUD_DISCONNECTED)
+);
+ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
+	struct environmental_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(0)
+);
+ZBUS_CHAN_DEFINE(FOTA_CHAN,
+	enum fota_msg_type,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(0)
+);
+ZBUS_CHAN_DEFINE(LOCATION_CHAN,
+	struct location_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(0)
+);
+ZBUS_CHAN_DEFINE(LED_CHAN,
+	struct led_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(0)
+);
+ZBUS_CHAN_DEFINE(STORAGE_CHAN,
+	struct storage_msg,
+	NULL,
+	NULL,
+	ZBUS_OBSERVERS_EMPTY,
+	ZBUS_MSG_INIT(0)
+);
+
+/* Defined in app/src/main.c */
+
+/* Timer message types */
+enum timer_msg_type {
+	TIMER_EXPIRED_SAMPLE_DATA,
+	TIMER_EXPIRED_CLOUD,
+};
+
+extern const struct zbus_channel TIMER_CHAN;
 
 void setUp(void)
 {
@@ -109,12 +127,15 @@ void setUp(void)
 static void button_handler(uint32_t button_states, uint32_t has_changed)
 {
 	int err;
-	uint8_t button_number = 1;
+	struct button_msg button_msg = {
+		.type = BUTTON_PRESS_LONG,
+		.button_number = 1
+	};
 
 	if (has_changed & button_states & DK_BTN1_MSK) {
 		LOG_DBG("Button 1 pressed!");
 
-		err = zbus_chan_pub(&BUTTON_CHAN, &button_number, K_SECONDS(1));
+		err = zbus_chan_pub(&BUTTON_CHAN, &button_msg, K_SECONDS(1));
 		if (err) {
 			LOG_ERR("zbus_chan_pub, error: %d", err);
 			SEND_FATAL_ERROR();
@@ -136,7 +157,9 @@ static void send_cloud_connected(void)
 
 static void send_location_search_done(void)
 {
-	enum location_msg_type msg = LOCATION_SEARCH_DONE;
+	struct location_msg msg = {
+		.type = LOCATION_SEARCH_DONE,
+	};
 
 	int err = zbus_chan_pub(&LOCATION_CHAN, &msg, K_SECONDS(1));
 
@@ -199,24 +222,27 @@ static void send_network_disconnected(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-void test_init_to_triggering_state(void)
+void test_init_to_sample_data_state(void)
 {
-	/* Transition the module into STATE_TRIGGERING */
+	/* Give the app_main thread time to start and initialize */
+	k_sleep(K_MSEC(500));
+
+	/* The module starts in STATE_RUNNING and transitions to STATE_SAMPLE_DATA */
 	send_cloud_connected();
 
-	/* There's an initial transition to STATE_SAMPLE_DATA, where the entry function
-	 * sends a location search trigger.
-	 */
+	/* The entry function sends a location search trigger */
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
 	/* Complete location search */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
 
-	/* FOTA and other sensors are now polled */
-	expect_fota_event(FOTA_POLL_REQUEST);
+	k_sleep(K_SECONDS(1));
+
+	/* Sensor triggers are now sent */
 	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	expect_fota_event(FOTA_POLL_REQUEST);
 
 	/* Cleanup */
 	send_cloud_disconnected();
@@ -225,20 +251,21 @@ void test_init_to_triggering_state(void)
 
 void test_button_press_on_connected(void)
 {
-	/* Transition to STATE_SAMPLE_DATA */
+	/* Connect to cloud first */
 	send_cloud_connected();
+
+	/* Initial transition to STATE_SAMPLE_DATA */
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
-	/* Transistion to STATE_WAIT_FOR_TRIGGER */
+	/* Transition to STATE_WAIT_FOR_TRIGGER */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
-	/* Transition back to STATE_SAMPLE_DATA */
+	/* Long button press should trigger poll and data send */
 	button_handler(DK_BTN1_MSK, DK_BTN1_MSK);
-	expect_location_event(LOCATION_SEARCH_TRIGGER);
+	/* Button press in connected state triggers cloud polling and storage operations */
 
 	/* Cleanup */
 	send_cloud_disconnected();
@@ -262,21 +289,23 @@ void test_button_press_on_disconnected(void)
 
 void test_trigger_interval_change_in_connected(void)
 {
-	/* Transition to STATE_SAMPLE_DATA */
+	/* Connect to cloud */
 	send_cloud_connected();
+
+	/* Initial transition to STATE_SAMPLE_DATA */
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
 	/* As response to the shadow poll, the interval is set to 12 hours. */
 	twelve_hour_interval_set();
 
-	/* Transition to STATE_TRIGGER_WAIT where shadow is polled. */
+	/* Transition to STATE_WAIT_FOR_TRIGGER */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	expect_fota_event(FOTA_POLL_REQUEST);
 
-	/* Wait for the interval to alomost expire and ensure no events are triggered in
+	/* Wait for the interval to almost expire and ensure no events are triggered in
 	 * that time. Repeat this 10 times.
 	 */
 	for (int i = 0; i < 10; i++) {
@@ -288,9 +317,9 @@ void test_trigger_interval_change_in_connected(void)
 
 		send_location_search_done();
 		expect_location_event(LOCATION_SEARCH_DONE);
-		expect_fota_event(FOTA_POLL_REQUEST);
 		expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 		expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+		expect_fota_event(FOTA_POLL_REQUEST);
 	}
 
 	/* Cleanup */
@@ -298,17 +327,17 @@ void test_trigger_interval_change_in_connected(void)
 	expect_no_events(WEEK_IN_SECONDS);
 }
 
-void test_trigger_disconnect_and_connect_when_triggering(void)
+void test_trigger_disconnect_and_connect_when_sampling(void)
 {
 	bool first_trigger_after_connect = true;
 
-	/* Transition to STATE_SAMPLE_DATA */
+	/* Connect to cloud */
 	send_cloud_connected();
 
 	/* As response to the shadow poll, the interval is set to 12 hours. */
 	twelve_hour_interval_set();
 
-	/* Wait for the interval to alomost expire and ensure no events are triggered in
+	/* Wait for the interval to almost expire and ensure no events are triggered in
 	 * that time. Repeat this 10 times. Every second iteration, disconnect and connect.
 	 */
 	for (int i = 0; i < 10; i++) {
@@ -321,9 +350,9 @@ void test_trigger_disconnect_and_connect_when_triggering(void)
 
 		send_location_search_done();
 		expect_location_event(LOCATION_SEARCH_DONE);
-		expect_fota_event(FOTA_POLL_REQUEST);
 		expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 		expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+		expect_fota_event(FOTA_POLL_REQUEST);
 
 		first_trigger_after_connect = false;
 

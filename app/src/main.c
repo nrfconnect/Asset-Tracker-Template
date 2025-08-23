@@ -13,10 +13,13 @@
 
 #include "app_common.h"
 #include "button.h"
+#include "modules/button/button.h"
+#include "modules/storage/storage.h"
 #include "network.h"
 #include "cloud.h"
 #include "fota.h"
 #include "location.h"
+#include "storage.h"
 #include "cbor_helper.h"
 
 #if defined(CONFIG_APP_LED)
@@ -34,16 +37,43 @@
 /* Register log module */
 LOG_MODULE_REGISTER(main, CONFIG_APP_LOG_LEVEL);
 
+/* Configuration constants to replace magic numbers */
+#define INITIAL_DATA_SEND_DELAY_SEC	1
+#define ZBUS_PUBLISH_TIMEOUT_MS		100
+
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
 
+enum timer_msg_type {
+	/* Timer for sampling data has expired.
+	 * This timer is used to trigger the sampling of data from the sensors.
+	 * The timer is set to expire every CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS seconds,
+	 * and can be overridden from the cloud.
+	 * If the storage module is in passthrough mode, expiry of this timer will also trigger
+	 * polling of the cloud shadow and FOTA status.
+	 */
+	TIMER_EXPIRED_SAMPLE_DATA,
+
+	/* Timer for cloud polling and data sending has expired.
+	 * This timer is used to trigger the cloud shadow and FOTA status polling and data sending.
+	 * The timer is set to expire every CONFIG_APP_STORAGE_DATA_SEND_INTERVAL_SECONDS seconds,
+	 * and can be overridden from the cloud.
+	 */
+	TIMER_EXPIRED_CLOUD,
+};
+
 ZBUS_CHAN_DEFINE(TIMER_CHAN,
-		 int,
+		 enum timer_msg_type,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0)
 );
+
+/* Macro to extract the timer message type from the message buffer.
+ * @param msg The message buffer to extract the type from.
+ */
+#define MSG_TO_TIMER_TYPE(msg)	(*(const enum timer_msg_type *)msg)
 
 /* Define the channels that the module subscribes to, their associated message types
  * and the subscriber that will receive the messages on the channel.
@@ -51,11 +81,12 @@ ZBUS_CHAN_DEFINE(TIMER_CHAN,
  */
 #define CHANNEL_LIST(X)						\
 	X(CLOUD_CHAN,		struct cloud_msg)		\
-	X(BUTTON_CHAN,		struct button_msg)			\
+	X(BUTTON_CHAN,		struct button_msg)		\
 	X(FOTA_CHAN,		enum fota_msg_type)		\
 	X(NETWORK_CHAN,		struct network_msg)		\
-	X(LOCATION_CHAN,	enum location_msg_type)		\
-	X(TIMER_CHAN,		int)
+	X(LOCATION_CHAN,	struct location_msg)		\
+	X(STORAGE_CHAN,		struct storage_msg)		\
+	X(TIMER_CHAN,		enum timer_msg_type)
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE				MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
@@ -70,17 +101,28 @@ ZBUS_CHAN_DEFINE(TIMER_CHAN,
 CHANNEL_LIST(ADD_OBSERVERS)
 
 /* Forward declarations */
-static void timer_work_fn(struct k_work *work);
+struct main_state;  /* Forward declaration of main_state struct */
+
+static void timer_send_data_work_fn(struct k_work *work);
+static void timer_sample_data_work_fn(struct k_work *work);
+static void timer_sample_start(uint32_t delay_sec);
+static void timer_send_data_start(uint32_t delay_sec);
+
+/* Helper functions for running_run() */
+static void handle_cloud_connected(struct main_state *state_object);
+static void handle_cloud_disconnected(struct main_state *state_object);
+static void handle_cloud_shadow_response(struct main_state *state_object,
+					 const struct cloud_msg *msg);
+static void handle_timer_expired_cloud(struct main_state *state_object);
+static void handle_button_press_long(struct main_state *state_object);
 
 /* Delayable work used to schedule triggers */
-static K_WORK_DELAYABLE_DEFINE(trigger_work, timer_work_fn);
+static K_WORK_DELAYABLE_DEFINE(timer_send_data_work, timer_send_data_work_fn);
+static K_WORK_DELAYABLE_DEFINE(timer_sample_data_work, timer_sample_data_work_fn);
 
 /* Forward declarations of state handlers */
 static void running_entry(void *o);
 static void running_run(void *o);
-
-static void triggering_entry(void *o);
-static void triggering_run(void *o);
 
 static void sample_data_entry(void *o);
 static void sample_data_run(void *o);
@@ -88,9 +130,6 @@ static void sample_data_run(void *o);
 static void wait_for_trigger_entry(void *o);
 static void wait_for_trigger_run(void *o);
 static void wait_for_trigger_exit(void *o);
-
-static void idle_entry(void *o);
-static void idle_run(void *o);
 
 static void fota_entry(void *o);
 static void fota_run(void *o);
@@ -112,17 +151,13 @@ static void fota_rebooting_entry(void *o);
 enum state {
 	/* Normal operation */
 	STATE_RUNNING,
-		/* Disconnected from the cloud, no triggers are sent */
-		STATE_IDLE,
-		/* Triggers are periodically sent at a configured interval */
-		STATE_TRIGGERING,
-			/* Requesting data samples from relevant modules.
-			 * Location data is requested first, upon state entry.
-			 * After location data is received, the other modules are polled.
-			 */
-			STATE_SAMPLE_DATA,
-			/* Wait for timer or button press to trigger the next sample */
-			STATE_WAIT_FOR_TRIGGER,
+		/* Requesting data samples from relevant modules.
+		 * Location data is requested first, upon state entry.
+		 * After location data is received, the other modules are polled.
+		 */
+		STATE_SAMPLE_DATA,
+		/* Wait for timer or button press to trigger the next sample */
+		STATE_WAIT_FOR_TRIGGER,
 	/* Ongoing FOTA process, triggers are blocked */
 	STATE_FOTA,
 		/* FOTA image is being downloaded */
@@ -153,7 +188,10 @@ struct main_state {
 	uint8_t msg_buf[MAX_MSG_SIZE];
 
 	/* Trigger interval */
-	uint32_t interval_sec;
+	uint32_t sample_interval_sec;
+
+	/* Data sending interval */
+	uint32_t data_send_interval_sec;
 
 	/* Cloud connection status */
 	bool connected;
@@ -162,43 +200,46 @@ struct main_state {
 	 * time when scheduling the next sampling trigger.
 	 */
 	uint32_t sample_start_time;
+
+	/* Storage batch session ID for batch operations */
+	uint32_t storage_session_id;
+
+	/* Data sending queued.
+	 * This is used to queue up a data send when the device is not connected to the network.
+	 */
+	bool data_sending_queued;
+
+	/* Poll trigger queued.
+	 * This is used to queue up a poll trigger when the device is not connected to the network
+	 * or if it is currently doing a location search.
+	 */
+	bool poll_trigger_queued;
+
+	/* Passthrough mode */
+	bool passthrough_mode;
 };
 
 /* Construct state table */
 static const struct smf_state states[] = {
 	[STATE_RUNNING] = SMF_CREATE_STATE(
-		running_entry,
-		running_run,
-		NULL,
-		NULL,
-		&states[STATE_IDLE]
-	),
-	[STATE_IDLE] = SMF_CREATE_STATE(
-		idle_entry,
-		idle_run,
-		NULL,
-		&states[STATE_RUNNING],
-		NULL
-	),
-	[STATE_TRIGGERING] = SMF_CREATE_STATE(
-		triggering_entry,
-		triggering_run,
-		NULL,
-		&states[STATE_RUNNING],
-		&states[STATE_SAMPLE_DATA]
+		running_entry,			/* Entry function */
+		running_run,			/* Run function */
+		NULL,				/* Exit function */
+		NULL,				/* Parent state */
+		&states[STATE_SAMPLE_DATA]	/* Initial transition */
 	),
 	[STATE_SAMPLE_DATA] = SMF_CREATE_STATE(
 		sample_data_entry,
 		sample_data_run,
 		NULL,
-		&states[STATE_TRIGGERING],
+		&states[STATE_RUNNING],
 		NULL
 	),
 	[STATE_WAIT_FOR_TRIGGER] = SMF_CREATE_STATE(
 		wait_for_trigger_entry,
 		wait_for_trigger_run,
 		wait_for_trigger_exit,
-		&states[STATE_TRIGGERING],
+		&states[STATE_RUNNING],
 		NULL
 	),
 	[STATE_FOTA] = SMF_CREATE_STATE(
@@ -255,29 +296,47 @@ static void task_wdt_callback(int channel_id, void *user_data)
 	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
 }
 
-static void sensor_and_poll_triggers_send(void)
+static void poll_triggers_send(void)
 {
 	int err;
 	struct cloud_msg cloud_msg = {
 		.type = CLOUD_POLL_SHADOW
 	};
+	enum fota_msg_type fota_msg = FOTA_POLL_REQUEST;
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 	if (err) {
-		LOG_ERR("zbus_chan_pub shadow trigger, error: %d", err);
+		LOG_ERR("Failed to publish cloud shadow poll trigger, error: %d", err);
 		SEND_FATAL_ERROR();
+
 		return;
 	}
+
+	err = zbus_chan_pub(&FOTA_CHAN, &fota_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to publish FOTA poll trigger, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+}
+
+static void sensor_triggers_send(void)
+{
+	int err;
+
+	(void)err;
 
 #if defined(CONFIG_APP_REQUEST_NETWORK_QUALITY)
 	struct network_msg network_msg = {
 		.type = NETWORK_QUALITY_SAMPLE_REQUEST,
 	};
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
+		LOG_ERR("Failed to publish network quality sample request, error: %d", err);
 		SEND_FATAL_ERROR();
+
 		return;
 	}
 #endif /* CONFIG_APP_REQUEST_NETWORK_QUALITY */
@@ -287,10 +346,11 @@ static void sensor_and_poll_triggers_send(void)
 		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST,
 	};
 
-	err = zbus_chan_pub(&POWER_CHAN, &power_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&POWER_CHAN, &power_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
+		LOG_ERR("Failed to publish power battery sample request, error: %d", err);
 		SEND_FATAL_ERROR();
+
 		return;
 	}
 #endif /* CONFIG_APP_POWER */
@@ -300,38 +360,198 @@ static void sensor_and_poll_triggers_send(void)
 		.type = ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST,
 	};
 
-	err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &environmental_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &environmental_msg,
+			    K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
+		LOG_ERR("Failed to publish environmental sensor sample request, error: %d", err);
 		SEND_FATAL_ERROR();
+
 		return;
 	}
 #endif /* CONFIG_APP_ENVIRONMENTAL */
+}
 
-	/* Send FOTA poll trigger */
-	enum fota_msg_type fota_msg = FOTA_POLL_REQUEST;
+static void storage_send_data(struct main_state *state_object)
+{
+	int err;
+	struct storage_msg storage_msg = {
+		.type = STORAGE_BATCH_REQUEST,
+	};
 
-	err = zbus_chan_pub(&FOTA_CHAN, &fota_msg, K_SECONDS(1));
+	state_object->storage_session_id = k_uptime_get_32();
+	storage_msg.session_id = state_object->storage_session_id;
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 	if (err) {
-		LOG_ERR("zbus_chan_pub FOTA trigger, error: %d", err);
+		LOG_ERR("Failed to publish storage batch request (session: %u), error: %d",
+			storage_msg.session_id, err);
 		SEND_FATAL_ERROR();
+
 		return;
 	}
 }
 
 /* Delayable work used to send messages on the TIMER_CHAN */
-static void timer_work_fn(struct k_work *work)
+static void timer_send_data_work_fn(struct k_work *work)
 {
 	int err;
-	int dummy = 0;
+	enum timer_msg_type msg = TIMER_EXPIRED_CLOUD;
 
 	ARG_UNUSED(work);
 
-	err = zbus_chan_pub(&TIMER_CHAN, &dummy, K_SECONDS(1));
+	err = zbus_chan_pub(&TIMER_CHAN, &msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
+		LOG_ERR("Failed to publish cloud timer expired message, error: %d", err);
 		SEND_FATAL_ERROR();
+
 		return;
+	}
+}
+
+static void timer_sample_data_work_fn(struct k_work *work)
+{
+	int err;
+	enum timer_msg_type msg = TIMER_EXPIRED_SAMPLE_DATA;
+
+	ARG_UNUSED(work);
+
+	err = zbus_chan_pub(&TIMER_CHAN, &msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to publish sample data timer expired message, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+}
+
+static void timer_sample_start(uint32_t delay_sec)
+{
+	int err;
+
+	err = k_work_reschedule(&timer_sample_data_work, K_SECONDS(delay_sec));
+	if (err < 0) {
+		LOG_ERR("k_work_reschedule timer_sample_data_work, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+static void timer_send_data_start(uint32_t delay_sec)
+{
+	int err;
+
+	err = k_work_reschedule(&timer_send_data_work, K_SECONDS(delay_sec));
+	if (err < 0) {
+		LOG_ERR("k_work_reschedule timer_send_data_work, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+/* Helper functions for running_run() state handler */
+
+/**
+ * @brief Handle cloud connected event in running state
+ *
+ * Processes queued operations and handles passthrough mode behavior when
+ * the cloud connection is established.
+ */
+static void handle_cloud_connected(struct main_state *state_object)
+{
+	state_object->connected = true;
+
+	/* Process any queued poll triggers */
+	if (state_object->poll_trigger_queued) {
+		poll_triggers_send();
+		state_object->poll_trigger_queued = false;
+	}
+
+	/* Process any queued data sending operations */
+	if (state_object->data_sending_queued) {
+		storage_send_data(state_object);
+		state_object->data_sending_queued = false;
+	}
+
+	/* In passthrough mode, trigger immediate sampling when connected */
+	if (state_object->passthrough_mode) {
+		LOG_DBG("Passthrough mode: triggering immediate sampling on connection");
+		smf_set_state(SMF_CTX(state_object), &states[STATE_SAMPLE_DATA]);
+	}
+}
+
+/**
+ * @brief Handle cloud disconnected event in running state
+ *
+ * Cancels sampling timers in passthrough mode to conserve power when
+ * no connectivity is available.
+ */
+static void handle_cloud_disconnected(struct main_state *state_object)
+{
+	state_object->connected = false;
+
+	/* In passthrough mode, stop sampling when disconnected to save power */
+	if (state_object->passthrough_mode) {
+		(void)k_work_cancel_delayable(&timer_sample_data_work);
+	}
+}
+
+/**
+ * @brief Handle cloud shadow response in running state
+ *
+ * Processes shadow updates to adjust sampling intervals based on
+ * cloud configuration.
+ */
+static void handle_cloud_shadow_response(struct main_state *state_object,
+					const struct cloud_msg *msg)
+{
+	int err;
+
+	err = get_update_interval_from_cbor_response(
+		msg->response.buffer,
+		msg->response.buffer_data_len,
+		&state_object->sample_interval_sec);
+	if (err) {
+		LOG_ERR("Failed to parse shadow response interval, error: %d", err);
+		return;
+	}
+
+	LOG_WRN("Received new sampling interval: %d seconds",
+		state_object->sample_interval_sec);
+
+	timer_sample_start(state_object->sample_interval_sec);
+}
+
+/**
+ * @brief Handle timer expired cloud event in running state
+ *
+ * Triggers cloud polling and data sending operations, or queues them
+ * if not currently connected.
+ */
+static void handle_timer_expired_cloud(struct main_state *state_object)
+{
+	if (state_object->connected) {
+		poll_triggers_send();
+		storage_send_data(state_object);
+	} else {
+		LOG_DBG("Cloud timer expired while disconnected, queueing data send");
+		state_object->data_sending_queued = true;
+	}
+}
+
+/**
+ * @brief Handle long button press event in running state
+ *
+ * Triggers immediate polling and data sending operations, or queues them
+ * if not currently connected.
+ */
+static void handle_button_press_long(struct main_state *state_object)
+{
+	LOG_DBG("Long button press detected, attempting to poll and send data immediately");
+
+	if (state_object->connected) {
+		poll_triggers_send();
+		storage_send_data(state_object);
+	} else {
+		LOG_DBG("Long button press while disconnected, queueing operations");
+		state_object->data_sending_queued = true;
 	}
 }
 
@@ -345,125 +565,55 @@ static void running_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	if (state_object->connected) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_TRIGGERING]);
-		return;
+	if (IS_ENABLED(CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER)) {
+		timer_send_data_start(INITIAL_DATA_SEND_DELAY_SEC);
 	}
 
-	smf_set_state(SMF_CTX(state_object), &states[STATE_IDLE]);
+	timer_sample_start(state_object->sample_interval_sec);
 }
 
 static void running_run(void *o)
 {
-	const struct main_state *state_object = (const struct main_state *)o;
+	struct main_state *state_object = (struct main_state *)o;
 
-	if (state_object->chan == &FOTA_CHAN) {
-		enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
-
-		if (msg == FOTA_DOWNLOADING_UPDATE) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA]);
-			return;
-		}
-	}
-}
-
-/* STATE_IDLE */
-
-static void idle_entry(void *o)
-{
-	ARG_UNUSED(o);
-
-	LOG_DBG("%s", __func__);
-
-#if defined(CONFIG_APP_LED)
-	int err;
-	/* Blink Yellow */
-	struct led_msg led_msg = {
-		.type = LED_RGB_SET,
-		.red = 255,
-		.green = 255,
-		.blue = 0,
-		.duration_on_msec = 250,
-		.duration_off_msec = 2000,
-		.repetitions = 10,
-	};
-
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
-#endif /* CONFIG_APP_LED */
-
-	(void)k_work_cancel_delayable(&trigger_work);
-}
-
-static void idle_run(void *o)
-{
-	struct main_state *state_object = o;
-
+	/* Handle cloud channel messages */
 	if (state_object->chan == &CLOUD_CHAN) {
 		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
 
-		if (msg->type == CLOUD_CONNECTED) {
-			state_object->connected = true;
-			smf_set_state(SMF_CTX(state_object), &states[STATE_TRIGGERING]);
+		switch (msg->type) {
+		case CLOUD_CONNECTED:
+			handle_cloud_connected(state_object);
 			return;
+		case CLOUD_DISCONNECTED:
+			handle_cloud_disconnected(state_object);
+			break;
+		case CLOUD_SHADOW_RESPONSE:
+			handle_cloud_shadow_response(state_object, msg);
+			break;
+		default:
+			break;
 		}
 	}
-}
 
-/* STATE_CONNECTED */
-
-static void triggering_entry(void *o)
-{
-	int err;
-
-	ARG_UNUSED(o);
-
-	LOG_DBG("%s", __func__);
-
-	err = k_work_reschedule(&trigger_work, K_NO_WAIT);
-	if (err < 0) {
-		LOG_ERR("k_work_reschedule, error: %d", err);
-		SEND_FATAL_ERROR();
+	/* Handle FOTA download initiation */
+	if (state_object->chan == &FOTA_CHAN &&
+	    MSG_TO_FOTA_TYPE(state_object->msg_buf) == FOTA_DOWNLOADING_UPDATE) {
+		smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA]);
 		return;
 	}
-}
 
-static void triggering_run(void *o)
-{
-	int err;
-	struct main_state *state_object = o;
+	/* Handle cloud data sending timer */
+	if (state_object->chan == &TIMER_CHAN &&
+	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_CLOUD) {
+		handle_timer_expired_cloud(state_object);
+		return;
+	}
 
-	if (state_object->chan == &CLOUD_CHAN) {
-		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
-
-		if (msg->type == CLOUD_DISCONNECTED) {
-			state_object->connected = false;
-			smf_set_state(SMF_CTX(state_object), &states[STATE_IDLE]);
-			return;
-		}
-
-		if (msg->type == CLOUD_SHADOW_RESPONSE) {
-			err = get_update_interval_from_cbor_response(msg->response.buffer,
-								     msg->response.buffer_data_len,
-								     &state_object->interval_sec);
-			if (err) {
-				LOG_ERR("get_update_interval_from_cbor_response, error: %d", err);
-				return;
-			}
-
-			LOG_WRN("Received new interval: %d seconds", state_object->interval_sec);
-
-			err = k_work_reschedule(&trigger_work,
-						K_SECONDS(state_object->interval_sec));
-			if (err < 0) {
-				LOG_ERR("k_work_reschedule, error: %d", err);
-				SEND_FATAL_ERROR();
-			}
-		}
+	/* Handle long button press for manual data sending */
+	if (state_object->chan == &BUTTON_CHAN &&
+	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_LONG) {
+		handle_button_press_long(state_object);
+		return;
 	}
 }
 
@@ -472,7 +622,9 @@ static void triggering_run(void *o)
 static void sample_data_entry(void *o)
 {
 	int err;
-	enum location_msg_type location_msg = LOCATION_SEARCH_TRIGGER;
+	struct location_msg location_msg = {
+		.type = LOCATION_SEARCH_TRIGGER,
+	};
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
@@ -489,48 +641,75 @@ static void sample_data_entry(void *o)
 		.repetitions = 10,
 	};
 
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
+		LOG_ERR("Failed to publish LED pattern message, error: %d", err);
 		SEND_FATAL_ERROR();
+
 		return;
 	}
 #endif /* CONFIG_APP_LED */
 
-	/* Record the start time of sampling */
-	state_object->sample_start_time = k_uptime_seconds();
+	if (state_object->connected) {
+		/* Record the start time of sampling */
+		state_object->sample_start_time = k_uptime_seconds();
 
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub data sample trigger, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
+		err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+		if (err) {
+			LOG_ERR("Failed to publish location search trigger, error: %d", err);
+			SEND_FATAL_ERROR();
+
+			return;
+		}
 	}
 }
 
 static void sample_data_run(void *o)
 {
-	const struct main_state *state_object = (const struct main_state *)o;
+	struct main_state *state_object = (struct main_state *)o;
 
-	if (state_object->chan == &LOCATION_CHAN) {
-		enum location_msg_type msg = MSG_TO_LOCATION_TYPE(state_object->msg_buf);
+	if (state_object->chan == &LOCATION_CHAN &&
+	    MSG_TO_LOCATION_TYPE(state_object->msg_buf) == LOCATION_SEARCH_DONE) {
 
-		if (msg == LOCATION_SEARCH_DONE) {
-			sensor_and_poll_triggers_send();
-			smf_set_state(SMF_CTX(state_object), &states[STATE_WAIT_FOR_TRIGGER]);
-			return;
+		/* In passthrough mode, send data immediately after sampling */
+		if (state_object->passthrough_mode && state_object->connected) {
+			sensor_triggers_send();
+			poll_triggers_send();
 		}
+
+		if (!state_object->passthrough_mode) {
+			sensor_triggers_send();
+		}
+
+		smf_set_state(SMF_CTX(state_object), &states[STATE_WAIT_FOR_TRIGGER]);
+
+		return;
 	}
 
 	/* We are already sampling, ignore any new triggers */
-	if (state_object->chan == &BUTTON_CHAN) {
+	if (state_object->chan == &BUTTON_CHAN &&
+	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
 		smf_set_handled(SMF_CTX(state_object));
+
 		return;
 	}
 
 	if (state_object->chan == &TIMER_CHAN) {
-		smf_set_handled(SMF_CTX(state_object));
-		return;
+		enum timer_msg_type msg = MSG_TO_TIMER_TYPE(state_object->msg_buf);
+
+		if (msg == TIMER_EXPIRED_SAMPLE_DATA) {
+			smf_set_handled(SMF_CTX(state_object));
+
+			return;
+		}
+
+		if (msg == TIMER_EXPIRED_CLOUD) {
+			state_object->data_sending_queued = true;
+
+			smf_set_handled(SMF_CTX(state_object));
+
+			return;
+		}
 	}
 }
 
@@ -538,30 +717,26 @@ static void sample_data_run(void *o)
 
 static void wait_for_trigger_entry(void *o)
 {
-	int err;
-	const struct main_state *state_object = (const struct main_state *)o;
+	struct main_state *state_object = (struct main_state *)o;
 	uint32_t time_elapsed = k_uptime_seconds() - state_object->sample_start_time;
 	uint32_t time_remaining;
 
-	if (time_elapsed > state_object->interval_sec) {
+	if (time_elapsed > state_object->sample_interval_sec) {
 		LOG_WRN("Sampling took longer than the interval, skipping next trigger");
+
 		time_remaining = 0;
 	} else {
-		time_remaining = state_object->interval_sec - time_elapsed;
+		time_remaining = state_object->sample_interval_sec - time_elapsed;
 	}
 
 	LOG_DBG("%s", __func__);
 
 	LOG_DBG("Next trigger in %d seconds", time_remaining);
 
-	(void)k_work_cancel_delayable(&trigger_work);
-	err = k_work_reschedule(&trigger_work, K_SECONDS(time_remaining));
-	if (err < 0) {
-		LOG_ERR("k_work_reschedule, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
+	timer_sample_start(time_remaining);
 
 #if defined(CONFIG_APP_LED)
+	int err;
 	/* Blue pattern for wait state */
 	struct led_msg led_msg = {
 		.type = LED_RGB_SET,
@@ -573,28 +748,44 @@ static void wait_for_trigger_entry(void *o)
 		.repetitions = 10,
 	};
 
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
+		LOG_ERR("Failed to publish LED wait state pattern, error: %d", err);
 		SEND_FATAL_ERROR();
 		return;
 	}
 #endif /* CONFIG_APP_LED */
 
+	/* If data sending is queued, send it */
+	if (state_object->data_sending_queued) {
+		poll_triggers_send();
+		storage_send_data(state_object);
 
+		return;
+	}
 }
 
 static void wait_for_trigger_run(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
-	if (state_object->chan == &TIMER_CHAN) {
-		LOG_DBG("Timer trigger received");
+	if (state_object->chan == &TIMER_CHAN &&
+	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_SAMPLE_DATA) {
+		/* In passthrough mode, only sample when connected */
+		if (state_object->passthrough_mode && !state_object->connected) {
+			LOG_DBG("Passthrough mode: skipping sampling while disconnected");
+			/* Restart timer for next attempt */
+			timer_sample_start(state_object->sample_interval_sec);
+			return;
+		}
+
 		smf_set_state(SMF_CTX(state_object), &states[STATE_SAMPLE_DATA]);
+
 		return;
 	}
 
-	if (state_object->chan == &BUTTON_CHAN) {
+	if (state_object->chan == &BUTTON_CHAN &&
+	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_SAMPLE_DATA]);
 		return;
 	}
@@ -606,7 +797,7 @@ static void wait_for_trigger_exit(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	(void)k_work_cancel_delayable(&trigger_work);
+	(void)k_work_cancel_delayable(&timer_sample_data_work);
 }
 
 /* STATE_FOTA */
@@ -617,7 +808,7 @@ static void fota_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	(void)k_work_cancel_delayable(&trigger_work);
+	(void)k_work_cancel_delayable(&timer_sample_data_work);
 }
 
 static void fota_run(void *o)
@@ -664,9 +855,9 @@ static void fota_downloading_entry(void *o)
 		.repetitions = -1,
 	};
 
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
+		LOG_ERR("Failed to publish LED FOTA download pattern, error: %d", err);
 		SEND_FATAL_ERROR();
 		return;
 	}
@@ -709,9 +900,9 @@ static void fota_waiting_for_network_disconnect_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
+		LOG_ERR("Failed to publish network disconnect request, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
 }
@@ -743,9 +934,9 @@ static void fota_waiting_for_network_disconnect_to_apply_image_entry(void *o)
 		.type = NETWORK_DISCONNECT
 	};
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
+		LOG_ERR("Failed to publish network disconnect request, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
 }
@@ -774,9 +965,9 @@ static void fota_applying_image_entry(void *o)
 	int err;
 	enum fota_msg_type msg = FOTA_IMAGE_APPLY;
 
-	err = zbus_chan_pub(&FOTA_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&FOTA_CHAN, &msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
+		LOG_ERR("Failed to publish FOTA image apply request, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
 }
@@ -824,7 +1015,9 @@ int main(void)
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	struct main_state main_state = { 0 };
 
-	main_state.interval_sec = CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS;
+	main_state.sample_interval_sec = CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS;
+	main_state.data_send_interval_sec = CONFIG_APP_STORAGE_DATA_SEND_INTERVAL_SECONDS;
+	main_state.passthrough_mode = IS_ENABLED(CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH);
 
 	LOG_DBG("Main has started");
 
