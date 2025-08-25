@@ -162,7 +162,7 @@ static void network_msg_send(struct network_msg *msg)
 }
 
 static void l4_event_handler(struct net_mgmt_event_callback *cb,
-			     uint32_t event,
+			     unsigned long long event,
 			     struct net_if *iface)
 {
 	ARG_UNUSED(cb);
@@ -184,7 +184,7 @@ static void l4_event_handler(struct net_mgmt_event_callback *cb,
 }
 
 static void connectivity_event_handler(struct net_mgmt_event_callback *cb,
-				       uint32_t event,
+				       unsigned long long event,
 				       struct net_if *iface)
 {
 	ARG_UNUSED(cb);
@@ -319,11 +319,11 @@ static void state_running_entry(void *obj)
 	LOG_DBG("state_running_entry");
 
 	/* Setup handler for Zephyr NET Connection Manager events. */
-	net_mgmt_init_event_callback(&l4_cb, l4_event_handler, L4_EVENT_MASK);
+	net_mgmt_init_event_callback(&l4_cb, &l4_event_handler, L4_EVENT_MASK);
 	net_mgmt_add_event_callback(&l4_cb);
 
 	/* Setup handler for Zephyr NET Connection Manager Connectivity layer. */
-	net_mgmt_init_event_callback(&conn_cb, connectivity_event_handler, CONN_LAYER_EVENT_MASK);
+	net_mgmt_init_event_callback(&conn_cb, &connectivity_event_handler, CONN_LAYER_EVENT_MASK);
 	net_mgmt_add_event_callback(&conn_cb);
 
 	/* Connecting to the configured connectivity layer. */
