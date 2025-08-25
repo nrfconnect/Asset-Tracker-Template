@@ -56,7 +56,7 @@ static struct net_mgmt_event_callback net_mgmt_evt_cb;
 static enum lte_lc_system_mode current_fake_system_mode = FAKE_SYSTEM_MODE_DEFAULT;
 
 /* Forward declarations */
-static void send_l4_evt(uint32_t mgmt_event);
+static void send_l4_evt(unsigned long long mgmt_event);
 
 static int date_time_now_custom_fake(int64_t *time)
 {
@@ -128,7 +128,7 @@ static int lte_lc_system_mode_set_custom_fake(enum lte_lc_system_mode mode,
 	return 0;
 }
 
-static void send_l4_evt(uint32_t mgmt_event)
+static void send_l4_evt(unsigned long long mgmt_event)
 {
 	TEST_ASSERT_NOT_NULL(net_mgmt_evt_cb.handler);
 
