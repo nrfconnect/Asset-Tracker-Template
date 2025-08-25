@@ -35,6 +35,7 @@ zephyr_include_directories(../../../app/src/modules/environmental)
 zephyr_include_directories(../../../app/src/modules/fota)
 zephyr_include_directories(../../../app/src/modules/location)
 zephyr_include_directories(../../../app/src/modules/led)
+zephyr_include_directories(../../../app/src/modules/storage)
 zephyr_include_directories(${ZEPHYR_BASE}/../nrfxlib/nrf_modem/include)
 
 target_link_options(app PRIVATE --whole-archive)
@@ -72,6 +73,8 @@ target_compile_definitions(app PRIVATE
 	-DCONFIG_LOCATION_METHOD_WIFI=1
 	-DCONFIG_LOCATION_METHODS_LIST_SIZE=3
 	-DCONFIG_NRF_CLOUD_AGNSS=y
+	-DCONFIG_APP_STORAGE_DATA_SEND_INTERVAL_SECONDS=3600
+	-DCONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH=1
 )
 
 # CONSIDER: REUSING THE CODEC GENERATION LOGIC FROM THE MAIN APP

@@ -29,12 +29,11 @@ void expect_location_event(enum location_msg_type expected_location_type)
 {
 	int err;
 	const struct zbus_channel *chan;
-	enum location_msg_type location_msg_type;
+	struct location_msg location_msg;
 
 	/* Allow the test thread to sleep so that the DUT's thread is allowed to run. */
-	k_sleep(K_MSEC(100));
 
-	err = zbus_sub_wait_msg(&location_subscriber, &chan, &location_msg_type, K_MSEC(10000));
+	err = zbus_sub_wait_msg(&location_subscriber, &chan, &location_msg, K_MSEC(10000));
 	if (err == -ENOMSG) {
 		LOG_ERR("No location event received");
 		TEST_FAIL();
@@ -51,7 +50,7 @@ void expect_location_event(enum location_msg_type expected_location_type)
 		TEST_FAIL();
 	}
 
-	TEST_ASSERT_EQUAL(expected_location_type, location_msg_type);
+	TEST_ASSERT_EQUAL(expected_location_type, location_msg.type);
 }
 
 void expect_network_event(enum network_msg_type expected_network_type)
@@ -121,7 +120,7 @@ void expect_fota_event(enum fota_msg_type expected_fota_type)
 	/* Allow the test thread to sleep so that the DUT's thread is allowed to run. */
 	k_sleep(K_MSEC(100));
 
-	err = zbus_sub_wait_msg(&fota_subscriber, &chan, &fota_msg_type, K_MSEC(10000));
+	err = zbus_sub_wait_msg(&fota_subscriber, &chan, &fota_msg_type, K_MSEC(100000));
 	if (err == -ENOMSG) {
 		LOG_ERR("No FOTA event received");
 		TEST_FAIL();
@@ -145,9 +144,9 @@ static void expect_no_location_events(void)
 {
 	int err;
 	const struct zbus_channel *chan;
-	enum location_msg_type location_msg_type;
+	struct location_msg location_msg;
 
-	err = zbus_sub_wait_msg(&location_subscriber, &chan, &location_msg_type, K_MSEC(10000));
+	err = zbus_sub_wait_msg(&location_subscriber, &chan, &location_msg, K_MSEC(10000));
 	if (err == -ENOMSG) {
 		return;
 	} else if (err) {
@@ -157,7 +156,7 @@ static void expect_no_location_events(void)
 		return;
 	}
 
-	LOG_ERR("Received unexpected location event: %d", location_msg_type);
+	LOG_ERR("Received unexpected location event: %d", location_msg.type);
 	TEST_FAIL();
 }
 
@@ -236,10 +235,9 @@ void purge_location_events(void)
 	while (true) {
 		int err;
 		const struct zbus_channel *chan;
-		enum location_msg_type location_msg_type;
+		struct location_msg location_msg;
 
-		err = zbus_sub_wait_msg(&location_subscriber, &chan, &location_msg_type,
-					K_MSEC(100));
+		err = zbus_sub_wait_msg(&location_subscriber, &chan, &location_msg, K_NO_WAIT);
 		if (err == -ENOMSG) {
 			break;
 		} else if (err) {
@@ -258,7 +256,7 @@ void purge_network_events(void)
 		const struct zbus_channel *chan;
 		struct network_msg network_msg;
 
-		err = zbus_sub_wait_msg(&network_subscriber, &chan, &network_msg, K_MSEC(100));
+		err = zbus_sub_wait_msg(&network_subscriber, &chan, &network_msg, K_NO_WAIT);
 		if (err == -ENOMSG) {
 			break;
 		} else if (err) {
@@ -277,7 +275,7 @@ void purge_power_events(void)
 		const struct zbus_channel *chan;
 		struct power_msg power_msg;
 
-		err = zbus_sub_wait_msg(&power_subscriber, &chan, &power_msg, K_MSEC(100));
+		err = zbus_sub_wait_msg(&power_subscriber, &chan, &power_msg, K_NO_WAIT);
 		if (err == -ENOMSG) {
 			break;
 		} else if (err) {
@@ -296,7 +294,7 @@ void purge_fota_events(void)
 		const struct zbus_channel *chan;
 		enum fota_msg_type fota_msg_type;
 
-		err = zbus_sub_wait_msg(&fota_subscriber, &chan, &fota_msg_type, K_MSEC(100));
+		err = zbus_sub_wait_msg(&fota_subscriber, &chan, &fota_msg_type, K_NO_WAIT);
 		if (err == -ENOMSG) {
 			break;
 		} else if (err) {
@@ -310,8 +308,6 @@ void purge_fota_events(void)
 
 void purge_all_events(void)
 {
-	k_sleep(K_SECONDS(1));
-
 	purge_location_events();
 	purge_network_events();
 	purge_power_events();
@@ -322,11 +318,11 @@ int wait_for_location_event(enum location_msg_type expected_type, uint32_t timeo
 {
 	int err;
 	const struct zbus_channel *chan;
-	enum location_msg_type location_msg_type;
+	struct location_msg location_msg;
 	uint32_t start_time = k_uptime_seconds();
 	uint32_t elapsed_time;
 
-	err = zbus_sub_wait_msg(&location_subscriber, &chan, &location_msg_type,
+	err = zbus_sub_wait_msg(&location_subscriber, &chan, &location_msg,
 				K_SECONDS(timeout_sec));
 	if (err == -ENOMSG) {
 		return -ENOMSG;
@@ -342,14 +338,14 @@ int wait_for_location_event(enum location_msg_type expected_type, uint32_t timeo
 		return -EINVAL;
 	}
 
-	if (location_msg_type != expected_type) {
-		LOG_ERR("Received unexpected location event: %d", location_msg_type);
+	if (location_msg.type != expected_type) {
+		LOG_ERR("Received unexpected location event: %d", location_msg.type);
 		return -EINVAL;
 	}
 
 	elapsed_time = k_uptime_seconds() - start_time;
 
-	LOG_DBG("Received expected location event: %d, wait: %d", location_msg_type, elapsed_time);
+	LOG_DBG("Received expected location event: %d, wait: %d", location_msg.type, elapsed_time);
 
 	return elapsed_time;
 }
