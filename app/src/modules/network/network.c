@@ -12,6 +12,7 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <date_time.h>
 #include <zephyr/smf.h>
+#include <nrf_modem_at.h>
 
 #include "modem/lte_lc.h"
 #include "modem/modem_info.h"
@@ -337,6 +338,30 @@ static void state_running_entry(void *obj)
 	}
 
 	lte_lc_register_handler(lte_lc_evt_handler);
+#if defined(CONFIG_APP_NTN_MODE)
+	/* NTN setup:
+        at at%xsystemmode=0,0,0,0,1
+        at AT%LOCATION=2,\"61.3637\",\"5.4001\",\"0\",0,0
+        at AT%XBANDLOCK=2,,\"255\"
+        at at%chselect=1,14,228841
+        at at+cgdcont=0,\"ip\",\"internet.m2mportal.de"
+        at at at+cfun=1
+	*/
+
+	 /* NTN mode */
+	err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,0,0,1");
+	if (err) {
+		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+
+	err = nrf_modem_at_printf("AT%%XBANDLOCK=2,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
+	if (err) {
+		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+
+#endif /* CONFIG_APP_NTN_MODE */
 
 	LOG_DBG("Network module started");
 }
@@ -411,21 +436,6 @@ static void state_disconnected_searching_entry(void *obj)
 	ARG_UNUSED(obj);
 
 	LOG_DBG("state_disconnected_searching_entry");
-
-        //TODO add NTN setup here:
-        // at at%xsystemmode=0,0,0,0,1
-        // at AT%LOCATION=2,\"61.3637\",\"5.4001\",\"0\",0,0
-        // at AT%XBANDLOCK=2,,\"255\"
-        // at at%chselect=1,14,228841
-        // at at+cgdcont=0,\"ip\",\"internet.m2mportal.de"
-        // at at at+cfun=1
-
-        // with
-        //     err = nrf_modem_at_printf(CONFIG_APP_NTN_AT_CFUN);
-        //     if (err) {
-        //         LOG_ERR("Failed to set CFUN, error: %d", err);
-        //         return err;
-        //     }
 
 	err = conn_mgr_all_if_connect(true);
 	if (err) {
