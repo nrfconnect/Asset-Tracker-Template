@@ -136,14 +136,14 @@ static int sock_open_and_connect(void)
 		return -errno;
 	}
 
-	LOG_WRN("PIPPO UDP socket created and connected, fd=%d", sock_fd);
+	LOG_DBG("PIPPO UDP socket created and connected, fd=%d", sock_fd);
 	return 0;
 }
 
 static int sock_send_data(void)
 {
 	int err;
-	const char *message = "Hi Skylo";
+	const char *message = "Hi from ATT via callbox";
 
 	if (sock_fd < 0) {
 		LOG_ERR("Socket not connected");
@@ -157,7 +157,7 @@ static int sock_send_data(void)
 		return -errno;
 	}
 
-	LOG_WRN("PIPPO Sent UDP/IP payload of %d bytes", strlen(message));
+	LOG_DBG("PIPPO Sent UDP/IP payload of %d bytes", strlen(message));
 	return 0;
 }
 
@@ -224,7 +224,7 @@ static void state_connecting_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 
-        LOG_WRN("PIPPO state_connecting_entry");
+	LOG_DBG("PIPPO state_connecting_entry");
 
 	err = sock_open_and_connect();
 	if (err) {
@@ -233,7 +233,7 @@ static void state_connecting_entry(void *obj)
 		return;
 	}
 
-        LOG_WRN("PIPPO sock_open_and_connect DONE");
+	LOG_DBG("PIPPO sock_open_and_connect DONE");
 
 	smf_set_state(SMF_CTX(obj), &states[STATE_CONNECTED]);
 }
@@ -248,7 +248,7 @@ static void state_connected_entry(void *obj)
 	ARG_UNUSED(obj);
 	LOG_DBG("%s", __func__);
 
-        LOG_WRN("PIPPO state_connected_entry");
+	LOG_DBG("PIPPO state_connected_entry");
 
 	// err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
 	// if (err) {
@@ -262,7 +262,7 @@ static void state_connected_run(void *obj)
 {
 	struct cloud_state_object const *state_object = obj;
 
-        LOG_WRN("PIPPO state_connected_run, push button to send");
+        LOG_DBG("PIPPO state_connected_run, push button to send");
 
 	if (state_object->chan == &BUTTON_CHAN) {
 		int err;
