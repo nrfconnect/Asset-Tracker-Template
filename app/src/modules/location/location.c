@@ -104,15 +104,22 @@ static void on_cfun(int mode, void *ctx)
 		return;
 	}
 
+#ifdef CONFIG_APP_NTN_MODE
+	/* In NTN, only activate GNSS when specifically required */
+	if (mode != 31 ) {
+		return;
+	}
+#endif
+
 	inited = true;
 
 	LOG_DBG("Modem CFUN mode: %d", mode);
 
-	// err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
-	// if (err) {
-	// 	LOG_ERR("Activating GNSS in the modem failed: %d", err);
-	// 	SEND_FATAL_ERROR();
-	// }
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
+	if (err) {
+		LOG_ERR("Activating GNSS in the modem failed: %d", err);
+		SEND_FATAL_ERROR();
+	}
 }
 
 NRF_MODEM_LIB_ON_CFUN(att_location_init_hook, on_cfun, NULL);
