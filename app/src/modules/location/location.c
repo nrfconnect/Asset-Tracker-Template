@@ -237,8 +237,11 @@ void handle_location_chan(const struct location_msg *location_msg)
 {
 	if (location_msg->type == LOCATION_SEARCH_TRIGGER) {
 		LOG_DBG("Location search trigger received, getting location");
-		/// trigger_location_update();
-                trigger_location_update_mocked();
+#ifdef CONFIG_APP_NTN_MODE
+		trigger_location_update_mocked();
+#else
+		trigger_location_update();
+#endif
 	}
 }
 

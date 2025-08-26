@@ -39,9 +39,12 @@ ZBUS_CHAN_DEFINE(NETWORK_CHAN,
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(network);
 
-/* Observe network and location channels */
+/* Observe network channel */
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network, 0);
+#ifdef CONFIG_APP_NTN_MODE
+/* Observe location channel for NTN mode */
 ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, network, 0);
+#endif
 
 #define MAX_MSG_SIZE sizeof(struct network_msg)
 
@@ -407,20 +410,23 @@ static void state_running_run(void *obj)
 static void state_disconnected_entry(void *obj)
 {
 	ARG_UNUSED(obj);
+
+	LOG_DBG("state_disconnected_entry");
+
+#ifdef CONFIG_APP_NTN_MODE
+	/* Trigger location search when disconnected in NTN mode */
 	int err;
 	struct location_msg msg = {
 		.type = LOCATION_SEARCH_TRIGGER
 	};
 
-	LOG_DBG("state_disconnected_entry");
-
-	/* Trigger location search when disconnected */
 	err = zbus_chan_pub(&LOCATION_CHAN, &msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("Failed to publish location trigger, error: %d", err);
 		SEND_FATAL_ERROR();
 		return;
 	}
+#endif
 
 	/* Resend connection status if the sample is built for Native Sim.
 	 * This is necessary because the network interface is automatically brought up
@@ -542,6 +548,7 @@ static void state_disconnected_idle_run(void *obj)
 		default:
 			break;
 		}
+#ifdef CONFIG_APP_NTN_MODE
 	} else if (&LOCATION_CHAN == state_object->chan) {
 		struct location_msg *loc_msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
 
@@ -557,6 +564,7 @@ static void state_disconnected_idle_run(void *obj)
 				return;
 			}
 		}
+#endif
 	}
 }
 
