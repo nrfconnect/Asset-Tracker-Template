@@ -38,7 +38,7 @@ config APP_MSG_PROCESSING_TIMEOUT_SECONDS
 	  The value must be smaller than CONFIG_APP_WATCHDOG_TIMEOUT_SECONDS.
 
 config APP_NTN_MODE
-	bool Enable NTN mode
+	bool "Enable NTN mode"
 	default false
 	help
 	  NTN mode
