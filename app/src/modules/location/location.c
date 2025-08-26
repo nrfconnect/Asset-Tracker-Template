@@ -207,12 +207,12 @@ void trigger_location_update_mocked(void)
 	status_send(LOCATION_SEARCH_STARTED);
 
 	/* Add delay to simulate location acquisition time */
-	k_sleep(K_SECONDS(2));
+	k_sleep(K_SECONDS(10));
 
 	/* Create mock location data */
 	struct location_data mock_location = {
-		.latitude = 59.913869,    /* Callbox Mocked Coordinates */
-		.longitude = 10.752245,
+		.latitude = 43.295,    /* Callbox Mocked Coordinates */
+		.longitude = 5.373,
 		.accuracy = 5.0,
 		.datetime = {
 			.valid = true,
