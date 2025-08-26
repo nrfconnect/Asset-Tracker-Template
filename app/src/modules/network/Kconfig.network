@@ -47,11 +47,36 @@ config APP_NETWORK_SEARCH_NETWORK_ON_STARTUP
 menu "NTN settings"
 	depends on APP_NTN_MODE
 
+config APP_NTN_BANDLOCK_ENABLE
+	bool "Enable bandlock"
+	default y
+	help
+	  Enable bandlock
+
+if APP_NTN_BANDLOCK_ENABLE
+
 config APP_NTN_BANDLOCK
 	int "Bandlock"
 	default 256
 	help
 	  Bandlock
+endif
+
+config APP_NTN_CHANNEL_SELECT_ENABLE
+	bool "Enable channel select"
+	default y
+	help
+	 Enable channel select 
+
+if APP_NTN_CHANNEL_SELECT_ENABLE
+config APP_NTN_CHANNEL_SELECT
+	int "Channel / earfcn"
+	default 228841
+	help
+	  Select channel
+endif
+
+
 
 endmenu
 

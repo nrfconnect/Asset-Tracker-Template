@@ -355,11 +355,21 @@ static void state_running_entry(void *obj)
 		SEND_FATAL_ERROR();
 	}
 
+#if defined(CONFIG_APP_NTN_BANDLOCK_ENABLE)
 	err = nrf_modem_at_printf("AT%%XBANDLOCK=2,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
 	if (err) {
 		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
+#endif /* CONFIG_APP_NTN_BANDLOCK_ENABLE */
+
+#if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
+	err = nrf_modem_at_printf("AT%%CHSELECT=1,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
+	if (err) {
+		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+#endif /* CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE */	
 
 #endif /* CONFIG_APP_NTN_MODE */
 
