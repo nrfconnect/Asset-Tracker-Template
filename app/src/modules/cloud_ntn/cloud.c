@@ -16,10 +16,12 @@
 #include "app_common.h"
 #include "network.h"
 #include "button.h"
+#include "location.h"
 
 /* Message conversion macros */
 #define MSG_TO_CLOUD_MSG(_msg) (*(const struct cloud_msg *)_msg)
 #define MSG_TO_BUTTON_MSG(_msg) (*(const uint8_t *)_msg)
+#define MSG_TO_LOCATION_MSG(_msg) (*(const struct location_msg *)_msg)
 
 /* Register log module */
 LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
@@ -31,6 +33,7 @@ BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
 /* Declare channels */
 ZBUS_CHAN_DECLARE(NETWORK_CHAN);
 ZBUS_CHAN_DECLARE(BUTTON_CHAN);
+ZBUS_CHAN_DECLARE(LOCATION_CHAN);
 
 /* Define channels provided by this module */
 ZBUS_CHAN_DEFINE(CLOUD_CHAN,
@@ -48,10 +51,12 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(cloud);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, cloud, 0);
 ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, cloud, 0);
 ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, cloud, 0);
+ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, cloud, 0);
 
 /* Calculate the maximum message size */
 #define MAX_MSG_SIZE (MAX(sizeof(struct network_msg), \
-                         MAX(sizeof(struct cloud_msg), sizeof(uint8_t))))
+                         MAX(sizeof(struct cloud_msg), \
+                         MAX(sizeof(struct location_msg), sizeof(uint8_t)))))
 
 /* Socket configuration */
 #define CLOUD_SERVER_ADDR CONFIG_APP_CLOUD_NTN_SERVER_ADDR
@@ -61,6 +66,22 @@ ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, cloud, 0);
 /* Socket state */
 static int sock_fd = -1;
 static struct sockaddr_storage host_addr;
+
+/* Latest GNSS data storage */
+static struct location_data latest_gnss_data = {
+	.latitude = 0.000,    /* Initialize with 0 values */
+	.longitude = 0.000,
+	.accuracy = 5.0,
+	.datetime = {
+		.valid = true,
+		.year = 2024,
+		.month = 1,
+		.day = 1,
+		.hour = 12,
+		.minute = 0,
+		.second = 0
+	}
+};
 
 /* State machine */
 enum cloud_module_state {
@@ -140,24 +161,31 @@ static int sock_open_and_connect(void)
 	return 0;
 }
 
-static int sock_send_data(void)
+static int sock_send_gnss_data(const struct location_data *gnss_data)
 {
 	int err;
-	const char *message = "Hi from ATT via callbox";
+	char message[256];
 
 	if (sock_fd < 0) {
 		LOG_ERR("Socket not connected");
 		return -ENOTCONN;
 	}
 
+	/* Format GNSS data as string */
+	snprintf(message, sizeof(message),
+		"GNSS: lat=%.6f, lon=%.6f, acc=%.2f, time=%04d-%02d-%02d %02d:%02d:%02d",
+		gnss_data->latitude, gnss_data->longitude, gnss_data->accuracy,
+		gnss_data->datetime.year, gnss_data->datetime.month, gnss_data->datetime.day,
+		gnss_data->datetime.hour, gnss_data->datetime.minute, gnss_data->datetime.second);
+
 	/* Send data */
 	err = send(sock_fd, message, strlen(message), 0);
 	if (err < 0) {
-		LOG_ERR("Failed to send data, error: %d", errno);
+		LOG_ERR("Failed to send GNSS data, error: %d", errno);
 		return -errno;
 	}
 
-	LOG_DBG("PIPPO Sent UDP/IP payload of %d bytes", strlen(message));
+	LOG_DBG("Sent GNSS data payload of %d bytes", strlen(message));
 	return 0;
 }
 
@@ -179,6 +207,15 @@ static void state_running_run(void *obj)
 		if (msg.type == NETWORK_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
 			return;
+		}
+	} else if (state_object->chan == &LOCATION_CHAN) {
+		const struct location_msg *loc_msg = (const struct location_msg *)state_object->msg_buf;
+
+		if (loc_msg->type == LOCATION_GNSS_DATA) {
+			/* Store latest GNSS data */
+			latest_gnss_data = loc_msg->gnss_data;
+			LOG_DBG("Stored new GNSS data: lat=%.6f, lon=%.6f",
+				latest_gnss_data.latitude, latest_gnss_data.longitude);
 		}
 	}
 }
@@ -250,6 +287,12 @@ static void state_connected_entry(void *obj)
 
 	LOG_DBG("PIPPO state_connected_entry");
 
+	/* Send latest GNSS data */
+	err = sock_send_gnss_data(&latest_gnss_data);
+	if (err) {
+		LOG_ERR("Failed to send GNSS data, error: %d", err);
+	}
+
 	// err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
 	// if (err) {
 	// 	LOG_ERR("zbus_chan_pub, error: %d", err);
@@ -261,16 +304,26 @@ static void state_connected_entry(void *obj)
 static void state_connected_run(void *obj)
 {
 	struct cloud_state_object const *state_object = obj;
-
-        LOG_DBG("PIPPO state_connected_run, push button to send");
+	int err;
 
 	if (state_object->chan == &BUTTON_CHAN) {
-		int err;
-
-		/* Send data when button is pressed */
-		err = sock_send_data();
+		/* Send latest GNSS data when button is pressed */
+		err = sock_send_gnss_data(&latest_gnss_data);
 		if (err) {
-			LOG_ERR("Failed to send data, error: %d", err);
+			LOG_ERR("Failed to send latest GNSS data, error: %d", err);
+		} else {
+			LOG_DBG("Latest GNSS data sent via button press");
+		}
+	} else if (state_object->chan == &LOCATION_CHAN) {
+		const struct location_msg *loc_msg = (const struct location_msg *)state_object->msg_buf;
+
+		if (loc_msg->type == LOCATION_GNSS_DATA) {
+			/* Store and immediately send */
+			latest_gnss_data = loc_msg->gnss_data;
+			err = sock_send_gnss_data(&latest_gnss_data);
+			if (err) {
+				LOG_ERR("Failed to send GNSS data, error: %d", err);
+			}
 		}
 	}
 }
