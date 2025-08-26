@@ -18,6 +18,7 @@
 #include "modem/modem_info.h"
 #include "app_common.h"
 #include "network.h"
+#include "location.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(network, CONFIG_APP_NETWORK_LOG_LEVEL);
@@ -38,8 +39,9 @@ ZBUS_CHAN_DEFINE(NETWORK_CHAN,
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(network);
 
-/* Observe network channel */
+/* Observe network and location channels */
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network, 0);
+ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, network, 0);
 
 #define MAX_MSG_SIZE sizeof(struct network_msg)
 
@@ -405,8 +407,20 @@ static void state_running_run(void *obj)
 static void state_disconnected_entry(void *obj)
 {
 	ARG_UNUSED(obj);
+	int err;
+	struct location_msg msg = {
+		.type = LOCATION_SEARCH_TRIGGER
+	};
 
 	LOG_DBG("state_disconnected_entry");
+
+	/* Trigger location search when disconnected */
+	err = zbus_chan_pub(&LOCATION_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to publish location trigger, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 
 	/* Resend connection status if the sample is built for Native Sim.
 	 * This is necessary because the network interface is automatically brought up
@@ -527,6 +541,21 @@ static void state_disconnected_idle_run(void *obj)
 			break;
 		default:
 			break;
+		}
+	} else if (&LOCATION_CHAN == state_object->chan) {
+		struct location_msg *loc_msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+
+		if (loc_msg->type == LOCATION_GNSS_DATA) {
+			/* Send AT command with location data */
+			err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"%d\",0,0",
+						loc_msg->gnss_data.latitude,
+						loc_msg->gnss_data.longitude,
+						(int)loc_msg->gnss_data.accuracy);
+			if (err) {
+				LOG_ERR("Failed to send AT%%LOCATION command, error: %d", err);
+				SEND_FATAL_ERROR();
+				return;
+			}
 		}
 	}
 }
