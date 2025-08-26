@@ -201,11 +201,44 @@ void trigger_location_update(void)
 	}
 }
 
+void trigger_location_update_mocked(void)
+{
+	/* First send the started status */
+	status_send(LOCATION_SEARCH_STARTED);
+
+	/* Add delay to simulate location acquisition time */
+	k_sleep(K_SECONDS(2));
+
+	/* Create mock location data */
+	struct location_data mock_location = {
+		.latitude = 59.913869,    /* Callbox Mocked Coordinates */
+		.longitude = 10.752245,
+		.accuracy = 5.0,
+		.datetime = {
+			.valid = true,
+			.year = 2024,
+			.month = 1,
+			.day = 1,
+			.hour = 12,
+			.minute = 0,
+			.second = 0,
+			.ms = 0
+		}
+	};
+
+	/* Send the mock GNSS location data */
+	gnss_location_send(&mock_location);
+
+	/* Finally send the done status */
+	status_send(LOCATION_SEARCH_DONE);
+}
+
 void handle_location_chan(const struct location_msg *location_msg)
 {
 	if (location_msg->type == LOCATION_SEARCH_TRIGGER) {
 		LOG_DBG("Location search trigger received, getting location");
-		trigger_location_update();
+		/// trigger_location_update();
+                trigger_location_update_mocked();
 	}
 }
 
