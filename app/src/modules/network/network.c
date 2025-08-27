@@ -420,6 +420,20 @@ static void state_disconnected_entry(void *obj)
 		.type = LOCATION_SEARCH_TRIGGER
 	};
 
+	LOG_DBG("Setting GNSS system mode AT%%XSYSTEMMODE=0,0,1,0,0");
+	err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,1,0,0");
+	if (err) {
+		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+
+	LOG_DBG("Activating GNSS cfun mode AT+cfun=31");
+	err = nrf_modem_at_printf("AT+cfun=31");
+	if (err) {
+		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+
 	err = zbus_chan_pub(&LOCATION_CHAN, &msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("Failed to publish location trigger, error: %d", err);
@@ -563,6 +577,22 @@ static void state_disconnected_idle_run(void *obj)
 				SEND_FATAL_ERROR();
 				return;
 			}
+
+			LOG_DBG("Shuttin modem down cfun mode AT+cfun=0");
+			err = nrf_modem_at_printf("AT+cfun=0");
+			if (err) {
+				LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			LOG_DBG("Setting NTN system mode AT%%XSYSTEMMODE=0,0,0,0,1");
+			err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,0,0,1");
+			if (err) {
+				LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_SEARCHING]);
 		}
 #endif
 	}
