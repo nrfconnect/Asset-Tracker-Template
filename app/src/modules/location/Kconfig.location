@@ -41,8 +41,6 @@ config APP_MOCK_LOCATION_SEARCH
 	  Enable this option to use mocked location data instead of real GNSS location.
 	  This is useful for testing without actual GNSS hardware.
 
-if APP_MOCK_LOCATION_SEARCH
-
 config APP_MOCK_LOCATION_LATITUDE
 	string "Mock location latitude"
 	default "43.295"
@@ -64,7 +62,6 @@ config APP_MOCK_LOCATION_ACCURACY
 	  The accuracy value in meters to use for mocked location data.
 	  Enter as a decimal number (e.g., "5.0").
 
-endif # APP_MOCK_LOCATION_SEARCH
 
 module = APP_LOCATION
 module-str = Location
