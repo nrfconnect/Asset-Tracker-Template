@@ -126,22 +126,6 @@ config APP_CLOUD_NTN_SERVER_ADDR
 	help
 	  Address of the cloud server. This value can be overridden in prj.conf.
 
-config APP_CLOUD_NTN_LATITUDE
-	string "Default latitude"
-	default "0.0"
-	help
-		Default latitude value to include in the data output.
-config APP_CLOUD_NTN_LONGITUDE
-	string "Default longitude"
-	default "0.0"
-	help
-		Default longitude value to include in the data output.
-config APP_CLOUD_NTN_ALTITUDE
-	string "Default altitude"
-	default "0.0"
-	help
-		Default longitude value to include in the data output.
-
 ##### END OF NTN
 
 module = APP_CLOUD

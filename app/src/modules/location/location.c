@@ -14,6 +14,7 @@
 #include <nrf_modem_gnss.h>
 #include <date_time.h>
 #include <modem/nrf_modem_lib.h>
+#include <stdlib.h>
 
 #include "app_common.h"
 #include "modem/lte_lc.h"
@@ -217,10 +218,16 @@ void trigger_location_update_mocked(void)
 	k_sleep(K_SECONDS(10));
 
 	/* Create mock location data */
+	double lat = atof(CONFIG_APP_MOCK_LOCATION_LATITUDE);
+	double lon = atof(CONFIG_APP_MOCK_LOCATION_LONGITUDE);
+	double acc = atof(CONFIG_APP_MOCK_LOCATION_ACCURACY);
+
+	LOG_DBG("Mocked location: lat=%f, lon=%f, acc=%f", lat, lon, acc);
+
 	struct location_data mock_location = {
-		.latitude = 43.295,    /* Callbox Mocked Coordinates */
-		.longitude = 5.373,
-		.accuracy = 5.0,
+		.latitude = lat,
+		.longitude = lon,
+		.accuracy = acc,
 		.datetime = {
 			.valid = true,
 			.year = 2024,

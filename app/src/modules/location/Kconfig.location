@@ -41,6 +41,31 @@ config APP_MOCK_LOCATION_SEARCH
 	  Enable this option to use mocked location data instead of real GNSS location.
 	  This is useful for testing without actual GNSS hardware.
 
+if APP_MOCK_LOCATION_SEARCH
+
+config APP_MOCK_LOCATION_LATITUDE
+	string "Mock location latitude"
+	default "43.295"
+	help
+	  The latitude value to use for mocked location data.
+	  Enter as a decimal number (e.g., "43.295").
+
+config APP_MOCK_LOCATION_LONGITUDE
+	string "Mock location longitude"
+	default "5.373"
+	help
+	  The longitude value to use for mocked location data.
+	  Enter as a decimal number (e.g., "5.373").
+
+config APP_MOCK_LOCATION_ACCURACY
+	string "Mock location accuracy in meters"
+	default "5.0"
+	help
+	  The accuracy value in meters to use for mocked location data.
+	  Enter as a decimal number (e.g., "5.0").
+
+endif # APP_MOCK_LOCATION_SEARCH
+
 module = APP_LOCATION
 module-str = Location
 source "subsys/logging/Kconfig.template.log_config"
