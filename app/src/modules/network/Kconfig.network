@@ -44,6 +44,8 @@ config APP_NETWORK_SEARCH_NETWORK_ON_STARTUP
 	  If enabled, the module will search for a network on startup.
 	  If disabled, network search must be triggered by a NETWORK_CONNECT message.
 
+##### NTN
+
 menu "NTN settings"
 	depends on APP_NTN_MODE
 
@@ -54,7 +56,6 @@ config APP_NTN_BANDLOCK_ENABLE
 	  Enable bandlock
 
 if APP_NTN_BANDLOCK_ENABLE
-
 config APP_NTN_BANDLOCK
 	int "Bandlock"
 	default 256
@@ -76,6 +77,22 @@ config APP_NTN_CHANNEL_SELECT
 	  Select channel
 endif
 
+
+config APP_NTN_CGDCOUNT_ENABLE
+	bool "Enable set cgdcont"
+	default y
+	help
+	  Enable set cgdcont
+
+if APP_NTN_CGDCOUNT_ENABLE
+config APP_NTN_CGDCOUNT
+	string "APN / PDN"
+	default "test123"
+	help
+	  Select channel
+endif
+
+##### END OF NTN
 
 
 endmenu
