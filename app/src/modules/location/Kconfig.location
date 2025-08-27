@@ -34,6 +34,13 @@ config APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS
 	  Maximum time allowed for processing a single message in the module's state machine.
 	  The value must be smaller than CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS.
 
+config APP_MOCK_LOCATION_SEARCH
+	bool "Mock location search"
+	default n
+	help
+	  Enable this option to use mocked location data instead of real GNSS location.
+	  This is useful for testing without actual GNSS hardware.
+
 module = APP_LOCATION
 module-str = Location
 source "subsys/logging/Kconfig.template.log_config"
