@@ -106,10 +106,8 @@ static void on_cfun(int mode, void *ctx)
 	}
 
 #ifdef CONFIG_APP_NTN_MODE
-	/* In NTN, only activate GNSS when specifically required */
-	if (mode != 31 ) {
-		return;
-	}
+	/* In NTN, GNSS is not activated on cfun hook */
+	return;
 #endif
 
 	inited = true;
