@@ -157,7 +157,6 @@ static int sock_open_and_connect(void)
 		return -errno;
 	}
 
-	LOG_DBG("PIPPO UDP socket created and connected, fd=%d", sock_fd);
 	return 0;
 }
 
@@ -261,16 +260,12 @@ static void state_connecting_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 
-	LOG_DBG("PIPPO state_connecting_entry");
-
 	err = sock_open_and_connect();
 	if (err) {
 		LOG_ERR("Failed to connect to cloud server, error: %d", err);
 		smf_set_state(SMF_CTX(obj), &states[STATE_DISCONNECTED]);
 		return;
 	}
-
-	LOG_DBG("PIPPO sock_open_and_connect DONE");
 
 	smf_set_state(SMF_CTX(obj), &states[STATE_CONNECTED]);
 }
@@ -284,8 +279,6 @@ static void state_connected_entry(void *obj)
 
 	ARG_UNUSED(obj);
 	LOG_DBG("%s", __func__);
-
-	LOG_DBG("PIPPO state_connected_entry");
 
 	/* Send latest GNSS data */
 	err = sock_send_gnss_data(&latest_gnss_data);
