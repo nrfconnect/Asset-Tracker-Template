@@ -39,12 +39,9 @@ ZBUS_CHAN_DEFINE(NETWORK_CHAN,
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(network);
 
-/* Observe network channel */
+/* Observe network and location channel */
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network, 0);
-#ifdef CONFIG_APP_NTN_MODE
-/* Observe location channel for NTN mode */
 ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, network, 0);
-#endif
 
 #define MAX_MSG_SIZE sizeof(struct network_msg)
 
@@ -343,39 +340,6 @@ static void state_running_entry(void *obj)
 	}
 
 	lte_lc_register_handler(lte_lc_evt_handler);
-#if defined(CONFIG_APP_NTN_MODE)
-	 /* NTN mode */
-	err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,0,0,1");
-	if (err) {
-		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
-
-#if defined(CONFIG_APP_NTN_BANDLOCK_ENABLE)
-	err = nrf_modem_at_printf("AT%%XBANDLOCK=2,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
-	if (err) {
-		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
-#endif /* CONFIG_APP_NTN_BANDLOCK_ENABLE */
-
-#if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
-	err = nrf_modem_at_printf("AT%%CHSELECT=1,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
-	if (err) {
-		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
-#endif /* CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE */
-
-#if defined(CONFIG_APP_NTN_APN)
-	err = nrf_modem_at_printf("AT+CGDCONT=0,\"ip\",\"%s\"", CONFIG_APP_NTN_APN);
-	if (err) {
-		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
-#endif /* CONFIG_APP_NTN_APN_SET */	
-
-#endif /* CONFIG_APP_NTN_MODE */
 
 	LOG_DBG("Network module started");
 }
@@ -439,7 +403,7 @@ static void state_disconnected_entry(void *obj)
 		SEND_FATAL_ERROR();
 		return;
 	}
-#endif
+#endif /* CONFIG_APP_NTN_MODE */
 
 	/* Resend connection status if the sample is built for Native Sim.
 	 * This is necessary because the network interface is automatically brought up
@@ -566,6 +530,20 @@ static void state_disconnected_idle_run(void *obj)
 		struct location_msg *loc_msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
 
 		if (loc_msg->type == LOCATION_GNSS_DATA) {
+			LOG_DBG("Shuttin modem down cfun mode AT+cfun=0");
+			err = nrf_modem_at_printf("AT+cfun=0");
+			if (err) {
+				LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+			/* NTN mode */
+			LOG_DBG("Setting NTN system mode AT%%XSYSTEMMODE=0,0,0,0,1");
+			err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,0,0,1");
+			if (err) {
+				LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
 			/* Send AT command with location data */
 			err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"%d\",0,0",
 						loc_msg->gnss_data.latitude,
@@ -577,23 +555,33 @@ static void state_disconnected_idle_run(void *obj)
 				return;
 			}
 
-			LOG_DBG("Shuttin modem down cfun mode AT+cfun=0");
-			err = nrf_modem_at_printf("AT+cfun=0");
+		#if defined(CONFIG_APP_NTN_BANDLOCK_ENABLE)
+			err = nrf_modem_at_printf("AT%%XBANDLOCK=2,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
 			if (err) {
 				LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
 				SEND_FATAL_ERROR();
 			}
+		#endif /* CONFIG_APP_NTN_BANDLOCK_ENABLE */
 
-			LOG_DBG("Setting NTN system mode AT%%XSYSTEMMODE=0,0,0,0,1");
-			err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,0,0,1");
+		#if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
+			err = nrf_modem_at_printf("AT%%CHSELECT=1,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
 			if (err) {
 				LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
 				SEND_FATAL_ERROR();
 			}
+		#endif /* CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE */
 
-			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_SEARCHING]);
+		#if defined(CONFIG_APP_NTN_APN)
+			err = nrf_modem_at_printf("AT+CGDCONT=0,\"ip\",\"%s\"", CONFIG_APP_NTN_APN);
+			if (err) {
+				LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+		#endif /* CONFIG_APP_NTN_APN_SET */
+
+			// smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_SEARCHING]);
 		}
-#endif
+#endif /* CONFIG_APP_NTN_MODE */
 	}
 }
 
