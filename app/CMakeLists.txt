@@ -18,7 +18,6 @@ zephyr_include_directories(config)
 target_sources(app PRIVATE src/main.c)
 
 # Module source folders
-add_subdirectory(src/modules/network)
 add_subdirectory(src/modules/button)
 add_subdirectory(src/cbor)
 
@@ -28,8 +27,10 @@ add_subdirectory_ifdef(CONFIG_APP_ENVIRONMENTAL src/modules/environmental)
 add_subdirectory_ifdef(CONFIG_APP_LED src/modules/led)
 add_subdirectory_ifdef(CONFIG_APP_LOCATION src/modules/location)
 if(CONFIG_APP_NTN_MODE)
+    add_subdirectory(src/modules/network_ntn)
 	add_subdirectory_ifdef(CONFIG_APP_CLOUD src/modules/cloud_ntn)
 else()
+    add_subdirectory(src/modules/network)
 	add_subdirectory_ifdef(CONFIG_APP_CLOUD src/modules/cloud)
 endif()
 add_subdirectory_ifdef(CONFIG_APP_FOTA src/modules/fota)
