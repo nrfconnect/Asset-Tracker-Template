@@ -12,13 +12,11 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <date_time.h>
 #include <zephyr/smf.h>
-#include <nrf_modem_at.h>
 
 #include "modem/lte_lc.h"
 #include "modem/modem_info.h"
 #include "app_common.h"
 #include "network.h"
-#include "location.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(network, CONFIG_APP_NETWORK_LOG_LEVEL);
@@ -41,10 +39,6 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(network);
 
 /* Observe network channel */
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network, 0);
-#ifdef CONFIG_APP_NTN_MODE
-/* Observe location channel for NTN mode */
-ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, network, 0);
-#endif
 
 #define MAX_MSG_SIZE sizeof(struct network_msg)
 
@@ -343,33 +337,6 @@ static void state_running_entry(void *obj)
 	}
 
 	lte_lc_register_handler(lte_lc_evt_handler);
-#if defined(CONFIG_APP_NTN_MODE)
-
-#if defined(CONFIG_APP_NTN_BANDLOCK_ENABLE)
-	err = nrf_modem_at_printf("AT%%XBANDLOCK=2,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
-	if (err) {
-		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
-#endif /* CONFIG_APP_NTN_BANDLOCK_ENABLE */
-
-#if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
-	err = nrf_modem_at_printf("AT%%CHSELECT=1,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
-	if (err) {
-		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
-#endif /* CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE */
-
-#if defined(CONFIG_APP_NTN_CGDCOUNT_ENABLE)
-	err = nrf_modem_at_printf("AT%%CGDCOUNT=0,\"IP\",\"%s", CONFIG_APP_NTN_CGDCOUNT);
-	if (err) {
-		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
-#endif /* CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE */
-
-#endif /* CONFIG_APP_NTN_MODE */
 
 	LOG_DBG("Network module started");
 }
@@ -405,35 +372,6 @@ static void state_disconnected_entry(void *obj)
 	ARG_UNUSED(obj);
 
 	LOG_DBG("state_disconnected_entry");
-
-#ifdef CONFIG_APP_NTN_MODE
-	/* Trigger location search when disconnected in NTN mode */
-	int err;
-	struct location_msg msg = {
-		.type = LOCATION_SEARCH_TRIGGER
-	};
-
-	LOG_DBG("Setting GNSS system mode AT%%XSYSTEMMODE=0,0,1,0,0");
-	err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,1,0,0");
-	if (err) {
-		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
-
-	LOG_DBG("Activating GNSS cfun mode AT+cfun=31");
-	err = nrf_modem_at_printf("AT+cfun=31");
-	if (err) {
-		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
-
-	err = zbus_chan_pub(&LOCATION_CHAN, &msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("Failed to publish location trigger, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
-#endif
 
 	/* Resend connection status if the sample is built for Native Sim.
 	 * This is necessary because the network interface is automatically brought up
@@ -555,39 +493,6 @@ static void state_disconnected_idle_run(void *obj)
 		default:
 			break;
 		}
-#ifdef CONFIG_APP_NTN_MODE
-	} else if (&LOCATION_CHAN == state_object->chan) {
-		struct location_msg *loc_msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
-
-		if (loc_msg->type == LOCATION_GNSS_DATA) {
-			/* Send AT command with location data */
-			err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"%d\",0,0",
-						loc_msg->gnss_data.latitude,
-						loc_msg->gnss_data.longitude,
-						(int)loc_msg->gnss_data.accuracy);
-			if (err) {
-				LOG_ERR("Failed to send AT%%LOCATION command, error: %d", err);
-				SEND_FATAL_ERROR();
-				return;
-			}
-
-			LOG_DBG("Shuttin modem down cfun mode AT+cfun=0");
-			err = nrf_modem_at_printf("AT+cfun=0");
-			if (err) {
-				LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
-				SEND_FATAL_ERROR();
-			}
-
-			LOG_DBG("Setting NTN system mode AT%%XSYSTEMMODE=0,0,0,0,1");
-			err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,0,0,1");
-			if (err) {
-				LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
-				SEND_FATAL_ERROR();
-			}
-
-			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_SEARCHING]);
-		}
-#endif
 	}
 }
 

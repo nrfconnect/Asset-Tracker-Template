@@ -44,59 +44,6 @@ config APP_NETWORK_SEARCH_NETWORK_ON_STARTUP
 	  If enabled, the module will search for a network on startup.
 	  If disabled, network search must be triggered by a NETWORK_CONNECT message.
 
-##### NTN
-
-menu "NTN settings"
-	depends on APP_NTN_MODE
-
-config APP_NTN_BANDLOCK_ENABLE
-	bool "Enable bandlock"
-	default y
-	help
-	  Enable bandlock
-
-if APP_NTN_BANDLOCK_ENABLE
-config APP_NTN_BANDLOCK
-	int "Bandlock"
-	default 256
-	help
-	  Bandlock
-endif
-
-config APP_NTN_CHANNEL_SELECT_ENABLE
-	bool "Enable channel select"
-	default y
-	help
-	 Enable channel select 
-
-if APP_NTN_CHANNEL_SELECT_ENABLE
-config APP_NTN_CHANNEL_SELECT
-	int "Channel / earfcn"
-	default 228841
-	help
-	  Select channel
-endif
-
-
-config APP_NTN_CGDCOUNT_ENABLE
-	bool "Enable set cgdcont"
-	default y
-	help
-	  Enable set cgdcont
-
-if APP_NTN_CGDCOUNT_ENABLE
-config APP_NTN_CGDCOUNT
-	string "APN / PDN"
-	default "test123"
-	help
-	  Select channel
-endif
-
-##### END OF NTN
-
-
-endmenu
-
 module = APP_NETWORK
 module-str = Network
 source "subsys/logging/Kconfig.template.log_config"
