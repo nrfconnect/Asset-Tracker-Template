@@ -8,14 +8,15 @@ menu "Asset Tracker Template"
 
 rsource "src/Kconfig.main"
 rsource "src/modules/power/Kconfig.power"
-rsource "src/modules/network/Kconfig.network"
 
 if APP_NTN_MODE
 rsource "src/modules/cloud_ntn/Kconfig.cloud"
+rsource "src/modules/network_ntn/Kconfig.network"
 endif # APP_NTN_MODE
 
 if !APP_NTN_MODE
 rsource "src/modules/cloud/Kconfig.cloud"
+rsource "src/modules/network/Kconfig.network"
 endif # !APP_NTN_MODE
 
 rsource "src/modules/location/Kconfig.location"

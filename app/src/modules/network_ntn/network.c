@@ -367,8 +367,8 @@ static void state_running_entry(void *obj)
 	}
 #endif /* CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE */
 
-#if defined(CONFIG_APP_NTN_APN_SET)
-	err = nrf_modem_at_printf("AT%%CGDCONT=0,\"ip\",\"%i\"", CONFIG_APP_NTN_APN);
+#if defined(CONFIG_APP_NTN_APN)
+	err = nrf_modem_at_printf("AT+CGDCONT=0,\"ip\",\"%s\"", CONFIG_APP_NTN_APN);
 	if (err) {
 		LOG_ERR("ERROR: Failed to send AT command, error: %d", err);
 		SEND_FATAL_ERROR();
