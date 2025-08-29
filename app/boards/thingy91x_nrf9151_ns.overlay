@@ -12,14 +12,15 @@
 
 / {
 	chosen {
+		nordic,modem-trace-uart = &uart1;
 		zephyr,wifi = &nordic_wlan0;
 	};
 };
 
 &uart1 {
 	status = "okay";
+	current-speed = <1000000>;
 };
-
 
 /* Switch to nrf7000 emulation so that scan-only mode is used. */
 &nrf70 {
