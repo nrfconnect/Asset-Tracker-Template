@@ -417,7 +417,8 @@ static void send_batch_error_response(uint32_t session_id)
 	send_batch_response(STORAGE_BATCH_ERROR, session_id, 0, false);
 }
 
-static void send_batch_available_response(uint32_t session_id, size_t item_count, bool more_available)
+static void send_batch_available_response(uint32_t session_id, size_t item_count,
+					  bool more_available)
 {
 	send_batch_response(STORAGE_BATCH_AVAILABLE, session_id, item_count, more_available);
 }
