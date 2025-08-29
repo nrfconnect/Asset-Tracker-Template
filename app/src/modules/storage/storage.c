@@ -18,9 +18,15 @@
 #include "storage_data_types.h"
 #include "app_common.h"
 
+#if IS_ENABLED(CONFIG_APP_POWER)
 #include "power.h"
+#endif
+#if IS_ENABLED(CONFIG_APP_ENVIRONMENTAL)
 #include "environmental.h"
+#endif
+#if IS_ENABLED(CONFIG_APP_LOCATION)
 #include "location.h"
+#endif
 
 /* Register log module */
 LOG_MODULE_REGISTER(storage, CONFIG_APP_STORAGE_LOG_LEVEL);
