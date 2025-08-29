@@ -8,6 +8,31 @@ For more knowledge on debugging and troubleshooting [nRF Connect SDK](https://gi
 - [nRF Connect SDK Debugging Guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/test_and_optimize/debugging.html)
 - [Zephyr Debugging Guide](https://docs.zephyrproject.org/latest/develop/debug/index.html)
 
+## Table of Contents
+
+- [Shell Commands](#shell-commands)
+  - [Available Commands](#available-commands)
+  - [Shell Command Examples](#shell-command-examples)
+    - [Cloud Publishing](#cloud-publishing)
+    - [Network disconnect](#network-disconnect)
+    - [AT Command Execution](#at-command-execution)
+- [Debugging Tools](#debugging-tools)
+  - [Low Power Profiling](#low-power-profiling)
+  - [GDB Debugging](#gdb-debugging)
+  - [SEGGER SystemView](#segger-systemview)
+    - [Configuration](#configuration)
+  - [Thread Analysis](#thread-analysis)
+  - [Hardfaults](#hardfaults)
+- [Memfault Remote Debugging](#memfault-remote-debugging)
+  - [Recommended Prerequisites](#recommended-prerequisites)
+  - [Test shell commands](#test-shell-commands)
+- [Modem Tracing](#modem-tracing)
+  - [UART Tracing](#uart-tracing)
+  - [RTT Tracing](#rtt-tracing)
+  - [Dumping modem traces over UART after capture](#dumping-modem-traces-over-uart-after-capture)
+  - [Application logs and modem traces over RTT - Parallel capture](#application-logs-and-modem-traces-over-rtt---parallel-capture)
+- [Common Issues and Solutions](#common-issues-and-solutions)
+
 ## Shell Commands
 
 The template provides several shell commands for controlling and monitoring device behavior. Connect to the device's UART interface using either:
@@ -431,7 +456,83 @@ and then convert the captured modem trace to pcapng using the Cellular Monitor a
 nrfutil trace lte --input-file modem_trace.bin --output-pcapng rtt-trace.pcapng
 ```
 
-### Application logs and modem traces over RTT - Parrallell capture
+### Dumping modem traces over UART after capture
+
+The device can be configured to continuously capture modem traces to external flash memory. After capture, a shell command can be used to dump the stored traces over UART to the [Cellular Monitor](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) application for storage and analysis.
+
+Add to `prj.conf`:
+
+```bash
+CONFIG_FCB=y
+CONFIG_FLASH_MAP=y
+CONFIG_NRF_MODEM_LIB_TRACE=y
+CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_LTE_AND_IP=y
+CONFIG_NRF_MODEM_LIB_TRACE_BACKEND_FLASH=y
+CONFIG_NRF_MODEM_TRACE_FLASH_NOSPACE_ERASE_OLDEST=y
+CONFIG_NRF_MODEM_LIB_TRACE_STACK_SIZE=896
+CONFIG_NRF_MODEM_LIB_TRACE_FLASH_SECTORS=255
+CONFIG_NRF_MODEM_LIB_TRACE_BACKEND_FLASH_PARTITION_SIZE=0xFF000
+CONFIG_NRF_MODEM_LIB_SHELL_TRACE=y
+```
+
+!!! important "Important"
+
+      **Flash Partition Configuration:**
+      
+      The flash partition size configuration allocates 255 sectors of 4 kB each (approximately 1 MB) for trace storage. 
+      Adjust `CONFIG_NRF_MODEM_LIB_TRACE_FLASH_SECTORS` and `CONFIG_NRF_MODEM_LIB_TRACE_BACKEND_FLASH_PARTITION_SIZE` according to your available flash memory.
+
+      **Trace Buffer Limitations:**
+      
+      Depending on the trace level, network, and IP activity, the trace buffer might get full. Due to a current limitation in Zephyr, the maximum size of the buffer is approximately 1 MB.
+
+      **Trace Level Configuration:**
+      
+      To mitigate buffer overflow issues, the trace level can be adjusted through the `CONFIG_NRF_MODEM_LIB_TRACE_LEVEL` choice symbol:
+
+      - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_OFF`**: Disable output
+      - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_COREDUMP_ONLY`**: Coredump only
+      - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_IP_ONLY`**: IP only
+      - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_LTE_AND_IP`**: LTE and IP (recommended for most use cases)
+      - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_FULL`**: LTE, IP, GNSS, and coredump (highest data volume)
+
+      Adjusting the trace level will set how often the trace buffer is filled up. When the trace buffer gets full, the oldest entry will be overwritten.
+      To disable this, disable `CONFIG_NRF_MODEM_TRACE_FLASH_NOSPACE_ERASE_OLDEST`.
+
+The following `modem_trace` shell commands are available:
+
+```bash
+modem_trace - Commands for controlling modem trace functionality.
+Subcommands:
+  start      : Start modem tracing.
+  stop       : Stop modem tracing.
+  clear      : Clear captured trace data and prepare the backend for capturing
+               new traces.
+               This operation is only supported with some trace backends.
+  size       : Read out the size of stored modem traces.
+               This operation is only supported with some trace backends.
+  dump_uart  : Dump stored traces to UART.
+```
+
+To capture traces:
+
+1. Connect to the device using a serial terminal.
+2. Start capturing traces in the [Cellular Monitor](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) application on UART 1 or call the following nRF Util command:
+
+    ```bash
+    nrfutil trace lte --input-serialport /dev/tty.usbmodemxxxxxx --output-raw raw-file.bin
+    ```
+
+3. Execute the dump command:
+
+    ```bash
+    uart:~$ modem_trace stop
+    uart:~$ modem_trace dump_uart
+    ```
+
+4. When the traces have been captured they can be converted to PCAP in [Cellular Monitor](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) for analysis.
+
+### Application logs and modem traces over RTT - Parallel capture
 
 For simultaneous modem traces and application logs over RTT:
 
@@ -454,30 +555,12 @@ JLinkRTTLogger -Device NRF9160_XXAA -If SWD -Speed 50000 -RTTChannel 2 modem_tra
 JLinkRTTLogger -Device NRF9160_XXAA -If SWD -Speed 50000 -RTTChannel 0 terminal.txt
 ```
 
-It might be needed to change the channel name depending. Default should be: termina: 0, shell: 1, modem trace: 2.
+!!! note "Note"
+
+      You may need to adjust the RTT channel numbers depending on your configuration. The default channel mapping is: terminal: 0, shell: 1, modem trace: 2.
 
 For more information, see [nRF Connect SDK Modem Tracing](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrfxlib/nrf_modem/doc/modem_trace.html).
 
 ## Common Issues and Solutions
 
-If you are not able to resolve the issue with the tools and instructions given in this documentation its recommended to create an issue in the [template repository](https://github.com/nrfconnect/Asset-Tracker-Template/issues) or register a support ticket in Nordics support portal <https://devzone.nordicsemi.com/>.
-
-## Network Connection Issues
-
-- Device fails to connect to network
-- Frequent disconnections
-
-**Debugging steps:**
-
-1. Capture and analyse modem traces.
-2. Attach traces in ticket or issue reported to Nordic through DevZone.
-
-## Hardfault
-
-- Device crashes
-- Reboot loop
-
-**Debugging steps:**
-
-- Lookup LR/PC if printed.
-- Debug using GDB.
+If you are not able to resolve the issue with the tools and instructions given in this documentation, it's recommended to create an issue in the [template repository](https://github.com/nrfconnect/Asset-Tracker-Template/issues) or register a support ticket in Nordic's support portal <https://devzone.nordicsemi.com/>.
