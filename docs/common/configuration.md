@@ -36,6 +36,24 @@ You can update the interval using [nRF Cloud REST API](https://api.nrfcloud.com/
 curl -X PATCH   "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state"   -H "Authorization: Bearer $API_KEY"   -H "Content-Type: application/json"   -d '{ "desired": { "config": { "update_interval": <your_value> } } }'
 ```
 
+### Sending commands through REST API
+
+You can make the device perform certain commands using [nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState).
+
+```
+curl -X PATCH   "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state"   -H "Authorization: Bearer $API_KEY"   -H "Content-Type: application/json"   -d '{ "desired": { "command": [1, 1] } }'
+```
+
+Where the command entry is in the following format command: [type, id].
+If issuing multiple commands after one another make sure that the ID is updated as no successive commands with the same id as the previous will not be executed.
+
+The current support command types are:
+
+0. Reboot
+1. Provision
+
+To see the object definitions and defined structure of the shadow expected by the device, refer to Asset-Tracker-Template/app/src/cbor/device_shadow.cddl
+
 ### Configuration Flow
 
 * **Initial Setup**

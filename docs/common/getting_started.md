@@ -120,66 +120,9 @@ west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.con
 
 ## Provision device to nRF Cloud
 
-To be able to use the [nRF Cloud](https://nrfcloud.com) features, you need to provision your device to nRF Cloud and associate it with your account. The following steps will guide you through the provisioning process, using [nRF Cloud Utils](https://github.com/nRFCloud/utils/tree/main).
-
-### Requirements
-
-Ensure you have an active [nRF Cloud](https://nrfcloud.com) account. If not, register at [nrfcloud.com](https://nrfcloud.com).
-To locate your API key:
-
-1. Log in to your nRF Cloud account.
-1. Click the menu icon (often referred to as a "burger icon") in the top-right corner.
-1. Navigate to your user account details. Your API key will be listed there.
-If you are a member of multiple teams on nRF Cloud, each team will have a distinct API key. Verify you are using the API key associated with the correct team.
-
-The following provisioning steps require that the Asset Tracker Template application has been successfully built and flashed to your device. If you have not yet completed this, refer to the [Building and running](#building-and-running) section.
-
-Install nrfcloud-utils package:
-
-```shell
-pip3 install nrfcloud-utils
-```
-
-Refer to the [nRF Cloud Utils](https://github.com/nRFCloud/utils/tree/main) documentation for more information on the commands and their usage.
-
-### Steps
-
-Provisioning the device involves writing credentials to the nRF91 Series device. To do so, LTE needs to be disabled.
-Open device shell through serial and set network disconnect mode using the following command:
-
-```shell
-att_network disconnect
-```
-
-nRF Cloud Utils communicates with the device over the serial port, so you need to disconnect from the serial port before proceeding with the next steps.
-Refer to the [nRF Cloud Utils](https://github.com/nRFCloud/utils/tree/main) documentation for more information on the commands, their usage and the available options.
-
-Create a self-signed CA certificate and private key:
-
-```shell
-create_ca_cert
-```
-
-Now, you should have three `.pem` files containing the key pair and the CA certificate of your local certificate authority. The files are named as follows:
-
-- `*_ca.pem` - CA certificate
-- `*_prv.pem` - CA private key
-- `*_pub.pem` - CA public key
-
-Install credentials onto the device:
-
-```shell
-device_credentials_installer -d --ca *_ca.pem --ca-key *_prv.pem --coap --cmd-type at_shell
-```
-
-Upon success, you can find an `onboard.csv` file with information about your device. You need this file to register the certificate with your account.
-In this step, you will also be prompted to enter your nRF Cloud API key that you obtained earlier.
-
-```shell
-nrf_cloud_onboard --api-key $NRFCLOUD_API_KEY --csv onboard.csv
-```
-
-Your device should now be registered to your account on nRF Cloud.
+To be able to connect to [nRF Cloud](https://nrfcloud.com), you need to provision your device to nRF Cloud and associate it with your account.
+The template is compatible with nRF Connect for Desktop, to get onboarded you can follow the guided steps there.
+For general steps on how to provision the device to nRF Cloud, read the following documentation [Provisioning]
 
 ## Testing
 

@@ -63,4 +63,34 @@ static int cmd_publish(const struct shell *sh, size_t argc, char **argv)
 	return 0;
 }
 
-SHELL_CMD_REGISTER(att_cloud_publish, NULL, "Asset Tracker Template Cloud CMDs", cmd_publish);
+static int cmd_provisioning(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	int err;
+	struct cloud_msg msg = {
+		.type = CLOUD_PROVISIONING_REQUEST,
+	};
+
+	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
+		return 1;
+	}
+
+	return 0;
+}
+
+SHELL_STATIC_SUBCMD_SET_CREATE(prov_sub_cmds,
+			       SHELL_CMD(now,
+					 NULL,
+					 "Perform provisioning now",
+					 cmd_provisioning),
+			       SHELL_SUBCMD_SET_END
+);
+
+SHELL_CMD_REGISTER(att_cloud_publish, NULL, "Asset Tracker Template Cloud CMDs",
+		   cmd_publish);
+SHELL_CMD_REGISTER(att_cloud_provision, &prov_sub_cmds, "Asset Tracker Template Provisioning CMDs",
+		   NULL);
