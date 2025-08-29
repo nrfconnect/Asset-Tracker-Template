@@ -20,7 +20,7 @@ void sys_reboot(int type);
 extern int app_main(void);
 
 K_THREAD_DEFINE(app_main_id,
-		4096,
+		16384,
 		app_main, NULL, NULL, NULL, 0, 0, 0);
 
 #endif
