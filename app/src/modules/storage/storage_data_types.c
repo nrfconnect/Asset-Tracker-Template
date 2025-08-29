@@ -9,9 +9,22 @@
 
 #include "storage.h"
 #include "storage_data_types.h"
+
+#ifdef CONFIG_APP_POWER
 #include "power.h"
+#endif
+
+#ifdef CONFIG_APP_ENVIRONMENTAL
 #include "environmental.h"
+#endif
+
+#ifdef CONFIG_APP_LOCATION
 #include "location.h"
+#endif
+
+#ifdef CONFIG_APP_NETWORK
+#include "network.h"
+#endif
 
 /**
  * @brief Register all enabled data types with the storage module
