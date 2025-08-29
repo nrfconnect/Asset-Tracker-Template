@@ -18,9 +18,15 @@
 #include "storage_data_types.h"
 #include "app_common.h"
 
+#ifdef CONFIG_APP_POWER
 #include "power.h"
+#endif
+#ifdef CONFIG_APP_ENVIRONMENTAL
 #include "environmental.h"
+#endif
+#ifdef CONFIG_APP_LOCATION
 #include "location.h"
+#endif
 
 /* Register log module */
 LOG_MODULE_REGISTER(storage, CONFIG_APP_STORAGE_LOG_LEVEL);
@@ -159,7 +165,7 @@ enum storage_module_state {
 /* Construct state table */
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
-#if IS_ENABLED(CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH)
+#ifdef CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH
 		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
 				 NULL, /* No parent state */
 				 &states[STATE_PASSTHROUGH]), /* Initial transition */
@@ -670,7 +676,7 @@ int storage_batch_read(struct storage_data_item *out_item, k_timeout_t timeout)
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_APP_STORAGE_SHELL_STATS)
+#ifdef CONFIG_APP_STORAGE_SHELL_STATS
 static void handle_storage_stats(void)
 {
 	const struct storage_backend *backend = storage_backend_get();
@@ -742,7 +748,7 @@ static void state_running_run(void *o)
 		case STORAGE_FLUSH:
 			flush_stored_data();
 			break;
-#if IS_ENABLED(CONFIG_APP_STORAGE_SHELL_STATS)
+#ifdef CONFIG_APP_STORAGE_SHELL_STATS
 		case STORAGE_STATS:
 			/* Show storage statistics */
 			handle_storage_stats();
