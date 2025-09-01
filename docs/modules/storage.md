@@ -95,11 +95,15 @@ The storage module communicates through two zbus channels: `STORAGE_CHAN` and `S
 
 **Mode Control:**
 
-- **`STORAGE_MODE_PASSTHROUGH`**
-  Switches the module from buffer mode to passthrough mode. Data from registered channels is immediately forwarded as `STORAGE_DATA` messages without any storage. This message is only processed when in BUFFER state.
+- **`STORAGE_MODE_PASSTHROUGH_REQUEST`**
+  Request to switch from buffer mode to passthrough mode. On success, the module replies with
+  `STORAGE_MODE_PASSTHROUGH`. If the change is unsafe (for example, batch session active), the
+  module replies with `STORAGE_MODE_CHANGE_REJECTED`.
 
-- **`STORAGE_MODE_BUFFER`**
-  Switches the module from passthrough mode to buffer mode. Data is stored in the configured backend and can be retrieved later. This message is only processed when in PASSTHROUGH state.
+- **`STORAGE_MODE_BUFFER_REQUEST`**
+  Request to switch from passthrough mode to buffer mode. On success, the module replies with
+  `STORAGE_MODE_BUFFER`. If the change is unsafe, the module replies with
+  `STORAGE_MODE_CHANGE_REJECTED`.
 
 **Data Operations (handled by parent RUNNING state):**
 
@@ -119,6 +123,17 @@ The storage module communicates through two zbus channels: `STORAGE_CHAN` and `S
 
 ### Output Messages (Responses)
 
+**Mode confirmation:**
+
+- **`STORAGE_MODE_PASSTHROUGH`**
+  Mode change to passthrough confirmed.
+
+- **`STORAGE_MODE_BUFFER`**
+  Mode change to buffer confirmed.
+
+- **`STORAGE_MODE_CHANGE_REJECTED`**
+  Mode change rejected due to safety constraints. See `reject_reason` in `struct storage_msg`.
+
 **Data Messages:**
 
 - **`STORAGE_DATA`**
@@ -127,7 +142,7 @@ The storage module communicates through two zbus channels: `STORAGE_CHAN` and `S
 **Batch Status:**
 
 - **`STORAGE_BATCH_AVAILABLE`**
-  Batch is ready for reading. Message includes total item count available.
+  Batch is ready for reading. Message includes total item count available and session ID.
 
 - **`STORAGE_BATCH_EMPTY`**
   No stored data available; batch is empty.
@@ -144,22 +159,15 @@ The message structure used by the storage module is defined in `storage.h`:
 
 ```c
 struct storage_msg {
-    /* Type of message */
-    enum storage_msg_type type;
-
-    /* Type of data in buffer */
-    enum storage_data_type data_type;
-
+    enum storage_msg_type type;           /* Message type */
+    enum storage_data_type data_type;     /* Data type for STORAGE_DATA */
     union {
-        /* Buffer for data (used with STORAGE_DATA) */
         uint8_t buffer[STORAGE_MAX_DATA_SIZE];
-
-        /* Number of items available (for STORAGE_PIPE_AVAILABLE) */
-        size_t item_count;
+        uint32_t session_id;              /* Batch session id */
+        enum storage_reject_reason reject_reason; /* For MODE_CHANGE_REJECTED */
     };
-
-    /* Length of data in buffer or number of batch items */
-    size_t data_len;
+    uint32_t data_len: 31;                /* Length or count */
+    bool     more_data: 1;                /* More data available in batch */
 };
 ```
 
@@ -186,7 +194,7 @@ The storage module is configurable through Kconfig options in `Kconfig.storage`.
 - **`CONFIG_APP_STORAGE_RAM_LIMIT_KB`** (default: 64)
   Maximum RAM usage limit in KB for build-time validation.
 
-- **`CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE`** (default: 4096)
+- **`CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE`** (default: 1024)
   Size of the internal buffer for batch data access.
 
 ### Message Handling
@@ -196,7 +204,7 @@ The storage module is configurable through Kconfig options in `Kconfig.storage`.
 
 ### Thread Configuration
 
-- **`CONFIG_APP_STORAGE_THREAD_STACK_SIZE`** (default: 1024)
+- **`CONFIG_APP_STORAGE_THREAD_STACK_SIZE`** (default: 2048)
   Stack size for the storage module's main thread.
 
 - **`CONFIG_APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS`** (default: 60)
@@ -243,8 +251,8 @@ Primary zbus channel for controlling the storage module and receiving control/st
 
 **Input Message Types:**
 
-- `STORAGE_MODE_PASSTHROUGH` - Switch to passthrough mode
-- `STORAGE_MODE_BUFFER` - Switch to buffer mode
+- `STORAGE_MODE_PASSTHROUGH_REQUEST` - Request passthrough mode
+- `STORAGE_MODE_BUFFER_REQUEST` - Request buffer mode
 - `STORAGE_FLUSH` - Flush stored data as individual messages
 - `STORAGE_BATCH_REQUEST` - Request batch access to stored data
 - `STORAGE_CLEAR` - Clear all stored data
@@ -252,10 +260,13 @@ Primary zbus channel for controlling the storage module and receiving control/st
 
 **Output Message Types:**
 
-- `STORAGE_PIPE_AVAILABLE` - Pipe ready with data
-- `STORAGE_PIPE_EMPTY` - No data available
-- `STORAGE_PIPE_BUSY` - Another session active
-- `STORAGE_PIPE_ERROR` - Error accessing data
+- `STORAGE_MODE_PASSTHROUGH` - Mode change confirmed
+- `STORAGE_MODE_BUFFER` - Mode change confirmed
+- `STORAGE_MODE_CHANGE_REJECTED` - Mode change rejected
+- `STORAGE_BATCH_AVAILABLE` - Batch ready with data
+- `STORAGE_BATCH_EMPTY` - No data available
+- `STORAGE_BATCH_BUSY` - Another session active
+- `STORAGE_BATCH_ERROR` - Error accessing data
 
 #### STORAGE_DATA_CHAN
 
@@ -311,10 +322,10 @@ struct storage_data_item {
 The storage module provides ONE convenience function for reading batch data:
 
 ```c
-int storage_batch_read(uint32_t session_id, struct storage_data_item *out_item, k_timeout_t timeout);
+int storage_batch_read(struct storage_data_item *out_item, k_timeout_t timeout);
 ```
 
-This is the ONLY direct API function provided by the storage module. It reads stored data through the batch interface, handling header parsing and data extraction automatically. All other operations (requesting batch access, session management, etc.) go through zbus messages. You must pass the `session_id` received in the `STORAGE_BATCH_AVAILABLE` response.
+This is the ONLY direct API function provided by the storage module. It reads stored data through the batch interface, handling header parsing and data extraction automatically. All other operations (requesting batch access, session management, etc.) go through zbus messages. The `session_id` is carried in the zbus messages and not passed to this function.
 
 **Important**: This function should only be called after receiving a `STORAGE_BATCH_AVAILABLE` message in response to a `STORAGE_BATCH_REQUEST`. When done consuming all items, send `STORAGE_BATCH_CLOSE` with the same session_id.
 
@@ -326,7 +337,7 @@ This is the ONLY direct API function provided by the storage module. It reads st
 
 ```c
 struct storage_msg msg = {
-    .type = STORAGE_MODE_PASSTHROUGH,
+    .type = STORAGE_MODE_PASSTHROUGH_REQUEST,
 };
 
 zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
@@ -336,7 +347,7 @@ zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
 
 ```c
 struct storage_msg msg = {
-    .type = STORAGE_MODE_BUFFER,
+    .type = STORAGE_MODE_BUFFER_REQUEST,
 };
 
 zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
@@ -383,6 +394,7 @@ The following code snippet shows how to request batch access:
 ```c
 struct storage_msg msg = {
     .type = STORAGE_BATCH_REQUEST,
+    .session_id = 0x12345678, /* Pick your own per-session id */
 };
 
 zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
@@ -398,7 +410,7 @@ if (response.type == STORAGE_BATCH_AVAILABLE) {
 
     /* Process batch data using the convenience function */
     struct storage_data_item item;
-    while (storage_batch_read(session_id, &item, K_SECONDS(1)) == 0) {
+    while (storage_batch_read(&item, K_SECONDS(1)) == 0) {
         /* Access data: item.data */
         /* Process based on item.type */
         switch (item.type) {
@@ -493,8 +505,7 @@ storage flush
 # Clear data
 storage clear
 
-# Clear FIFO only (command exists but not implemented in main module)
-storage fifo_clear
+# (No fifo_clear command)
 
 # View statistics (if CONFIG_APP_STORAGE_SHELL_STATS enabled)
 storage stats
