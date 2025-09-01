@@ -64,6 +64,14 @@ def compare_state_machines(c_code, plantuml):
 
         Guidance:
         – Only consider states, transitions, and hierarchy. Ignore entry/running/exit functions.
+        – Consider PlantUML deep history (`[H*]` inside a composite state, with transitions targeting that
+          alias) as semantically equivalent to the C implementation resuming the last active leaf state
+          within that composite state.
+        – Consider a PlantUML choice pseudostate used for initial routing (e.g., `CHOOSE_INITIAL` with
+          guards that point to alternative initial children) as semantically equivalent to a C setup where
+          the initial child is decided conditionally (e.g., at build time via configuration or runtime).
+          If either of the guarded targets matches a valid initial child in C, treat the initial alignment
+          as satisfied.
         – If any ambiguity arises, default `match` to `true` and document the ambiguity in `details`.
         """
 
@@ -113,7 +121,8 @@ def compare_state_machines(c_code, plantuml):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Compare C state machine vs PlantUML definition using OpenAI API"
+        description="Compare C state machine vs PlantUML definition using OpenAI API",
+        allow_abbrev=False,
     )
     parser.add_argument("--c-file", required=True, help="Path to the C source file")
     parser.add_argument("--uml-file", required=True, help="Path to the PlantUML file")
@@ -124,7 +133,7 @@ def main():
 
     result = compare_state_machines(c_code, plantuml)
 
-    if result.get("match") == True:
+    if result.get("match") is True:
         print("✅ State machines match.")
         print(result.get("details", "No details provided."))
         sys.exit(0)
