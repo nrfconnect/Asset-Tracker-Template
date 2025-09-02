@@ -17,10 +17,6 @@ target_sources_ifdef(CONFIG_APP_STORAGE_BACKEND_RAM app PRIVATE
     backends/ram_ring_buffer_backend.c
 )
 
-target_sources_ifdef(CONFIG_APP_STORAGE_BACKEND_INTERNAL_FLASH app PRIVATE
-    backends/flash_backend.c
-)
-
 target_sources_ifdef(CONFIG_APP_STORAGE_SHELL app PRIVATE
     storage_shell.c
 )

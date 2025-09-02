@@ -14,32 +14,12 @@ config APP_STORAGE_THREAD_STACK_SIZE
 	int "Storage module thread stack size"
 	default 2048
 
-choice APP_STORAGE_BACKEND
-	prompt "Storage backend selection"
-	default APP_STORAGE_BACKEND_RAM
-	help
-		Select which storage backend to use.
-
 config APP_STORAGE_BACKEND_RAM
 	bool "RAM storage backend"
+	default y
 	help
 	  Store data in RAM. Data will be lost on power loss or reset.
 
-config APP_STORAGE_BACKEND_INTERNAL_FLASH
-	bool "Internal flash storage backend"
-	select FLASH
-	select FLASH_MAP
-	help
-	  Store data in internal flash memory. Data persists across reboots.
-
-endchoice
-
-config APP_STORAGE_MESSAGE_QUEUE_SIZE
-	int "Size of message queue"
-	default 10
-	help
-	  Size of the message queue for the storage module's zbus subscriber.
-	  This determines how many messages can be queued before being processed.
 
 config APP_STORAGE_MAX_TYPES
 	int "Maximum number of data types"
@@ -60,15 +40,6 @@ config APP_STORAGE_MAX_RECORDS_PER_TYPE
 	  Total RAM usage will be:
 	  MAX_TYPES * MAX_RECORDS_PER_TYPE * RECORD_SIZE bytes.
 
-config APP_STORAGE_RAM_LIMIT_KB
-	int "Maximum RAM usage in KB"
-	default 64
-	help
-	  Maximum amount of RAM in kilobytes that the storage module
-	  can use for storing records. This limit is checked at build time.
-	  The actual RAM usage is:
-	  MAX_TYPES * MAX_RECORDS_PER_TYPE * RECORD_SIZE bytes.
-	  Set this based on your system's available RAM.
 
 config APP_STORAGE_BATCH_BUFFER_SIZE
 	int "Storage batch buffer size in bytes"
@@ -82,23 +53,6 @@ config APP_STORAGE_BATCH_BUFFER_SIZE
 	  Must be large enough to hold at least one complete data item
 	  plus its header.
 
-if APP_STORAGE_BACKEND_INTERNAL_FLASH
-
-config APP_STORAGE_FLASH_PARTITION_LABEL
-	string "Flash partition label"
-	default "storage"
-	help
-	  Label for the flash partition used by the storage module.
-	  Must match a partition defined in the devicetree.
-
-config APP_STORAGE_FLASH_AREA_SIZE
-	int "Flash storage area size"
-	default 4096
-	help
-	  Size in bytes of the flash area used for storage.
-	  Must be a multiple of the flash page size.
-
-endif # APP_STORAGE_BACKEND_INTERNAL_FLASH
 
 config APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS
 	int "Storage module watchdog timeout in seconds"
