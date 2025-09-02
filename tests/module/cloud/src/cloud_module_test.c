@@ -30,6 +30,15 @@
 
 DEFINE_FFF_GLOBALS;
 
+#define FAKE_DEVICE_ID			"test_device"
+#define WAIT_TIMEOUT			2
+#define CONNECT_RETRY_TIMEOUT_SEC	60
+#define PROCESSING_DELAY_MS		500
+#define INITIAL_PROVISIONING_RETRY_SEC	6
+#define SECOND_PROVISIONING_RETRY_SEC	12
+#define FAKE_TOKEN			"fake_token"
+#define FAKE_TOKEN_SIZE			(sizeof(FAKE_TOKEN) - 1)
+
 /* Define the channels for testing */
 ZBUS_CHAN_DEFINE(POWER_CHAN,
 		 struct power_msg,
@@ -122,20 +131,62 @@ ZBUS_SUBSCRIBER_DEFINE(location, 1);
 ZBUS_LISTENER_DEFINE(trigger, dummy_cb);
 ZBUS_LISTENER_DEFINE(cloud_test_listener, cloud_chan_cb);
 
-#define FAKE_DEVICE_ID "test_device"
-#define WAIT_TIMEOUT 2
-#define CONNECT_RETRY_TIMEOUT_SEC 60
-#define PROCESSING_DELAY_MS 500
-#define INITIAL_PROVISIONING_RETRY_SEC 6
-#define SECOND_PROVISIONING_RETRY_SEC 12
-#define FAKE_TOKEN "fake_token"
-#define FAKE_TOKEN_SIZE sizeof(FAKE_TOKEN) - 1
+/* Attach a simple listener to storage channels to ensure observers exist */
+ZBUS_CHAN_ADD_OBS(STORAGE_CHAN, cloud_test_listener, 0);
+ZBUS_CHAN_ADD_OBS(STORAGE_DATA_CHAN, cloud_test_listener, 0);
 
 static K_SEM_DEFINE(cloud_disconnected, 0, 1);
 static K_SEM_DEFINE(cloud_connected, 0, 1);
 static K_SEM_DEFINE(data_sent, 0, 1);
 
 static nrf_provisioning_event_cb_t handler;
+
+/* Custom fake for storage_batch_read to drive batch processing in cloud module */
+enum fake_batch_mode {
+	FAKE_BATCH_NONE = 0,
+	FAKE_BATCH_BATTERY,
+	FAKE_BATCH_ENV,
+	FAKE_BATCH_NET,
+};
+
+static enum fake_batch_mode fake_mode;
+static int fake_read_calls;
+
+static int storage_batch_read_custom(struct storage_data_item *out_item, k_timeout_t timeout)
+{
+	ARG_UNUSED(timeout);
+
+	if (fake_mode == FAKE_BATCH_NONE) {
+		return -EAGAIN;
+	}
+
+	if (fake_read_calls++ == 0) {
+		switch (fake_mode) {
+		case FAKE_BATCH_BATTERY:
+			out_item->type = STORAGE_TYPE_BATTERY;
+			out_item->data.BATTERY = 87.5;
+			break;
+		case FAKE_BATCH_ENV:
+			out_item->type = STORAGE_TYPE_ENVIRONMENTAL;
+			out_item->data.ENVIRONMENTAL.temperature = 21.5;
+			out_item->data.ENVIRONMENTAL.humidity = 40.0;
+			out_item->data.ENVIRONMENTAL.pressure = 1002.3;
+			break;
+		case FAKE_BATCH_NET:
+			out_item->type = STORAGE_TYPE_NETWORK;
+			out_item->data.NETWORK.type = NETWORK_QUALITY_SAMPLE_RESPONSE;
+			out_item->data.NETWORK.conn_eval_params.energy_estimate = 5;
+			out_item->data.NETWORK.conn_eval_params.rsrp = -96;
+			break;
+		default:
+			return -EAGAIN;
+		}
+
+		return 0;
+	}
+
+	return -EAGAIN;
+}
 
 static int nrf_cloud_client_id_get_custom_fake(char *buf, size_t len)
 {
@@ -150,6 +201,17 @@ static int nrf_provisioning_init_custom_fake(nrf_provisioning_event_cb_t cb)
 	handler = cb;
 
 	return 0;
+}
+
+static void connect_cloud(void)
+{
+	int err;
+	struct network_msg nw = { .type = NETWORK_CONNECTED };
+
+	err = zbus_chan_pub(&NETWORK_CHAN, &nw, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
+
+	k_sleep(K_MSEC(100));
 }
 
 static void dummy_cb(const struct zbus_channel *chan)
@@ -190,6 +252,7 @@ void setUp(void)
 	RESET_FAKE(nrf_provisioning_init);
 	RESET_FAKE(nrf_provisioning_trigger_manually);
 	RESET_FAKE(storage_batch_read);
+	RESET_FAKE(nrf_cloud_coap_sensor_send);
 
 	nrf_cloud_client_id_get_fake.custom_fake = nrf_cloud_client_id_get_custom_fake;
 	nrf_provisioning_init_fake.custom_fake = nrf_provisioning_init_custom_fake;
@@ -543,6 +606,91 @@ void test_gnss_location_data_handling(void)
 	if (nrf_cloud_coap_location_send_fake.call_count > 0) {
 		TEST_ASSERT_NOT_NULL(nrf_cloud_coap_location_send_fake.arg0_val);
 	}
+}
+
+void test_storage_data_battery_sent_to_cloud(void)
+{
+	int err;
+	struct storage_msg batch_available = {
+		.type = STORAGE_BATCH_AVAILABLE,
+		.data_len = 1,
+		.session_id = 0xAABBCCDD,
+		.more_data = false,
+	};
+
+	connect_cloud();
+
+	/* Prepare fake to return one battery item, then -EAGAIN */
+	fake_mode = FAKE_BATCH_BATTERY;
+	fake_read_calls = 0;
+	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &batch_available, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Allow processing */
+	k_sleep(K_MSEC(100));
+
+	/* One successful read + one -EAGAIN drain */
+	TEST_ASSERT_EQUAL(2, storage_batch_read_fake.call_count);
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_sensor_send_fake.call_count);
+}
+
+void test_storage_data_environmental_sent_to_cloud(void)
+{
+	int err;
+	struct storage_msg batch_available = {
+		.type = STORAGE_BATCH_AVAILABLE,
+		.data_len = 1,
+		.session_id = 0x11223344,
+		.more_data = false,
+	};
+
+	connect_cloud();
+
+	/* Prepare fake to return one environmental item, then -EAGAIN */
+	fake_mode = FAKE_BATCH_ENV;
+	fake_read_calls = 0;
+	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &batch_available, K_SECONDS(1));
+	ARG_UNUSED(err);
+
+	/* Allow processing */
+	k_sleep(K_MSEC(100));
+
+	/* One successful read + one -EAGAIN drain */
+	TEST_ASSERT_EQUAL(2, storage_batch_read_fake.call_count);
+	TEST_ASSERT_EQUAL(3, nrf_cloud_coap_sensor_send_fake.call_count);
+}
+
+void test_storage_data_network_conn_eval_sent_to_cloud(void)
+{
+	int err;
+	struct storage_msg batch_available = {
+		.type = STORAGE_BATCH_AVAILABLE,
+		.data_len = 1,
+		.session_id = 0x55667788,
+		.more_data = false,
+	};
+
+	connect_cloud();
+
+	/* Prepare fake to return one network item, then -EAGAIN */
+	fake_mode = FAKE_BATCH_NET;
+	fake_read_calls = 0;
+	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &batch_available, K_SECONDS(1));
+	ARG_UNUSED(err);
+
+	/* Allow processing */
+	k_sleep(K_MSEC(100));
+
+	/* One successful read + one -EAGAIN drain */
+	TEST_ASSERT_EQUAL(2, storage_batch_read_fake.call_count);
+	/* Expect two sensor publishes: CONEVAL and RSRP */
+	TEST_ASSERT_EQUAL(2, nrf_cloud_coap_sensor_send_fake.call_count);
 }
 
 /* This is required to be added to each test. That is because unity's
