@@ -97,3 +97,18 @@ void environmental_extract(const struct environmental_msg *msg,
 	*data = *msg;
 }
 #endif /* CONFIG_APP_ENVIRONMENTAL */
+
+/* Network module storage */
+#ifdef CONFIG_APP_NETWORK
+
+/* Provide functions used by storage module to check and extract data */
+bool network_check(const struct network_msg *msg)
+{
+	return msg->type == NETWORK_QUALITY_SAMPLE_RESPONSE;
+}
+
+void network_extract(const struct network_msg *msg, struct network_msg *data)
+{
+	*data = *msg;
+}
+#endif /* CONFIG_APP_NETWORK */
