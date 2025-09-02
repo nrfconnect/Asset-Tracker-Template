@@ -128,6 +128,8 @@ jobs:
             PYTEST_PATH=tests/test_ppk
           elif [[ '${{ matrix.device }}' == 'gnss_nrf9151dk' ]]; then
             PYTEST_PATH=tests/test_gnss
+          elif [[ '${{ matrix.device }}' == 'prov_thingy91x' ]]; then
+            PYTEST_PATH=tests/test_provisioning
           else
             PYTEST_PATH=${{ inputs.pytest_path }}
           fi
