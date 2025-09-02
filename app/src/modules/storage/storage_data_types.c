@@ -13,12 +13,19 @@
 #if IS_ENABLED(CONFIG_APP_POWER)
 #include "power.h"
 #endif
+
 #if IS_ENABLED(CONFIG_APP_ENVIRONMENTAL)
 #include "environmental.h"
 #endif
+
 #if IS_ENABLED(CONFIG_APP_LOCATION)
 #include "location.h"
 #endif
+
+#if IS_ENABLED(CONFIG_APP_NETWORK)
+#include "network.h"
+#endif
+
 /**
  * @brief Register all enabled data types with the storage module
  *
@@ -90,3 +97,18 @@ void environmental_extract(const struct environmental_msg *msg,
 	*data = *msg;
 }
 #endif /* CONFIG_APP_ENVIRONMENTAL */
+
+/* Network module storage */
+#ifdef CONFIG_APP_NETWORK
+
+/* Provide functions used by storage module to check and extract data */
+bool network_check(const struct network_msg *msg)
+{
+	return msg->type == NETWORK_QUALITY_SAMPLE_RESPONSE;
+}
+
+void network_extract(const struct network_msg *msg, struct network_msg *data)
+{
+	*data = *msg;
+}
+#endif /* CONFIG_APP_NETWORK */
