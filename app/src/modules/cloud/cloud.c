@@ -198,6 +198,11 @@ static void state_connected_paused_run(void *obj);
 static void handle_location_message(const struct location_msg *msg);
 #endif
 
+/* Forward declarations of network handler used before its definition */
+#if defined(CONFIG_APP_NETWORK)
+static void handle_network_data_message(const struct network_msg *msg);
+#endif
+
 /* State machine definition */
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
