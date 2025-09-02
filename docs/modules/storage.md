@@ -120,6 +120,11 @@ This module allocates RAM from several places. Understanding these helps you tun
 - Prefer passthrough when persistence is not required
   - Keep the module in passthrough mode so the backend store path is not exercised at runtime.
 
+Ready-made Kconfig fragment:
+
+- Use `overlay-storage-minimal.conf` to apply a minimal, passthrough-only storage configuration
+  with reduced RAM usage.
+
 #### Passthrough-only minimal RAM example
 
 If your application will only ever operate in passthrough mode (no buffering, no batch), the
