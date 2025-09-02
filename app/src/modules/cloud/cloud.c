@@ -471,7 +471,7 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 		timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
 	}
 
-	#if defined(CONFIG_APP_POWER)
+#if defined(CONFIG_APP_POWER)
 	if (item->type == STORAGE_TYPE_BATTERY) {
 		double battery_percentage = item->data.BATTERY;
 
@@ -540,6 +540,16 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 		return 0;
 	}
 #endif /* CONFIG_APP_LOCATION && CONFIG_LOCATION_METHOD_GNSS */
+
+#if defined(CONFIG_APP_NETWORK)
+	if (item->type == STORAGE_TYPE_NETWORK) {
+		const struct network_msg *net = &item->data.NETWORK;
+
+		handle_network_data_message(net);
+
+		return 0;
+	}
+#endif /* CONFIG_APP_NETWORK */
 
 	LOG_WRN("Unknown storage data type: %d", item->type);
 
@@ -1234,43 +1244,37 @@ static void handle_priv_cloud_message(struct cloud_state_object const *state_obj
 	}
 }
 
-static void handle_network_message(struct cloud_state_object const *state_object)
+#if defined(CONFIG_APP_NETWORK)
+static void handle_network_data_message(const struct network_msg *msg)
 {
 	int err;
-	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
 
-	switch (msg.type) {
-	case NETWORK_DISCONNECTED:
-		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_PAUSED]);
-		break;
-	case NETWORK_CONNECTED:
-		smf_set_handled(SMF_CTX(state_object));
-		break;
-	case NETWORK_QUALITY_SAMPLE_RESPONSE:
-		err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_CONEVAL,
-						 msg.conn_eval_params.energy_estimate,
-						 NRF_CLOUD_NO_TIMESTAMP,
-						 confirmable);
-		if (err) {
-			LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-			send_request_failed();
-			return;
-		}
+	if (msg->type != NETWORK_QUALITY_SAMPLE_RESPONSE) {
+		return;
+	}
 
-		err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_RSRP,
-						 msg.conn_eval_params.rsrp,
-						 NRF_CLOUD_NO_TIMESTAMP,
-						 confirmable);
-		if (err) {
-			LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-			send_request_failed();
-		}
-		break;
-	default:
-		break;
+	err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_CONEVAL,
+					msg->conn_eval_params.energy_estimate,
+					NRF_CLOUD_NO_TIMESTAMP,
+					confirmable);
+	if (err) {
+		LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+		send_request_failed();
+
+		return;
+	}
+
+	err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_RSRP,
+					msg->conn_eval_params.rsrp,
+					NRF_CLOUD_NO_TIMESTAMP,
+					confirmable);
+	if (err) {
+		LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+		send_request_failed();
 	}
 }
+#endif /* CONFIG_APP_NETWORK */
 
 #if defined(CONFIG_APP_LOCATION)
 static void handle_location_message(const struct location_msg *msg)
@@ -1381,7 +1385,19 @@ static void state_connected_ready_run(void *obj)
 	}
 
 	if (state_object->chan == &NETWORK_CHAN) {
-		handle_network_message(state_object);
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		switch (msg.type) {
+		case NETWORK_DISCONNECTED:
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_PAUSED]);
+			break;
+		case NETWORK_CONNECTED:
+			smf_set_handled(SMF_CTX(state_object));
+			break;
+		default:
+			break;
+		}
+
 		return;
 	}
 
