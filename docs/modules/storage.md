@@ -78,14 +78,87 @@ graph TD
     end
 ```
 
-### Memory Management
+### Memory management
 
-The storage module uses an internal buffer system for batch data access:
+This module allocates RAM from several places. Understanding these helps you tune it down:
 
-- Built-in buffer for efficient data transfer
-- Automatic memory management handled by batch infrastructure
-- Configurable batch buffer size
-- Session-based access control prevents resource conflicts
+- Built-in batch pipe buffer: `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` bytes are reserved at boot.
+- Per-type slabs: Each enabled data type declares a `k_mem_slab` with
+  `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` blocks of that type's size.
+- RAM backend ring buffers: For each enabled data type, a ring buffer is declared with capacity
+  `sizeof(type) * CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE`.
+- Message buffers: `struct storage_msg` carries a `buffer[STORAGE_MAX_DATA_SIZE]`, where
+  `STORAGE_MAX_DATA_SIZE` is the max size of any enabled data type. Enabling large types increases
+  this buffer and several temporary buffers.
+- Subscriber queue: Size is controlled by system zbus configuration.
+- Thread stack: `CONFIG_APP_STORAGE_THREAD_STACK_SIZE`.
+
+#### How to reduce RAM
+
+- Minimize enabled data types
+  - Disable modules you do not forward/store (for example `CONFIG_APP_LOCATION=n`), which reduces
+    both slabs and RAM backend ring buffers, and shrinks `STORAGE_MAX_DATA_SIZE`.
+
+- Reduce records per type
+  - Set `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=1` when buffering is not needed. This shrinks both
+    the per-type slabs and RAM ring buffers to a single record each.
+
+- Shrink batch pipe buffer
+  - Lower `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` as much as possible. The batch pipe is allocated
+    unconditionally, but it is only used in buffer mode. If you never use batch/buffer, pick a
+    very small value (for example 64–256 bytes). If you do use batch, ensure it can hold
+    `sizeof(header) + max_item_size`.
+
+- Reduce thread and queues
+  - Lower `CONFIG_APP_STORAGE_THREAD_STACK_SIZE` (for example from 2048 down to 1024) if your
+    application leaves headroom.
+  - Reduce relevant zbus queue sizes in system config if traffic allows.
+
+- Remove development features
+  - Disable `CONFIG_APP_STORAGE_SHELL` and `CONFIG_APP_STORAGE_SHELL_STATS` to trim RAM/code.
+
+- Prefer passthrough when persistence is not required
+  - Keep the module in passthrough mode so the backend store path is not exercised at runtime.
+
+#### Passthrough-only minimal RAM example
+
+If your application will only ever operate in passthrough mode (no buffering, no batch), the
+following `prj.conf` excerpt minimizes RAM usage for the storage module while preserving
+passthrough forwarding:
+
+```config
+# Storage enabled, start and stay in passthrough
+CONFIG_APP_STORAGE=y
+CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH=y
+
+# Backend selection
+CONFIG_APP_STORAGE_BACKEND_RAM=y
+
+# Keep only a single slot per type (no buffering planned)
+CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=1
+
+# Make batch pipe tiny since batch will never be used
+CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE=128
+
+# Trim runtime resources
+CONFIG_APP_STORAGE_THREAD_STACK_SIZE=1024
+
+# Drop development features
+CONFIG_APP_STORAGE_SHELL=n
+CONFIG_APP_STORAGE_SHELL_STATS=n
+
+# Optional: Disable heavy data types you do not forward
+# CONFIG_APP_LOCATION=n
+# CONFIG_APP_ENVIRONMENTAL=n
+# CONFIG_APP_NETWORK=n
+```
+
+Notes:
+
+- If you later enable buffer/batch, increase `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` so that at
+  least one header plus the largest item fits.
+- The actual RAM consumed by ring buffers and slabs scales with which data types are enabled and
+  the value of `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE`.
 
 ## Messages
 
@@ -175,13 +248,10 @@ struct storage_msg {
 
 The storage module is configurable through Kconfig options in `Kconfig.storage`. Key configuration categories include:
 
-### Storage Backend Selection
+### Storage Backend
 
-- **`CONFIG_APP_STORAGE_BACKEND_RAM`** (default)
+- **`CONFIG_APP_STORAGE_BACKEND_RAM`** (default and only backend currently provided)
   Uses RAM for storage. Data is lost on power cycle but provides fast access.
-
-- **`CONFIG_APP_STORAGE_BACKEND_INTERNAL_FLASH`**
-  Uses internal flash for persistent storage. Data survives power cycles.
 
 ### Memory Configuration
 
@@ -191,16 +261,12 @@ The storage module is configurable through Kconfig options in `Kconfig.storage`.
 - **`CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE`** (default: 32)
   Maximum records stored per data type. Total RAM usage = MAX_TYPES × MAX_RECORDS_PER_TYPE × RECORD_SIZE.
 
-- **`CONFIG_APP_STORAGE_RAM_LIMIT_KB`** (default: 64)
-  Maximum RAM usage limit in KB for build-time validation.
 
 - **`CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE`** (default: 1024)
   Size of the internal buffer for batch data access.
 
 ### Message Handling
 
-- **`CONFIG_APP_STORAGE_MESSAGE_QUEUE_SIZE`** (default: 10)
-  Size of the zbus subscriber message queue.
 
 ### Thread Configuration
 
@@ -221,15 +287,9 @@ The storage module is configurable through Kconfig options in `Kconfig.storage`.
 - **`CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER`**
   Automatically transition from RUNNING to BUFFER state on startup for data storage.
 
-### Flash Backend Configuration
+### Flash backend
 
-When using `CONFIG_APP_STORAGE_BACKEND_INTERNAL_FLASH`:
-
-- **`CONFIG_APP_STORAGE_FLASH_PARTITION_LABEL`** (default: "storage")
-  Device tree partition label for flash storage area.
-
-- **`CONFIG_APP_STORAGE_FLASH_AREA_SIZE`** (default: 4096)
-  Size in bytes of the flash storage area.
+No flash backend is currently provided.
 
 ### Development Features
 
@@ -559,4 +619,3 @@ config APP_STORAGE_BACKEND_MY_BACKEND
 - **Memory slab allocator** - FIFO memory management
 - **Selected storage backend** - RAM or flash storage
 - **Iterable sections** - Automatic data type discovery
-
