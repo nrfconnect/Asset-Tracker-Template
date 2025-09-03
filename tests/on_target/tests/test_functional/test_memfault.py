@@ -35,7 +35,7 @@ def convert_binary_trace_to_pcap(binary_trace, pcapng_file):
         logger.info("Command completed successfully.")
     except subprocess.CalledProcessError as e:
         # Handle errors in the command execution
-        logger.info("An error occurred while resetting the device.")
+        logger.info("An error occurred while converting the modem trace to PCAP")
         logger.info("Error output:")
         logger.info(e.stderr)
         raise
@@ -106,7 +106,8 @@ def test_memfault(dut_board, debug_hex_file):
     now = datetime.now(timezone.utc)
     start_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    time.sleep(10)
+    # Wait for some time to ensure that the UUID has been stored to the modem trace
+    time.sleep(60)
 
     # Trigger usage fault to generate coredump
     dut_board.uart.write("mflt test usagefault\r\n")
