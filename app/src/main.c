@@ -39,7 +39,6 @@
 LOG_MODULE_REGISTER(main, 4);
 
 /* Configuration constants to replace magic numbers */
-#define INITIAL_DATA_SAMPLE_DELAY_SEC	1
 #define ZBUS_PUBLISH_TIMEOUT_MS		100
 
 /* Register subscriber */
