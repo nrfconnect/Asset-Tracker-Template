@@ -12,14 +12,13 @@ if APP_STORAGE
 
 config APP_STORAGE_THREAD_STACK_SIZE
 	int "Storage module thread stack size"
-	default 2048
+	default 1536
 
 config APP_STORAGE_BACKEND_RAM
 	bool "RAM storage backend"
 	default y
 	help
 	  Store data in RAM. Data will be lost on power loss or reset.
-
 
 config APP_STORAGE_MAX_TYPES
 	int "Maximum number of data types"
@@ -32,7 +31,7 @@ config APP_STORAGE_MAX_TYPES
 
 config APP_STORAGE_MAX_RECORDS_PER_TYPE
 	int "Maximum records per data type"
-	default 32
+	default 8
 	help
 	  Maximum number of records that can be stored for each data type.
 	  For example, if set to 32, you can store up to 32 battery samples,
@@ -40,10 +39,9 @@ config APP_STORAGE_MAX_RECORDS_PER_TYPE
 	  Total RAM usage will be:
 	  MAX_TYPES * MAX_RECORDS_PER_TYPE * RECORD_SIZE bytes.
 
-
 config APP_STORAGE_BATCH_BUFFER_SIZE
 	int "Storage batch buffer size in bytes"
-	default 1024
+	default 256
 	help
 	  Size of the internal buffer for batch data access.
 	  This buffer is used to transfer data from the storage backend
