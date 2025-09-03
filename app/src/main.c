@@ -463,6 +463,7 @@ static void sampling_begin_common(struct main_state *state_object)
 	if (err) {
 		LOG_ERR("Failed to publish LED pattern message, error: %d", err);
 		SEND_FATAL_ERROR();
+
 		return;
 	}
 #endif /* CONFIG_APP_LED */
@@ -695,6 +696,7 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 		&command_type);
 	if (err) {
 		LOG_ERR("Failed to parse shadow response interval, error: %d", err);
+
 		return;
 	}
 
@@ -763,6 +765,7 @@ static void running_run(void *o)
 	if (state_object->chan == &FOTA_CHAN &&
 	    MSG_TO_FOTA_TYPE(state_object->msg_buf) == FOTA_DOWNLOADING_UPDATE) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA]);
+
 		return;
 	}
 
@@ -774,10 +777,12 @@ static void running_run(void *o)
 		case STORAGE_MODE_PASSTHROUGH:
 			/* Storage module confirmed passthrough mode */
 			smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH_MODE]);
+
 			return;
 		case STORAGE_MODE_BUFFER:
 			/* Storage module confirmed buffer mode */
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_MODE]);
+
 			return;
 		default:
 			break;
@@ -855,6 +860,7 @@ static void buffer_disconnected_run(void *o)
 
 		if (msg->type == CLOUD_CONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_CONNECTED]);
+
 			return;
 		}
 	}
@@ -864,6 +870,7 @@ static void buffer_disconnected_run(void *o)
 	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_CLOUD) {
 		timer_send_data_start(state_object->data_send_interval_sec);
 		smf_set_handled(SMF_CTX(state_object));
+
 		return;
 	}
 }
@@ -890,11 +897,13 @@ static void buffer_connected_run(void *o)
 		switch (msg->type) {
 		case CLOUD_DISCONNECTED:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_DISCONNECTED]);
+
 			return;
 		case CLOUD_SHADOW_RESPONSE_DESIRED:
 			__fallthrough;
 		case CLOUD_SHADOW_RESPONSE_DELTA:
 			handle_cloud_shadow_response(state_object, msg);
+
 			break;
 		default:
 			break;
@@ -951,6 +960,7 @@ static void buffer_disconnected_sampling_run(void *o)
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
 		smf_set_handled(SMF_CTX(state_object));
+
 		return;
 	}
 
@@ -975,12 +985,14 @@ static void buffer_disconnected_waiting_run(void *o)
 	if (state_object->chan == &TIMER_CHAN &&
 	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_SAMPLE_DATA) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_DISCONNECTED_SAMPLING]);
+
 		return;
 	}
 
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_DISCONNECTED_SAMPLING]);
+
 		return;
 	}
 
@@ -989,6 +1001,7 @@ static void buffer_disconnected_waiting_run(void *o)
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_LONG) {
 		LOG_DBG("Long button press while disconnected, operations will be queued");
 		smf_set_handled(SMF_CTX(state_object));
+
 		return;
 	}
 }
@@ -1155,6 +1168,7 @@ static void passthrough_mode_run(void *o)
 			__fallthrough;
 		case CLOUD_SHADOW_RESPONSE_DELTA:
 			handle_cloud_shadow_response(state_object, msg);
+
 			return;
 		default:
 			break;
@@ -1217,6 +1231,7 @@ static void passthrough_connected_sampling_entry(void *o)
 	if (err) {
 		LOG_ERR("Failed to publish location search trigger, error: %d", err);
 		SEND_FATAL_ERROR();
+
 		return;
 	}
 }
@@ -1240,6 +1255,7 @@ static void passthrough_connected_sampling_run(void *o)
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
 		smf_set_handled(SMF_CTX(state_object));
+
 		return;
 	}
 }
@@ -1271,12 +1287,14 @@ static void passthrough_connected_waiting_run(void *o)
 	if (state_object->chan == &TIMER_CHAN &&
 	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_SAMPLE_DATA) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]);
+
 		return;
 	}
 
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]);
+
 		return;
 	}
 
@@ -1286,6 +1304,7 @@ static void passthrough_connected_waiting_run(void *o)
 		LOG_DBG("Passthrough mode: long button press, immediate poll and send");
 		poll_triggers_send();
 		smf_set_handled(SMF_CTX(state_object));
+
 		return;
 	}
 }
@@ -1401,6 +1420,7 @@ static void fota_downloading_entry(void *o)
 	if (err) {
 		LOG_ERR("Failed to publish LED FOTA download pattern, error: %d", err);
 		SEND_FATAL_ERROR();
+
 		return;
 	}
 #endif /* CONFIG_APP_LED */
@@ -1458,6 +1478,7 @@ static void fota_waiting_for_network_disconnect_run(void *o)
 
 		if (msg.type == NETWORK_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
+
 			return;
 		}
 	}
@@ -1527,6 +1548,7 @@ static void fota_applying_image_run(void *o)
 
 		if (msg == FOTA_SUCCESS_REBOOT_NEEDED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
+
 			return;
 		}
 	}
@@ -1570,6 +1592,7 @@ int main(void)
 	if (task_wdt_id < 0) {
 		LOG_ERR("Failed to add task to watchdog: %d", task_wdt_id);
 		SEND_FATAL_ERROR();
+
 		return -EFAULT;
 	}
 
