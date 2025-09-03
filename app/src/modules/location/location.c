@@ -353,7 +353,12 @@ static void location_event_handler(const struct location_event_data *event_data)
 		break;
 	case LOCATION_EVT_CLOUD_LOCATION_EXT_REQUEST:
 		LOG_DBG("Cloud location request received from location library");
+
+		status_send(LOCATION_SEARCH_DONE);
 		cloud_request_send(&event_data->cloud_location_request);
+
+		/* Cancel the current location request since we're now using cloud-based location */
+		location_request_cancel();
 		break;
 #if defined(CONFIG_NRF_CLOUD_AGNSS)
 	case LOCATION_EVT_GNSS_ASSISTANCE_REQUEST:
