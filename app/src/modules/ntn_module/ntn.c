@@ -66,6 +66,8 @@ struct ntn_state_object {
 	struct k_timer ntn_timer;
 	struct location_data latest_location;
 	bool socket_connected;
+	bool ntn_initialized;
+	bool gnss_initialized;
 };
 
 /* Global state for location handler */
@@ -137,10 +139,10 @@ static int set_ntn_dormant_mode(void)
 {
 	int err;
 
-	/* Set modem to flight mode without shutting down UICC */
-	err = nrf_modem_at_printf("AT+CFUN=44");
+	/* Set modem to dormant mode without loosing ATTACH  */
+	err = nrf_modem_at_printf("AT+CFUN=45");
 	if (err) {
-		LOG_ERR("Failed to set AT+CFUN=44, error: %d", err);
+		LOG_ERR("Failed to set AT+CFUN=45, error: %d", err);
 		return err;
 	}
 
@@ -152,89 +154,107 @@ static int set_ntn_active_mode(void)
 {
 	int err;
 
-	/* Set modem to minimum functionality */
-	err = nrf_modem_at_printf("AT+CFUN=0");
-	if (err) {
-		LOG_ERR("Failed to set modem to minimum functionality, error: %d", err);
-		return err;
-	}
+	if (g_ntn_state->ntn_initialized)
+	{
+		/* Configure NTN system mode */
+		err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,0,0,1");
+		if (err) {
+			LOG_ERR("Failed to set NTN system mode, error: %d", err);
+			return err;
+		}
+		
+	}	
+	else
+	{
+		/* Set modem to minimum functionality */
+		err = nrf_modem_at_printf("AT+CFUN=0");
+		if (err) {
+			LOG_ERR("Failed to set modem to minimum functionality, error: %d", err);
+			return err;
+		}
+		/* Set NTN profile */
+		err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,0,4,0");
+		if (err) {
+			LOG_ERR("Failed to set modem NTN profile, error: %d", err);
+			return err;
+		}
 
-	/* Configure network registration status reporting */
-	err = nrf_modem_at_printf("AT+CEREG=5");
-	if (err) {
-		LOG_ERR("Failed to configure network registration reporting, error: %d", err);
-		return err;
-	}
+		/* Set TN profile */
+		err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,1,1,0");
+		if (err) {
+			LOG_ERR("Failed to set modem TN profile, error: %d", err);
+			return err;
+		}
+			
+		/* Set XEPCO off, needed for Skylo */
+		err = nrf_modem_at_printf("AT%%XEPCO=0");
+		if (err) {
+			LOG_ERR("Failed to set XEPCO off, error: %d", err);
+			return err;
+		}
 
-	/* Configure network event reporting */
-	err = nrf_modem_at_printf("AT+CNEC=24");
-	if (err) {
-		LOG_ERR("Failed to configure network event reporting, error: %d", err);
-		return err;
-	}
+		/* Configure network registration status reporting */
+		err = nrf_modem_at_printf("AT+CEREG=5");
+		if (err) {
+			LOG_ERR("Failed to configure network registration reporting, error: %d", err);
+			return err;
+		}
 
-	/* Configure signaling connection status reporting */
-	err = nrf_modem_at_printf("AT+CSCON=3");
-	if (err) {
-		LOG_ERR("Failed to configure signaling connection reporting, error: %d", err);
-		return err;
-	}
+		/* Configure network event reporting */
+		err = nrf_modem_at_printf("AT+CNEC=24");
+		if (err) {
+			LOG_ERR("Failed to configure network event reporting, error: %d", err);
+			return err;
+		}
 
-	/* Configure modem event reporting */
-	err = nrf_modem_at_printf("AT%%MDMEV=2");
-	if (err) {
-		LOG_ERR("Failed to configure modem event reporting, error: %d", err);
-		return err;
-	}
+		/* Configure signaling connection status reporting */
+		err = nrf_modem_at_printf("AT+CSCON=3");
+		if (err) {
+			LOG_ERR("Failed to configure signaling connection reporting, error: %d", err);
+			return err;
+		}
 
-	/* Configure NTN system mode */
-	err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,0,0,1");
-	if (err) {
-		LOG_ERR("Failed to set NTN system mode, error: %d", err);
-		return err;
-	}
+		/* Configure modem event reporting */
+		err = nrf_modem_at_printf("AT%%MDMEV=2");
+		if (err) {
+			LOG_ERR("Failed to configure modem event reporting, error: %d", err);
+			return err;
+		}
 
-	/* Configure location using latest GNSS data */
-	err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"20.0\",0,0",
-				g_ntn_state->latest_location.latitude,
-				g_ntn_state->latest_location.longitude);
-	if (err) {
-		LOG_ERR("Failed to set location, error: %d", err);
-		return err;
-	}
+		/* Configure NTN system mode */
+		err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,0,0,1");
+		if (err) {
+			LOG_ERR("Failed to set NTN system mode, error: %d", err);
+			return err;
+		}
 
+		#if defined(CONFIG_APP_NTN_BANDLOCK_ENABLE)
+			err = nrf_modem_at_printf("AT%%XBANDLOCK=2,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
+			if (err) {
+				LOG_ERR("Failed to set NTN band lock, error: %d", err);
+				return err;
+			}
+	
+	
+		#endif
 
-#if defined(CONFIG_APP_NTN_BANDLOCK_ENABLE)
-	err = nrf_modem_at_printf("AT%%XBANDLOCK=2,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
-	if (err) {
-		LOG_ERR("Failed to set NTN band lock, error: %d", err);
-		return err;
-	}
-#endif
+		#if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
+			err = nrf_modem_at_printf("AT%%CHSELECT=1,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
+			if (err) {
+				LOG_ERR("Failed to set NTN channel, error: %d", err);
+				return err;
+			}
+		#endif
 
-#if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
-	err = nrf_modem_at_printf("AT%%CHSELECT=1,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
-	if (err) {
-		LOG_ERR("Failed to set NTN channel, error: %d", err);
-		return err;
+		#if defined(CONFIG_APP_NTN_APN)
+			err = nrf_modem_at_printf("AT+CGDCONT=0,\"ip\",\"%s\"", CONFIG_APP_NTN_APN);
+			if (err) {
+				LOG_ERR("Failed to set NTN APN, error: %d", err);
+				return err;
+			}
+		#endif
+		g_ntn_state->ntn_initialized=true;	
 	}
-#endif
-
-#if defined(CONFIG_APP_NTN_APN)
-	err = nrf_modem_at_printf("AT+CGDCONT=0,\"ip\",\"%s\"", CONFIG_APP_NTN_APN);
-	if (err) {
-		LOG_ERR("Failed to set NTN APN, error: %d", err);
-		return err;
-	}
-#endif
-
-#if defined(CONFIG_APP_NTN_DISABLE_EPCO)
-	err = nrf_modem_at_printf("AT%%XEPCO=0");
-	if (err) {
-		LOG_ERR("Failed to set XEPCO=0, error: %d", err);
-		return err;
-	}
-#endif
 
 	return 0;
 }
@@ -243,29 +263,55 @@ static int set_gnss_active_mode(void)
 {
 	int err;
 
-	/* Set modem to offline mode */
-	err = nrf_modem_at_printf("AT+CFUN=4");
-	if (err) {
-		LOG_ERR("Failed to set modem to offline mode, error: %d", err);
-		return err;
+	if (g_ntn_state->gnss_initialized)
+	{
+	
+
+		/* Configure GNSS system mode */
+		err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,1,0,0");
+		if (err) {
+			LOG_ERR("Failed to set GNSS system mode, error: %d", err);
+			return err;
+		}
+
+		/* Activate GNSS mode */
+		err = nrf_modem_at_printf("AT+CFUN=31");
+		if (err) {
+			LOG_ERR("Failed to activate GNSS mode, error: %d", err);
+			return err;
+		
+		
+		}
+	}
+	else
+	{
+			/* Set modem to offline mode */
+		err = nrf_modem_at_printf("AT+CFUN=0");
+		if (err) {
+			LOG_ERR("Failed to set modem to offline mode, error: %d", err);
+			return err;
+		}
+
+		/* Configure GNSS system mode */
+		err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,1,0,0");
+		if (err) {
+			LOG_ERR("Failed to set GNSS system mode, error: %d", err);
+			return err;
+		}
+
+		/* Activate GNSS mode */
+		err = nrf_modem_at_printf("AT+CFUN=31");
+		if (err) {
+			LOG_ERR("Failed to activate GNSS mode, error: %d", err);
+			return err;
+		}
+		g_ntn_state->gnss_initialized=true;	
 	}
 
-	/* Configure GNSS system mode */
-	err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,1,0,0");
-	if (err) {
-		LOG_ERR("Failed to set GNSS system mode, error: %d", err);
-		return err;
-	}
-
-	/* Activate GNSS mode */
-	err = nrf_modem_at_printf("AT+CFUN=31");
-	if (err) {
-		LOG_ERR("Failed to activate GNSS mode, error: %d", err);
-		return err;
-	}
 
 	return 0;
 }
+
 
 static int set_gnss_inactive_mode(void)
 {
@@ -275,8 +321,9 @@ static int set_gnss_inactive_mode(void)
 	err = nrf_modem_at_printf("AT+CFUN=30");
 	if (err) {
 		LOG_ERR("Failed to set modem to CFUN=30 mode, error: %d", err);
-		return;
+		return err;
 	}
+	return 0;
 }
 
 /* Socket functions */
@@ -365,8 +412,6 @@ static void state_running_entry(void *obj)
 	net_mgmt_init_event_callback(&conn_cb, &connectivity_event_handler, CONN_LAYER_EVENT_MASK);
 	net_mgmt_add_event_callback(&conn_cb);
 
-	/* Connecting to the configured connectivity layer. */
-	LOG_INF("Bringing network interface up and connecting to the network");
 
 	err = conn_mgr_all_if_up(true);
 	if (err) {
@@ -496,6 +541,9 @@ static void state_ntn_run(void *obj)
 					LOG_DBG("No valid GNSS data available to send initially");
 				}
 			}
+
+			k_sleep(K_MSEC(5000));
+
 			err = set_ntn_dormant_mode();
 			if (err) {
 				return;
@@ -684,6 +732,9 @@ static void ntn_module_thread(void)
 	const uint32_t wdt_timeout_ms = CONFIG_APP_NTN_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC;
 	struct ntn_state_object ntn_state = { 0 };
 	g_ntn_state = &ntn_state;
+	g_ntn_state->gnss_initialized=false;
+	g_ntn_state->ntn_initialized=false;
+
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, ntn_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {
