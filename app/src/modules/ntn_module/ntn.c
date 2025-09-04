@@ -229,6 +229,14 @@ static int set_ntn_active_mode(void)
 	}
 #endif
 
+#if defined(CONFIG_APP_NTN_DISABLE_EPCO)
+	err = nrf_modem_at_printf("AT%%XEPCO=0");
+	if (err) {
+		LOG_ERR("Failed to set XEPCO=0, error: %d", err);
+		return err;
+	}
+#endif
+
 	return 0;
 }
 
