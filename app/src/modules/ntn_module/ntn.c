@@ -133,7 +133,6 @@ static void ntn_timer_handler(struct k_timer *timer)
 
 /* Helper functions */
 
-/* Move into lte_lc / conn_mgr */
 static int set_ntn_dormant_mode(void)
 {
 	int err;
@@ -240,7 +239,6 @@ static int set_ntn_active_mode(void)
 	return 0;
 }
 
-/* Move into lte_lc / conn_mgr */
 static int set_gnss_active_mode(void)
 {
 	int err;
@@ -269,7 +267,6 @@ static int set_gnss_active_mode(void)
 	return 0;
 }
 
-/* Move into lte_lc / conn_mgr */
 static int set_gnss_inactive_mode(void)
 {
 	int err;
@@ -411,14 +408,12 @@ static void state_gnss_entry(void *obj)
 
 	LOG_INF("Entering GNSS mode");
 
-	/* Move into lte_lc / conn_mgr */
 	err = set_gnss_active_mode();
 	if (err) {
 		LOG_ERR("Unable to set GNSS mode");
 		return;
 	}
 
-	/* Move into lte_lc / conn_mgr */
 	err = location_request(NULL);
 	if (err) {
 		LOG_ERR("Failed to request location: %d", err);
@@ -446,7 +441,6 @@ static void state_gnss_exit(void *obj)
 
 	LOG_INF("Exiting GNSS mode");
 
-	/* Move into lte_lc / conn_mgr */
 	set_gnss_inactive_mode();
 }
 
@@ -457,7 +451,6 @@ static void state_ntn_entry(void *obj)
 
 	LOG_INF("Entering NTN mode");
 
-	/* Move into lte_lc / conn_mgr */
 	err = set_ntn_active_mode();
 	if (err) {
 		return;
@@ -503,7 +496,6 @@ static void state_ntn_run(void *obj)
 					LOG_DBG("No valid GNSS data available to send initially");
 				}
 			}
-			/* Move into lte_lc / conn_mgr */
 			err = set_ntn_dormant_mode();
 			if (err) {
 				return;
@@ -582,7 +574,6 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 	}
 }
 
-/* Move into lte_lc / conn_mgr */
 static void apply_gnss_time(const struct nrf_modem_gnss_pvt_data_frame *pvt_data)
 {
 	struct tm gnss_time = {
@@ -597,7 +588,6 @@ static void apply_gnss_time(const struct nrf_modem_gnss_pvt_data_frame *pvt_data
 	date_time_set(&gnss_time);
 }
 
-/* Move into lte_lc / conn_mgr */
 static void location_print_data_details(enum location_method method,
 				    const struct location_data_details *details)
 {
@@ -613,7 +603,6 @@ static void location_print_data_details(enum location_method method,
 #endif
 }
 
-/* Move into lte_lc / conn_mgr */
 static void location_event_handler(const struct location_event_data *event_data)
 {
 	struct ntn_msg msg;
