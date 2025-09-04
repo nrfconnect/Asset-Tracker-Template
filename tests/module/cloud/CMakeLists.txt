@@ -26,6 +26,7 @@ zephyr_include_directories(../../../app/src/modules/power)
 zephyr_include_directories(../../../app/src/modules/network)
 zephyr_include_directories(../../../app/src/modules/environmental)
 zephyr_include_directories(../../../app/src/modules/location)
+zephyr_include_directories(../../../app/src/modules/storage)
 zephyr_include_directories(${NRF_DIR}/subsys/net/lib/nrf_cloud/include)
 zephyr_include_directories(${NRF_DIR}/include/net)
 zephyr_include_directories(${NRF_DIR}/subsys/net/lib/nrf_cloud/coap/include)
@@ -47,6 +48,9 @@ target_compile_definitions(app PRIVATE
 	-DCONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS=6
 	-DCONFIG_APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS=6
 	-DCONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS=36
+	-DCONFIG_APP_POWER=1
+	-DCONFIG_APP_ENVIRONMENTAL=1
+	-DCONFIG_APP_NETWORK=1
 	-DCONFIG_LTE_LC_CONN_EVAL_MODULE=1
 	-DCONFIG_LTE_LC_EDRX_MODULE=1
 	-DCONFIG_LTE_LC_PSM_MODULE=1
