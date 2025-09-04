@@ -107,6 +107,7 @@ static void cloud_request_send(const struct location_data_cloud *cloud_request)
 	}
 }
 
+#if defined(CONFIG_NRF_CLOUD_AGNSS)
 static void agnss_request_send(const struct nrf_modem_gnss_agnss_data_frame *agnss_request)
 {
 	int err;
@@ -122,6 +123,7 @@ static void agnss_request_send(const struct nrf_modem_gnss_agnss_data_frame *agn
 		return;
 	}
 }
+#endif /* defined(CONFIG_NRF_CLOUD_AGNSS) */
 
 static void gnss_location_send(const struct location_data *location_data)
 {
