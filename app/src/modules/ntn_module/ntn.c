@@ -523,12 +523,6 @@ static void state_ntn_exit(void *obj)
 		sock_fd = -1;
 		state->socket_connected = false;
 	}
-
-	/* Move into lte_lc / conn_mgr */
-	err = set_ntn_dormant_mode();
-	if (err) {
-		return;
-	}
 }
 
 
