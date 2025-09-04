@@ -185,13 +185,15 @@ static int set_ntn_active_mode(void)
 			LOG_ERR("Failed to set modem TN profile, error: %d", err);
 			return err;
 		}
-			
-		/* Set XEPCO off, needed for Skylo */
+
+		#if defined(CONFIG_APP_NTN_DISABLE_EPCO)
+		/* Set XEPCO off */
 		err = nrf_modem_at_printf("AT%%XEPCO=0");
 		if (err) {
 			LOG_ERR("Failed to set XEPCO off, error: %d", err);
 			return err;
 		}
+		#endif
 
 		/* Configure network registration status reporting */
 		err = nrf_modem_at_printf("AT+CEREG=5");
@@ -234,8 +236,6 @@ static int set_ntn_active_mode(void)
 				LOG_ERR("Failed to set NTN band lock, error: %d", err);
 				return err;
 			}
-	
-	
 		#endif
 
 		#if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
