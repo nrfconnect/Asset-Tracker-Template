@@ -34,7 +34,7 @@ def get_logger(log_level = LOG_LEVEL):
         console.setLevel(log_level)
         logger.addHandler(console)
 
-        formatter = '%(asctime)s - %(filename)s - %(levelname)s - %(message)s'
+        formatter = '%(asctime)s:%(module)s:%(levelname)s:%(message)s'
 
         formatter = ColoredFormatter(formatter, datefmt='%H:%M:%S')
         console.setFormatter(formatter)
@@ -45,7 +45,7 @@ def get_logger(log_level = LOG_LEVEL):
             file_handler = logging.FileHandler(f"{LOG_DIR}/{LOG_FILENAME}_{level}.txt")
             file_handler.setLevel(level.upper())
             logger.addHandler(file_handler)
-            formatter = '%(asctime)s - %(filename)s - %(levelname)s - %(message)s'
+            formatter = '%(asctime)s:%(module)s:%(levelname)s:%(message)s'
             file_handler.setFormatter(logging.Formatter(formatter, datefmt='%Y-%m-%d %H:%M:%S'))
 
     logger.setLevel(logging.DEBUG)
