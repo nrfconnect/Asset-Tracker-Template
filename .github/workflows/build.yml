@@ -228,15 +228,6 @@ jobs:
           path: asset-tracker-template/app
           mqtt: true
 
-      # Asset Tracker Template firmware build with patches for Thingy91x (PAUSED)
-      - name: Apply patches for Thingy91x firmware
-        if: ${{ inputs.build_all && false }} # Explicitly paused - set to 'inputs.build_all' to re-enable
-        working-directory: asset-tracker-template
-        run: |
-          git apply patches/magnetometer.patch
-          git apply patches/dummy-module.patch
-          git apply patches/add-event.patch
-
       - name: Build patched thingy91x firmware
         if: ${{ inputs.build_all && false }} # Explicitly paused - set to 'inputs.build_all' to re-enable
         uses: ./asset-tracker-template/.github/actions/build-step
