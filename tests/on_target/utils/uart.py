@@ -147,7 +147,7 @@ class Uart:
                 continue
             # Full line received
             line = line.strip()
-            logger.debug(f"{self.name} {repr(line)}")
+            logger.debug(f"{self.name}: {line}")
             self.log = self.log + "\n" + line
             self.whole_log = self.whole_log + "\n" + line
             line = ""
