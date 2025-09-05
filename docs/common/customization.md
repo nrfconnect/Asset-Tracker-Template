@@ -15,12 +15,6 @@ The main module subscribes to these events and request specific LED patterns fro
 When VBUS is connected, the LED will toggle white for 10 seconds.
 When VBUS is disconnected, the LED will toggle purple for 10 seconds.
 
-To apply all the necessary changes to the template, use the following command:
-
-```bash
-git apply <path-to-template-dir>/Asset-Tracker-Template/patches/add-event.patch
-```
-
 ### Instructions
 
 To add a new zbus event, complete the following procedure:
@@ -142,12 +136,6 @@ To add a new zbus event, complete the following procedure:
 This section demonstrates how to add support for the BMM350 magnetometer.
 The environmental module will be updated to sample data from the sensor through the Zephyr Sensor API.
 The data is forwarded to nRF Cloud along with all the other data types sampled by the system.
-
-To add basic support for the BMM350 magnetometer to the template, use the following command:
-
-```bash
-git apply <path-to-template-dir>/Asset-Tracker-Template/patches/magnetometer.patch
-```
 
 ### Instructions
 
@@ -286,35 +274,6 @@ Thingy:91 X is used as an example, as it is a supported board in the template wi
 ## Add your own module
 
 The dummy module serves as a template for understanding the module architecture and can be used as a foundation for custom modules.
-
-To add the dummy module to the template, apply the following patch:
-
-```bash
-git apply <path-to-template-dir>/Asset-Tracker-Template/patches/dummy-module.patch
-```
-
-If you want to generate and apply a dummy module with a custom name other than "Dummy", you can run the following script to rename the module and apply the patch:
-
-```bash
-cd Asset-Tracker-Template
-```
-
-```bash
-python3 scripts/rename_patch.py
-```
-
-Follow the instructions to rename and apply the patch:
-
-```bash
-===== Patch Module Renamer =====
-
-Enter the new module name (e.g. new-name): accelerometer
-Enter the full path to the patch file: /<path-to-template-dir>/Asset-Tracker-Template/patches/dummy-module.patch
-
-Patched file written to: /tmp/accelerometer-module.patch
-Do you want to apply the changes now with 'git apply'? (y/N): y
-Patch applied successfully.
-```
 
 ### Instructions
 

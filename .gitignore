@@ -14,9 +14,6 @@ cscope.*
 venv
 .venv
 .idea
-
-/*.patch
-
 .xxproject
 .envrc
 .vscode
