@@ -228,15 +228,14 @@ jobs:
           path: asset-tracker-template/app
           mqtt: true
 
-      - name: Build patched thingy91x firmware
-        if: ${{ inputs.build_all && false }} # Explicitly paused - set to 'inputs.build_all' to re-enable
+      - name: Build thingy91x with modem trace on uart
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: thingy91x/nrf9151/ns
           short_board: thingy91x
-          version: ${{ env.VERSION }}-patched
+          modem_trace: true
+          version: ${{ env.VERSION }}-mtrace
           path: asset-tracker-template/app
-          patched: true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
