@@ -943,7 +943,7 @@ static void shadow_poll(enum shadow_poll_type type)
 	 * the shadow failed. Ignore the payload if the first 10 bytes are zero.
 	 */
 	if (!memcmp(msg.response.buffer, "\0\0\0\0\0\0\0\0\0\0", 10)) {
-		LOG_WRN("Returned buffeør is empty, ignore");
+		LOG_WRN("Returned buffer is empty, ignore");
 		return;
 	}
 
