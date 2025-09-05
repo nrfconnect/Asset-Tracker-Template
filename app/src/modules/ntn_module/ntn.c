@@ -230,6 +230,15 @@ static int set_ntn_active_mode(void)
 			return err;
 		}
 
+		/* Configure location using latest GNSS data */
+		err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"20.0\",0,0",
+					g_ntn_state->latest_location.latitude,
+					g_ntn_state->latest_location.longitude);
+		if (err) {
+			LOG_ERR("Failed to set location, error: %d", err);
+			return err;
+		}
+
 		#if defined(CONFIG_APP_NTN_BANDLOCK_ENABLE)
 			err = nrf_modem_at_printf("AT%%XBANDLOCK=2,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
 			if (err) {
