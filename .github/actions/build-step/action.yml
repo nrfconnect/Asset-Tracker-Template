@@ -35,7 +35,7 @@ inputs:
     type: boolean
     required: false
     default: false
-  patched:
+  modem_trace:
     type: boolean
     required: false
     default: false
@@ -47,44 +47,38 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Set up debug build overlays
-      working-directory: ${{ inputs.path }}
-      if: ${{ inputs.debug }}
-      shell: bash
-      run: |
-        cp overlay-memfault.conf overlay-debug-att.conf
-        cat overlay-upload-modem-traces-to-memfault.conf >> overlay-debug-att.conf
-        cat overlay-etb.conf >> overlay-debug-att.conf
-        echo CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ inputs.memfault_project_key }}\" >> overlay-debug-att.conf
-        echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-debug-att.conf
-        echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"${{ inputs.memfault_fw_version_prefix }}+\" >> overlay-debug-att.conf
-        echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ inputs.memfault_fw_type }}\" >> overlay-debug-att.conf
-
     - name: Build firmware
       working-directory: ${{ inputs.path }}
       shell: bash
       run: |
+        params=()
         if [[ "${{ inputs.debug }}" == "true" ]]; then
-          west build -b ${{ inputs.board }} \
+          cp overlay-memfault.conf overlay-debug-att.conf
+          cat overlay-upload-modem-traces-to-memfault.conf >> overlay-debug-att.conf
+          cat overlay-etb.conf >> overlay-debug-att.conf
+          echo CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ inputs.memfault_project_key }}\" >> overlay-debug-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-debug-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"${{ inputs.memfault_fw_version_prefix }}+\" >> overlay-debug-att.conf
+          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ inputs.memfault_fw_type }}\" >> overlay-debug-att.conf
+          params+=("-DEXTRA_CONF_FILE=overlay-debug-att.conf")
+        fi
+        if [[ "${{ inputs.mqtt }}" == "true" ]]; then
+          params+=("-DEXTRA_CONF_FILE=$(pwd)/../examples/modules/cloud/overlay-mqtt.conf")
+        fi
+        if [[ "${{ inputs.modem_trace }}" == "true" ]]; then
+          params+=("-Dapp_SNIPPET=nrf91-modem-trace-uart")
+        fi
+        west build -b ${{ inputs.board }} \
             -d build \
-            -p --sysbuild \
-            -- -DEXTRA_CONF_FILE="overlay-debug-att.conf" 2>&1 | tee ../../artifacts/build_output_${{ inputs.short_board }}_debug.log
-        elif [[ "${{ inputs.mqtt }}" == "true" ]]; then
-          west build -b ${{ inputs.board }} \
-            -d build \
-            -p --sysbuild \
-            -- -DEXTRA_CONF_FILE="$(pwd)/../examples/modules/cloud/overlay-mqtt.conf" 2>&1 | tee ../../artifacts/build_output_${{ inputs.short_board }}_mqtt.log
-        else
-          west build -b ${{ inputs.board }} \
-            -d build \
-            -p --sysbuild 2>&1 | tee ../../artifacts/build_output_${{ inputs.short_board }}.log
-          if [[ "${{ inputs.short_board }}" == "thingy91x" ]]; then
-            if [[ "${{ inputs.push_memory_badges }}" == "true" ]]; then
-              west build -d build/app -t rom_report
-              west build -d build/app -t ram_report
-              cp build/app/rom.json ../../artifacts/rom_report_${{ inputs.short_board }}.json
-              cp build/app/ram.json ../../artifacts/ram_report_${{ inputs.short_board }}.json
-            fi
+            -p --sysbuild -- \
+            ${params[@]} 2>&1 | tee ../../artifacts/build_output_${{ inputs.short_board }}.log
+
+        if [[ "${{ inputs.short_board }}" == "thingy91x" ]]; then
+          if [[ "${{ inputs.push_memory_badges }}" == "true" ]]; then
+            west build -d build/app -t rom_report
+            west build -d build/app -t ram_report
+            cp build/app/rom.json ../../artifacts/rom_report_${{ inputs.short_board }}.json
+            cp build/app/ram.json ../../artifacts/ram_report_${{ inputs.short_board }}.json
           fi
         fi
 
