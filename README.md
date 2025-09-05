@@ -36,8 +36,16 @@ For detailed setup instructions using the [nRF Connect for VS Code extension](ht
 <summary>1. <strong>Initialize workspace:</strong></summary>
 
 ```shell
+# Install nRF Util
+pip install nrfutil
+
+# or follow install [documentation](https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html)
+
+# Install toolchain
+nrfutil toolchain-manager install --ncs-version v3.1.0
+
 # Launch toolchain
-nrfutil sdk-manager toolchain launch --ncs-version v3.0.0 --shell
+nrfutil toolchain-manager launch --ncs-version v3.1.0 --shell
 
 # Initialize workspace
 west init -m https://github.com/nrfconnect/Asset-Tracker-Template.git --mr main asset-tracker-template
@@ -49,10 +57,17 @@ west update
 <details>
 <summary>2. <strong>Build and flash:</strong></summary>
 
+**For Thingy:91 X:**
 ```shell
 west build --pristine --board thingy91x/nrf9151/ns
 west thingy91x-dfu  # For Thingy:91 X serial bootloader
 # Or with external debugger:
+west flash --erase
+```
+
+**For nRF9151 DK:**
+```shell
+west build --pristine --board nrf9151dk/nrf9151/ns
 west flash --erase
 ```
 </details>
@@ -60,7 +75,19 @@ west flash --erase
 <details>
 <summary>3. <strong>Provision device:</strong></summary>
 
-Use [nRF Connect for Desktop Quickstart](https://docs.nordicsemi.com/bundle/nrf-connect-desktop/page/index.html) to provision the device for nRF Cloud CoAP connectivity. See [Provisioning](docs/common/provisioning.md) for details.
+1. Get the device attestation token over terminal shell:
+
+   ```bash
+   at at%attesttoken?
+   ```
+
+   *Note: Token is printed automatically on first boot of unprovisioned devices.*
+
+2. In nRF Cloud: **Security Services** → **Claimed Devices** → **Claim Device**
+3. Paste token, set rule to "nRF Cloud Onboarding", click **Claim Device**
+4. Wait for the device to provision credentials and connect to nRF Cloud over CoAP.
+
+See [Provisioning](docs/common/provisioning.md) for more details.
 </details>
 
 ## System Architecture
