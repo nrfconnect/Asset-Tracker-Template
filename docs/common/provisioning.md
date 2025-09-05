@@ -2,10 +2,6 @@
 
 Device provisioning establishes credentials for secure communication with nRF Cloud CoAP.
 
-## Quick Start
-
-**Recommended**: Use [nRF Connect for Desktop Quickstart](https://docs.nordicsemi.com/bundle/nrf-connect-desktop/page/index.html) for guided setup.
-
 ## Manual Provisioning
 
 1. Get the device attestation token:
@@ -30,7 +26,9 @@ curl 'https://api.provisioning.nrfcloud.com/v1/claimed-devices' \
 
 ## Reprovisioning
 
-To update device credentials for security:
+To update device credentials:
+
+> In an end-product it's recommended to reprovision the device at a reasonable interval depending on the application use case, for security reasons.
 
 ### Manual
 

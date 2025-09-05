@@ -126,7 +126,6 @@ west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.con
 
 To connect to [nRF Cloud](https://nrfcloud.com), the device must be provisioned to your account. You can provision the device using one of the following methods:
 
-* **Quickstart application**: Use the [nRF Connect for Desktop Quickstart application](https://docs.nordicsemi.com/bundle/nrf-connect-desktop/page/index.html) for a streamlined setup process.
 * **Manual provisioning**: Follow the detailed steps in the [Provisioning](provisioning.md) documentation.
 
 The provisioning process establishes the necessary credentials and certificates for secure communication between your device and nRF Cloud.
