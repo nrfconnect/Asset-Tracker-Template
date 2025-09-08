@@ -416,8 +416,6 @@ static void running_entry(void *o)
 		smf_set_state(SMF_CTX(state_object), &states[STATE_TRIGGERING]);
 		return;
 	}
-
-	smf_set_state(SMF_CTX(state_object), &states[STATE_IDLE]);
 }
 
 static void running_run(void *o)
@@ -694,7 +692,7 @@ static void fota_entry(void *o)
 
 static void fota_run(void *o)
 {
-	const struct main_state *state_object = (const struct main_state *)o;
+	struct main_state *state_object = (struct main_state *)o;
 
 	if (state_object->chan == &FOTA_CHAN) {
 		enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
@@ -705,11 +703,28 @@ static void fota_run(void *o)
 		case FOTA_DOWNLOAD_TIMED_OUT:
 			__fallthrough;
 		case FOTA_DOWNLOAD_FAILED:
-			smf_set_state(SMF_CTX(state_object), &states[STATE_RUNNING]);
+			if (state_object->connected) {
+				smf_set_state(SMF_CTX(state_object), &states[STATE_TRIGGERING]);
+			} else {
+				smf_set_state(SMF_CTX(state_object), &states[STATE_IDLE]);
+			}
 			return;
 		default:
 			/* Don't care */
 			break;
+		}
+	}
+
+	/* Update cloud connection status to be able to return to the correct state in case
+	 * cloud connection is lost during FOTA.
+	 */
+	if (state_object->chan == &CLOUD_CHAN) {
+		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
+
+		if (msg->type == CLOUD_DISCONNECTED) {
+			state_object->connected = false;
+		} else if (msg->type == CLOUD_CONNECTED) {
+			state_object->connected = true;
 		}
 	}
 }

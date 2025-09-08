@@ -7,7 +7,7 @@ Device provisioning establishes credentials for secure communication with nRF Cl
 1. Get the device attestation token:
 
    ```bash
-   at at%attesttoken?
+   at at%attesttoken
    ```
 
    *Note: Token is printed automatically on first boot of unprovisioned devices.*
