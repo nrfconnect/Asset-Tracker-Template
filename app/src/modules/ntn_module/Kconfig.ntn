@@ -91,6 +91,12 @@ config APP_NTN_SERVER_PORT
 	help
 	  Port number of the NTN server to connect to.
 
+config APP_NTN_LEO
+	bool "Enable LEO NTN"
+	default n
+	help
+	  Enable LEO NTN.
+
 
 module = APP_NTN
 module-str = NTN

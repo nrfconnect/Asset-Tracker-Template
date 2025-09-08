@@ -152,6 +152,11 @@ static void gnss_location_work_handler(struct k_work *work)
     }
 }
 
+static int spg4_propagator_compute()
+{
+	// Placeholder
+	return CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES * 60;
+}
 
 /* Helper functions */
 
@@ -533,6 +538,13 @@ static void state_ntn_run(void *obj)
 					LOG_DBG("No valid GNSS data available to send initially");
 				}
 			}
+
+		// For LEO, compute new wake up using SGP4 (Simplified General Perturbations Model 4)
+		#if defined(CONFIG_APP_NTN_LEO)
+			int sgp4_timeout_in_seconds;
+			sgp4_timeout_in_seconds = spg4_propagator_compute();
+			with k_timer_start(&state->ntn_timer, K_SECONDS(sgp4_timeout_in_seconds), K_NO_WAIT);
+		#endif
 
 			k_sleep(K_MSEC(5000));
 
