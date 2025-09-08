@@ -152,7 +152,7 @@ static void gnss_location_work_handler(struct k_work *work)
     }
 }
 
-static int spg4_propagator_compute()
+static int sgp4_propagator_compute()
 {
 	// Placeholder
 	return CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES * 60;
@@ -542,7 +542,7 @@ static void state_ntn_run(void *obj)
 		// For LEO, compute new wake up using SGP4 (Simplified General Perturbations Model 4)
 		#if defined(CONFIG_APP_NTN_LEO)
 			int sgp4_timeout_in_seconds;
-			sgp4_timeout_in_seconds = spg4_propagator_compute();
+			sgp4_timeout_in_seconds = sgp4_propagator_compute();
 			with k_timer_start(&state->ntn_timer, K_SECONDS(sgp4_timeout_in_seconds), K_NO_WAIT);
 		#endif
 
