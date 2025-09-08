@@ -9,7 +9,6 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
-#include <modem/location.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,9 +25,6 @@ enum ntn_msg_type {
 /* NTN module message */
 struct ntn_msg {
 	enum ntn_msg_type type;
-	union {
-	struct location_data location;
-	};
 };
 
 /* Declare the NTN message channel */

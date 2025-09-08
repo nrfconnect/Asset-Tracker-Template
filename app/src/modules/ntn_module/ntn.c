@@ -8,12 +8,11 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/smf.h>
-#include <nrf_modem_at.h>
 #include <modem/lte_lc.h>
-#include <modem/location.h>
 #include <date_time.h>
-#include <zephyr/net/conn_mgr_connectivity.h>
-#include <zephyr/net/conn_mgr_monitor.h>
+#include <modem/nrf_modem_lib.h>
+#include <nrf_modem_at.h>
+#include <nrf_modem_gnss.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/net/socket.h>
 #include <errno.h>
@@ -24,14 +23,6 @@
 static int sock_fd = -1;
 static struct sockaddr_storage host_addr;
 
-/* Macros used to subscribe to specific Zephyr NET management events. */
-#define L4_EVENT_MASK (NET_EVENT_L4_CONNECTED | NET_EVENT_L4_DISCONNECTED)
-#define CONN_LAYER_EVENT_MASK (NET_EVENT_CONN_IF_FATAL_ERROR)
-
-/* Zephyr NET management event callback structures. */
-static struct net_mgmt_event_callback l4_cb;
-static struct net_mgmt_event_callback conn_cb;
-
 LOG_MODULE_REGISTER(ntn, CONFIG_APP_NTN_LOG_LEVEL);
 
 /* Define channels provided by this module */
@@ -40,7 +31,7 @@ ZBUS_CHAN_DEFINE(NTN_CHAN,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(.type = NTN_TIMEOUT)
+		 ZBUS_MSG_INIT(0)
 );
 
 /* Register subscriber */
@@ -64,23 +55,18 @@ struct ntn_state_object {
 	const struct zbus_channel *chan;
 	uint8_t msg_buf[MAX_MSG_SIZE];
 	struct k_timer ntn_timer;
-	struct location_data latest_location;
 	bool socket_connected;
 	bool ntn_initialized;
 	bool gnss_initialized;
 };
 
-/* Global state for location handler */
-static struct ntn_state_object *g_ntn_state;
+static struct nrf_modem_gnss_pvt_data_frame last_pvt;
+static struct k_work timer_work;
+static struct k_work gnss_location_work;
 
 /* Forward declarations */
-static void location_event_handler(const struct location_event_data *event_data);
-static void l4_event_handler(struct net_mgmt_event_callback *cb,
-			  unsigned long long event,
-			  struct net_if *iface);
-static void connectivity_event_handler(struct net_mgmt_event_callback *cb,
-				   unsigned long long event,
-				   struct net_if *iface);
+
+static void gnss_event_handler(int event);
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt);
 
 /* Forward declarations */
@@ -118,9 +104,6 @@ static void ntn_msg_publish(enum ntn_msg_type type)
 	}
 }
 
-/* Work item for handling timer timeout */
-static struct k_work timer_work;
-
 static void timer_work_handler(struct k_work *work)
 {
 	ntn_msg_publish(NTN_TIMEOUT);
@@ -132,6 +115,43 @@ static void ntn_timer_handler(struct k_timer *timer)
 	k_work_submit(&timer_work);
 }
 
+static void apply_gnss_time(const struct nrf_modem_gnss_pvt_data_frame *pvt_data)
+{
+	struct tm gnss_time = {
+		.tm_year = pvt_data->datetime.year - 1900,
+		.tm_mon = pvt_data->datetime.month - 1,
+		.tm_mday = pvt_data->datetime.day,
+		.tm_hour = pvt_data->datetime.hour,
+		.tm_min = pvt_data->datetime.minute,
+		.tm_sec = pvt_data->datetime.seconds,
+	};
+
+	date_time_set(&gnss_time);
+}
+
+static void gnss_location_work_handler(struct k_work *work)
+{
+    int err;
+    struct nrf_modem_gnss_pvt_data_frame pvt_data;
+
+    /* Read PVT data in thread context */
+    err = nrf_modem_gnss_read(&pvt_data, sizeof(pvt_data), NRF_MODEM_GNSS_DATA_PVT);
+    if (err != 0) {
+        LOG_ERR("Failed to read GNSS data nrf_modem_gnss_read(), err: %d", err);
+        return;
+    }
+
+    if (pvt_data.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
+        LOG_DBG("Got valid GNSS location: lat: %f, lon: %f, alt: %f",
+		(double)pvt_data.latitude,
+		(double)pvt_data.longitude,
+		(double)pvt_data.altitude);
+        memcpy(&last_pvt, &pvt_data, sizeof(last_pvt));
+        apply_gnss_time(&last_pvt);
+        ntn_msg_publish(NTN_LOCATION_SEARCH_DONE);
+    }
+}
+
 
 /* Helper functions */
 
@@ -140,6 +160,7 @@ static int set_ntn_dormant_mode(void)
 	int err;
 
 	/* Set modem to dormant mode without loosing ATTACH  */
+	// lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_UICC_ON)
 	err = nrf_modem_at_printf("AT+CFUN=45");
 	if (err) {
 		LOG_ERR("Failed to set AT+CFUN=45, error: %d", err);
@@ -149,24 +170,24 @@ static int set_ntn_dormant_mode(void)
 	return 0;
 }
 
-/* Move into lte_lc / conn_mgr*/
-static int set_ntn_active_mode(void)
+static int set_ntn_active_mode(struct ntn_state_object *state)
 {
 	int err;
 
-	if (g_ntn_state->ntn_initialized)
+	if (state->ntn_initialized)
 	{
 		/* Configure NTN system mode */
+		// lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT, LTE_LC_SYSTEM_MODE_PREFER_AUTO)
 		err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,0,0,1");
 		if (err) {
 			LOG_ERR("Failed to set NTN system mode, error: %d", err);
 			return err;
 		}
-		
-	}	
+	}
 	else
 	{
 		/* Set modem to minimum functionality */
+		// lte_lc_func_mode_set(LTE_LC_FUNC_MODE_POWER_OFF)
 		err = nrf_modem_at_printf("AT+CFUN=0");
 		if (err) {
 			LOG_ERR("Failed to set modem to minimum functionality, error: %d", err);
@@ -195,35 +216,8 @@ static int set_ntn_active_mode(void)
 		}
 		#endif
 
-		/* Configure network registration status reporting */
-		err = nrf_modem_at_printf("AT+CEREG=5");
-		if (err) {
-			LOG_ERR("Failed to configure network registration reporting, error: %d", err);
-			return err;
-		}
-
-		/* Configure network event reporting */
-		err = nrf_modem_at_printf("AT+CNEC=24");
-		if (err) {
-			LOG_ERR("Failed to configure network event reporting, error: %d", err);
-			return err;
-		}
-
-		/* Configure signaling connection status reporting */
-		err = nrf_modem_at_printf("AT+CSCON=3");
-		if (err) {
-			LOG_ERR("Failed to configure signaling connection reporting, error: %d", err);
-			return err;
-		}
-
-		/* Configure modem event reporting */
-		err = nrf_modem_at_printf("AT%%MDMEV=2");
-		if (err) {
-			LOG_ERR("Failed to configure modem event reporting, error: %d", err);
-			return err;
-		}
-
 		/* Configure NTN system mode */
+		// lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT, LTE_LC_SYSTEM_MODE_PREFER_AUTO)
 		err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,0,0,1");
 		if (err) {
 			LOG_ERR("Failed to set NTN system mode, error: %d", err);
@@ -231,11 +225,12 @@ static int set_ntn_active_mode(void)
 		}
 
 		/* Configure location using latest GNSS data */
-		err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"20.0\",0,0",
-					g_ntn_state->latest_location.latitude,
-					g_ntn_state->latest_location.longitude);
+		err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"%f\",0,0",
+					(double)last_pvt.latitude,
+					(double)last_pvt.longitude,
+					(double)last_pvt.altitude);
 		if (err) {
-			LOG_ERR("Failed to set location, error: %d", err);
+			LOG_ERR("Failed to set AT%%LOCATION, error: %d", err);
 			return err;
 		}
 
@@ -262,21 +257,20 @@ static int set_ntn_active_mode(void)
 				return err;
 			}
 		#endif
-		g_ntn_state->ntn_initialized=true;	
+		state->ntn_initialized=true;
 	}
 
 	return 0;
 }
 
-static int set_gnss_active_mode(void)
+static int set_gnss_active_mode(struct ntn_state_object *state)
 {
 	int err;
 
-	if (g_ntn_state->gnss_initialized)
+	if (state->gnss_initialized)
 	{
-	
-
 		/* Configure GNSS system mode */
+		// lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_GPS, LTE_LC_SYSTEM_MODE_PREFER_AUTO)
 		err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,1,0,0");
 		if (err) {
 			LOG_ERR("Failed to set GNSS system mode, error: %d", err);
@@ -284,24 +278,25 @@ static int set_gnss_active_mode(void)
 		}
 
 		/* Activate GNSS mode */
+		// lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS)
 		err = nrf_modem_at_printf("AT+CFUN=31");
 		if (err) {
 			LOG_ERR("Failed to activate GNSS mode, error: %d", err);
 			return err;
-		
-		
 		}
 	}
 	else
 	{
-			/* Set modem to offline mode */
+		/* Set modem to offline mode */
+		// lte_lc_func_mode_set(LTE_LC_FUNC_MODE_POWER_OFF)
 		err = nrf_modem_at_printf("AT+CFUN=0");
 		if (err) {
-			LOG_ERR("Failed to set modem to offline mode, error: %d", err);
+			LOG_ERR("Failed to set AT+CFUN=0, error: %d", err);
 			return err;
 		}
 
 		/* Configure GNSS system mode */
+		// lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_GPS, LTE_LC_SYSTEM_MODE_PREFER_AUTO)
 		err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,1,0,0");
 		if (err) {
 			LOG_ERR("Failed to set GNSS system mode, error: %d", err);
@@ -309,24 +304,24 @@ static int set_gnss_active_mode(void)
 		}
 
 		/* Activate GNSS mode */
+		// lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS)
 		err = nrf_modem_at_printf("AT+CFUN=31");
 		if (err) {
 			LOG_ERR("Failed to activate GNSS mode, error: %d", err);
 			return err;
 		}
-		g_ntn_state->gnss_initialized=true;	
+		state->gnss_initialized=true;
 	}
-
 
 	return 0;
 }
-
 
 static int set_gnss_inactive_mode(void)
 {
 	int err;
 
 	/* Set modem to CFUN=30 mode when exiting GNSS state */
+	// lte_lc_func_mode_set(LTE_LC_FUNC_MODE_DEACTIVATE_GNSS)
 	err = nrf_modem_at_printf("AT+CFUN=30");
 	if (err) {
 		LOG_ERR("Failed to set modem to CFUN=30 mode, error: %d", err);
@@ -365,7 +360,7 @@ static int sock_open_and_connect(void)
 	return 0;
 }
 
-static int sock_send_gnss_data(const struct location_data *gnss_data)
+static int sock_send_gnss_data(const struct nrf_modem_gnss_pvt_data_frame *gnss_data)
 {
 	int err;
 	char message[256];
@@ -377,10 +372,10 @@ static int sock_send_gnss_data(const struct location_data *gnss_data)
 
 	/* Format GNSS data as string */
 	snprintf(message, sizeof(message),
-		"GNSS: lat=%.6f, lon=%.6f, acc=%.2f, time=%04d-%02d-%02d %02d:%02d:%02d",
-		gnss_data->latitude, gnss_data->longitude, gnss_data->accuracy,
+		"GNSS: lat=%.2f, lon=%.2f, alt=%.2f, time=%04d-%02d-%02d %02d:%02d:%02d",
+		(double)gnss_data->latitude, (double)gnss_data->longitude, (double)gnss_data->altitude,
 		gnss_data->datetime.year, gnss_data->datetime.month, gnss_data->datetime.day,
-		gnss_data->datetime.hour, gnss_data->datetime.minute, gnss_data->datetime.second);
+		gnss_data->datetime.hour, gnss_data->datetime.minute, gnss_data->datetime.seconds);
 
 	/* Send data */
 	err = send(sock_fd, message, strlen(message), 0);
@@ -404,32 +399,22 @@ static void state_running_entry(void *obj)
 	LOG_INF("Initializing NTN module");
 
 	k_work_init(&timer_work, timer_work_handler);
+	k_work_init(&gnss_location_work, gnss_location_work_handler);
 	k_timer_init(&state->ntn_timer, ntn_timer_handler, NULL);
-	k_timer_start(&state->ntn_timer, K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES), K_NO_WAIT);
 
-	err = location_init(location_event_handler);
+	err = nrf_modem_lib_init();
 	if (err) {
-		LOG_ERR("Failed to initialize location library: %d", err);
+		LOG_ERR("Failed to initialize the modem library, error: %d", err);
 		return;
 	}
 
-	/* Setup handler for Zephyr NET Connection Manager events */
-	net_mgmt_init_event_callback(&l4_cb, &l4_event_handler, L4_EVENT_MASK);
-	net_mgmt_add_event_callback(&l4_cb);
-
-	/* Setup handler for Zephyr NET Connection Manager Connectivity layer */
-	net_mgmt_init_event_callback(&conn_cb, &connectivity_event_handler, CONN_LAYER_EVENT_MASK);
-	net_mgmt_add_event_callback(&conn_cb);
-
-
-	err = conn_mgr_all_if_up(true);
-	if (err) {
-		LOG_ERR("conn_mgr_all_if_up, error: %d", err);
-		return;
-	}
+	/* Register GNSS event handler */
+	nrf_modem_gnss_event_handler_set(gnss_event_handler);
 
 	/* Register LTE event handler */
 	lte_lc_register_handler(lte_lc_evt_handler);
+
+	k_timer_start(&state->ntn_timer, K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES), K_NO_WAIT);
 }
 
 static void state_running_run(void *obj)
@@ -443,7 +428,6 @@ static void state_running_run(void *obj)
 			/* Timer expired, restart timer and transition to GNSS mode */
 			k_timer_start(&state->ntn_timer, K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES), K_NO_WAIT);
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
-			LOG_INF("Timer timeout, transitioning to GNSS mode");
 		}
 	}
 }
@@ -462,17 +446,16 @@ static void state_gnss_entry(void *obj)
 
 	LOG_INF("Entering GNSS mode");
 
-	err = set_gnss_active_mode();
+	err = set_gnss_active_mode(state);
 	if (err) {
 		LOG_ERR("Unable to set GNSS mode");
 		return;
 	}
 
-	err = location_request(NULL);
-	if (err) {
-		LOG_ERR("Failed to request location: %d", err);
-		return;
-	}
+	err = nrf_modem_gnss_fix_interval_set(0);
+	err = nrf_modem_gnss_fix_retry_set(180);
+	err = nrf_modem_gnss_start();
+
 }
 
 static void state_gnss_run(void *obj)
@@ -495,6 +478,7 @@ static void state_gnss_exit(void *obj)
 
 	LOG_INF("Exiting GNSS mode");
 
+	err = nrf_modem_gnss_stop();
 	set_gnss_inactive_mode();
 }
 
@@ -505,18 +489,17 @@ static void state_ntn_entry(void *obj)
 
 	LOG_INF("Entering NTN mode");
 
-	err = set_ntn_active_mode();
+	err = set_ntn_active_mode(state);
 	if (err) {
 		return;
 	}
 
 	/* Connect to network */
-	err = conn_mgr_all_if_connect(true);
-	if (err) {
-		LOG_ERR("Failed to connect to network, error: %d", err);
-		return;
-	}
-
+	err = lte_lc_connect_async(lte_lc_evt_handler);
+        if (err) {
+                printk("lte_lc_connect_async, error: %d\n", err);
+                return;
+        }
 }
 
 static void state_ntn_run(void *obj)
@@ -538,9 +521,9 @@ static void state_ntn_run(void *obj)
 				LOG_DBG("Socket connected successfully");
 				state->socket_connected = true;
 				/* Send initial GNSS data if available */
-				if (state->latest_location.datetime.valid) {
+				if (last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
 					LOG_DBG("Sending initial GNSS data");
-					err = sock_send_gnss_data(&state->latest_location);
+					err = sock_send_gnss_data(&last_pvt);
 					if (err) {
 						LOG_ERR("Failed to send initial GNSS data, error: %d", err);
 					} else {
@@ -563,7 +546,6 @@ static void state_ntn_run(void *obj)
 
 static void state_ntn_exit(void *obj)
 {
-	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
 	/* Close socket if it was open */
@@ -571,41 +553,6 @@ static void state_ntn_exit(void *obj)
 		close(sock_fd);
 		sock_fd = -1;
 		state->socket_connected = false;
-	}
-}
-
-
-/* Network event handlers */
-static void l4_event_handler(struct net_mgmt_event_callback *cb,
-			  unsigned long long event,
-			  struct net_if *iface)
-{
-	ARG_UNUSED(cb);
-	ARG_UNUSED(iface);
-
-	switch (event) {
-	case NET_EVENT_L4_CONNECTED:
-		LOG_DBG("Network connectivity established, publishing NTN_NETWORK_CONNECTED");
-		ntn_msg_publish(NTN_NETWORK_CONNECTED);
-		break;
-	case NET_EVENT_L4_DISCONNECTED:
-		LOG_DBG("Network connectivity lost");
-		break;
-	default:
-		break;
-	}
-}
-
-static void connectivity_event_handler(struct net_mgmt_event_callback *cb,
-				   unsigned long long event,
-				   struct net_if *iface)
-{
-	ARG_UNUSED(cb);
-	ARG_UNUSED(iface);
-
-	if (event == NET_EVENT_CONN_IF_FATAL_ERROR) {
-		LOG_ERR("NET_EVENT_CONN_IF_FATAL_ERROR");
-		return;
 	}
 }
 
@@ -617,6 +564,12 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			LOG_ERR("No SIM card detected!");
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NOT_REGISTERED) {
 			LOG_WRN("Not registered, check rejection cause");
+		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME) {
+			LOG_DBG("Network connectivity established to home network");
+			ntn_msg_publish(NTN_NETWORK_CONNECTED);
+		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
+			LOG_DBG("Network connectivity established to roaming network");
+			ntn_msg_publish(NTN_NETWORK_CONNECTED);
 		}
 		break;
 	case LTE_LC_EVT_MODEM_EVENT:
@@ -626,103 +579,27 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			LOG_DBG("LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE");
 		}
 		break;
+	case LTE_LC_EVT_RRC_UPDATE:
+		if (evt->rrc_mode == LTE_LC_RRC_MODE_CONNECTED) {
+			LOG_DBG("LTE_LC_RRC_MODE_CONNECTED");
+
+		}
+		else if (evt->rrc_mode == LTE_LC_RRC_MODE_IDLE) {
+			LOG_DBG("LTE_LC_RRC_MODE_IDLE");
+		}
+		break;
 	default:
 		break;
 	}
 }
 
-static void apply_gnss_time(const struct nrf_modem_gnss_pvt_data_frame *pvt_data)
+static void gnss_event_handler(int event)
 {
-	struct tm gnss_time = {
-		.tm_year = pvt_data->datetime.year - 1900,
-		.tm_mon = pvt_data->datetime.month - 1,
-		.tm_mday = pvt_data->datetime.day,
-		.tm_hour = pvt_data->datetime.hour,
-		.tm_min = pvt_data->datetime.minute,
-		.tm_sec = pvt_data->datetime.seconds,
-	};
-
-	date_time_set(&gnss_time);
-}
-
-static void location_print_data_details(enum location_method method,
-				    const struct location_data_details *details)
-{
-	LOG_DBG("Elapsed method time: %d ms", details->elapsed_time_method);
-
-#if defined(CONFIG_LOCATION_METHOD_GNSS)
-	if (method == LOCATION_METHOD_GNSS) {
-		LOG_DBG("Satellites tracked: %d", details->gnss.satellites_tracked);
-		LOG_DBG("Satellites used: %d", details->gnss.satellites_used);
-		LOG_DBG("Elapsed GNSS time: %d ms", details->gnss.elapsed_time_gnss);
-		LOG_DBG("GNSS execution time: %d ms", details->gnss.pvt_data.execution_time);
-	}
-#endif
-}
-
-static void location_event_handler(const struct location_event_data *event_data)
-{
-	struct ntn_msg msg;
-
-	if (!g_ntn_state) {
-		LOG_ERR("NTN state not initialized");
-		return;
-	}
-
-	switch (event_data->id) {
-	case LOCATION_EVT_LOCATION:
-		LOG_INF("Got location: lat: %f, lon: %f, acc: %f, method: %s",
-			(double)event_data->location.latitude,
-			(double)event_data->location.longitude,
-			(double)event_data->location.accuracy,
-			location_method_str(event_data->method));
-
-		if (event_data->method == LOCATION_METHOD_GNSS) {
-			struct nrf_modem_gnss_pvt_data_frame pvt_data =
-				event_data->location.details.gnss.pvt_data;
-			if (event_data->location.datetime.valid) {
-				/* GNSS is the most accurate time source -  use it. */
-				apply_gnss_time(&pvt_data);
-			} else {
-				/* this should not happen */
-				LOG_WRN("Got GNSS location without valid time data");
-			}
-
-			/* Store latest GNSS data and send location search done message */
-			g_ntn_state->latest_location = event_data->location;
-			ntn_msg_publish(NTN_LOCATION_SEARCH_DONE);
-		}
+	switch (event) {
+	case NRF_MODEM_GNSS_EVT_PVT:
+		/* Schedule work to handle PVT data in thread context */
+		k_work_submit(&gnss_location_work);
 		break;
-
-	case LOCATION_EVT_TIMEOUT:
-		LOG_WRN("Getting location timed out");
-		break;
-
-	case LOCATION_EVT_ERROR:
-		LOG_WRN("Getting location failed");
-		LOG_WRN("Used method: %s (%d)", location_method_str(event_data->method),
-					    event_data->method);
-		location_print_data_details(event_data->method, &event_data->error.details);
-		break;
-
-	case LOCATION_EVT_FALLBACK:
-		LOG_DBG("Location request fallback has occurred:");
-		LOG_DBG("Failed method: %s (%d)", location_method_str(event_data->method),
-					      event_data->method);
-		LOG_DBG("New method: %s (%d)", location_method_str(
-					    event_data->fallback.next_method),
-					    event_data->fallback.next_method);
-		LOG_DBG("Cause: %s",
-			(event_data->fallback.cause == LOCATION_EVT_TIMEOUT) ? "timeout" :
-			(event_data->fallback.cause == LOCATION_EVT_ERROR) ? "error" :
-			"unknown");
-		location_print_data_details(event_data->method, &event_data->fallback.details);
-		break;
-
-	case LOCATION_EVT_RESULT_UNKNOWN:
-		LOG_DBG("Location result unknown");
-		break;
-
 	default:
 		break;
 	}
@@ -740,9 +617,8 @@ static void ntn_module_thread(void)
 	int task_wdt_id;
 	const uint32_t wdt_timeout_ms = CONFIG_APP_NTN_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC;
 	struct ntn_state_object ntn_state = { 0 };
-	g_ntn_state = &ntn_state;
-	g_ntn_state->gnss_initialized=false;
-	g_ntn_state->ntn_initialized=false;
+	ntn_state.gnss_initialized=false;
+	ntn_state.ntn_initialized=false;
 
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, ntn_wdt_callback, (void *)k_current_get());
