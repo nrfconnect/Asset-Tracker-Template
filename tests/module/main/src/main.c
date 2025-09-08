@@ -346,7 +346,27 @@ void test_trigger_disconnect_and_connect_when_triggering(void)
 	expect_no_events(WEEK_IN_SECONDS);
 }
 
-void test_fota_downloading(void)
+void test_fota_downloading_cancel_to_state_idle(void)
+{
+	/* Transition to STATE_FOTA_DOWNLOADING */
+	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
+	expect_fota_event(FOTA_DOWNLOADING_UPDATE);
+
+	/* A cloud ready message and button trigger should now cause no action */
+	send_cloud_connected();
+	expect_no_events(7200);
+	button_handler(DK_BTN1_MSK, DK_BTN1_MSK);
+	expect_no_events(7200);
+
+	/* Cleanup */
+	send_cloud_disconnected();
+	send_fota_msg(FOTA_DOWNLOAD_CANCELED);
+	expect_fota_event(FOTA_DOWNLOAD_CANCELED);
+
+	expect_no_events(7200);
+}
+
+void test_fota_downloading_cancel_to_state_triggering(void)
 {
 	/* Transition to STATE_FOTA_DOWNLOADING */
 	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
@@ -362,6 +382,18 @@ void test_fota_downloading(void)
 	send_fota_msg(FOTA_DOWNLOAD_CANCELED);
 	expect_fota_event(FOTA_DOWNLOAD_CANCELED);
 
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_fota_event(FOTA_POLL_REQUEST);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+	/* Cleanup */
+	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 	expect_no_events(7200);
 }
 
