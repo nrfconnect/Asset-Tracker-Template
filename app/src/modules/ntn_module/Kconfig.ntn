@@ -73,7 +73,7 @@ config APP_NTN_APN
 
 endif # APP_NTN_APN_ENABLE
 
-config CONFIG_APP_NTN_DISABLE_EPCO
+config APP_NTN_DISABLE_EPCO
 	bool "Disable ePCO"
 	default n
 	help
