@@ -229,10 +229,21 @@ jobs:
           mqtt: true
 
       - name: Build thingy91x with modem trace on uart
+        if: ${{ inputs.build_all }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: thingy91x/nrf9151/ns
           short_board: thingy91x
+          modem_trace: true
+          version: ${{ env.VERSION }}-mtrace
+          path: asset-tracker-template/app
+      
+      - name: Build nrf9151dk with modem trace on uart
+        if: ${{ inputs.build_all }}
+        uses: ./asset-tracker-template/.github/actions/build-step
+        with:
+          board: nrf9151dk/nrf9151/ns
+          short_board: nrf9151dk
           modem_trace: true
           version: ${{ env.VERSION }}-mtrace
           path: asset-tracker-template/app
