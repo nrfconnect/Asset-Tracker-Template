@@ -78,7 +78,7 @@ west flash --erase
 1. Get the device attestation token over terminal shell:
 
    ```bash
-   at at%attesttoken?
+   at at%attesttoken
    ```
 
    *Note: Token is printed automatically on first boot of unprovisioned devices.*
