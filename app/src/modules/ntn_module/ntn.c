@@ -502,7 +502,7 @@ static void state_ntn_entry(void *obj)
 	/* Connect to network */
 	err = lte_lc_connect_async(lte_lc_evt_handler);
         if (err) {
-                printk("lte_lc_connect_async, error: %d\n", err);
+                LOG_ERR("lte_lc_connect_async, error: %d\n", err);
                 return;
         }
 }
