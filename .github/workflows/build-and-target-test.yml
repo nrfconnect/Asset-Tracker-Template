@@ -9,10 +9,10 @@ on:
         required: true
         default: false
       devices:
-        description: Devices to test, json list
+        description: Devices to test, space separated list
         type: string
         required: true
-        default: '[\"thingy91x\"]'
+        default: thingy91x
 
   schedule:
     - cron: "0 0 * * *"
@@ -36,14 +36,14 @@ jobs:
           PUSH=${{ github.event_name == 'push' }}
           push_memory_badges=false
           if [[ $SCHEDULED == true ]]; then
-            devices='["thingy91x","nrf9151dk","ppk_thingy91x","gnss_nrf9151dk", "prov_thingy91x"]'
+            devices="thingy91x nrf9151dk ppk_thingy91x gnss_nrf9151dk prov_thingy91x"
             build_all=true
             push_memory_badges=true
           elif [[ $PUSH == true ]]; then
-            devices='["thingy91x"]'
+            devices="thingy91x"
             build_all=false
           else
-            devices=${{ inputs.devices }}
+            devices="${{ inputs.devices }}"
             build_all=${{ inputs.build_all }}
           fi
           echo "devices=$devices"
