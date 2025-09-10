@@ -96,7 +96,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # The Matter IDL is part of requirements-build.txt, but it's not available 
+          # The Matter IDL is part of requirements-build.txt, but it's not available
           # in pypi so we need to install it from the source code
           MATTER_IDL_PATH=modules/lib/matter/scripts/py_matter_idl
           if [ -d $MATTER_IDL_PATH ]; then
@@ -237,13 +237,23 @@ jobs:
           modem_trace: true
           version: ${{ env.VERSION }}-mtrace
           path: asset-tracker-template/app
-      
+
       - name: Build nrf9151dk with modem trace on uart
         if: ${{ inputs.build_all }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: nrf9151dk/nrf9151/ns
           short_board: nrf9151dk
+          modem_trace: true
+          version: ${{ env.VERSION }}-mtrace
+          path: asset-tracker-template/app
+
+      - name: Build for nRF9161 DK with modem trace on UART 1
+        if: ${{ inputs.build_all }}
+        uses: ./asset-tracker-template/.github/actions/build-step
+        with:
+          board: nrf9161dk/nrf9161/ns
+          short_board: nrf9161dk
           modem_trace: true
           version: ${{ env.VERSION }}-mtrace
           path: asset-tracker-template/app
