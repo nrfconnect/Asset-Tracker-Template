@@ -18,10 +18,10 @@ on:
         required: false
         default: tests/test_functional
       devices:
-        description: JSON array of devices. e.g. [\"thingy91x\",\"nrf9151dk\"]
+        description: Space separated list of devices. e.g. thingy91x nrf9151dk
         type: string
         required: true
-        default: '[\"thingy91x\"]'
+        default: thingy91x
 
   workflow_dispatch:
     inputs:
@@ -44,18 +44,31 @@ on:
         required: false
         default: tests
       devices:
-        description: JSON array of devices. e.g. [\"thingy91x\",\"nrf9151dk\"]
+        description: Space separated list of devices. e.g. thingy91x nrf9151dk
         type: string
         required: true
-        default: '[\"thingy91x\"]'
+        default: thingy91x
 
 jobs:
+  format_devices:
+    runs-on: ubuntu-latest
+    outputs:
+      devices: ${{ steps.format_devices.outputs.devices }}
+    steps:
+      - name: Format devices
+        id: format_devices
+        run: |
+          DEVICES=$(echo '${{ inputs.devices }}' | jq -Rc 'split(" ")')
+          echo "devices=$DEVICES" >> $GITHUB_OUTPUT
+          echo "devices=$DEVICES"
+
   target_test:
+    needs: format_devices
     # This will create multiple jobs, one for each target defined in the matrix
     strategy:
       fail-fast: false # Don't fail all jobs if one fails
       matrix:
-        device: ${{ fromJson(inputs.devices) }}
+        device: ${{ fromJson(needs.format_devices.outputs.devices) }}
 
     # Self-hosted runner is labeled according to the device it is linked with
     runs-on: cia-trd-${{ matrix.device }}
