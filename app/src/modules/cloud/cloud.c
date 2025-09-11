@@ -1006,9 +1006,11 @@ static void handle_cloud_location_request(const struct location_data_cloud *requ
 		 */
 		loc_req.cell_info = (struct lte_lc_cells_info *)request->cell_data; /* NOSONAR */
 
-		LOG_DBG("Cellular data present: current cell ID: %d, neighbor cells: %d",
+		LOG_DBG("Cellular data present: current cell ID: %d, neighbor cells: %d, "
+			"GCI cells count: %d",
 			request->cell_data->current_cell.id,
-			request->cell_data->ncells_count);
+			request->cell_data->ncells_count,
+			request->cell_data->gci_cells_count);
 	}
 #endif
 
