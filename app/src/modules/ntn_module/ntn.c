@@ -188,6 +188,12 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 			LOG_ERR("Failed to set NTN system mode, error: %d", err);
 			return err;
 		}
+		LOG_DBG("NTN initialized, using AT+CFUN=21");
+		err = nrf_modem_at_printf("AT+CFUN=21");
+		if (err) {
+			LOG_ERR("Failed to set AT+CFUN=21, error: %d", err);
+			return err;
+		}
 	}
 	else
 	{
@@ -262,7 +268,28 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 				return err;
 			}
 		#endif
+
+		/*
+		Modem is activating AT+CPSMS via CONFIG_LTE_LC_PSM_MODULE=y.
+		Cast AT+CPSMS=0 to deactivate legacy PSM.
+		CFUN=45 + legacy PSM is not supported, has bugs.
+		*/
+		err = nrf_modem_at_printf("AT+CPSMS=0");
+		if (err) {
+			LOG_ERR("Failed to set AT+CPSMS=0, error: %d", err);
+			return err;
+		}
+
 		state->ntn_initialized=true;
+
+		k_sleep(K_MSEC(5000));
+
+		LOG_DBG("NTN not initialized, using lte_lc_connect_async to connect to network");
+		err = lte_lc_connect_async(lte_lc_evt_handler);
+		if (err) {
+			LOG_ERR("lte_lc_connect_async, error: %d\n", err);
+			return;
+		}
 	}
 
 	return 0;
@@ -499,12 +526,6 @@ static void state_ntn_entry(void *obj)
 		return;
 	}
 
-	/* Connect to network */
-	err = lte_lc_connect_async(lte_lc_evt_handler);
-        if (err) {
-                LOG_ERR("lte_lc_connect_async, error: %d\n", err);
-                return;
-        }
 }
 
 static void state_ntn_run(void *obj)
@@ -546,7 +567,13 @@ static void state_ntn_run(void *obj)
 			with k_timer_start(&state->ntn_timer, K_SECONDS(sgp4_timeout_in_seconds), K_NO_WAIT);
 		#endif
 
-			k_sleep(K_MSEC(5000));
+			/*
+			In future, we should wait until we get ACK for data being transmitted,
+			and cast CFUN=45 only after data were sent.
+			It may take 10s to send data in NTN.
+			k_sleep is added as intermediate solution
+			*/
+			k_sleep(K_MSEC(20000));
 
 			err = set_ntn_dormant_mode();
 			if (err) {
@@ -570,6 +597,7 @@ static void state_ntn_exit(void *obj)
 
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 {
+	LOG_DBG("Network EVT TYPE received :%d",evt->type);
 	switch (evt->type) {
 	case LTE_LC_EVT_NW_REG_STATUS:
 		if (evt->nw_reg_status == LTE_LC_NW_REG_UICC_FAIL) {
