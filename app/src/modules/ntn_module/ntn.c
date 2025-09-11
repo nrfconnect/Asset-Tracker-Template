@@ -17,6 +17,14 @@
 #include <zephyr/net/socket.h>
 #include <errno.h>
 
+#include <net/nrf_cloud.h>
+#include <net/nrf_cloud_coap.h>
+#include <net/nrf_cloud_rest.h>
+#include <net/nrf_provisioning.h>
+#include <nrf_cloud_coap_transport.h>
+#include <zephyr/net/coap.h>
+#include <app_version.h>
+
 #include "ntn.h"
 
 /* Socket state */
@@ -446,6 +454,14 @@ static void state_running_entry(void *obj)
 	/* Register LTE event handler */
 	lte_lc_register_handler(lte_lc_evt_handler);
 
+	/* Init nrfcloud coap */
+	err = nrf_cloud_coap_init();
+	if (err) {
+		LOG_ERR("nrf_cloud_coap_init, error: %d", err);
+		return;
+	}
+
+
 	k_timer_start(&state->ntn_timer, K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES), K_NO_WAIT);
 }
 
@@ -532,33 +548,79 @@ static void state_ntn_run(void *obj)
 {
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 	int err;
+	char buf[NRF_CLOUD_CLIENT_ID_MAX_LEN];
 
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
 		if (msg->type == NTN_NETWORK_CONNECTED) {
-			LOG_DBG("Received NTN_NETWORK_CONNECTED, setting up socket");
-			/* Network is connected, set up socket */
-			err = sock_open_and_connect();
-			if (err) {
-				LOG_ERR("Failed to connect socket, error: %d", err);
-				state->socket_connected = false;
+			LOG_DBG("Received NTN_NETWORK_CONNECTED, connecting to nRFCloud");
+
+			err = nrf_cloud_client_id_get(buf, sizeof(buf));
+			if (err == 0) {
+				LOG_INF("Connecting to nRF Cloud CoAP with client ID: %s", buf);
 			} else {
-				LOG_DBG("Socket connected successfully");
-				state->socket_connected = true;
-				/* Send initial GNSS data if available */
-				if (last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
-					LOG_DBG("Sending initial GNSS data");
-					err = sock_send_gnss_data(&last_pvt);
-					if (err) {
-						LOG_ERR("Failed to send initial GNSS data, error: %d", err);
-					} else {
-						LOG_DBG("Initial GNSS data sent successfully");
-					}
-				} else {
-					LOG_DBG("No valid GNSS data available to send initially");
-				}
+				LOG_ERR("nrf_cloud_client_id_get, error: %d, cannot continue", err);
+				return;
 			}
+
+			err = nrf_cloud_coap_connect(APP_VERSION_STRING);
+			if (err == 0) {
+				LOG_INF("nRF Cloud CoAP connection successful");
+			} else if (err == -EACCES || err == -ENOEXEC || err == -ECONNREFUSED) {
+				LOG_WRN("nrf_cloud_coap_connect, error: %d", err);
+				LOG_WRN("nRF Cloud CoAP connection failed, unauthorized or invalid credentials");
+				return;
+			} else {
+				LOG_WRN("nRF Cloud CoAP connection refused");
+				return;
+			}
+
+
+			int64_t timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
+			bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
+			struct nrf_cloud_gnss_data gnss_data = {
+				.type = NRF_CLOUD_GNSS_TYPE_PVT,
+				.ts_ms = timestamp_ms,
+				.pvt = {
+					.lat = last_pvt.latitude,
+					.lon = last_pvt.longitude,
+					.accuracy = last_pvt.accuracy,
+				}
+			};
+
+			LOG_DBG("Sending to nrfcloud GNSS location data: lat: %f, lon: %f, acc: %f",
+				(double)last_pvt.latitude,
+				(double)last_pvt.longitude,
+				(double)last_pvt.accuracy);
+
+			// /* Get current timestamp */
+			// MOMO: Apply gnss time here
+			// err = date_time_now(&timestamp_ms);
+			// if (err) {
+			// 	LOG_WRN("Failed to get current time");
+
+			// 	timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
+			// }
+
+			// gnss_data.ts_ms = timestamp_ms;
+
+
+			/* Send GNSS location data to nRF Cloud */
+			err = nrf_cloud_coap_location_send(&gnss_data, confirmable);
+			if (err) {
+				LOG_ERR("nrf_cloud_coap_location_send, error: %d", err);
+				return;
+			}
+
+			LOG_INF("GNSS location data sent to nRF Cloud successfully");
+
+			// k_sleep(K_MSEC(20000));
+			err = nrf_cloud_coap_disconnect();
+			if (err && (err != -ENOTCONN && err != -EPERM)) {
+				LOG_ERR("nrf_cloud_coap_disconnect, error: %d", err);
+			}
+
 
 		// For LEO, compute new wake up using SGP4 (Simplified General Perturbations Model 4)
 		#if defined(CONFIG_APP_NTN_LEO)
