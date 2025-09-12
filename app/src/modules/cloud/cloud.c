@@ -59,6 +59,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
 					 X(NETWORK_CHAN,	struct network_msg)		\
 					 X(CLOUD_CHAN,		struct cloud_msg)		\
 					 X(STORAGE_CHAN,	struct storage_msg)		\
+					 X(LOCATION_CHAN,	struct location_msg)		\
 					 X(STORAGE_DATA_CHAN,	struct storage_msg)
 
 /* Calculate the maximum message size from the list of channels */
@@ -1403,6 +1404,18 @@ static void state_connected_ready_run(void *obj)
 			break;
 		default:
 			break;
+		}
+
+		return;
+	}
+
+	if (state_object->chan == &LOCATION_CHAN) {
+		const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+
+		if (msg->type == LOCATION_AGNSS_REQUEST) {
+			LOG_DBG("A-GNSS data request received");
+
+			handle_agnss_request(&msg->agnss_request);
 		}
 
 		return;
