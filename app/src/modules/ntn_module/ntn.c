@@ -18,6 +18,7 @@
 #include <errno.h>
 
 #include "ntn.h"
+#include "led.h"
 
 /* Socket state */
 static int sock_fd = -1;
@@ -488,6 +489,22 @@ static void state_gnss_entry(void *obj)
 	err = nrf_modem_gnss_fix_retry_set(180);
 	err = nrf_modem_gnss_start();
 
+	/* Green pattern when GNSS mode */
+	struct led_msg led_msg = {
+		.type = LED_RGB_SET,
+		.red = 0,
+		.green = 55,
+		.blue = 0,
+		.duration_on_msec = 250,
+		.duration_off_msec = 2000,
+		.repetitions = 30,
+	};
+
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+	}
+
 }
 
 static void state_gnss_run(void *obj)
@@ -538,6 +555,23 @@ static void state_ntn_run(void *obj)
 
 		if (msg->type == NTN_NETWORK_CONNECTED) {
 			LOG_DBG("Received NTN_NETWORK_CONNECTED, setting up socket");
+
+			/* Blue pattern  when NTN connected */
+			struct led_msg led_msg = {
+				.type = LED_RGB_SET,
+				.red = 0,
+				.green = 0,
+				.blue = 55,
+				.duration_on_msec = 250,
+				.duration_off_msec = 2000,
+				.repetitions = 10,
+			};
+
+			err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+			if (err) {
+				LOG_ERR("zbus_chan_pub, error: %d", err);
+			}
+
 			/* Network is connected, set up socket */
 			err = sock_open_and_connect();
 			if (err) {
