@@ -147,6 +147,7 @@ The architecture is detailed in the [Architecture documentation](docs/common/arc
 
 * [Button](docs/modules/button.md)
 * [Cloud](docs/modules/cloud.md)
+* [Storage](docs/modules/storage.md)
 * [Environmental](docs/modules/environmental.md)
 * [FOTA](docs/modules/fota.md)
 * [LED](docs/modules/led.md)

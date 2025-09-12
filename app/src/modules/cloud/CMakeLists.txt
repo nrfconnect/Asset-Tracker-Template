@@ -5,7 +5,7 @@
 #
 
 target_sources(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cloud.c)
-target_sources(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cloud_shell.c)
+target_sources_ifdef(CONFIG_APP_CLOUD_SHELL app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cloud_shell.c)
 target_include_directories(app PRIVATE .)
 
 if (CONFIG_NRF_CLOUD_COAP_SEC_TAG GREATER_EQUAL 2147483648 AND CONFIG_NRF_CLOUD_COAP_SEC_TAG LESS_EQUAL 2147483667)
