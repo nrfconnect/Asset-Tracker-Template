@@ -440,7 +440,8 @@ static void sampling_begin_common(struct main_state *state_object)
 	uint32_t time_elapsed = current_time - state_object->sample_start_time;
 
 	if ((state_object->sample_start_time > 0) &&
-	    (time_elapsed < state_object->sample_interval_sec)) {
+	    (time_elapsed < state_object->sample_interval_sec) &&
+	    (state_object->chan != &BUTTON_CHAN)) {
 		LOG_DBG("Too soon to start sampling, time_elapsed: %d, interval: %d",
 			time_elapsed, state_object->sample_interval_sec);
 

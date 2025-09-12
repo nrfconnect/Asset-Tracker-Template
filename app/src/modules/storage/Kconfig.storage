@@ -41,7 +41,7 @@ config APP_STORAGE_MAX_RECORDS_PER_TYPE
 
 config APP_STORAGE_BATCH_BUFFER_SIZE
 	int "Storage batch buffer size in bytes"
-	default 256
+	default 1024
 	help
 	  Size of the internal buffer for batch data access.
 	  This buffer is used to transfer data from the storage backend
@@ -95,6 +95,7 @@ config APP_STORAGE_SHELL
 
 config APP_STORAGE_SHELL_STATS
 	bool "Enable storage shell stats commands"
+	default y if APP_STORAGE_SHELL
 	help
 	  Enable shell commands for displaying statistics about the storage module.
 	  This includes information about stored records, types, and memory usage.
