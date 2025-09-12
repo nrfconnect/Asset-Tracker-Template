@@ -26,6 +26,8 @@ The system uses modules that communicate through [zbus](https://docs.nordicsemi.
 
 For detailed setup instructions using the [nRF Connect for VS Code extension](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) and advanced configuration options, see the [Getting Started Guide](docs/common/getting_started.md).
 
+For pre-built binaries, refer to the latest tag and release artifacts documentaion; [release artifacts](docs/common/release.md).
+
 ### Prerequisites
 
 * nRF Connect SDK development environment ([setup guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation.html))
@@ -142,6 +144,7 @@ The architecture is detailed in the [Architecture documentation](docs/common/arc
   * [Memfault Remote Debugging](docs/common/tooling_troubleshooting.md#memfault-remote-debugging)
   * [Modem Tracing](docs/common/tooling_troubleshooting.md#modem-tracing)
   * [Common Issues and Solutions](docs/common/tooling_troubleshooting.md#common-issues-and-solutions)
+* [Release artifacts](docs/common/release.md)
 
 ### Module Documentation
 
