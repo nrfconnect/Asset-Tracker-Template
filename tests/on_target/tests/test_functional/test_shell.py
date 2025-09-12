@@ -58,18 +58,18 @@ def test_shell(dut_cloud, hex_file):
     # Wait for message to be reported to cloud
     start = time.time()
     while time.time() - start < CLOUD_TIMEOUT:
-            time.sleep(5)
-            messages = dut_cloud.cloud.get_messages(dut_cloud.device_id, appname="donald", max_records=20, max_age_hrs=0.25)
-            logger.debug(f"Found messages: {messages}")
+        time.sleep(5)
+        messages = dut_cloud.cloud.get_messages(dut_cloud.device_id, appname="donald", max_records=20, max_age_hrs=0.25)
+        logger.debug(f"Found messages: {messages}")
 
-            latest_message = messages[0] if messages else None
-            if latest_message:
-                check_message_age = dut_cloud.cloud.check_message_age(message=latest_message, seconds=30)
-                if check_message_age:
-                    break
-            else:
-                logger.debug("No message with recent timestamp, retrying...")
-                continue
+        latest_message = messages[0] if messages else None
+        if latest_message:
+            check_message_age = dut_cloud.cloud.check_message_age(message=latest_message, seconds=30)
+            if check_message_age:
+                break
+        else:
+            logger.debug("No message with recent timestamp, retrying...")
+            continue
     else:
         raise RuntimeError("No new message to cloud observed")
 
