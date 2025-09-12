@@ -19,10 +19,10 @@ def test_sampling(dut_board, hex_file):
     dut_board.uart.xfactoryreset()
 
     # Log patterns
-    pattern_location = "location_event_handler: Got location: lat:"
+    pattern_location = "cloud: handle_cloud_location_request: Handling cloud location request"
     pattern_shadow_poll = "Requesting device shadow from the device"
     pattern_environmental = "Environmental values sample request received, getting data"
-    pattern_fota_poll = "Checking for FOTA job..."
+    pattern_fota_poll = "state_polling_for_update_entry"
     pattern_battery = "State of charge:"
 
     devicetype = os.getenv("DUT_DEVICE_TYPE")
@@ -43,6 +43,3 @@ def test_sampling(dut_board, hex_file):
 
     # Sampling
     dut_board.uart.wait_for_str(pattern_list, timeout=120)
-
-    # Wait for cloud location request
-    dut_board.uart.wait_for_str(f"cloud: handle_cloud_location_request: Handling cloud location request", timeout=120)

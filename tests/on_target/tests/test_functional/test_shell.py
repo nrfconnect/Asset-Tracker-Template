@@ -25,7 +25,7 @@ def test_shell(dut_cloud, hex_file):
         "main: passthrough_connected_waiting_entry: Passthrough mode: next trigger in",
     ]
     patterns_button_press = [
-        "main: sample_data_entry: sample_data_entry",
+        "main: passthrough_connected_sampling_entry: passthrough_connected_sampling_entry",
     ]
     patterns_cloud_publish = [
         'Sending on payload channel: {"messageType":"DATA","appId":"donald","data":"duck"',
