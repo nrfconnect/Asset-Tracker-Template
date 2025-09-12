@@ -22,7 +22,7 @@ def test_shell(dut_cloud, hex_file):
     dut_cloud.uart.xfactoryreset()
 
     patterns_boot = [
-        "main: wait_for_trigger_entry: Next trigger in",
+        "main: passthrough_connected_waiting_entry: Passthrough mode: next trigger in",
     ]
     patterns_button_press = [
         "main: sample_data_entry: sample_data_entry",

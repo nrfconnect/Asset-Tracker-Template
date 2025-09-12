@@ -41,14 +41,8 @@ def test_sampling(dut_board, hex_file):
 
     dut_board.uart.wait_for_str_with_retries("Connected to Cloud", max_retries=3, timeout=240, reset_func=reset_device)
 
-
     # Sampling
     dut_board.uart.wait_for_str(pattern_list, timeout=120)
 
-    # Extract coordinates from UART output
-    values = dut_board.uart.extract_value( \
-        r"location_event_handler: Got location: lat: ([\d.]+), lon: ([\d.]+), acc: ([\d.]+), method:")
-    assert values
-
-    lat, lon, acc = values
-    assert abs(float(lat) - 61.5) < 2 and abs(float(lon) - 10.5) < 1
+    # Wait for cloud location request
+    dut_board.uart.wait_for_str(f"cloud: handle_cloud_location_request: Handling cloud location request", timeout=120)
