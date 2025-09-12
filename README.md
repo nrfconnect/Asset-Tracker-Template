@@ -95,6 +95,7 @@ See [Provisioning](docs/common/provisioning.md) for more details.
 Core modules include:
 
 * **[Main](docs/modules/main.md)**: Central coordinator implementing business logic
+* **[Storage](docs/modules/storage.md)**: Data collection and buffering management
 * **[Network](docs/modules/network.md)**: LTE connectivity management
 * **[Cloud](docs/modules/cloud.md)**: nRF Cloud CoAP communication
 * **[Location](docs/modules/location.md)**: GNSS, Wi-Fi, and cellular positioning
