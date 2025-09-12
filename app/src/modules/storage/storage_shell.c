@@ -165,4 +165,4 @@ SHELL_STATIC_SUBCMD_SET_CREATE(storage_sub_cmds,
 	SHELL_SUBCMD_SET_END
 );
 
-SHELL_CMD_REGISTER(storage, &storage_sub_cmds, "Storage module commands", NULL);
+SHELL_CMD_REGISTER(att_storage, &storage_sub_cmds, "Storage module commands", NULL);

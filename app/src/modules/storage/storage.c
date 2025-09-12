@@ -938,8 +938,7 @@ static void state_buffer_pipe_active_run(void *o)
 			break;
 
 		default:
-			LOG_DBG("Ignoring message type: %d", msg->type);
-
+			/* Don't care */
 			break;
 		}
 	}
