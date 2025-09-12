@@ -431,11 +431,11 @@ err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
 When `CONFIG_APP_STORAGE_SHELL` is enabled:
 
 ```bash
-storage mode passthrough    # Switch to passthrough
-storage mode buffer        # Switch to buffer
-storage flush              # Flush stored data
-storage clear              # Clear all data
-storage stats              # Show statistics (if enabled)
+att_storage mode passthrough   # Switch to passthrough
+att_storage mode buffer        # Switch to buffer
+att_storage flush              # Flush stored data
+att_storage clear              # Clear all data
+att_storage stats              # Show statistics (if enabled)
 ```
 
 ## Adding Backends
