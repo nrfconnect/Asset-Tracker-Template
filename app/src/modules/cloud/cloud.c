@@ -837,10 +837,23 @@ static void state_connecting_provisioned_run(void *obj)
 static void state_connecting_provisioning_entry(void *obj)
 {
 	int err;
-
 	struct cloud_state_object *state_object = obj;
+	struct location_msg location_msg = {
+		.type = LOCATION_SEARCH_CANCEL,
+	};
 
 	LOG_DBG("%s", __func__);
+
+	/* Cancel any ongoing location search during provisioning to allow writing credentials,
+	 * which requires offline LTE functional mode.
+	 */
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+
+		SEND_FATAL_ERROR();
+		return;
+	}
 
 	state_object->provisioning_ongoing = true;
 
