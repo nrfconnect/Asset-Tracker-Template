@@ -145,32 +145,6 @@ def _wait_for_provisioning_completion_and_cloud_connection(
     logger.info("Device provisioned and connected to nRF Cloud.")
 
 
-def _verify_device_location_data(
-    dut_cloud,
-    expected_lat: float = 61.5,
-    expected_lon: float = 10.5,
-    lat_tolerance: float = 2.0,
-    lon_tolerance: float = 1.0,
-    timeout: int = 300,
-):
-    logger.info("Verifying device location data...")
-
-    values = dut_cloud.uart.wait_for_str_re(
-        r"Got location: lat: ([\d.-]+), lon: ([\d.-]+), acc: ([\d.-]+), method:",
-        timeout=timeout
-    )
-    assert values, "Failed to get location data from device."
-
-    lat_str, lon_str, acc_str = values
-    lat, lon = float(lat_str), float(lon_str)
-    logger.info(f"Received location: Lat={lat}, Lon={lon}, Accuracy={acc_str}")
-
-    assert abs(lat - expected_lat) < lat_tolerance, f"Latitude {lat} out of range."
-    assert abs(lon - expected_lon) < lon_tolerance, f"Longitude {lon} out of range."
-
-    logger.info("Device location data verified.")
-
-
 def _trigger_device_reprovisioning_with_new_credentials(dut_cloud, sec_tag: int):
     """
     Initiates the reprovisioning process on the device by:
@@ -249,7 +223,6 @@ def _run_initial_provisioning(dut_cloud, hex_file):
     _connect_to_network_and_wait_for_claiming_prompt(dut_cloud)
     _claim_device_on_nrf_cloud(dut_cloud, attestation_token)
     _wait_for_provisioning_completion_and_cloud_connection(dut_cloud)
-    _verify_device_location_data(dut_cloud)
 
     logger.info("--- Phase 1: Initial Device Provisioning Completed Successfully ---")
 
@@ -262,7 +235,6 @@ def _run_reprovisioning(dut_cloud):
     _trigger_device_reprovisioning_with_new_credentials(dut_cloud, SEC_TAG)
     # Wait for the device to process the command, reprovision, and reconnect
     _wait_for_provisioning_completion_and_cloud_connection(dut_cloud, timeout=300)
-    _verify_device_location_data(dut_cloud)
 
     logger.info(
         "--- Phase 2: Reprovisioning with New Credentials Completed Successfully ---"

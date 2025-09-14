@@ -5,7 +5,7 @@
 
 import os
 import pytest
-from utils.flash_tools import flash_device, reset_device, recover_device
+from utils.flash_tools import flash_device, reset_device
 import sys
 sys.path.append(os.getcwd())
 from utils.logger import get_logger
@@ -44,6 +44,6 @@ def test_gnss(dut_board, hex_file):
     assert abs(lat - 61.493219) < 0.1, f"Latitude {lat} is not within expected range of 61.493219"
     assert abs(lon - 23.771307) < 0.1, f"Longitude {lon} is not within expected range of 23.771307"
     assert acc > 0, f"Accuracy {acc} should be greater than 0"
-    assert "Cellular" in method, f"Method '{method}' should be 'Cellular'"
+    assert "GNSS" in method, f"Method '{method}' should be 'GNSS'"
 
     logger.info(f"Got location: lat: {lat}, lon: {lon}, acc: {acc}, method: {method}")

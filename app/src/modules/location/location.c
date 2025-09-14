@@ -212,6 +212,8 @@ static void handle_location_chan(const struct location_msg *location_msg)
 			LOG_ERR("Unable to cancel location request: %d", err);
 		} else {
 			LOG_DBG("Location request cancelled successfully");
+
+			gnss_disable();
 		}
 	}
 }
