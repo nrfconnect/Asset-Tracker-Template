@@ -68,10 +68,6 @@ runs:
         if [[ "${{ inputs.modem_trace }}" == "true" ]]; then
           params+=("-Dapp_SNIPPET=nrf91-modem-trace-uart")
         fi
-        if [[ "${{ inputs.board }}" == "nrf9151dk"* ]]; then
-          echo CONFIG_MODEM_ANTENNA_GNSS_EXTERNAL=y >> overlay-nrf9151dk.conf
-          params+=("-DEXTRA_CONF_FILE=overlay-nrf9151dk.conf")
-        fi
         west build -b ${{ inputs.board }} \
             -d build \
             -p --sysbuild -- \
