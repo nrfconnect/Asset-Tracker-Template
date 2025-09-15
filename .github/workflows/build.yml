@@ -248,6 +248,16 @@ jobs:
           version: ${{ env.VERSION }}-mtrace
           path: asset-tracker-template/app
 
+      - name: Build nrf9151dk with external GNSS antenna
+        if: ${{ inputs.build_all }}
+        uses: ./asset-tracker-template/.github/actions/build-step
+        with:
+          board: nrf9151dk/nrf9151/ns
+          short_board: nrf9151dk
+          external_gnss: true
+          version: ${{ env.VERSION }}-ext-gnss
+          path: asset-tracker-template/app
+
       - name: Build for nRF9161 DK with modem trace on UART 1
         if: ${{ inputs.build_all }}
         uses: ./asset-tracker-template/.github/actions/build-step
