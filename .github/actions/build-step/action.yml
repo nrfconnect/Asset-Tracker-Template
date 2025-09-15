@@ -43,6 +43,10 @@ inputs:
     type: boolean
     required: false
     default: false
+  external_gnss:
+    type: boolean
+    required: false
+    default: false
 
 runs:
   using: "composite"
@@ -67,6 +71,10 @@ runs:
         fi
         if [[ "${{ inputs.modem_trace }}" == "true" ]]; then
           params+=("-Dapp_SNIPPET=nrf91-modem-trace-uart")
+        fi
+        if [[ "${{ inputs.external_gnss }}" == "true" ]]; then
+          echo "CONFIG_MODEM_ANTENNA_GNSS_EXTERNAL=y" > overlay-external-gnss.conf
+          params+=("-DEXTRA_CONF_FILE=overlay-external-gnss.conf")
         fi
         west build -b ${{ inputs.board }} \
             -d build \

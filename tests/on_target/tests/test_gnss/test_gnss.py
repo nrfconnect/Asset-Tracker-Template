@@ -12,14 +12,14 @@ from utils.logger import get_logger
 
 logger = get_logger()
 
-def test_gnss(dut_board, hex_file):
+def test_gnss(dut_board, hex_file_ext_gnss):
     '''
     Test that the device gets a GNSS fix and reports its location.
 
     Check that the reported location is within a reasonable range of the expected location.
     '''
 
-    flash_device(os.path.abspath(hex_file))
+    flash_device(os.path.abspath(hex_file_ext_gnss))
     dut_board.uart.xfactoryreset()
 
     dut_board.uart.wait_for_str_with_retries(

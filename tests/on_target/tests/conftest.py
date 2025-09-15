@@ -190,3 +190,19 @@ def hex_file_mqtt():
             return os.path.join(artifacts_dir, file)
 
     pytest.fail("No matching firmware .hex file found in the artifacts directory")
+
+@pytest.fixture(scope="session")
+def hex_file_ext_gnss():
+    # Skip if not nrf9151dk since external GNSS build is only available for nrf9151dk
+    if DUT_DEVICE_TYPE != 'nrf9151dk':
+        pytest.skip("External GNSS build is only available for nrf9151dk")
+
+    # Search for the firmware hex file in the artifacts folder
+    artifacts_dir = "artifacts/"
+    hex_pattern = f"asset-tracker-template-{r'[0-9a-z\.]+'}-ext-gnss-{DUT_DEVICE_TYPE}-nrf91.hex"
+
+    for file in os.listdir(artifacts_dir):
+        if re.match(hex_pattern, file):
+            return os.path.join(artifacts_dir, file)
+
+    pytest.fail("No matching external GNSS firmware .hex file found in the artifacts directory")
