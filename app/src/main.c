@@ -466,6 +466,8 @@ static void sampling_begin_common(struct main_state *state_object)
 
 		return;
 	}
+
+	LOG_ERR("LED pattern published");
 #endif /* CONFIG_APP_LED */
 
 	state_object->sample_start_time = k_uptime_seconds();
@@ -497,23 +499,21 @@ static void waiting_entry_common(const struct main_state *state_object)
 	timer_sample_start(time_remaining);
 
 #if defined(CONFIG_APP_LED)
-	{
-		int err;
-		struct led_msg led_msg = {
-			.type = LED_RGB_SET,
-			.red = 0,
-			.green = 0,
-			.blue = 55,
-			.duration_on_msec = 250,
-			.duration_off_msec = 2000,
-			.repetitions = 10,
-		};
+	int err;
+	struct led_msg led_msg = {
+		.type = LED_RGB_SET,
+		.red = 0,
+		.green = 0,
+		.blue = 55,
+		.duration_on_msec = 250,
+		.duration_off_msec = 2000,
+		.repetitions = 10,
+	};
 
-		err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
-		if (err) {
-			LOG_ERR("Failed to publish LED wait pattern, error: %d", err);
-			SEND_FATAL_ERROR();
-		}
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to publish LED wait pattern, error: %d", err);
+		SEND_FATAL_ERROR();
 	}
 #endif /* CONFIG_APP_LED */
 }
@@ -848,6 +848,25 @@ static void buffer_disconnected_entry(void *o)
 	LOG_DBG("%s", __func__);
 
 	state_object->running_history = STATE_BUFFER_DISCONNECTED;
+
+#if defined(CONFIG_APP_LED)
+	int err;
+	struct led_msg led_msg = {
+		.type = LED_RGB_SET,
+		.red = 150,
+		.green = 150,
+		.blue = 0,
+		.duration_on_msec = 250,
+		.duration_off_msec = 2000,
+		.repetitions = 10,
+	};
+
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to publish LED disconnected pattern, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+#endif /* CONFIG_APP_LED */
 }
 
 static void buffer_disconnected_run(void *o)
@@ -1193,6 +1212,25 @@ static void passthrough_disconnected_entry(void *o)
 	LOG_DBG("%s", __func__);
 
 	state_object->running_history = STATE_PASSTHROUGH_DISCONNECTED;
+
+#if defined(CONFIG_APP_LED)
+	int err;
+	struct led_msg led_msg = {
+		.type = LED_RGB_SET,
+		.red = 150,
+		.green = 150,
+		.blue = 0,
+		.duration_on_msec = 250,
+		.duration_off_msec = 2000,
+		.repetitions = 10,
+	};
+
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to publish LED disconnected pattern, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+#endif /* CONFIG_APP_LED */
 }
 
 static void passthrough_disconnected_run(void *o)
@@ -1226,6 +1264,26 @@ static void passthrough_connected_sampling_entry(void *o)
 	/* Record history and the start time of sampling */
 	state_object->running_history = STATE_PASSTHROUGH_CONNECTED_SAMPLING;
 	state_object->sample_start_time = k_uptime_seconds();
+
+#if defined(CONFIG_APP_LED)
+	struct led_msg led_msg = {
+		.type = LED_RGB_SET,
+		.red = 0,
+		.green = 55,
+		.blue = 0,
+		.duration_on_msec = 250,
+		.duration_off_msec = 2000,
+		.repetitions = 10,
+	};
+
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to publish LED pattern message, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+#endif /* CONFIG_APP_LED */
 
 	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 	if (err) {
@@ -1278,6 +1336,27 @@ static void passthrough_connected_waiting_entry(void *o)
 
 	LOG_DBG("Passthrough mode: next trigger in %d seconds", time_remaining);
 	timer_sample_start(time_remaining);
+
+#if defined(CONFIG_APP_LED)
+	int err;
+	struct led_msg led_msg = {
+		.type = LED_RGB_SET,
+		.red = 0,
+		.green = 55,
+		.blue = 0,
+		.duration_on_msec = 250,
+		.duration_off_msec = 2000,
+		.repetitions = 10,
+	};
+
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to publish LED pattern message, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+#endif /* CONFIG_APP_LED */
 }
 
 static void passthrough_connected_waiting_run(void *o)
@@ -1404,7 +1483,6 @@ static void fota_downloading_entry(void *o)
 
 #if defined(CONFIG_APP_LED)
 	int err;
-
 	/* Purple pattern during download - indefinite for ongoing process */
 	struct led_msg led_msg = {
 		.type = LED_RGB_SET,
