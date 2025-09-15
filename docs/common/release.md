@@ -32,6 +32,7 @@ The Asset Tracker Template generates multiple firmware artifacts for different h
 | `att-thingy91x-{VERSION}-mtrace.hex` | Thingy:91 X (nRF9151) | Firmware with modem trace output enabled via UART 1 | Cellular connectivity debugging and analysis |
 | `att-nrf9151dk-{VERSION}-mtrace.hex` | nRF9151 DK | Firmware with modem trace output enabled via UART 1  | Cellular connectivity debugging and analysis |
 | `att-nrf9161dk-{VERSION}-mtrace.hex` | nRF9161 DK | Firmware with modem trace output enabled via UART 1  | Cellular connectivity debugging and analysis |
+| `att-nrf9151dk-{VERSION}-ext-gnss.hex` | nRF9151 DK | Firmware configured for external GNSS antenna | Testing with external GNSS antenna setup |
 
 ### Configuration Overlays
 
