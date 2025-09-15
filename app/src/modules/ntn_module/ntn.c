@@ -26,6 +26,7 @@
 #include <app_version.h>
 
 #include "ntn.h"
+#include "button.h"
 
 /* Socket state */
 static int sock_fd = -1;
@@ -47,12 +48,14 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(ntn);
 
 /* Observe NTN channel */
 ZBUS_CHAN_ADD_OBS(NTN_CHAN, ntn, 0);
+ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, ntn, 0);
 
 #define MAX_MSG_SIZE sizeof(struct ntn_msg)
 
 /* State machine states */
 enum ntn_module_state {
 	STATE_RUNNING,
+	STATE_TN,
 	STATE_GNSS,
 	STATE_NTN,
 };
@@ -80,6 +83,9 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt);
 /* Forward declarations */
 static void state_running_entry(void *obj);
 static void state_running_run(void *obj);
+static void state_tn_entry(void *obj);
+static void state_tn_run(void *obj);
+static void state_tn_exit(void *obj);
 static void state_gnss_entry(void *obj);
 static void state_gnss_run(void *obj);
 static void state_gnss_exit(void *obj);
@@ -90,7 +96,9 @@ static void state_ntn_exit(void *obj);
 /* State machine definition */
 static const struct smf_state states[] = {
 	[STATE_RUNNING] = SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
-				NULL, &states[STATE_GNSS]),
+				NULL, &states[STATE_TN]),
+	[STATE_TN] = SMF_CREATE_STATE(state_tn_entry, state_tn_run, state_tn_exit,
+				&states[STATE_RUNNING], NULL),
 	[STATE_GNSS] = SMF_CREATE_STATE(state_gnss_entry, state_gnss_run, state_gnss_exit,
 				&states[STATE_RUNNING], NULL),
 	[STATE_NTN] = SMF_CREATE_STATE(state_ntn_entry, state_ntn_run, state_ntn_exit,
@@ -207,9 +215,9 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	{
 		/* Set modem to minimum functionality */
 		// lte_lc_func_mode_set(LTE_LC_FUNC_MODE_POWER_OFF)
-		err = nrf_modem_at_printf("AT+CFUN=0");
+		err = nrf_modem_at_printf("AT+CFUN=4");
 		if (err) {
-			LOG_ERR("Failed to set modem to minimum functionality, error: %d", err);
+			LOG_ERR("Failed to set AT+CFUN=4, error: %d", err);
 			return err;
 		}
 		/* Set NTN profile */
@@ -329,9 +337,9 @@ static int set_gnss_active_mode(struct ntn_state_object *state)
 	{
 		/* Set modem to offline mode */
 		// lte_lc_func_mode_set(LTE_LC_FUNC_MODE_POWER_OFF)
-		err = nrf_modem_at_printf("AT+CFUN=0");
+		err = nrf_modem_at_printf("AT+CFUN=4");
 		if (err) {
-			LOG_ERR("Failed to set AT+CFUN=0, error: %d", err);
+			LOG_ERR("Failed to set AT+CFUN=4, error: %d", err);
 			return err;
 		}
 
@@ -480,6 +488,95 @@ static void state_running_run(void *obj)
 	}
 }
 
+static void state_tn_entry(void *obj)
+{
+	int err;
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+
+	LOG_INF("Entering TN mode");
+
+	// Connect to network
+	LOG_DBG("TN mode, using lte_lc_connect_async to connect to network");
+	err = lte_lc_connect_async(lte_lc_evt_handler);
+	if (err) {
+		LOG_ERR("lte_lc_connect_async, error: %d\n", err);
+		return;
+	}
+
+}
+
+static void state_tn_run(void *obj)
+{
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+	int err;
+	char buf[NRF_CLOUD_CLIENT_ID_MAX_LEN];
+
+	if (state->chan == &NTN_CHAN) {
+		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
+
+		if (msg->type == NTN_NETWORK_CONNECTED) {
+			LOG_DBG("Received NTN_NETWORK_CONNECTED, connecting to nRFCloud");
+
+			err = nrf_cloud_client_id_get(buf, sizeof(buf));
+			if (err == 0) {
+				LOG_INF("Connecting to nRF Cloud CoAP with client ID: %s", buf);
+			} else {
+				LOG_ERR("nrf_cloud_client_id_get, error: %d, cannot continue", err);
+				return;
+			}
+
+			err = nrf_cloud_coap_connect(APP_VERSION_STRING);
+			if (err == 0) {
+				LOG_INF("nRF Cloud CoAP connection successful");
+			} else if (err == -EACCES || err == -ENOEXEC || err == -ECONNREFUSED) {
+				LOG_WRN("nrf_cloud_coap_connect, error: %d", err);
+				LOG_WRN("nRF Cloud CoAP connection failed, unauthorized or invalid credentials");
+				return;
+			} else {
+				LOG_WRN("nRF Cloud CoAP connection refused");
+				return;
+			}
+
+
+			LOG_INF("CLOUD connected via TN network");
+
+			k_sleep(K_MSEC(5000));
+			err = nrf_cloud_coap_pause();
+			if ((err < 0) && (err != -EBADF)) {
+				/* -EBADF means it was disconnected, for example by FOTA. */
+				LOG_ERR("Error pausing connection: %d", err);
+			}
+
+
+			/*
+			In future, we should wait until we get ACK for data being transmitted,
+			and cast CFUN=45 only after data were sent.
+			It may take 10s to send data in NTN.
+			k_sleep is added as intermediate solution
+			*/
+			// k_sleep(K_MSEC(20000));
+
+			LOG_INF("Now set callbox to NTN config, then push button");
+		}
+	}
+
+	if (state->chan == &BUTTON_CHAN) {
+		smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
+	}
+}
+
+static void state_tn_exit(void *obj)
+{
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+
+	/* Close socket if it was open */
+	if (sock_fd >= 0) {
+		close(sock_fd);
+		sock_fd = -1;
+		state->socket_connected = false;
+	}
+}
+
 static void state_gnss_entry(void *obj)
 {
 	int err;
@@ -605,20 +702,21 @@ static void state_ntn_run(void *obj)
 
 			// gnss_data.ts_ms = timestamp_ms;
 
-
+			
+			// k_sleep(K_MSEC(20000));
 			/* Send GNSS location data to nRF Cloud */
 			err = nrf_cloud_coap_location_send(&gnss_data, confirmable);
 			if (err) {
 				LOG_ERR("nrf_cloud_coap_location_send, error: %d", err);
-				return;
 			}
 
 			LOG_INF("GNSS location data sent to nRF Cloud successfully");
 
-			// k_sleep(K_MSEC(20000));
-			err = nrf_cloud_coap_disconnect();
-			if (err && (err != -ENOTCONN && err != -EPERM)) {
-				LOG_ERR("nrf_cloud_coap_disconnect, error: %d", err);
+			// // k_sleep(K_MSEC(20000));
+			err = nrf_cloud_coap_pause();
+			if ((err < 0) && (err != -EBADF)) {
+				/* -EBADF means it was disconnected, for example by FOTA. */
+				LOG_ERR("Error pausing connection: %d", err);
 			}
 
 
@@ -642,6 +740,10 @@ static void state_ntn_run(void *obj)
 				return;
 			}
 		}
+	}
+
+	if (state->chan == &BUTTON_CHAN) {
+		smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 	}
 }
 
