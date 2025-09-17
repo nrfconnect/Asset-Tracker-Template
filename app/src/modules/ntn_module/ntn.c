@@ -14,9 +14,7 @@
 #include <nrf_modem_at.h>
 #include <nrf_modem_gnss.h>
 #include <zephyr/task_wdt/task_wdt.h>
-#include <zephyr/net/socket.h>
 #include <errno.h>
-
 #include <net/nrf_cloud.h>
 #include <net/nrf_cloud_coap.h>
 #include <net/nrf_cloud_rest.h>
@@ -28,9 +26,6 @@
 #include "ntn.h"
 #include "button.h"
 
-/* Socket state */
-static int sock_fd = -1;
-static struct sockaddr_storage host_addr;
 
 LOG_MODULE_REGISTER(ntn, CONFIG_APP_NTN_LOG_LEVEL);
 
@@ -66,7 +61,6 @@ struct ntn_state_object {
 	const struct zbus_channel *chan;
 	uint8_t msg_buf[MAX_MSG_SIZE];
 	struct k_timer ntn_timer;
-	bool socket_connected;
 	bool ntn_initialized;
 	bool gnss_initialized;
 };
@@ -378,63 +372,6 @@ static int set_gnss_inactive_mode(void)
 	return 0;
 }
 
-/* Socket functions */
-static int sock_open_and_connect(void)
-{
-	int err;
-	struct sockaddr_in *server4 = ((struct sockaddr_in *)&host_addr);
-
-	server4->sin_family = AF_INET;
-	server4->sin_port = htons(CONFIG_APP_NTN_SERVER_PORT);
-	
-	inet_pton(AF_INET, CONFIG_APP_NTN_SERVER_ADDR, &server4->sin_addr);
-
-	/* Create UDP socket */
-	sock_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (sock_fd < 0) {
-		LOG_ERR("Failed to create UDP socket, error: %d", errno);
-		return -errno;
-	}
-
-	/* Connect socket */
-	err = connect(sock_fd, (struct sockaddr *)&host_addr, sizeof(struct sockaddr_in));
-	if (err < 0) {
-		LOG_ERR("Failed to connect socket, error: %d", errno);
-		close(sock_fd);
-		sock_fd = -1;
-		return -errno;
-	}
-
-	return 0;
-}
-
-static int sock_send_gnss_data(const struct nrf_modem_gnss_pvt_data_frame *gnss_data)
-{
-	int err;
-	char message[256];
-
-	if (sock_fd < 0) {
-		LOG_ERR("Socket not connected");
-		return -ENOTCONN;
-	}
-
-	/* Format GNSS data as string */
-	snprintf(message, sizeof(message),
-		"GNSS: lat=%.2f, lon=%.2f, alt=%.2f, time=%04d-%02d-%02d %02d:%02d:%02d",
-		(double)gnss_data->latitude, (double)gnss_data->longitude, (double)gnss_data->altitude,
-		gnss_data->datetime.year, gnss_data->datetime.month, gnss_data->datetime.day,
-		gnss_data->datetime.hour, gnss_data->datetime.minute, gnss_data->datetime.seconds);
-
-	/* Send data */
-	err = send(sock_fd, message, strlen(message), 0);
-	if (err < 0) {
-		LOG_ERR("Failed to send GNSS data, error: %d", errno);
-		return -errno;
-	}
-
-	LOG_DBG("Sent GNSS data payload of %d bytes", strlen(message));
-	return 0;
-}
 
 
 /* State handlers */
@@ -568,26 +505,12 @@ static void state_tn_run(void *obj)
 static void state_tn_exit(void *obj)
 {
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
-
-	/* Close socket if it was open */
-	if (sock_fd >= 0) {
-		close(sock_fd);
-		sock_fd = -1;
-		state->socket_connected = false;
-	}
 }
 
 static void state_gnss_entry(void *obj)
 {
 	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
-
-	/* Close socket if it was open */
-	if (sock_fd >= 0) {
-		close(sock_fd);
-		sock_fd = -1;
-		state->socket_connected = false;
-	}
 
 	LOG_INF("Entering GNSS mode");
 
@@ -751,12 +674,6 @@ static void state_ntn_exit(void *obj)
 {
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
-	/* Close socket if it was open */
-	if (sock_fd >= 0) {
-		close(sock_fd);
-		sock_fd = -1;
-		state->socket_connected = false;
-	}
 }
 
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
