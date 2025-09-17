@@ -19,7 +19,9 @@ enum ntn_msg_type {
 	/* Events that trigger state transitions */
 	NTN_LOCATION_SEARCH_DONE, /* Location search completed - triggers transition to NTN mode */
 	NTN_TIMEOUT,              /* NTN mode timeout occurred - triggers transition to GNSS mode */
-	NTN_NETWORK_CONNECTED,    /* Network connectivity established */
+	NETWORK_CONNECTED,    /* Network connectivity established */
+	NETWORK_LTE_OUT_OF_COVERAGE, /* Network LTE out of coverage */
+	SET_IDLE, /* Set Idle */
 };
 
 /* NTN module message */
