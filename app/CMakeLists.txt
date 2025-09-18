@@ -17,6 +17,7 @@ zephyr_include_directories(config)
 if(CONFIG_APP_NTN_MODE)
 	add_subdirectory(src/modules/ntn_module)
 	add_subdirectory(src/modules/button)
+	add_subdirectory_ifdef(CONFIG_APP_LED src/modules/led)
 else()
 # Add main application source
 target_sources(app PRIVATE src/main.c)

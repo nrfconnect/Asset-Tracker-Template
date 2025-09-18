@@ -25,6 +25,9 @@
 
 #include "ntn.h"
 #include "button.h"
+#if defined(CONFIG_APP_LED)
+#include "led.h"
+#endif /* CONFIG_APP_LED */
 
 
 LOG_MODULE_REGISTER(ntn, CONFIG_APP_NTN_LOG_LEVEL);
@@ -174,6 +177,27 @@ static int sgp4_propagator_compute()
 }
 
 /* Helper functions */
+
+#if defined(CONFIG_APP_LED)
+static inline int set_led_pattern(uint8_t red, uint8_t green, uint8_t blue) {
+    struct led_msg led_msg = {
+        .type = LED_RGB_SET,
+        .red = red,
+        .green = green,
+        .blue = blue,
+        .duration_on_msec = 250,
+        .duration_off_msec = 2000,
+        .repetitions = 5,
+    };
+
+    int err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+    if (err) {
+        LOG_ERR("zbus_chan_pub, error: %d", err);
+        return err;
+    }
+    return 0;
+}
+#endif /* CONFIG_APP_LED */
 
 static int set_ntn_dormant_mode(void)
 {
@@ -426,6 +450,11 @@ static void state_tn_entry(void *obj)
 
 	LOG_INF("Entering TN mode");
 
+#if defined(CONFIG_APP_LED)
+	/* Blink Yellow for TN network search */
+	set_led_pattern(255, 255, 0);
+#endif /* CONFIG_APP_LED */
+
 	// Connect to network
 	LOG_DBG("TN mode, using lte_lc_connect_async to connect to network");
 	err = lte_lc_connect_async(lte_lc_evt_handler);
@@ -448,6 +477,12 @@ static void state_tn_run(void *obj)
 		if (msg->type == NETWORK_CONNECTED) {
 			LOG_DBG("Received NETWORK_CONNECTED, connecting to nRFCloud");
 
+		#if defined(CONFIG_APP_LED)
+			/* Blue pattern for Network connected */
+			set_led_pattern(0, 0, 255);
+		#endif /* CONFIG_APP_LED */
+
+
 			err = nrf_cloud_client_id_get(buf, sizeof(buf));
 			if (err == 0) {
 				LOG_INF("Connecting to nRF Cloud CoAP with client ID: %s", buf);
@@ -469,6 +504,11 @@ static void state_tn_run(void *obj)
 			}
 
 			LOG_INF("CLOUD connected via TN network");
+
+		#if defined(CONFIG_APP_LED)
+			/* Green pattern for cloud connection */
+			set_led_pattern(0, 255, 0);
+		#endif /* CONFIG_APP_LED */
 
 			k_sleep(K_MSEC(5000));
 			err = nrf_cloud_coap_pause();
@@ -512,6 +552,10 @@ static void state_gnss_entry(void *obj)
 	err = nrf_modem_gnss_fix_retry_set(180);
 	err = nrf_modem_gnss_start();
 
+#if defined(CONFIG_APP_LED)
+	/* Purple pattern during GNNS search */
+	set_led_pattern(128, 0, 128);
+#endif /* CONFIG_APP_LED */
 }
 
 static void state_gnss_run(void *obj)
@@ -550,6 +594,10 @@ static void state_ntn_entry(void *obj)
 		return;
 	}
 
+#if defined(CONFIG_APP_LED)
+	/* Orange pattern during NTN network search */
+	set_led_pattern(255, 165, 0);
+#endif /* CONFIG_APP_LED */
 }
 
 static void state_ntn_run(void *obj)
@@ -563,6 +611,10 @@ static void state_ntn_run(void *obj)
 
 		if (msg->type == NETWORK_CONNECTED) {
 			LOG_DBG("Received NETWORK_CONNECTED, connecting to nRFCloud");
+		#if defined(CONFIG_APP_LED)
+			/* Blue pattern for network connected */
+			set_led_pattern(0, 0, 255);
+		#endif /* CONFIG_APP_LED */
 
 			err = nrf_cloud_client_id_get(buf, sizeof(buf));
 			if (err == 0) {
@@ -583,6 +635,11 @@ static void state_ntn_run(void *obj)
 				LOG_WRN("nRF Cloud CoAP connection refused");
 				return;
 			}
+
+		#if defined(CONFIG_APP_LED)
+			/* Green pattern during cloud connection */
+			set_led_pattern(0, 255, 0);
+		#endif /* CONFIG_APP_LED */
 
 			int64_t timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
 			bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
@@ -651,6 +708,11 @@ static void state_idle_entry(void *obj)
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
 	LOG_DBG("%s", __func__);
+
+#if defined(CONFIG_APP_LED)
+	/* White pattern when idle */
+	set_led_pattern(255, 255, 255);
+#endif /* CONFIG_APP_LED */
 
 // For LEO, compute new wake up using SGP4 (Simplified General Perturbations Model 4)
 #if defined(CONFIG_APP_NTN_LEO)
