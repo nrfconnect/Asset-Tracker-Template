@@ -168,6 +168,23 @@ static void gnss_location_work_handler(struct k_work *work)
         apply_gnss_time(&last_pvt);
         ntn_msg_publish(NTN_LOCATION_SEARCH_DONE);
     }
+
+	/* Log SV (Satellite Vehicle) data */
+	for (int i = 0; i < NRF_MODEM_GNSS_MAX_SATELLITES; i++) {
+		if (pvt_data.sv[i].sv == 0) {
+		/* SV not valid, skip */
+		continue;
+		}
+
+		LOG_DBG("SV: %3d C/N0: %4.1f el: %2d az: %3d signal: %d in fix: %d unhealthy: %d",
+		pvt_data.sv[i].sv,
+		pvt_data.sv[i].cn0 * 0.1,
+		pvt_data.sv[i].elevation,
+		pvt_data.sv[i].azimuth,
+		pvt_data.sv[i].signal,
+		pvt_data.sv[i].flags & NRF_MODEM_GNSS_SV_FLAG_USED_IN_FIX ? 1 : 0,
+		pvt_data.sv[i].flags & NRF_MODEM_GNSS_SV_FLAG_UNHEALTHY ? 1 : 0);
+	}
 }
 
 static int sgp4_propagator_compute()
