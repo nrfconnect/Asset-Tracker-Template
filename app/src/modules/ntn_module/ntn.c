@@ -437,9 +437,21 @@ static void state_running_entry(void *obj)
 
 static void state_running_run(void *obj)
 {
-	ARG_UNUSED(obj);
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
 	LOG_DBG("%s", __func__);
+
+	if (state->chan == &NTN_CHAN) {
+		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
+		if (msg->type == SET_NTN_IDLE) {
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+		}
+	} else if (state->chan == &BUTTON_CHAN) {
+		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
+		if (msg->type == BUTTON_PRESS_LONG) {
+			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
+		}
+	}
 }
 
 static void state_tn_entry(void *obj)
@@ -462,7 +474,6 @@ static void state_tn_entry(void *obj)
 		LOG_ERR("lte_lc_connect_async, error: %d\n", err);
 		return;
 	}
-
 }
 
 static void state_tn_run(void *obj)
@@ -517,14 +528,11 @@ static void state_tn_run(void *obj)
 				LOG_ERR("Error pausing connection: %d", err);
 			}
 
-			LOG_INF("Now push button to switch to trigger GNSS search and switch to NTN");
+			ntn_msg_publish(SET_NTN_IDLE);
 		} else if (msg->type == NETWORK_LTE_OUT_OF_COVERAGE) {
 			LOG_INF("Out of LTE coverage, proceed to perform cloud handshake via NTN");
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 		}
-	} else if (state->chan == &BUTTON_CHAN) {
-		LOG_INF("Button pushed, triggering GNSS search");
-		smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 	}
 }
 
@@ -533,6 +541,46 @@ static void state_tn_exit(void *obj)
 	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
+}
+
+static void state_idle_entry(void *obj)
+{
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+
+	LOG_DBG("%s", __func__);
+
+#if defined(CONFIG_APP_LED)
+	/* White pattern when idle */
+	set_led_pattern(255, 255, 255);
+#endif /* CONFIG_APP_LED */
+
+// For LEO, compute new wake up using SGP4 (Simplified General Perturbations Model 4)
+#if defined(CONFIG_APP_NTN_LEO)
+	int sgp4_timeout_in_seconds;
+	sgp4_timeout_in_seconds = sgp4_propagator_compute();
+	with k_timer_start(&state->ntn_timer, K_SECONDS(sgp4_timeout_in_seconds), K_NO_WAIT);
+	return;
+#endif
+	k_timer_start(&state->ntn_timer, K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES), K_NO_WAIT);
+}
+
+static void state_idle_run(void *obj)
+{
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+
+	LOG_DBG("%s", __func__);
+
+	if (state->chan == &BUTTON_CHAN) {
+		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
+		if (msg->type == BUTTON_PRESS_SHORT) {
+			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
+		}
+	} else if (state->chan == &NTN_CHAN) {
+		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
+		if (msg->type == NTN_TIMEOUT) {
+			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
+		}
+	}
 }
 
 static void state_gnss_entry(void *obj)
@@ -568,6 +616,8 @@ static void state_gnss_run(void *obj)
 		if (msg->type == NTN_LOCATION_SEARCH_DONE) {
 			/* Location search completed, transition to NTN mode */
 			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
+		} else if (msg->type == GNSS_SEARCH_FAILED) {
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 		}
 	}
 }
@@ -681,8 +731,8 @@ static void state_ntn_run(void *obj)
 				LOG_ERR("Error pausing connection: %d", err);
 			}
 
-			ntn_msg_publish(SET_IDLE);
-		} else if (msg->type == SET_IDLE) {
+			ntn_msg_publish(SET_NTN_IDLE);
+		} else if (msg->type == NETWORK_CONNECTING_FAILED) {
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 		}
 	}
@@ -703,45 +753,6 @@ static void state_ntn_exit(void *obj)
 	}
 }
 
-static void state_idle_entry(void *obj)
-{
-	struct ntn_state_object *state = (struct ntn_state_object *)obj;
-
-	LOG_DBG("%s", __func__);
-
-#if defined(CONFIG_APP_LED)
-	/* White pattern when idle */
-	set_led_pattern(255, 255, 255);
-#endif /* CONFIG_APP_LED */
-
-// For LEO, compute new wake up using SGP4 (Simplified General Perturbations Model 4)
-#if defined(CONFIG_APP_NTN_LEO)
-	int sgp4_timeout_in_seconds;
-	sgp4_timeout_in_seconds = sgp4_propagator_compute();
-	with k_timer_start(&state->ntn_timer, K_SECONDS(sgp4_timeout_in_seconds), K_NO_WAIT);
-	return;
-#endif
-	k_timer_start(&state->ntn_timer, K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES), K_NO_WAIT);
-
-}
-
-static void state_idle_run(void *obj)
-{
-	struct ntn_state_object *state = (struct ntn_state_object *)obj;
-
-	LOG_DBG("%s", __func__);
-
-	if (state->chan == &BUTTON_CHAN) {
-		smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
-	} else if (state->chan == &NTN_CHAN) {
-		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
-		if (msg->type == NTN_TIMEOUT) {
-			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
-		}
-	}
-}
-
-
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 {
 	LOG_DBG("Network EVT TYPE received :%d",evt->type);
@@ -751,6 +762,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			LOG_ERR("No SIM card detected!");
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NOT_REGISTERED) {
 			LOG_WRN("Not registered, check rejection cause");
+			ntn_msg_publish(NETWORK_CONNECTING_FAILED);
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_SEARCHING) {
 			LOG_DBG("LTE_LC_NW_REG_SEARCHING");
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_UNKNOWN) {
@@ -792,6 +804,7 @@ static void gnss_event_handler(int event)
 		/* Schedule work to handle PVT data in thread context */
 		k_work_submit(&gnss_location_work);
 		break;
+	/* TODO: add handling for GNSS_SEARCH_FAILED */
 	default:
 		break;
 	}

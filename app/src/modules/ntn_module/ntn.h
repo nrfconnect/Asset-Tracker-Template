@@ -21,7 +21,9 @@ enum ntn_msg_type {
 	NTN_TIMEOUT,              /* NTN mode timeout occurred - triggers transition to GNSS mode */
 	NETWORK_CONNECTED,    /* Network connectivity established */
 	NETWORK_LTE_OUT_OF_COVERAGE, /* Network LTE out of coverage */
-	SET_IDLE, /* Set Idle */
+	NETWORK_CONNECTING_FAILED, /* Network search failed*/
+	SET_NTN_IDLE, /* Set Idle */
+	GNSS_SEARCH_FAILED, /* GNSS search failed*/
 };
 
 /* NTN module message */
