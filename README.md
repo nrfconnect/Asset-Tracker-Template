@@ -87,6 +87,15 @@ west flash --erase
 
 2. In nRF Cloud: **Security Services** → **Claimed Devices** → **Claim Device**
 3. Paste token, set rule to "nRF Cloud Onboarding", click **Claim Device**
+
+    <details>
+    <summary><strong>If "nRF Cloud Onboarding" rule is not showing:</strong></summary>
+
+    Create a new rule using the following configuration:
+
+    <img src="docs/images/claim.png" alt="Claim Device" width="300" />
+    </details>
+
 4. Wait for the device to provision credentials and connect to nRF Cloud over CoAP.
 
 See [Provisioning](docs/common/provisioning.md) for more details.
