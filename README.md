@@ -1,5 +1,17 @@
 # Asset Tracker Template - GNSS NTN usecase
 
+Simple display of GNSS + NTN usecase:
+
+    a. GNSS cold start to get a fix and used initially for NTN connection
+
+    b. Once NTN connection established, send the location to cloud endpoint
+
+    c. Switch between NTN and GNSS mode via CFUN=45 and XSYSTEMMODE change
+
+    d. Always inject the GNSS fix first to the NTN stack and then send it to the endpoint/cloud
+
+    e. Repeat
+
 Configure UDP endpoint in overlay file:
 ```shell
 CONFIG_APP_NTN_SERVER_ADDR=""
