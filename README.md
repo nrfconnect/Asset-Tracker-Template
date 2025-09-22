@@ -2,6 +2,9 @@
 
 Note: you need device provisioned with nRFCloud. If not already, follow docs on ATT main or Quickstart app.
 
+The main idea is to use TN to establish DTLS with the cloud, and then have NTN profit by the same connection.
+So to avoid handshake via NTN (which has proven to be feasible but to be used as fallback).
+
 ## NTN Skylo (DTAG) - t91x
 
 ```shell
