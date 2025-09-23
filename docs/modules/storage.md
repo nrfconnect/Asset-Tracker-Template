@@ -1,99 +1,91 @@
 # Storage module
 
-The storage module forwards or stores data from enabled modules. It has two modes:
+The storage module forwards or stores data from enabled modules.
+It has following two modes:
 
 - Passthrough (default): forward data immediately.
-- Buffer: store data, retrieve via flush or batch.
+- Buffer: stores data, retrieves through flush or batch.
 
-It is implemented as a small SMF state machine with a parent RUNNING state and PASSTHROUGH/BUFFER
-children. Data types are discovered automatically via iterable sections. See `storage.c`,
-`storage.h`, and `Kconfig.storage` for details.
+It is implemented as a small SMF state machine with a parent `RUNNING` state and `PASSTHROUGH/BUFFER` children state.
+Data types are discovered automatically through iterable sections.
+See `storage.c`, `storage.h`, and `Kconfig.storage` for details.
 
 ## Architecture
 
 ### States
 
-```mermaid
-stateDiagram-v2
-    [*] --> STATE_RUNNING
+The storage module implements a state machine with the following states and transitions:
 
-    state STATE_RUNNING {
-        [*] --> STATE_PASSTHROUGH: CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH
-        [*] --> STATE_BUFFER: CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER
-
-        STATE_PASSTHROUGH --> STATE_BUFFER: STORAGE_MODE_BUFFER_REQUEST
-        STATE_BUFFER --> STATE_PASSTHROUGH: STORAGE_MODE_PASSTHROUGH_REQUEST
-    }
-```
+![Storage module state diagram](../images/storage_module_state_diagram.svg "Storage module state diagram")
 
 - **RUNNING** (parent): Initializes backend, handles admin commands (`STORAGE_CLEAR`, `STORAGE_FLUSH`, `STORAGE_STATS`).
 - **PASSTHROUGH**: Forwards data immediately as `STORAGE_DATA` on `STORAGE_DATA_CHAN`.
-- **BUFFER**: Stores data in backend; serves flush and batch requests. Has sub-states IDLE and PIPE_ACTIVE.
+- **BUFFER**: Stores data in backend, serves flush and batch requests. Has sub-states `IDLE` and `PIPE_ACTIVE`.
 
-Initial state: PASSTHROUGH (default) or BUFFER (if `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y`).
+Initial state: `PASSTHROUGH` (default) or `BUFFER` (if `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y`).
 Runtime switching: Send `STORAGE_MODE_*_REQUEST` on `STORAGE_CHAN`.
 
 ### Backend
 
-Backends implement `storage_backend.h` and provide `init/store/peek/retrieve/count/clear`. The
-default backend is RAM.
+Backends implement the API defined in the `app/src/modules/storagestorage_backend.h` file and provide `init`, `store`, `peek`, `retrieve`, `count`, and `clear` functionalities.
+The default backend is RAM.
 
 ### Data flow
 
-Modules publish to zbus. In passthrough mode, data is forwarded as `STORAGE_DATA`. In buffer mode, data is
-stored and later emitted by flush or streamed over the batch pipe, using the batch interface described below.
+Data producing modules publish sampled data to their respective zbus channel.
+In passthrough mode, data is forwarded as `STORAGE_DATA`.
+In buffer mode, data is stored and later emitted by flush or streamed over the batch pipe, using the batch interface described below.
 
 ### Memory management
 
-This module allocates RAM from several places. Understanding these helps you tune it down:
+This module allocates RAM from the following places and understanding these helps you tune it down:
 
 - Built-in batch pipe buffer: `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` bytes are reserved at boot.
-- Per-type slabs: Each enabled data type declares a `k_mem_slab` with
-  `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` blocks of that type's size.
-- RAM backend ring buffers: For each enabled data type, a ring buffer is declared with capacity
-  `sizeof(type) * CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE`.
-- Message buffers: `struct storage_msg` carries a `buffer[STORAGE_MAX_DATA_SIZE]`, where
-  `STORAGE_MAX_DATA_SIZE` is the max size of any enabled data type. Enabling large types increases
-  this buffer and several temporary buffers.
+- Per-type slabs: Each enabled data type declares a `k_mem_slab` with `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` blocks of that type's size.
+- RAM backend ring buffers: For each enabled data type, a ring buffer is declared with capacity `sizeof(type) * CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE`.
+- Message buffers: `struct storage_msg` carries a `buffer[STORAGE_MAX_DATA_SIZE]`, where `STORAGE_MAX_DATA_SIZE` is the max size of any enabled data type.
+  Enabling large types increases this buffer and several temporary buffers.
 - Subscriber queue: Size is controlled by system zbus configuration.
 - Thread stack: `CONFIG_APP_STORAGE_THREAD_STACK_SIZE`.
 
 #### How to reduce RAM
 
 - Minimize enabled data types
-  - Disable modules you do not forward/store (for example `CONFIG_APP_LOCATION=n`), which reduces
-    both slabs and RAM backend ring buffers, and shrinks `STORAGE_MAX_DATA_SIZE`.
+
+    - Disable modules that you do not forward or store (for example, `CONFIG_APP_LOCATION=n`), which reduces both slabs and RAM backend ring buffers, and shrinks `STORAGE_MAX_DATA_SIZE`.
 
 - Reduce records per type
-  - Set `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=1` when buffering is not needed. This shrinks both
-    the per-type slabs and RAM ring buffers to a single record each.
+
+    - Set `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=1` when buffering is not needed.
+      This shrinks both the per-type slabs and RAM ring buffers to a single record each.
 
 - Shrink batch pipe buffer
-  - Lower `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` as much as possible. The batch pipe is allocated
-    unconditionally, but it is only used in buffer mode. If you never use batch/buffer, pick a
-    very small value (for example 64–256 bytes). If you do use batch, ensure it can hold
-    `sizeof(header) + max_item_size`.
+
+    - Set the `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` Kconfig option to a low value.
+      The batch pipe is allocated unconditionally, but it is only used in the buffer mode.
+      If you never use the batch or buffer mode, pick a very small value (for example, from 64 to 256 bytes).
+      If you do use batch, ensure it can hold at least one item of `sizeof(header) + max_item_size`.
 
 - Reduce thread and queues
-  - Lower `CONFIG_APP_STORAGE_THREAD_STACK_SIZE` (for example from 2048 down to 1024) if your
-    application leaves headroom.
-  - Reduce relevant zbus queue sizes in system config if traffic allows.
+
+    - Set the `CONFIG_APP_STORAGE_THREAD_STACK_SIZE` Kconfig option to a lower value (for example, from 2048 to 1024), if your application leaves headroom.
+    - Reduce relevant zbus queue sizes in system config if traffic allows.
 
 - Remove development features
-  - Disable `CONFIG_APP_STORAGE_SHELL` and `CONFIG_APP_STORAGE_SHELL_STATS` to trim RAM/code.
+
+    - Disable the `CONFIG_APP_STORAGE_SHELL` and `CONFIG_APP_STORAGE_SHELL_STATS` Kconfig option to trim RAM and code footprint.
 
 - Prefer passthrough when persistence is not required
-  - Keep the module in passthrough mode so the backend store path is not exercised at runtime.
 
-Ready-made Kconfig fragment:
+    - Keep the module in passthrough mode, so the backend store path is not exercised at runtime.
 
-- Use `overlay-storage-minimal.conf` to apply a minimal, passthrough-only storage configuration
-  with reduced RAM usage.
+- Ready-made Kconfig fragment
+
+    - Use `overlay-storage-minimal.conf` to apply a minimal, passthrough-only storage configuration with reduced RAM usage.
 
 #### Passthrough-only minimal RAM example
 
-If your application will only ever operate in passthrough mode (no buffering, no batch), the
-following `prj.conf` excerpt minimizes RAM usage for the storage module while preserving
+If your application will only ever operate in passthrough mode (no buffering, no batch), the following `prj.conf` excerpt minimizes RAM usage for the storage module while preserving
 passthrough forwarding:
 
 ```config
@@ -123,78 +115,73 @@ CONFIG_APP_STORAGE_SHELL_STATS=n
 # CONFIG_APP_NETWORK=n
 ```
 
-Notes:
+!!! note "Note"
 
-- If you later enable buffer/batch, increase `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` so that at
-  least one header plus the largest item fits.
-- The actual RAM consumed by ring buffers and slabs scales with which data types are enabled and
-  the value of `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE`.
+    - If you later enable buffer or batch, increase the value of the `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` Kconfig option, so that at least one header plus the largest item fits.
+    - The actual RAM consumed by ring buffers and slabs scales with which data types are enabled and the value of the `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` Kconfig option.
 
 ## Messages
 
-The storage module communicates through two zbus channels: `STORAGE_CHAN` and `STORAGE_DATA_CHAN`. All message types are defined in `storage.h`.
+The storage module communicates through two zbus channels: `STORAGE_CHAN` and `STORAGE_DATA_CHAN`.
+All message types are defined in the `storage.h` file.
 
 ### Input Messages (Commands)
 
 **Mode Control:**
 
-- **`STORAGE_MODE_PASSTHROUGH_REQUEST`**
-  Request to switch from buffer mode to passthrough mode. On success, the module replies with
-  `STORAGE_MODE_PASSTHROUGH`. If the change is unsafe (for example, batch session active), the
-  module replies with `STORAGE_MODE_CHANGE_REJECTED`.
+- **`STORAGE_MODE_PASSTHROUGH_REQUEST`**: Request to switch from `buffer` mode to `passthrough` mode.
+  On success, the module replies with `STORAGE_MODE_PASSTHROUGH`.
+  If the change is declined (for example, batch session active), the module replies with `STORAGE_MODE_CHANGE_REJECTED`.
 
-- **`STORAGE_MODE_BUFFER_REQUEST`**
-  Request to switch from passthrough mode to buffer mode. On success, the module replies with
-  `STORAGE_MODE_BUFFER`. If the change is unsafe, the module replies with
-  `STORAGE_MODE_CHANGE_REJECTED`.
+- **`STORAGE_MODE_BUFFER_REQUEST`**: Request to switch from passthrough mode to buffer mode.
+  On success, the module replies with `STORAGE_MODE_BUFFER`.
+  If the change is unsafe, the module replies with `STORAGE_MODE_CHANGE_REJECTED`.
 
 **Data Operations (handled by parent RUNNING state):**
 
-- **`STORAGE_FLUSH`**
-  Flushes stored data one item at a time as individual `STORAGE_DATA` messages. Data is sent in FIFO order per type. Available in both operational modes.
+- **`STORAGE_FLUSH`**: Flushes stored data one item at a time as individual `STORAGE_DATA` messages.
+  Data is sent in FIFO order per type. Available in both operational modes.
 
-- **`STORAGE_BATCH_REQUEST`**
-  Requests access to stored data via batch interface. Responds with `STORAGE_BATCH_AVAILABLE`, `STORAGE_BATCH_EMPTY`, `STORAGE_BATCH_BUSY`, or `STORAGE_BATCH_ERROR`. Available in both operational modes.
+- **`STORAGE_BATCH_REQUEST`**: Requests access to stored data through batch interface.
+  Responds with `STORAGE_BATCH_AVAILABLE`, `STORAGE_BATCH_EMPTY`, `STORAGE_BATCH_BUSY`, or `STORAGE_BATCH_ERROR`.
+  Available in both operational modes.
 
-- **`STORAGE_CLEAR`**
-  Clears all stored data from the backend. Available in both operational modes.
+- **`STORAGE_CLEAR`**: Clears all stored data from the backend.
+  Available in both operational modes.
 
 **Diagnostics (handled by parent RUNNING state):**
 
-- **`STORAGE_STATS`**
-  Requests storage statistics (requires `CONFIG_APP_STORAGE_SHELL_STATS`). Statistics are logged to the console. Available in both operational modes.
+- **`STORAGE_STATS`** : Requests storage statistics (requires `CONFIG_APP_STORAGE_SHELL_STATS`).
+  Statistics are logged to the console.
+  Available in both operational modes.
 
 ### Output Messages (Responses)
 
 **Mode confirmation:**
 
-- **`STORAGE_MODE_PASSTHROUGH`**
-  Mode change to passthrough confirmed.
+- **`STORAGE_MODE_PASSTHROUGH`**: Mode change to passthrough confirmed.
 
-- **`STORAGE_MODE_BUFFER`**
-  Mode change to buffer confirmed.
+- **`STORAGE_MODE_BUFFER`**: Mode change to buffer confirmed.
 
-- **`STORAGE_MODE_CHANGE_REJECTED`**
-  Mode change rejected due to safety constraints. See `reject_reason` in `struct storage_msg`.
+- **`STORAGE_MODE_CHANGE_REJECTED`**: Mode change rejected.
+  See `reject_reason` in `struct storage_msg`.
 
 **Data Messages:**
 
-- **`STORAGE_DATA`**
-  Contains stored data being flushed or forwarded. Includes data type and the actual data payload.
+- **`STORAGE_DATA`**: Contains stored data being flushed or forwarded.
+  Includes data type and the actual data payload.
 
 **Batch Status:**
 
-- **`STORAGE_BATCH_AVAILABLE`**
-  Batch is ready for reading. Message includes total item count available and session ID.
+- **`STORAGE_BATCH_AVAILABLE`**: Batch is ready for reading.
+  Message includes total item count available and session ID.
 
-- **`STORAGE_BATCH_EMPTY`**
-  No stored data available; batch is empty.
+- **`STORAGE_BATCH_EMPTY`**: No stored data available.
+  Batch is empty.
 
-- **`STORAGE_BATCH_BUSY`**
-  Another module is currently using the batch session.
+- **`STORAGE_BATCH_BUSY`**: Another module is currently using the batch session.
 
-- **`STORAGE_BATCH_ERROR`**
-  Error occurred during batch operation.
+- **`STORAGE_BATCH_ERROR`**: Error occurred during batch operation.
 
 ### Message Structure
 
@@ -216,60 +203,50 @@ struct storage_msg {
 
 ## Configurations
 
-The storage module is configurable through Kconfig options in `Kconfig.storage`. Key configuration categories include:
+The storage module is configurable through Kconfig options in `Kconfig.storage`.
+The following includes the key configuration categories:
 
 ### Storage Backend
 
-- **`CONFIG_APP_STORAGE_BACKEND_RAM`** (default and only backend currently provided)
-  Uses RAM for storage. Data is lost on power cycle but provides fast access.
+- **`CONFIG_APP_STORAGE_BACKEND_RAM`** (default and only backend currently provided): Uses RAM for storage.
+  Data is lost on power cycle but provides fast access.
 
 ### Memory Configuration
 
-- **`CONFIG_APP_STORAGE_MAX_TYPES`** (default: 3)
-  Maximum number of different data types that can be registered. Affects RAM usage.
+- **`CONFIG_APP_STORAGE_MAX_TYPES`** (default: 3): Maximum number of different data types that can be registered.
+  Affects RAM usage.
 
-- **`CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE`** (default: 8)
-  Maximum records stored per data type. Total RAM usage = MAX_TYPES × MAX_RECORDS_PER_TYPE × RECORD_SIZE.
+- **`CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE`** (default: 8): Maximum records stored per data type.
+  Total RAM usage = `MAX_TYPES` × `MAX_RECORDS_PER_TYPE` × `RECORD_SIZE`.
 
+- **`CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE`** (default: 256): Size of the internal buffer for batch data access.
 
-- **`CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE`** (default: 256)
-  Size of the internal buffer for batch data access.
+### Thread Configuration
+
+- **`CONFIG_APP_STORAGE_THREAD_STACK_SIZE`** (default: 1536): Stack size for the storage module's main thread.
+
+- **`CONFIG_APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS`** (default: 60): Watchdog timeout for detecting stuck operations.
+
+- **`CONFIG_APP_STORAGE_MSG_PROCESSING_TIMEOUT_SECONDS`** (default: 5): Maximum time for processing a single message.
+
+### Operational Modes
+
+- **`CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH`** (default): Automatically transition from `RUNNING` to `PASSTHROUGH` state on startup for immediate data forwarding.
+
+- **`CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER`**: Automatically transition from `RUNNING` to `BUFFER` state on startup for data storage.
+
+### Development Features
+
+- **`CONFIG_APP_STORAGE_SHELL`** (default: y): Enable shell commands for storage interaction.
+
+- **`CONFIG_APP_STORAGE_SHELL_STATS`**: Enable statistics commands (increases code size).
 
 ### Message Handling
 
 - **RUNNING state**: Handles `STORAGE_CLEAR`, `STORAGE_FLUSH`, `STORAGE_STATS` regardless of mode.
-- **PASSTHROUGH**: Forwards data immediately; rejects batch requests with `STORAGE_BATCH_ERROR`.
-- **BUFFER**: Stores data; serves batch via pipe; transitions to PIPE_ACTIVE for batch sessions.
-- **BUFFER_PIPE_ACTIVE**: Populates pipe with `[header + data]` items; handles session management.
-
-### Thread Configuration
-
-- **`CONFIG_APP_STORAGE_THREAD_STACK_SIZE`** (default: 1536)
-  Stack size for the storage module's main thread.
-
-- **`CONFIG_APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS`** (default: 60)
-  Watchdog timeout for detecting stuck operations.
-
-- **`CONFIG_APP_STORAGE_MSG_PROCESSING_TIMEOUT_SECONDS`** (default: 5)
-  Maximum time for processing a single message.
-
-### Operational Modes
-
-- **`CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH`** (default)
-  Automatically transition from RUNNING to PASSTHROUGH state on startup for immediate data forwarding.
-
-- **`CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER`**
-  Automatically transition from RUNNING to BUFFER state on startup for data storage.
-
-### Development Features
-
-- **`CONFIG_APP_STORAGE_SHELL`** (default: y)
-  Enable shell commands for storage interaction.
-
-- **`CONFIG_APP_STORAGE_SHELL_STATS`**
-  Enable statistics commands (increases code size).
-
-## Channels
+- **PASSTHROUGH**: Forwards data immediately, rejects batch requests with `STORAGE_BATCH_ERROR`.
+- **BUFFER**: Stores data, serves batch through pipe, transitions to `PIPE_ACTIVE` for batch sessions.
+- **BUFFER_PIPE_ACTIVE**: Populates pipe with `[header + data]` items, handles session management.
 
 ## API Documentation
 
@@ -277,7 +254,7 @@ The storage module is configurable through Kconfig options in `Kconfig.storage`.
 
 #### STORAGE_CHAN
 
-Primary zbus channel for controlling the storage module and receiving control/status responses.
+The storage channel is the primary zbus channel for controlling the storage module and receiving control or status responses.
 
 **Input Message Types:**
 
@@ -300,12 +277,12 @@ Primary zbus channel for controlling the storage module and receiving control/st
 
 #### STORAGE_DATA_CHAN
 
-Dedicated channel for `STORAGE_DATA` payload messages to avoid self-flooding and race conditions.
-Subscribers interested in data should observe this channel.
+This is a dedicated channel for `STORAGE_DATA` payload messages to avoid self-flooding and race conditions.
+The subscribers interested in data should observe this channel.
 
 **Output Message Types:**
 
-- `STORAGE_DATA` - Contains stored or forwarded data
+- `STORAGE_DATA` - Contains stored or forwarded data.
 
 ### Data Type Registration
 
@@ -325,7 +302,7 @@ Each data type registration includes:
 
 ### Backend Interface
 
-Storage backends implement the interface defined in `storage_backend.h`:
+Storage backends implement the interface defined in the `app/src/modules/storage/storage_backend.h` file:
 
 ```c
 struct storage_backend {
@@ -347,7 +324,10 @@ int storage_batch_read(struct storage_data_item *out_item, k_timeout_t timeout);
 
 It reads stored data through the batch interface, handling header parsing and data extraction automatically. All other operations (requesting batch access, session management, etc.) go through zbus messages.
 
-**Important**: This function should only be called after receiving a `STORAGE_BATCH_AVAILABLE` message in response to a `STORAGE_BATCH_REQUEST`. When done consuming all items, send `STORAGE_BATCH_CLOSE` with the same session_id.
+!!! important "Important"
+
+    This function should only be called after receiving a `STORAGE_BATCH_AVAILABLE` message in response to a `STORAGE_BATCH_REQUEST`.
+    When done consuming all items, send `STORAGE_BATCH_CLOSE` with the same `session_id`.
 
 ## Usage
 
@@ -440,9 +420,9 @@ att_storage stats              # Show statistics (if enabled)
 
 ## Adding Backends
 
-1. Implement `struct storage_backend` (see `storage_backend.h`)
-2. Provide `storage_backend_get()` function
-3. Add Kconfig option in `Kconfig.storage`
+1. Implement `struct storage_backend` (see `storage_backend.h`).
+1. Provide `storage_backend_get()` function.
+1. Add Kconfig option in `Kconfig.storage`.
 
 See `backends/ram_ring_buffer_backend.c` for reference.
 

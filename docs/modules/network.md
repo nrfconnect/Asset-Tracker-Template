@@ -8,7 +8,7 @@ See the [Configurations](#configurations) section for more information.
 
 ## Messages
 
-The network module communicates via the zbus channel ``NETWORK_CHAN``.
+The network module communicates through the zbus channel ``NETWORK_CHAN``.
 The messages are defined in `network.h`. A message consists of a type and optional data. Each message is either an input message or an output message.
 All input messages are requests from the application to the network module. The output messages may be responses to input messages or notifications from the network module to the application.
 
