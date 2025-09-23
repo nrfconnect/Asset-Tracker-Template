@@ -50,10 +50,6 @@ plugins:
   - macros
   - search
 
-extra:
-  # Abbreviation snippets
-  NCS: nRF Connect SDK
-
 nav:
   - Overview: index.md
   - Getting Started: common/getting_started.md
@@ -74,5 +70,6 @@ nav:
     - Location module: modules/location.md
     - Network module: modules/network.md
     - Power module: modules/power.md
+    - Storage module: modules/storage.md
   - Release Artifacts: common/release.md
   - Release notes: common/release_notes.md
