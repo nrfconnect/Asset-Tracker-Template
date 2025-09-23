@@ -205,6 +205,15 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 			LOG_ERR("Failed to set NTN system mode, error: %d", err);
 			return err;
 		}
+		/* Configure location using latest GNSS data */
+		err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"%f\",0,0",
+					(double)last_pvt.latitude,
+					(double)last_pvt.longitude,
+					(double)last_pvt.altitude);
+		if (err) {
+			LOG_ERR("Failed to set AT%%LOCATION, error: %d", err);
+			return err;
+		}
 		LOG_DBG("NTN initialized, using AT+CFUN=21");
 		err = nrf_modem_at_printf("AT+CFUN=21");
 		if (err) {
