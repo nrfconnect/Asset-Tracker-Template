@@ -480,7 +480,7 @@ static void state_running_run(void *obj)
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 		}
 	} else if (state->chan == &BUTTON_CHAN) {
-		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
+		struct button_msg *msg = (struct button_msg *)state->msg_buf;
 		if (msg->type == BUTTON_PRESS_LONG) {
 			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
 		}
@@ -493,12 +493,25 @@ static void state_tn_entry(void *obj)
 
 	ARG_UNUSED(obj);
 
-	LOG_INF("Entering TN mode");
+	LOG_DBG("%s", __func__);
 
 #if defined(CONFIG_APP_LED)
 	/* Blink Yellow for TN network search */
 	set_led_pattern(255, 255, 0);
 #endif /* CONFIG_APP_LED */
+
+
+	err = nrf_modem_at_printf("AT+CFUN=4");
+	if (err) {
+		LOG_ERR("Failed to set AT+CFUN=4, error: %d", err);
+		return;
+	}
+
+	err = nrf_modem_at_printf("AT%%XSYSTEMMODE=1,1,1,3,0");
+	if (err) {
+		LOG_ERR("Failed to set AT%%XSYSTEMMODE=1,1,1,3,0, error: %d", err);
+		return;
+	}
 
 	// Connect to network
 	LOG_DBG("TN mode, using lte_lc_connect_async to connect to network");
@@ -571,9 +584,17 @@ static void state_tn_run(void *obj)
 
 static void state_tn_exit(void *obj)
 {
+	int err;
+
 	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
+
+	err = nrf_modem_at_printf("AT+CFUN=4");
+	if (err) {
+		LOG_ERR("Failed to set AT+CFUN=4, error: %d", err);
+		return;
+	}
 }
 
 static void state_idle_entry(void *obj)
@@ -604,7 +625,7 @@ static void state_idle_run(void *obj)
 	LOG_DBG("%s", __func__);
 
 	if (state->chan == &BUTTON_CHAN) {
-		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
+		struct button_msg *msg = (struct button_msg *)state->msg_buf;
 		if (msg->type == BUTTON_PRESS_SHORT) {
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 		}
