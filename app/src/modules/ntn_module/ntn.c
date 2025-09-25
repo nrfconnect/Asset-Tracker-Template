@@ -411,12 +411,18 @@ static int set_gnss_active_mode(struct ntn_state_object *state)
 		state->gnss_initialized=true;
 	}
 
+	err = nrf_modem_gnss_fix_interval_set(0);
+	err = nrf_modem_gnss_fix_retry_set(180);
+	err = nrf_modem_gnss_start();
+
 	return 0;
 }
 
 static int set_gnss_inactive_mode(void)
 {
 	int err;
+
+	err = nrf_modem_gnss_stop();
 
 	/* Set modem to CFUN=30 mode when exiting GNSS state */
 	// lte_lc_func_mode_set(LTE_LC_FUNC_MODE_DEACTIVATE_GNSS)
@@ -436,7 +442,7 @@ static void state_running_entry(void *obj)
 	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 	
-	LOG_INF("Initializing NTN module");
+	LOG_DBG("%s", __func__);
 
 	k_work_init(&timer_work, timer_work_handler);
 	k_work_init(&gnss_location_work, gnss_location_work_handler);
@@ -557,8 +563,8 @@ static void state_tn_run(void *obj)
 
 			ntn_msg_publish(SET_NTN_IDLE);
 		} else if (msg->type == NETWORK_LTE_OUT_OF_COVERAGE) {
-			LOG_INF("Out of LTE coverage, proceed to perform cloud handshake via NTN");
-			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
+			LOG_INF("Out of LTE coverage, going to idle state. Proceed to perform cloud handshake via NTN");
+			ntn_msg_publish(SET_NTN_IDLE);
 		}
 	}
 }
@@ -615,17 +621,13 @@ static void state_gnss_entry(void *obj)
 	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
-	LOG_INF("Entering GNSS mode");
+	LOG_DBG("%s", __func__);
 
 	err = set_gnss_active_mode(state);
 	if (err) {
-		LOG_ERR("Unable to set GNSS mode");
+		LOG_ERR("Unable to set GNSS active");
 		return;
 	}
-
-	err = nrf_modem_gnss_fix_interval_set(0);
-	err = nrf_modem_gnss_fix_retry_set(180);
-	err = nrf_modem_gnss_start();
 
 #if defined(CONFIG_APP_LED)
 	/* Purple pattern during GNNS search */
@@ -644,6 +646,7 @@ static void state_gnss_run(void *obj)
 			/* Location search completed, transition to NTN mode */
 			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
 		} else if (msg->type == GNSS_SEARCH_FAILED) {
+			LOG_ERR("GNSS_SEARCH_FAILED");
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 		}
 	}
@@ -651,11 +654,10 @@ static void state_gnss_run(void *obj)
 
 static void state_gnss_exit(void *obj)
 {
-	int err;
+	ARG_UNUSED(obj);
 
-	LOG_INF("Exiting GNSS mode");
+	LOG_DBG("%s", __func__);
 
-	err = nrf_modem_gnss_stop();
 	set_gnss_inactive_mode();
 }
 
@@ -664,7 +666,7 @@ static void state_ntn_entry(void *obj)
 	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
-	LOG_INF("Entering NTN mode");
+	LOG_DBG("%s", __func__);
 
 	err = set_ntn_active_mode(state);
 	if (err) {
@@ -793,6 +795,11 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_SEARCHING) {
 			LOG_DBG("LTE_LC_NW_REG_SEARCHING");
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_UNKNOWN) {
+			/*
+			Actually in future the proper way of handling this should probably
+			 be based on CEREG=91, not CEREG=4.
+			 This need to be added to lte_lc.
+			*/
 			LOG_WRN("LTE_LC_NW_REG_UNKNOWN");
 			ntn_msg_publish(NETWORK_LTE_OUT_OF_COVERAGE);
 		}else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME) {
@@ -831,7 +838,7 @@ static void gnss_event_handler(int event)
 		/* Schedule work to handle PVT data in thread context */
 		k_work_submit(&gnss_location_work);
 		break;
-	/* TODO: add handling for GNSS_SEARCH_FAILED */
+	/* TODO: add handling for GNSS_SEARCH_FAILED, see mosh gnss.c */
 	default:
 		break;
 	}
