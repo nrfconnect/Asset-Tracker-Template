@@ -18,8 +18,10 @@ extern "C" {
 enum ntn_msg_type {
 	/* Events that trigger state transitions */
 	NTN_LOCATION_SEARCH_DONE, /* Location search completed - triggers transition to NTN mode */
-	NTN_TIMEOUT,              /* NTN mode timeout occurred - triggers transition to GNSS mode */
 	NTN_NETWORK_CONNECTED,    /* Network connectivity established */
+	NTN_SET_IDLE,            /* Set idle state */
+	GNSS_TIMER,          /* GNSS timer expired - get new fix */
+	NTN_TIMER,           /* LTE timer expired - connect to network */
 };
 
 /* NTN module message */
