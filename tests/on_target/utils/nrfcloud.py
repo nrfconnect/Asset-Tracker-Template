@@ -418,7 +418,6 @@ class NRFCloudFOTA(NRFCloud):
         for job in items:
             if 'COMPLETE' in job['status']:
                 continue
-            logger.debug(job)
             if job['status'] in ["IN_PROGRESS", "QUEUED"]  and uuid in job['target']['deviceIds'][0]:
                 logger.debug(f"Job {job['jobId']} not completed for device {uuid}")
                 logger.info(f"Cancelling in progress job {job['jobId']}")
