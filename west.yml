@@ -10,7 +10,7 @@ manifest:
     - name: ncs
       url-base: https://github.com/nrfconnect
     - name: ntn-fork-nrf-sdk
-      url-base: git@github.com:DematteisGiacomo
+      url-base: https://github.com/DematteisGiacomo
 
   projects:
     - name: nrf
