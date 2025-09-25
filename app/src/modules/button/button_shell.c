@@ -13,7 +13,7 @@
 
 LOG_MODULE_DECLARE(button, CONFIG_APP_BUTTON_LOG_LEVEL);
 
-static int cmd_button_press(const struct shell *sh, size_t argc, char **argv)
+static int cmd_button_press_short(const struct shell *sh, size_t argc, char **argv)
 {
 	int err;
 	uint8_t button_number;
@@ -23,7 +23,7 @@ static int cmd_button_press(const struct shell *sh, size_t argc, char **argv)
 
 	if (argc != 2) {
 		(void)shell_print(sh, "Invalid number of arguments (%d)", argc);
-		(void)shell_print(sh, "Usage: att_button_press <button_number>");
+		(void)shell_print(sh, "Usage: att_button_press_short <button_number>");
 		return 1;
 	}
 
@@ -45,4 +45,37 @@ static int cmd_button_press(const struct shell *sh, size_t argc, char **argv)
 	return 0;
 }
 
-SHELL_CMD_REGISTER(att_button_press, NULL, "Asset Tracker Template Button CMDs", cmd_button_press);
+static int cmd_button_press_long(const struct shell *sh, size_t argc, char **argv)
+{
+	int err;
+	uint8_t button_number;
+	struct button_msg msg = {
+		.type = BUTTON_PRESS_LONG
+	};
+
+	if (argc != 2) {
+		(void)shell_print(sh, "Invalid number of arguments (%d)", argc);
+		(void)shell_print(sh, "Usage: att_button_press_long <button_number>");
+		return 1;
+	}
+
+	button_number = (uint8_t)strtol(argv[1], NULL, 10);
+
+	if ((button_number != 1) && (button_number != 2)) {
+		(void)shell_print(sh, "Invalid button number: %d", button_number);
+		return 1;
+	}
+
+	msg.button_number = button_number;
+
+	err = zbus_chan_pub(&BUTTON_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
+		return 1;
+	}
+
+	return 0;
+}
+
+SHELL_CMD_REGISTER(att_button_press_short, NULL, "Asset Tracker Template Button CMDs", cmd_button_press_short);
+SHELL_CMD_REGISTER(att_button_press_long, NULL, "Asset Tracker Template Button CMDs", cmd_button_press_long);
