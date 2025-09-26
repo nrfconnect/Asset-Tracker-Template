@@ -160,8 +160,8 @@ struct cloud_state_object {
 	/* Last received message */
 	uint8_t msg_buf[MAX_MSG_SIZE];
 
-	/* Network status */
-	enum network_msg_type nw_status;
+	/* Last network connection status */
+	bool network_connected;
 
 	/* Provisioning ongoing flag */
 	bool provisioning_ongoing;
@@ -877,8 +877,12 @@ static void state_connecting_provisioning_run(void *obj)
 			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONED]);
 
 			return;
-		} else if (msg == CLOUD_PROVISIONING_FAILED) {
+		} else if (msg == CLOUD_PROVISIONING_FAILED && state_object->network_connected) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
+
+			return;
+		} else if (msg == CLOUD_PROVISIONING_FAILED && !state_object->network_connected) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
 
 			return;
 		}
@@ -1483,6 +1487,19 @@ static void state_connected_paused_run(void *obj)
 	}
 }
 
+static void network_connection_status_retain(struct cloud_state_object *state_object)
+{
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		if (msg.type == NETWORK_DISCONNECTED || msg.type == NETWORK_CONNECTED) {
+			/* Update network status to retain the last connection status */
+			state_object->network_connected =
+				(msg.type == NETWORK_CONNECTED) ? true : false;
+		}
+	}
+}
+
 static void cloud_module_thread(void)
 {
 	int err;
@@ -1524,6 +1541,8 @@ static void cloud_module_thread(void)
 
 			return;
 		}
+
+		network_connection_status_retain(&cloud_state);
 
 		err = smf_run_state(SMF_CTX(&cloud_state));
 		if (err) {

@@ -211,7 +211,7 @@ static void connect_cloud(void)
 	err = zbus_chan_pub(&NETWORK_CHAN, &nw, K_NO_WAIT);
 	TEST_ASSERT_EQUAL(0, err);
 
-	k_sleep(K_MSEC(100));
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 }
 
 static void dummy_cb(const struct zbus_channel *chan)
@@ -516,7 +516,7 @@ void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Transport module needs CPU to run state machine */
-	k_sleep(K_MSEC(100));
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 
 	err = k_sem_take(&cloud_connected, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
@@ -525,7 +525,7 @@ void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Transport module needs CPU to run state machine */
-	k_sleep(K_MSEC(100));
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_json_message_send_fake.call_count);
 	TEST_ASSERT_EQUAL(0, strncmp(nrf_cloud_coap_json_message_send_fake.arg0_val,
@@ -539,7 +539,7 @@ void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Transport module needs CPU to run state machine */
-	k_sleep(K_MSEC(100));
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 
 	err = k_sem_take(&cloud_disconnected, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
@@ -597,7 +597,7 @@ void test_gnss_location_data_handling(void)
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 
 	/* Verify that GNSS location data was sent to nRF Cloud */
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_send_fake.call_count);
@@ -629,7 +629,7 @@ void test_storage_data_battery_sent_to_cloud(void)
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Allow processing */
-	k_sleep(K_MSEC(100));
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 
 	/* One successful read + one -EAGAIN drain */
 	TEST_ASSERT_EQUAL(2, storage_batch_read_fake.call_count);
@@ -657,7 +657,7 @@ void test_storage_data_environmental_sent_to_cloud(void)
 	ARG_UNUSED(err);
 
 	/* Allow processing */
-	k_sleep(K_MSEC(100));
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 
 	/* One successful read + one -EAGAIN drain */
 	TEST_ASSERT_EQUAL(2, storage_batch_read_fake.call_count);
@@ -685,12 +685,104 @@ void test_storage_data_network_conn_eval_sent_to_cloud(void)
 	ARG_UNUSED(err);
 
 	/* Allow processing */
-	k_sleep(K_MSEC(100));
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 
 	/* One successful read + one -EAGAIN drain */
 	TEST_ASSERT_EQUAL(2, storage_batch_read_fake.call_count);
 	/* Expect two sensor publishes: CONEVAL and RSRP */
 	TEST_ASSERT_EQUAL(2, nrf_cloud_coap_sensor_send_fake.call_count);
+}
+
+void test_provisioning_failed_with_network_connected_should_go_to_backoff(void)
+{
+	int err;
+	struct network_msg network_msg = {
+		.type = NETWORK_CONNECTED
+	};
+	struct cloud_msg cloud_msg = {
+		.type = CLOUD_PROVISIONING_REQUEST
+	};
+	struct nrf_provisioning_callback_data event = {
+		.type = NRF_PROVISIONING_EVENT_FAILED
+	};
+
+	/* Start with a connected network state */
+	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+
+	/* Should now be connected */
+	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Trigger provisioning request */
+	zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_NO_WAIT);
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+
+	/* Should now be disconnected (entering provisioning state) */
+	err = k_sem_take(&cloud_disconnected, K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(0, err);
+
+	TEST_ASSERT_EQUAL(1, nrf_provisioning_trigger_manually_fake.call_count);
+
+	/* Simulate provisioning failure while network is still connected */
+	handler(&event);
+
+	/* Allow time for state machine to process the failure and enter backoff state */
+	k_sleep(K_SECONDS(INITIAL_PROVISIONING_RETRY_SEC + 1));
+
+	/* Verify that provisioning is retried after backoff
+	 * (indicating we went to backoff state)
+	 */
+	TEST_ASSERT_EQUAL(2, nrf_provisioning_trigger_manually_fake.call_count);
+
+	/* Exit provisioning by simulating failure */
+	handler(&event);
+}
+
+void test_provisioning_failed_with_network_disconnected_should_go_to_disconnected(void)
+{
+	int err;
+	struct network_msg network_msg = {
+		.type = NETWORK_CONNECTED
+	};
+	struct cloud_msg cloud_msg = {
+		.type = CLOUD_PROVISIONING_REQUEST
+	};
+	struct nrf_provisioning_callback_data event = {
+		.type = NRF_PROVISIONING_EVENT_FAILED
+	};
+
+	/* Start with a connected network state */
+	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+
+	/* Should now be connected */
+	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Trigger provisioning request */
+	zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_NO_WAIT);
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+
+	/* Should now be disconnected (entering provisioning state) */
+	err = k_sem_take(&cloud_disconnected, K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(0, err);
+
+	TEST_ASSERT_EQUAL(1, nrf_provisioning_trigger_manually_fake.call_count);
+
+	/* Simulate network disconnect while in provisioning state */
+	network_msg.type = NETWORK_DISCONNECTED;
+	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+
+	/* Simulate provisioning failure while network is disconnected */
+	handler(&event);
+
+	/* Allow time for state machine to process the failure and enter disconnected state */
+	k_sleep(K_SECONDS(INITIAL_PROVISIONING_RETRY_SEC + 1));
+
+	/* Verify that provisioning is NOT retried (indicating we went to disconnected state) */
+	TEST_ASSERT_EQUAL(1, nrf_provisioning_trigger_manually_fake.call_count);
 }
 
 /* This is required to be added to each test. That is because unity's
