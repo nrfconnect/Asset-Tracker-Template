@@ -150,17 +150,17 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
         if fota_type == "app":
             run_fota_resumption(dut_fota, "app")
         await_nrfcloud(
-                functools.partial(dut_fota.fota.get_fota_status, dut_fota.data['job_id']),
-                "IN_PROGRESS",
-                "FOTA status",
-                fotatimeout
-            )
+            functools.partial(dut_fota.fota.get_fota_status, dut_fota.data['job_id']),
+            "IN_PROGRESS",
+            "FOTA status",
+            fotatimeout
+        )
         await_nrfcloud(
-                functools.partial(dut_fota.fota.get_fota_status, dut_fota.data['job_id']),
-                "COMPLETED",
-                "FOTA status",
-                fotatimeout
-            )
+            functools.partial(dut_fota.fota.get_fota_status, dut_fota.data['job_id']),
+            "COMPLETED",
+            "FOTA status",
+            fotatimeout
+        )
 
         try:
             if fota_type == "app":
@@ -182,52 +182,51 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
             raise e
 
         if fota_type == "delta":
-                # Run a second delta fota back from FOTA-TEST
-                logger.info("Running a second delta fota back from FOTA-TEST")
+            # Run a second delta fota back from FOTA-TEST
+            logger.info("Running a second delta fota back from FOTA-TEST")
+            try:
+                dut_fota.data['job_id'] = dut_fota.fota.create_fota_job(dut_fota.device_id, DELTA_MFW_BUNDLEID_FOTA_TEST_TO_20X)
+                dut_fota.data['bundle_id'] = bundle_id
+            except NRFCloudFOTAError as e:
+                pytest.skip(f"FOTA create_job REST API error: {e}")
+            logger.info(f"Created FOTA Job (ID: {dut_fota.data['job_id']})")
+
+            # Sleep a bit and trigger fota poll
+            dut_fota.uart.flush()
+            for i in range(3):
                 try:
-                        dut_fota.data['job_id'] = dut_fota.fota.create_fota_job(dut_fota.device_id, DELTA_MFW_BUNDLEID_FOTA_TEST_TO_20X)
-                        dut_fota.data['bundle_id'] = bundle_id
-                except NRFCloudFOTAError as e:
-                        pytest.skip(f"FOTA create_job REST API error: {e}")
-                logger.info(f"Created FOTA Job (ID: {dut_fota.data['job_id']})")
+                    time.sleep(10)
+                    dut_fota.uart.write("att_button_press 1\r\n")
+                    dut_fota.uart.wait_for_str("nrf_cloud_fota_poll: Starting FOTA download", timeout=30)
+                    break
+                except AssertionError:
+                    continue
+            else:
+                raise AssertionError(f"Fota update not available after {i} attempts")
 
-                # Sleep a bit and trigger fota poll
-                dut_fota.uart.flush()
-                for i in range(3):
-                    try:
-                        time.sleep(10)
-                        dut_fota.uart.write("att_button_press 1\r\n")
-                        dut_fota.uart.wait_for_str("nrf_cloud_fota_poll: Starting FOTA download", timeout=30)
-                        break
-                    except AssertionError:
-                        continue
-                else:
-                    raise AssertionError(f"Fota update not available after {i} attempts")
+            await_nrfcloud(
+                functools.partial(dut_fota.fota.get_fota_status, dut_fota.data['job_id']),
+                "IN_PROGRESS",
+                "FOTA status",
+                fotatimeout
+            )
+            await_nrfcloud(
+                functools.partial(dut_fota.fota.get_fota_status, dut_fota.data['job_id']),
+                "COMPLETED",
+                "FOTA status",
+                fotatimeout
+            )
 
-
+            try:
                 await_nrfcloud(
-                        functools.partial(dut_fota.fota.get_fota_status, dut_fota.data['job_id']),
-                        "IN_PROGRESS",
-                        "FOTA status",
-                        fotatimeout
-                    )
-                await_nrfcloud(
-                        functools.partial(dut_fota.fota.get_fota_status, dut_fota.data['job_id']),
-                        "COMPLETED",
-                        "FOTA status",
-                        fotatimeout
-                    )
-
-                try:
-                        await_nrfcloud(
-                            functools.partial(get_modemversion, dut_fota),
-                            MFW_202_VERSION,
-                            "modemFirmware",
-                            DEVICE_MSG_TIMEOUT
-                        )
-                except RuntimeError as e:
-                    logger.error(f"Version is not {new_version} after {DEVICE_MSG_TIMEOUT}s")
-                    raise e
+                    functools.partial(get_modemversion, dut_fota),
+                    MFW_202_VERSION,
+                    "modemFirmware",
+                    DEVICE_MSG_TIMEOUT
+                )
+            except RuntimeError as e:
+                logger.error(f"Version is not {new_version} after {DEVICE_MSG_TIMEOUT}s")
+                raise e
 
     return _run_fota
 
