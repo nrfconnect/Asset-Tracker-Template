@@ -87,20 +87,20 @@ struct fota_state_object {
 
 /* Forward declarations of state handlers */
 static void state_running_entry(void *obj);
-static void state_running_run(void *obj);
+static enum smf_state_result state_running_run(void *obj);
 static void state_waiting_for_poll_request_entry(void *obj);
-static void state_waiting_for_poll_request_run(void *obj);
+static enum smf_state_result state_waiting_for_poll_request_run(void *obj);
 static void state_polling_for_update_entry(void *obj);
-static void state_polling_for_update_run(void *obj);
+static enum smf_state_result state_polling_for_update_run(void *obj);
 static void state_downloading_update_entry(void *obj);
-static void state_downloading_update_run(void *obj);
+static enum smf_state_result state_downloading_update_run(void *obj);
 static void state_waiting_for_image_apply_entry(void *obj);
-static void state_waiting_for_image_apply_run(void *obj);
+static enum smf_state_result state_waiting_for_image_apply_run(void *obj);
 static void state_image_applying_entry(void *obj);
-static void state_image_applying_run(void *obj);
+static enum smf_state_result state_image_applying_run(void *obj);
 static void state_reboot_pending_entry(void *obj);
 static void state_canceling_entry(void *obj);
-static void state_canceling_run(void *obj);
+static enum smf_state_result state_canceling_run(void *obj);
 
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
@@ -254,7 +254,7 @@ static void state_running_entry(void *obj)
 	}
 }
 
-static void state_running_run(void *obj)
+static enum smf_state_result state_running_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
@@ -263,8 +263,12 @@ static void state_running_run(void *obj)
 
 		if (msg_type == FOTA_DOWNLOAD_CANCEL) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CANCELING]);
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_waiting_for_poll_request_entry(void *obj)
@@ -274,7 +278,7 @@ static void state_waiting_for_poll_request_entry(void *obj)
 	LOG_DBG("%s", __func__);
 }
 
-static void state_waiting_for_poll_request_run(void *obj)
+static enum smf_state_result state_waiting_for_poll_request_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
@@ -283,12 +287,16 @@ static void state_waiting_for_poll_request_run(void *obj)
 
 		if (msg_type == FOTA_POLL_REQUEST) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_POLLING_FOR_UPDATE]);
+
+			return SMF_EVENT_HANDLED;
 		} else if (msg_type == FOTA_DOWNLOAD_CANCEL) {
 			LOG_DBG("No ongoing FOTA update, nothing to cancel");
 
-			smf_set_handled(SMF_CTX(state_object));
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_polling_for_update_entry(void *obj)
@@ -322,7 +330,7 @@ static void state_polling_for_update_entry(void *obj)
 	LOG_DBG("Job available, FOTA processing started");
 }
 
-static void state_polling_for_update_run(void *obj)
+static enum smf_state_result state_polling_for_update_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
@@ -332,21 +340,24 @@ static void state_polling_for_update_run(void *obj)
 		switch (evt) {
 		case FOTA_DOWNLOADING_UPDATE:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DOWNLOADING_UPDATE]);
-			break;
+
+			return SMF_EVENT_HANDLED;
 		case FOTA_NO_AVAILABLE_UPDATE:
 			smf_set_state(SMF_CTX(state_object),
 					      &states[STATE_WAITING_FOR_POLL_REQUEST]);
-			break;
+
+			return SMF_EVENT_HANDLED;
 		case FOTA_DOWNLOAD_CANCEL:
 			LOG_DBG("No ongoing FOTA update, nothing to cancel");
 
-			smf_set_handled(SMF_CTX(state_object));
-			break;
+			return SMF_EVENT_HANDLED;
 		default:
 			/* Don't care */
 			break;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_downloading_update_entry(void *obj)
@@ -356,7 +367,7 @@ static void state_downloading_update_entry(void *obj)
 	LOG_DBG("%s", __func__);
 }
 
-static void state_downloading_update_run(void *obj)
+static enum smf_state_result state_downloading_update_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
@@ -367,10 +378,12 @@ static void state_downloading_update_run(void *obj)
 		case FOTA_IMAGE_APPLY_NEEDED:
 			smf_set_state(SMF_CTX(state_object),
 					      &states[STATE_WAITING_FOR_IMAGE_APPLY]);
-			break;
+
+			return SMF_EVENT_HANDLED;
 		case FOTA_SUCCESS_REBOOT_NEEDED:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_PENDING]);
-			break;
+
+			return SMF_EVENT_HANDLED;
 		case FOTA_DOWNLOAD_CANCELED:
 			__fallthrough;
 		case FOTA_DOWNLOAD_TIMED_OUT:
@@ -378,12 +391,15 @@ static void state_downloading_update_run(void *obj)
 		case FOTA_DOWNLOAD_FAILED:
 			smf_set_state(SMF_CTX(state_object),
 					      &states[STATE_WAITING_FOR_POLL_REQUEST]);
-			break;
+
+			return SMF_EVENT_HANDLED;
 		default:
 			/* Don't care */
 			break;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_waiting_for_image_apply_entry(void *obj)
@@ -393,7 +409,7 @@ static void state_waiting_for_image_apply_entry(void *obj)
 	LOG_DBG("%s", __func__);
 }
 
-static void state_waiting_for_image_apply_run(void *obj)
+static enum smf_state_result state_waiting_for_image_apply_run(void *obj)
 {
 	struct fota_state_object *state_object = obj;
 
@@ -402,8 +418,12 @@ static void state_waiting_for_image_apply_run(void *obj)
 
 		if (evt == FOTA_IMAGE_APPLY) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_IMAGE_APPLYING]);
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_image_applying_entry(void *obj)
@@ -421,7 +441,7 @@ static void state_image_applying_entry(void *obj)
 	}
 }
 
-static void state_image_applying_run(void *obj)
+static enum smf_state_result state_image_applying_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
@@ -430,8 +450,12 @@ static void state_image_applying_run(void *obj)
 
 		if (evt == FOTA_SUCCESS_REBOOT_NEEDED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_PENDING]);
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_reboot_pending_entry(void *obj)
@@ -457,7 +481,7 @@ static void state_canceling_entry(void *obj)
 	}
 }
 
-static void state_canceling_run(void *obj)
+static enum smf_state_result state_canceling_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
@@ -467,8 +491,12 @@ static void state_canceling_run(void *obj)
 		if (msg == FOTA_DOWNLOAD_CANCELED) {
 			smf_set_state(SMF_CTX(state_object),
 					      &states[STATE_WAITING_FOR_POLL_REQUEST]);
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void fota_module_thread(void)

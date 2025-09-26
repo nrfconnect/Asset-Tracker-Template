@@ -88,15 +88,15 @@ struct network_state_object {
 
 /* Forward declarations of state handlers */
 static void state_running_entry(void *obj);
-static void state_running_run(void *obj);
+static enum smf_state_result state_running_run(void *obj);
 static void state_disconnected_entry(void *obj);
-static void state_disconnected_run(void *obj);
-static void state_disconnected_idle_run(void *obj);
+static enum smf_state_result state_disconnected_run(void *obj);
+static enum smf_state_result state_disconnected_idle_run(void *obj);
 static void state_disconnected_searching_entry(void *obj);
-static void state_disconnected_searching_run(void *obj);
+static enum smf_state_result state_disconnected_searching_run(void *obj);
 static void state_disconnecting_entry(void *obj);
-static void state_disconnecting_run(void *obj);
-static void state_connected_run(void *obj);
+static enum smf_state_result state_disconnecting_run(void *obj);
+static enum smf_state_result state_connected_run(void *obj);
 static void state_connected_entry(void *obj);
 
 /* State machine definition */
@@ -341,7 +341,7 @@ static void state_running_entry(void *obj)
 	LOG_DBG("Network module started");
 }
 
-static void state_running_run(void *obj)
+static enum smf_state_result state_running_run(void *obj)
 {
 	struct network_state_object const *state_object = obj;
 
@@ -351,20 +351,26 @@ static void state_running_run(void *obj)
 		switch (msg.type) {
 		case NETWORK_DISCONNECTED:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
-			break;
+
+			return SMF_EVENT_HANDLED;
 		case NETWORK_UICC_FAILURE:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_IDLE]);
-			break;
+
+			return SMF_EVENT_HANDLED;
 		case NETWORK_QUALITY_SAMPLE_REQUEST:
 			sample_network_quality();
-			break;
+
+			return SMF_EVENT_HANDLED;
 		case NETWORK_SYSTEM_MODE_REQUEST:
 			request_system_mode();
-			break;
+
+			return SMF_EVENT_HANDLED;
 		default:
 			break;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_disconnected_entry(void *obj)
@@ -384,7 +390,7 @@ static void state_disconnected_entry(void *obj)
 	}
 }
 
-static void state_disconnected_run(void *obj)
+static enum smf_state_result state_disconnected_run(void *obj)
 {
 	struct network_state_object const *state_object = obj;
 
@@ -394,14 +400,16 @@ static void state_disconnected_run(void *obj)
 		switch (msg.type) {
 		case NETWORK_CONNECTED:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
-			break;
+
+			return SMF_EVENT_HANDLED;
 		case NETWORK_DISCONNECTED:
-			smf_set_handled(SMF_CTX(state_object));
-			break;
+			return SMF_EVENT_HANDLED;
 		default:
 			break;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_disconnected_searching_entry(void *obj)
@@ -430,7 +438,7 @@ static void state_disconnected_searching_entry(void *obj)
 	}
 }
 
-static void state_disconnected_searching_run(void *obj)
+static enum smf_state_result state_disconnected_searching_run(void *obj)
 {
 	struct network_state_object const *state_object = obj;
 
@@ -439,19 +447,20 @@ static void state_disconnected_searching_run(void *obj)
 
 		switch (msg.type) {
 		case NETWORK_CONNECT:
-			smf_set_handled(SMF_CTX(state_object));
-			break;
+			return SMF_EVENT_HANDLED;
 		case NETWORK_SEARCH_STOP: __fallthrough;
 		case NETWORK_DISCONNECT:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_IDLE]);
-			break;
+			return SMF_EVENT_HANDLED;
 		default:
 			break;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
-static void state_disconnected_idle_run(void *obj)
+static enum smf_state_result state_disconnected_idle_run(void *obj)
 {
 	int err;
 	struct network_state_object const *state_object = obj;
@@ -461,11 +470,11 @@ static void state_disconnected_idle_run(void *obj)
 
 		switch (msg.type) {
 		case NETWORK_DISCONNECT:
-			smf_set_handled(SMF_CTX(state_object));
-			break;
+			return SMF_EVENT_HANDLED;
 		case NETWORK_CONNECT:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_SEARCHING]);
-			break;
+
+			return SMF_EVENT_HANDLED;
 		case NETWORK_SYSTEM_MODE_SET_LTEM:
 			err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM_GPS,
 						     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
@@ -473,7 +482,8 @@ static void state_disconnected_idle_run(void *obj)
 				LOG_ERR("lte_lc_system_mode_set, error: %d", err);
 				SEND_FATAL_ERROR();
 			}
-			break;
+
+			return SMF_EVENT_HANDLED;
 		case NETWORK_SYSTEM_MODE_SET_NBIOT:
 			err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NBIOT_GPS,
 						     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
@@ -481,7 +491,8 @@ static void state_disconnected_idle_run(void *obj)
 				LOG_ERR("lte_lc_system_mode_set, error: %d", err);
 				SEND_FATAL_ERROR();
 			}
-			break;
+
+			return SMF_EVENT_HANDLED;
 		case NETWORK_SYSTEM_MODE_SET_LTEM_NBIOT:
 			err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM_NBIOT_GPS,
 						     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
@@ -489,11 +500,14 @@ static void state_disconnected_idle_run(void *obj)
 				LOG_ERR("lte_lc_system_mode_set, error: %d", err);
 				SEND_FATAL_ERROR();
 			}
-			break;
+
+			return SMF_EVENT_HANDLED;
 		default:
 			break;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_connected_entry(void *obj)
@@ -503,7 +517,7 @@ static void state_connected_entry(void *obj)
 	LOG_DBG("state_connected_entry");
 }
 
-static void state_connected_run(void *obj)
+static enum smf_state_result state_connected_run(void *obj)
 {
 	struct network_state_object const *state_object = obj;
 
@@ -514,14 +528,18 @@ static void state_connected_run(void *obj)
 		case NETWORK_QUALITY_SAMPLE_REQUEST:
 			LOG_DBG("Sampling network quality data");
 			sample_network_quality();
-			break;
+
+			return SMF_EVENT_HANDLED;
 		case NETWORK_DISCONNECT:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTING]);
-			break;
+
+			return SMF_EVENT_HANDLED;
 		default:
 			break;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_disconnecting_entry(void *obj)
@@ -540,7 +558,7 @@ static void state_disconnecting_entry(void *obj)
 	}
 }
 
-static void state_disconnecting_run(void *obj)
+static enum smf_state_result state_disconnecting_run(void *obj)
 {
 	struct network_state_object const *state_object = obj;
 
@@ -549,8 +567,12 @@ static void state_disconnecting_run(void *obj)
 
 		if (msg.type == NETWORK_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_IDLE]);
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void network_wdt_callback(int channel_id, void *user_data)

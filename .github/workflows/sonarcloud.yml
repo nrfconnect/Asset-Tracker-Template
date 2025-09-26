@@ -54,14 +54,14 @@ jobs:
             if [ -d $MATTER_IDL_PATH ]; then
               pip install -e $MATTER_IDL_PATH
             fi
-            pip install -r nrf/scripts/requirements-build.txt
+            pip install -r nrf/scripts/requirements-fixed.txt
             apt-get update
             apt install -y curl ruby-full
 
       - name: Run tests with ASAN, no Sonarcloud and build_wrapper
         working-directory: asset-tracker-template
         run: |
-          west twister -T tests/ -C --coverage-platform=native_sim -v --inline-logs --integration --enable-asan --enable-lsan --enable-ubsan
+          west twister -T tests/ --enable-coverage --coverage-platform=native_sim -v --inline-logs --integration --enable-asan --enable-lsan --enable-ubsan
 
       - name: Install sonar-scanner and build-wrapper
         uses: SonarSource/sonarcloud-github-c-cpp@v3
@@ -69,7 +69,7 @@ jobs:
       - name: Build and test
         working-directory: asset-tracker-template
         run: |
-          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} west twister -T tests/ -C --coverage-platform=native_sim -v --inline-logs --integration
+          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} west twister -T tests/ --enable-coverage --coverage-platform=native_sim -v --inline-logs --integration
 
       - name: Extract coverage into sonarqube xml format
         working-directory: asset-tracker-template

@@ -114,61 +114,61 @@ static K_WORK_DELAYABLE_DEFINE(timer_sample_data_work, timer_sample_data_work_fn
 
 /* Forward declarations of state handlers */
 static void running_entry(void *o);
-static void running_run(void *o);
+static enum smf_state_result running_run(void *o);
 
 /* Storage mode handlers */
 static void buffer_mode_entry(void *o);
-static void buffer_mode_run(void *o);
+static enum smf_state_result buffer_mode_run(void *o);
 static void buffer_mode_exit(void *o);
 static void passthrough_mode_entry(void *o);
-static void passthrough_mode_run(void *o);
+static enum smf_state_result passthrough_mode_run(void *o);
 static void passthrough_mode_exit(void *o);
 
 /* Buffer mode connectivity handlers */
 static void buffer_disconnected_entry(void *o);
-static void buffer_disconnected_run(void *o);
+static enum smf_state_result buffer_disconnected_run(void *o);
 static void buffer_connected_entry(void *o);
-static void buffer_connected_run(void *o);
+static enum smf_state_result buffer_connected_run(void *o);
 
 /* Buffer disconnected operation handlers */
 static void buffer_disconnected_sampling_entry(void *o);
-static void buffer_disconnected_sampling_run(void *o);
+static enum smf_state_result buffer_disconnected_sampling_run(void *o);
 static void buffer_disconnected_waiting_entry(void *o);
-static void buffer_disconnected_waiting_run(void *o);
+static enum smf_state_result buffer_disconnected_waiting_run(void *o);
 static void buffer_disconnected_waiting_exit(void *o);
 
 /* Buffer connected operation handlers */
 static void buffer_connected_sampling_entry(void *o);
-static void buffer_connected_sampling_run(void *o);
+static enum smf_state_result buffer_connected_sampling_run(void *o);
 static void buffer_connected_waiting_entry(void *o);
-static void buffer_connected_waiting_run(void *o);
+static enum smf_state_result buffer_connected_waiting_run(void *o);
 static void buffer_connected_waiting_exit(void *o);
 
 /* Passthrough mode connectivity handlers */
 static void passthrough_disconnected_entry(void *o);
-static void passthrough_disconnected_run(void *o);
+static enum smf_state_result passthrough_disconnected_run(void *o);
 
 /* Passthrough operation handlers */
 static void passthrough_connected_sampling_entry(void *o);
-static void passthrough_connected_sampling_run(void *o);
+static enum smf_state_result passthrough_connected_sampling_run(void *o);
 static void passthrough_connected_waiting_entry(void *o);
-static void passthrough_connected_waiting_run(void *o);
+static enum smf_state_result passthrough_connected_waiting_run(void *o);
 static void passthrough_connected_waiting_exit(void *o);
 
 static void fota_entry(void *o);
-static void fota_run(void *o);
+static enum smf_state_result fota_run(void *o);
 
 static void fota_downloading_entry(void *o);
-static void fota_downloading_run(void *o);
+static enum smf_state_result fota_downloading_run(void *o);
 
 static void fota_waiting_for_network_disconnect_entry(void *o);
-static void fota_waiting_for_network_disconnect_run(void *o);
+static enum smf_state_result fota_waiting_for_network_disconnect_run(void *o);
 
 static void fota_waiting_for_network_disconnect_to_apply_image_entry(void *o);
-static void fota_waiting_for_network_disconnect_to_apply_image_run(void *o);
+static enum smf_state_result fota_waiting_for_network_disconnect_to_apply_image_run(void *o);
 
 static void fota_applying_image_entry(void *o);
-static void fota_applying_image_run(void *o);
+static enum smf_state_result fota_applying_image_run(void *o);
 
 static void fota_rebooting_entry(void *o);
 
@@ -757,7 +757,7 @@ static void running_entry(void *o)
 	LOG_DBG("%s", __func__);
 }
 
-static void running_run(void *o)
+static enum smf_state_result running_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -766,7 +766,7 @@ static void running_run(void *o)
 	    MSG_TO_FOTA_TYPE(state_object->msg_buf) == FOTA_DOWNLOADING_UPDATE) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA]);
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
 
 	/* Handle storage mode change requests */
@@ -778,16 +778,18 @@ static void running_run(void *o)
 			/* Storage module confirmed passthrough mode */
 			smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH_MODE]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		case STORAGE_MODE_BUFFER:
 			/* Storage module confirmed buffer mode */
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_MODE]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		default:
 			break;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* STATE_BUFFER_MODE */
@@ -804,7 +806,7 @@ static void buffer_mode_entry(void *o)
 	timer_send_data_start(state_object->data_send_interval_sec);
 }
 
-static void buffer_mode_run(void *o)
+static enum smf_state_result buffer_mode_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -815,7 +817,7 @@ static void buffer_mode_run(void *o)
 		if (msg->type == STORAGE_MODE_PASSTHROUGH) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH_MODE]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
 
@@ -825,9 +827,11 @@ static void buffer_mode_run(void *o)
 
 		if (msg.type == BUTTON_PRESS_LONG) {
 			/* Let buffer_connected_* handle long press when connected */
-			smf_set_handled(SMF_CTX(state_object));
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void buffer_mode_exit(void *o)
@@ -869,7 +873,7 @@ static void buffer_disconnected_entry(void *o)
 #endif /* CONFIG_APP_LED */
 }
 
-static void buffer_disconnected_run(void *o)
+static enum smf_state_result buffer_disconnected_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -880,7 +884,7 @@ static void buffer_disconnected_run(void *o)
 		if (msg->type == CLOUD_CONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_CONNECTED]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
 
@@ -888,10 +892,11 @@ static void buffer_disconnected_run(void *o)
 	if (state_object->chan == &TIMER_CHAN &&
 	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_CLOUD) {
 		timer_send_data_start(state_object->data_send_interval_sec);
-		smf_set_handled(SMF_CTX(state_object));
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* STATE_BUFFER_CONNECTED */
@@ -905,7 +910,7 @@ static void buffer_connected_entry(void *o)
 	state_object->running_history = STATE_BUFFER_CONNECTED;
 }
 
-static void buffer_connected_run(void *o)
+static enum smf_state_result buffer_connected_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -917,7 +922,7 @@ static void buffer_connected_run(void *o)
 		case CLOUD_DISCONNECTED:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_DISCONNECTED]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		case CLOUD_SHADOW_RESPONSE_DESIRED:
 			__fallthrough;
 		case CLOUD_SHADOW_RESPONSE_DELTA:
@@ -933,9 +938,8 @@ static void buffer_connected_run(void *o)
 	if (state_object->chan == &TIMER_CHAN &&
 	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_CLOUD) {
 		cloud_send_now(state_object);
-		smf_set_handled(SMF_CTX(state_object));
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
 
 	/* Handle long button press to send immediately */
@@ -944,11 +948,12 @@ static void buffer_connected_run(void *o)
 
 		if (button_msg.type == BUTTON_PRESS_LONG) {
 			cloud_send_now(state_object);
-			smf_set_handled(SMF_CTX(state_object));
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* STATE_BUFFER_DISCONNECTED_SAMPLING */
@@ -961,7 +966,7 @@ static void buffer_disconnected_sampling_entry(void *o)
 	sampling_begin_common(state_object);
 }
 
-static void buffer_disconnected_sampling_run(void *o)
+static enum smf_state_result buffer_disconnected_sampling_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -972,19 +977,19 @@ static void buffer_disconnected_sampling_run(void *o)
 		sensor_triggers_send();
 		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_DISCONNECTED_WAITING]);
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
 
 	/* Ignore other triggers while sampling */
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
-		smf_set_handled(SMF_CTX(state_object));
-
-		return;
+		return SMF_EVENT_HANDLED;
 	}
 
 	/* Handle cloud timer - queue data sending for when connected */
 	/* TIMER_EXPIRED_CLOUD handled in parent buffer_disconnected_run */
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* STATE_BUFFER_DISCONNECTED_WAITING */
@@ -997,7 +1002,7 @@ static void buffer_disconnected_waiting_entry(void *o)
 	waiting_entry_common(state_object);
 }
 
-static void buffer_disconnected_waiting_run(void *o)
+static enum smf_state_result buffer_disconnected_waiting_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -1005,24 +1010,25 @@ static void buffer_disconnected_waiting_run(void *o)
 	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_SAMPLE_DATA) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_DISCONNECTED_SAMPLING]);
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
 
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_DISCONNECTED_SAMPLING]);
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
 
 	/* Handle long button press - queue operations for when connected */
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_LONG) {
 		LOG_DBG("Long button press while disconnected, operations will be queued");
-		smf_set_handled(SMF_CTX(state_object));
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void buffer_disconnected_waiting_exit(void *o)
@@ -1043,7 +1049,7 @@ static void buffer_connected_sampling_entry(void *o)
 	sampling_begin_common(state_object);
 }
 
-static void buffer_connected_sampling_run(void *o)
+static enum smf_state_result buffer_connected_sampling_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -1054,15 +1060,13 @@ static void buffer_connected_sampling_run(void *o)
 		sensor_triggers_send();
 		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_CONNECTED_WAITING]);
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
 
 	/* Ignore other triggers while sampling */
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
-		smf_set_handled(SMF_CTX(state_object));
-
-		return;
+		return SMF_EVENT_HANDLED;
 	}
 
 	/* Handle cloud timer */
@@ -1071,10 +1075,11 @@ static void buffer_connected_sampling_run(void *o)
 		timer_send_data_start(state_object->data_send_interval_sec);
 		storage_send_data(state_object);
 		poll_triggers_send();
-		smf_set_handled(SMF_CTX(state_object));
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* STATE_BUFFER_CONNECTED_WAITING */
@@ -1087,7 +1092,7 @@ static void buffer_connected_waiting_entry(void *o)
 	waiting_entry_common(state_object);
 }
 
-static void buffer_connected_waiting_run(void *o)
+static enum smf_state_result buffer_connected_waiting_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -1098,16 +1103,15 @@ static void buffer_connected_waiting_run(void *o)
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_BUFFER_CONNECTED_SAMPLING]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 
 		if (timer_type == TIMER_EXPIRED_CLOUD) {
 			storage_send_data(state_object);
 			poll_triggers_send();
 			timer_send_data_start(state_object->data_send_interval_sec);
-			smf_set_handled(SMF_CTX(state_object));
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
 
@@ -1118,17 +1122,18 @@ static void buffer_connected_waiting_run(void *o)
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_BUFFER_CONNECTED_SAMPLING]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 
 		if (button_msg.type == BUTTON_PRESS_LONG) {
 			storage_send_data(state_object);
 			poll_triggers_send();
-			smf_set_handled(SMF_CTX(state_object));
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void buffer_connected_waiting_exit(void *o)
@@ -1155,7 +1160,7 @@ static void passthrough_mode_entry(void *o)
 	timer_send_data_stop();
 }
 
-static void passthrough_mode_run(void *o)
+static enum smf_state_result passthrough_mode_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -1166,7 +1171,7 @@ static void passthrough_mode_run(void *o)
 		if (msg->type == STORAGE_MODE_BUFFER) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_MODE]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
 
@@ -1178,21 +1183,25 @@ static void passthrough_mode_run(void *o)
 		case CLOUD_DISCONNECTED:
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_PASSTHROUGH_DISCONNECTED]);
-			return;
+
+			return SMF_EVENT_HANDLED;
 		case CLOUD_CONNECTED:
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]);
-			return;
+
+			return SMF_EVENT_HANDLED;
 		case CLOUD_SHADOW_RESPONSE_DESIRED:
 			__fallthrough;
 		case CLOUD_SHADOW_RESPONSE_DELTA:
 			handle_cloud_shadow_response(state_object, msg);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		default:
 			break;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void passthrough_mode_exit(void *o)
@@ -1236,7 +1245,7 @@ static void passthrough_disconnected_entry(void *o)
 #endif /* CONFIG_APP_LED */
 }
 
-static void passthrough_disconnected_run(void *o)
+static enum smf_state_result passthrough_disconnected_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -1247,9 +1256,12 @@ static void passthrough_disconnected_run(void *o)
 		if (msg->type == CLOUD_CONNECTED) {
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]);
-			return;
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* STATE_PASSTHROUGH_CONNECTED_SAMPLING */
@@ -1297,7 +1309,7 @@ static void passthrough_connected_sampling_entry(void *o)
 	}
 }
 
-static void passthrough_connected_sampling_run(void *o)
+static enum smf_state_result passthrough_connected_sampling_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -1309,16 +1321,16 @@ static void passthrough_connected_sampling_run(void *o)
 		poll_triggers_send();
 		smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH_CONNECTED_WAITING]);
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
 
 	/* Ignore other triggers while sampling */
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
-		smf_set_handled(SMF_CTX(state_object));
-
-		return;
+		return SMF_EVENT_HANDLED;
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* STATE_PASSTHROUGH_CONNECTED_WAITING */
@@ -1362,7 +1374,7 @@ static void passthrough_connected_waiting_entry(void *o)
 #endif /* CONFIG_APP_LED */
 }
 
-static void passthrough_connected_waiting_run(void *o)
+static enum smf_state_result passthrough_connected_waiting_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -1370,14 +1382,14 @@ static void passthrough_connected_waiting_run(void *o)
 	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_SAMPLE_DATA) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]);
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
 
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]);
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
 
 	/* Handle long button press - immediate send */
@@ -1385,10 +1397,11 @@ static void passthrough_connected_waiting_run(void *o)
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_LONG) {
 		LOG_DBG("Passthrough mode: long button press, immediate poll and send");
 		poll_triggers_send();
-		smf_set_handled(SMF_CTX(state_object));
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void passthrough_connected_waiting_exit(void *o)
@@ -1412,7 +1425,7 @@ static void fota_entry(void *o)
 	timer_send_data_stop();
 }
 
-static void fota_run(void *o)
+static enum smf_state_result fota_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 	const enum state resume_state = state_object->running_history;
@@ -1428,7 +1441,7 @@ static void fota_run(void *o)
 		case FOTA_DOWNLOAD_FAILED:
 			smf_set_state(SMF_CTX(state_object), &states[resume_state]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		default:
 			/* Don't care */
 			break;
@@ -1474,6 +1487,8 @@ static void fota_run(void *o)
 			}
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* STATE_FOTA_DOWNLOADING */
@@ -1507,7 +1522,7 @@ static void fota_downloading_entry(void *o)
 #endif /* CONFIG_APP_LED */
 }
 
-static void fota_downloading_run(void *o)
+static enum smf_state_result fota_downloading_run(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
@@ -1518,16 +1533,20 @@ static void fota_downloading_run(void *o)
 		case FOTA_SUCCESS_REBOOT_NEEDED:
 			smf_set_state(SMF_CTX(state_object),
 					      &states[STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT]);
-			return;
+
+			return SMF_EVENT_HANDLED;
 		case FOTA_IMAGE_APPLY_NEEDED:
 			smf_set_state(SMF_CTX(state_object),
 				&states[STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE]);
-			return;
+
+			return SMF_EVENT_HANDLED;
 		default:
 			/* Don't care */
 			break;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT */
@@ -1550,7 +1569,7 @@ static void fota_waiting_for_network_disconnect_entry(void *o)
 	}
 }
 
-static void fota_waiting_for_network_disconnect_run(void *o)
+static enum smf_state_result fota_waiting_for_network_disconnect_run(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
@@ -1560,9 +1579,11 @@ static void fota_waiting_for_network_disconnect_run(void *o)
 		if (msg.type == NETWORK_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE */
@@ -1589,7 +1610,7 @@ static void fota_waiting_for_network_disconnect_to_apply_image_entry(void *o)
 	timer_send_data_stop();
 }
 
-static void fota_waiting_for_network_disconnect_to_apply_image_run(void *o)
+static enum smf_state_result fota_waiting_for_network_disconnect_to_apply_image_run(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
@@ -1598,8 +1619,12 @@ static void fota_waiting_for_network_disconnect_to_apply_image_run(void *o)
 
 		if (msg.type == NETWORK_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_APPLYING_IMAGE]);
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* STATE_FOTA_APPLYING_IMAGE, */
@@ -1620,7 +1645,7 @@ static void fota_applying_image_entry(void *o)
 	}
 }
 
-static void fota_applying_image_run(void *o)
+static enum smf_state_result fota_applying_image_run(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
@@ -1630,9 +1655,11 @@ static void fota_applying_image_run(void *o)
 		if (msg == FOTA_SUCCESS_REBOOT_NEEDED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* STATE_FOTA_REBOOTING */
