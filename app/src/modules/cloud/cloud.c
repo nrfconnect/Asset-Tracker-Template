@@ -176,23 +176,23 @@ struct cloud_state_object {
 /* Forward declarations of state handlers */
 static void state_running_entry(void *obj);
 static void state_disconnected_entry(void *obj);
-static void state_disconnected_run(void *obj);
+static enum smf_state_result state_disconnected_run(void *obj);
 static void state_connecting_entry(void *obj);
-static void state_connecting_run(void *obj);
+static enum smf_state_result state_connecting_run(void *obj);
 static void state_connecting_attempt_entry(void *obj);
 static void state_connecting_provisioned_entry(void *obj);
-static void state_connecting_provisioned_run(void *obj);
+static enum smf_state_result state_connecting_provisioned_run(void *obj);
 static void state_connecting_provisioning_entry(void *obj);
-static void state_connecting_provisioning_run(void *obj);
+static enum smf_state_result state_connecting_provisioning_run(void *obj);
 static void state_connecting_backoff_entry(void *obj);
-static void state_connecting_backoff_run(void *obj);
+static enum smf_state_result state_connecting_backoff_run(void *obj);
 static void state_connecting_backoff_exit(void *obj);
 static void state_connected_entry(void *obj);
 static void state_connected_exit(void *obj);
 static void state_connected_ready_entry(void *obj);
-static void state_connected_ready_run(void *obj);
+static enum smf_state_result state_connected_ready_run(void *obj);
 static void state_connected_paused_entry(void *obj);
-static void state_connected_paused_run(void *obj);
+static enum smf_state_result state_connected_paused_run(void *obj);
 
 /* Forward declarations of location handler */
 #if defined(CONFIG_APP_LOCATION)
@@ -753,7 +753,7 @@ static void state_disconnected_entry(void *obj)
 	}
 }
 
-static void state_disconnected_run(void *obj)
+static enum smf_state_result state_disconnected_run(void *obj)
 {
 	struct cloud_state_object const *state_object = obj;
 	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
@@ -761,8 +761,10 @@ static void state_disconnected_run(void *obj)
 	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_connecting_entry(void *obj)
@@ -776,7 +778,7 @@ static void state_connecting_entry(void *obj)
 	state_object->provisioning_ongoing = false;
 }
 
-static void state_connecting_run(void *obj)
+static enum smf_state_result state_connecting_run(void *obj)
 {
 	struct cloud_state_object *state_object = obj;
 
@@ -786,9 +788,11 @@ static void state_connecting_run(void *obj)
 		if (msg.type == NETWORK_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_connecting_attempt_entry(void *obj)
@@ -811,7 +815,7 @@ static void state_connecting_provisioned_entry(void *obj)
 	connect_to_cloud(state_object);
 }
 
-static void state_connecting_provisioned_run(void *obj)
+static enum smf_state_result state_connecting_provisioned_run(void *obj)
 {
 	struct cloud_state_object *state_object = obj;
 
@@ -821,17 +825,19 @@ static void state_connecting_provisioned_run(void *obj)
 		if (msg == CLOUD_NOT_AUTHENTICATED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONING]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		} else if (msg == CLOUD_CONNECTION_SUCCESS) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		} else if (msg == CLOUD_CONNECTION_FAILED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_connecting_provisioning_entry(void *obj)
@@ -866,7 +872,7 @@ static void state_connecting_provisioning_entry(void *obj)
 	}
 }
 
-static void state_connecting_provisioning_run(void *obj)
+static enum smf_state_result state_connecting_provisioning_run(void *obj)
 {
 	struct cloud_state_object *state_object = obj;
 
@@ -876,15 +882,15 @@ static void state_connecting_provisioning_run(void *obj)
 		if (msg == CLOUD_PROVISIONING_FINISHED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONED]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		} else if (msg == CLOUD_PROVISIONING_FAILED && state_object->network_connected) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		} else if (msg == CLOUD_PROVISIONING_FAILED && !state_object->network_connected) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
 
@@ -896,11 +902,11 @@ static void state_connecting_provisioning_run(void *obj)
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		if (msg.type == NETWORK_DISCONNECTED || msg.type == NETWORK_CONNECTED) {
-			smf_set_handled(SMF_CTX(state_object));
-
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_connecting_backoff_entry(void *obj)
@@ -922,7 +928,7 @@ static void state_connecting_backoff_entry(void *obj)
 	}
 }
 
-static void state_connecting_backoff_run(void *obj)
+static enum smf_state_result state_connecting_backoff_run(void *obj)
 {
 	struct cloud_state_object const *state_object = obj;
 
@@ -936,13 +942,15 @@ static void state_connecting_backoff_run(void *obj)
 		if ((msg == CLOUD_BACKOFF_EXPIRED) && !state_object->provisioning_ongoing) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONED]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		} else if ((msg == CLOUD_BACKOFF_EXPIRED) && state_object->provisioning_ongoing) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONING]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_connecting_backoff_exit(void *obj)
@@ -1400,13 +1408,13 @@ static void handle_cloud_channel_message(struct cloud_state_object const *state_
 	}
 }
 
-static void state_connected_ready_run(void *obj)
+static enum smf_state_result state_connected_ready_run(void *obj)
 {
 	struct cloud_state_object const *state_object = obj;
 
 	if (state_object->chan == &PRIV_CLOUD_CHAN) {
 		handle_priv_cloud_message(state_object);
-		return;
+		return SMF_EVENT_HANDLED;
 	}
 
 	if (state_object->chan == &NETWORK_CHAN) {
@@ -1415,15 +1423,15 @@ static void state_connected_ready_run(void *obj)
 		switch (msg.type) {
 		case NETWORK_DISCONNECTED:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_PAUSED]);
-			break;
+
+			return SMF_EVENT_HANDLED;
 		case NETWORK_CONNECTED:
-			smf_set_handled(SMF_CTX(state_object));
-			break;
+			return SMF_EVENT_HANDLED;
 		default:
 			break;
 		}
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
 
 	if (state_object->chan == &LOCATION_CHAN) {
@@ -1435,22 +1443,28 @@ static void state_connected_ready_run(void *obj)
 			handle_agnss_request(&msg->agnss_request);
 		}
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
 
 	if (state_object->chan == &STORAGE_CHAN) {
 		handle_storage_channel_message(state_object);
-		return;
+
+		return SMF_EVENT_HANDLED;
 	}
 
 	if (state_object->chan == &STORAGE_DATA_CHAN) {
 		handle_storage_data_message(state_object);
-		return;
+
+		return SMF_EVENT_HANDLED;
 	}
 
 	if (state_object->chan == &CLOUD_CHAN) {
 		handle_cloud_channel_message(state_object);
+
+		return SMF_EVENT_HANDLED;
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* Handlers for STATE_CONNECTED_PAUSED */
@@ -1475,7 +1489,7 @@ static void state_connected_paused_entry(void *obj)
 	}
 }
 
-static void state_connected_paused_run(void *obj)
+static enum smf_state_result state_connected_paused_run(void *obj)
 {
 	struct cloud_state_object const *state_object = obj;
 	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
@@ -1483,8 +1497,10 @@ static void state_connected_paused_run(void *obj)
 	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_READY]);
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void network_connection_status_retain(struct cloud_state_object *state_object)

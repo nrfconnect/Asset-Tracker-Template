@@ -74,7 +74,7 @@ struct environmental_state_object {
 };
 
 /* Forward declarations of state handlers */
-static void state_running_run(void *obj);
+static enum smf_state_result state_running_run(void *obj);
 
 /* State machine definition */
 static const struct smf_state states[] = {
@@ -153,7 +153,7 @@ static void env_wdt_callback(int channel_id, void *user_data)
 
 /* State handlers */
 
-static void state_running_run(void *obj)
+static enum smf_state_result state_running_run(void *obj)
 {
 	struct environmental_state_object const *state_object = obj;
 
@@ -163,8 +163,12 @@ static void state_running_run(void *obj)
 		if (msg.type == ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST) {
 			LOG_DBG("Environmental values sample request received, getting data");
 			sample_sensors(state_object->bme680);
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void env_module_thread(void)

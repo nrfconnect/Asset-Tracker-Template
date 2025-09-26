@@ -38,6 +38,7 @@ jobs:
       - name: Install zephyr requirements
         run: |
           pip install -r zephyr/scripts/requirements-compliance.txt
+          pip install -r zephyr/scripts/requirements-actions.txt
           # Junitparser v3 and 4 don't work with check_compliance.py
           pip install --upgrade junitparser==2.8.0
 

@@ -95,7 +95,7 @@ struct power_state_object {
 
 /* Forward declarations of state handlers */
 static void state_running_entry(void *obj);
-static void state_running_run(void *obj);
+static enum smf_state_result state_running_run(void *obj);
 
 /* State machine definition */
 static const struct smf_state states[] = {
@@ -156,7 +156,7 @@ static void state_running_entry(void *obj)
 	}
 }
 
-static void state_running_run(void *obj)
+static enum smf_state_result state_running_run(void *obj)
 {
 	struct power_state_object *state_object = obj;
 
@@ -166,8 +166,12 @@ static void state_running_run(void *obj)
 		if (msg.type == POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST) {
 			LOG_DBG("Battery percentage sample request received, getting battery data");
 			sample(&state_object->fuel_gauge_ref_time);
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static int uart_disable(void)
