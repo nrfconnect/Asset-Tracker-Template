@@ -70,7 +70,7 @@ struct location_state_object {
 
 /* Forward declarations of state handlers */
 static void state_running_entry(void *obj);
-static void state_running_run(void *obj);
+static enum smf_state_result state_running_run(void *obj);
 
 /* State machine definition */
 /* States are defined in the state object */
@@ -237,13 +237,17 @@ static void state_running_entry(void *obj)
 	LOG_DBG("Location library initialized");
 }
 
-static void state_running_run(void *obj)
+static enum smf_state_result state_running_run(void *obj)
 {
 	struct location_state_object const *state_object = obj;
 
 	if (state_object->chan == &LOCATION_CHAN) {
 		handle_location_chan(MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf));
+
+		return SMF_EVENT_HANDLED;
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void location_print_data_details(enum location_method method,
