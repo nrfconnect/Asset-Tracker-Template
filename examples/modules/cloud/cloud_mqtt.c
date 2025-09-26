@@ -124,23 +124,23 @@ static K_WORK_DELAYABLE_DEFINE(backoff_timer_work, backoff_timer_work_fn);
 
 /* Forward declarations of state handlers */
 static void state_running_entry(void *o);
-static void state_running_run(void *o);
+static enum smf_state_result state_running_run(void *o);
 
 static void state_disconnected_entry(void *o);
-static void state_disconnected_run(void *o);
+static enum smf_state_result state_disconnected_run(void *o);
 
 static void state_connecting_entry(void *o);
-static void state_connecting_run(void *o);
+static enum smf_state_result state_connecting_run(void *o);
 
 static void state_connecting_attempt_entry(void *o);
-static void state_connecting_attempt_run(void *o);
+static enum smf_state_result state_connecting_attempt_run(void *o);
 
 static void state_connecting_backoff_entry(void *o);
-static void state_connecting_backoff_run(void *o);
+static enum smf_state_result state_connecting_backoff_run(void *o);
 static void state_connecting_backoff_exit(void *o);
 
 static void state_connected_entry(void *o);
-static void state_connected_run(void *o);
+static enum smf_state_result state_connected_run(void *o);
 static void state_connected_exit(void *o);
 
 enum cloud_module_state {
@@ -459,7 +459,7 @@ static void state_running_entry(void *o)
 	}
 }
 
-static void state_running_run(void *o)
+static enum smf_state_result state_running_run(void *o)
 {
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
@@ -469,9 +469,11 @@ static void state_running_run(void *o)
 		if (msg.type == NETWORK_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* Handlers for STATE_DISCONNECTED */
@@ -496,7 +498,7 @@ static void state_disconnected_entry(void *o)
 	}
 }
 
-static void state_disconnected_run(void *o)
+static enum smf_state_result state_disconnected_run(void *o)
 {
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
@@ -504,8 +506,10 @@ static void state_disconnected_run(void *o)
 	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
 
-		return;
+		return SMF_EVENT_HANDLED;
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* Handlers for STATE_CONNECTING */
@@ -520,7 +524,7 @@ static void state_connecting_entry(void *o)
 	state_object->connection_attempts = 0;
 }
 
-static void state_connecting_run(void *o)
+static enum smf_state_result state_connecting_run(void *o)
 {
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
@@ -529,8 +533,12 @@ static void state_connecting_run(void *o)
 
 		if (msg->type == CLOUD_CONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* Handler for STATE_CONNECTING_ATTEMPT */
@@ -546,7 +554,7 @@ static void state_connecting_attempt_entry(void *o)
 	connect_to_cloud(state_object);
 }
 
-static void state_connecting_attempt_run(void *o)
+static enum smf_state_result state_connecting_attempt_run(void *o)
 {
 	struct cloud_state *state_object = o;
 
@@ -558,9 +566,11 @@ static void state_connecting_attempt_run(void *o)
 		if (msg == CLOUD_CONNECTION_ATTEMPTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* Handler for STATE_CONNECTING_BACKOFF */
@@ -581,7 +591,7 @@ static void state_connecting_backoff_entry(void *o)
 	}
 }
 
-static void state_connecting_backoff_run(void *o)
+static enum smf_state_result state_connecting_backoff_run(void *o)
 {
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
@@ -591,9 +601,11 @@ static void state_connecting_backoff_run(void *o)
 		if (msg == CLOUD_BACKOFF_EXPIRED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_ATTEMPT]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_connecting_backoff_exit(void *o)
@@ -637,7 +649,7 @@ static void state_connected_entry(void *o)
 	}
 }
 
-static void state_connected_run(void *o)
+static enum smf_state_result state_connected_run(void *o)
 {
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
@@ -646,12 +658,18 @@ static void state_connected_run(void *o)
 
 		if (msg->type == CLOUD_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
+
+			return SMF_EVENT_HANDLED;
 		}
 
 		if (msg->type == CLOUD_PAYLOAD_JSON) {
 			on_cloud_payload_json(msg, state_object);
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_connected_exit(void *o)

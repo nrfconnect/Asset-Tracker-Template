@@ -114,12 +114,15 @@ ZBUS_CHAN_DEFINE(STORAGE_DATA_CHAN,
 
 /* Forward declarations of state handlers */
 static void state_running_entry(void *o);
-static void state_running_run(void *o);
-static void state_passthrough_run(void *o);
-static void state_buffer_run(void *o);
-static void state_buffer_idle_run(void *o);
+static enum smf_state_result state_running_run(void *o);
+
+static enum smf_state_result state_passthrough_run(void *o);
+
+static enum smf_state_result state_buffer_run(void *o);
+static enum smf_state_result state_buffer_idle_run(void *o);
+
 static void state_buffer_pipe_active_entry(void *o);
-static void state_buffer_pipe_active_run(void *o);
+static enum smf_state_result state_buffer_pipe_active_run(void *o);
 static void state_buffer_pipe_active_exit(void *o);
 
 /* Storage pipe for streaming data to consumers */
@@ -740,7 +743,7 @@ static void state_running_entry(void *o)
 	}
 }
 
-static void state_running_run(void *o)
+static enum smf_state_result state_running_run(void *o)
 {
 	const struct storage_state *state_object = (const struct storage_state *)o;
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
@@ -767,9 +770,11 @@ static void state_running_run(void *o)
 			break;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
-static void state_passthrough_run(void *o)
+static enum smf_state_result state_passthrough_run(void *o)
 {
 	const struct storage_state *state_object = (const struct storage_state *)o;
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
@@ -779,7 +784,7 @@ static void state_passthrough_run(void *o)
 		if (state_object->chan == type->chan) {
 			passthrough_data_msg(type, state_object->msg_buf);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
 
@@ -788,15 +793,14 @@ static void state_passthrough_run(void *o)
 		case STORAGE_MODE_PASSTHROUGH_REQUEST:
 			LOG_DBG("Already in passthrough mode, sending confirmation");
 			send_mode_confirmed(STORAGE_MODE_PASSTHROUGH);
-			smf_set_handled(SMF_CTX(state_object));
 
-			break;
+			return SMF_EVENT_HANDLED;
 		case STORAGE_MODE_BUFFER_REQUEST:
 			LOG_DBG("Switching to buffer mode (with confirmation)");
 			send_mode_confirmed(STORAGE_MODE_BUFFER);
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
 
-			break;
+			return SMF_EVENT_HANDLED;
 		case STORAGE_BATCH_REQUEST:
 			send_batch_error_response(msg->session_id);
 
@@ -805,9 +809,11 @@ static void state_passthrough_run(void *o)
 			break;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
-static void state_buffer_run(void *o)
+static enum smf_state_result state_buffer_run(void *o)
 {
 	struct storage_state *state_object = (struct storage_state *)o;
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
@@ -817,14 +823,15 @@ static void state_buffer_run(void *o)
 		if (msg->type == STORAGE_MODE_BUFFER_REQUEST) {
 			LOG_DBG("Already in buffer mode, sending confirmation");
 			send_mode_confirmed(STORAGE_MODE_BUFFER);
-			smf_set_handled(SMF_CTX(state_object));
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
-static void state_buffer_idle_run(void *o)
+static enum smf_state_result state_buffer_idle_run(void *o)
 {
 	struct storage_state *state_object = (struct storage_state *)o;
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
@@ -836,7 +843,7 @@ static void state_buffer_idle_run(void *o)
 		if (state_object->chan == type->chan) {
 			handle_data_message(type, state_object->msg_buf);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		}
 	}
 
@@ -847,18 +854,20 @@ static void state_buffer_idle_run(void *o)
 			send_mode_confirmed(STORAGE_MODE_PASSTHROUGH);
 			smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		case STORAGE_BATCH_REQUEST:
 			LOG_DBG("Batch request received, switching to batch active state");
 			/* Set up session ID for the upcoming batch session */
 			state_object->current_session.session_id = msg->session_id;
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_PIPE_ACTIVE]);
 
-			return;
+			return SMF_EVENT_HANDLED;
 		default:
 			break;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_buffer_pipe_active_entry(void *o)
@@ -885,7 +894,7 @@ static void state_buffer_pipe_active_entry(void *o)
 	LOG_DBG("Batch session started, session_id: %u", state_object->current_session.session_id);
 }
 
-static void state_buffer_pipe_active_run(void *o)
+static enum smf_state_result state_buffer_pipe_active_run(void *o)
 {
 	struct storage_state *state_object = (struct storage_state *)o;
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
@@ -896,9 +905,8 @@ static void state_buffer_pipe_active_run(void *o)
 		switch (msg->type) {
 		case STORAGE_CLEAR:
 			LOG_WRN("Cannot clear storage while batch session is active");
-			smf_set_handled(SMF_CTX(state_object));
 
-			return;
+			return SMF_EVENT_HANDLED;
 
 		case STORAGE_BATCH_CLOSE:
 			if (state_object->current_session.session_id == msg->session_id) {
@@ -908,7 +916,7 @@ static void state_buffer_pipe_active_run(void *o)
 					msg->session_id, state_object->current_session.session_id);
 			}
 
-			return;
+			return SMF_EVENT_HANDLED;
 
 		case STORAGE_BATCH_REQUEST:
 			LOG_DBG("Batch request received, session_id: 0x%X", msg->session_id);
@@ -919,7 +927,7 @@ static void state_buffer_pipe_active_run(void *o)
 				LOG_DBG("Session ID mismatch: 0x%X (current: 0x%X)",
 					msg->session_id, state_object->current_session.session_id);
 
-				return;
+				return SMF_EVENT_HANDLED;
 			}
 
 			/* We allow multiple requests in the same session.
@@ -928,20 +936,21 @@ static void state_buffer_pipe_active_run(void *o)
 			start_batch_session(state_object, msg);
 			LOG_DBG("Session started: 0x%X", state_object->current_session.session_id);
 
-			break;
+			return SMF_EVENT_HANDLED;
 
 		case STORAGE_MODE_PASSTHROUGH_REQUEST:
 			LOG_WRN("Cannot change to passthrough mode while batch session is active");
 			send_mode_rejected(STORAGE_REJECT_BATCH_ACTIVE);
-			smf_set_handled(SMF_CTX(state_object));
 
-			break;
+			return SMF_EVENT_HANDLED;
 
 		default:
 			/* Don't care */
 			break;
 		}
 	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_buffer_pipe_active_exit(void *o)
