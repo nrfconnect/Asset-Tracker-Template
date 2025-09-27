@@ -516,6 +516,52 @@ void test_passthrough_button_interactions(void)
 	expect_no_events(1);
 }
 
+void test_passthrough_timer_cancellation_on_disconnect(void)
+{
+	/* App starts in passthrough mode, connect to start sampling cycle */
+	send_cloud_connected();
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Complete initial sampling to enter waiting state with active timer */
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	expect_fota_event(FOTA_POLL_REQUEST);
+
+	/* Now in waiting state with sampling timer active.
+	 * Disconnect from cloud - this should cancel the timer.
+	 */
+	send_cloud_disconnected();
+
+	/* Wait longer than the normal sampling interval to verify timer was cancelled.
+	 * If timer wasn't cancelled, we would see a LOCATION_SEARCH_TRIGGER.
+	 */
+	k_sleep(K_SECONDS(CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS + 10));
+	expect_no_events(1);
+
+	/* Reconnect should trigger immediate sampling (not timer-based) */
+	send_cloud_connected();
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Complete sampling and verify normal operation resumes */
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	expect_fota_event(FOTA_POLL_REQUEST);
+
+	/* Test disconnect again during waiting state to ensure consistent behavior */
+	send_cloud_disconnected();
+
+	/* Again, verify no timer-based events occur after disconnect */
+	k_sleep(K_SECONDS(CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS + 5));
+	expect_no_events(1);
+
+	/* Final cleanup */
+	expect_no_events(1);
+}
+
 /* Storage Mode Switching Tests */
 void test_storage_mode_request_handling(void)
 {

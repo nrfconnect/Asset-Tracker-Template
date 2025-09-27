@@ -1213,6 +1213,9 @@ static void passthrough_disconnected_entry(void *o)
 
 	state_object->running_history = STATE_PASSTHROUGH_DISCONNECTED;
 
+	/* Stop any running sampling timers when disconnecting in passthrough mode */
+	timer_sample_stop();
+
 #if defined(CONFIG_APP_LED)
 	int err;
 	struct led_msg led_msg = {
