@@ -906,6 +906,113 @@ void test_cellular_location_no_gnss_data_sent(void)
 	TEST_ASSERT_EQUAL(0, date_time_set_fake.call_count);
 }
 
+/* Test location search cancellation when location search is inactive */
+void test_location_cancel_when_inactive(void)
+{
+	struct location_msg msg = {
+		.type = LOCATION_SEARCH_CANCEL
+	};
+
+	/* Publish cancel message while in inactive state */
+	zbus_chan_pub(&LOCATION_CHAN, &msg, K_NO_WAIT);
+
+	/* Give the module time to process */
+	k_sleep(K_MSEC(100));
+
+	/* Verify that location_request_cancel was NOT called since we're inactive */
+	TEST_ASSERT_EQUAL(0, location_request_cancel_fake.call_count);
+
+	/* Verify that location_request was NOT called */
+	TEST_ASSERT_EQUAL(0, location_request_fake.call_count);
+}
+
+/* Test location search cancellation when location search is active */
+void test_location_cancel_when_active(void)
+{
+	struct location_msg trigger_msg = {
+		.type = LOCATION_SEARCH_TRIGGER
+	};
+	struct location_msg cancel_msg = {
+		.type = LOCATION_SEARCH_CANCEL
+	};
+
+	/* Start location search */
+	zbus_chan_pub(&LOCATION_CHAN, &trigger_msg, K_NO_WAIT);
+	k_sleep(K_MSEC(100));
+
+	/* Verify location search started */
+	TEST_ASSERT_EQUAL(1, location_request_fake.call_count);
+
+	/* Cancel location search */
+	zbus_chan_pub(&LOCATION_CHAN, &cancel_msg, K_NO_WAIT);
+	k_sleep(K_MSEC(100));
+
+	/* Verify location_request_cancel was called */
+	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
+
+	/* Verify location search done status was sent */
+	verify_location_status(LOCATION_SEARCH_DONE);
+}
+
+/* Test multiple cancel requests during active search */
+void test_location_multiple_cancel_requests(void)
+{
+	struct location_msg trigger_msg = {
+		.type = LOCATION_SEARCH_TRIGGER
+	};
+	struct location_msg cancel_msg = {
+		.type = LOCATION_SEARCH_CANCEL
+	};
+
+	/* Start location search */
+	zbus_chan_pub(&LOCATION_CHAN, &trigger_msg, K_NO_WAIT);
+	k_sleep(K_MSEC(100));
+
+	/* Send first cancel */
+	zbus_chan_pub(&LOCATION_CHAN, &cancel_msg, K_NO_WAIT);
+	k_sleep(K_MSEC(100));
+
+	/* Verify first cancel was processed */
+	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
+	verify_location_status(LOCATION_SEARCH_DONE);
+
+	/* Send second cancel (should be ignored as we're now inactive) */
+	zbus_chan_pub(&LOCATION_CHAN, &cancel_msg, K_NO_WAIT);
+	k_sleep(K_MSEC(100));
+
+	/* Verify no additional cancel calls were made */
+	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
+}
+
+/* Test cancellation followed by new search trigger */
+void test_location_cancel_then_new_search(void)
+{
+	struct location_msg trigger_msg = {
+		.type = LOCATION_SEARCH_TRIGGER
+	};
+	struct location_msg cancel_msg = {
+		.type = LOCATION_SEARCH_CANCEL
+	};
+
+	/* Start first location search */
+	zbus_chan_pub(&LOCATION_CHAN, &trigger_msg, K_NO_WAIT);
+	k_sleep(K_MSEC(100));
+	TEST_ASSERT_EQUAL(1, location_request_fake.call_count);
+
+	/* Cancel location search */
+	zbus_chan_pub(&LOCATION_CHAN, &cancel_msg, K_NO_WAIT);
+	k_sleep(K_MSEC(100));
+	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
+	verify_location_status(LOCATION_SEARCH_DONE);
+
+	/* Start new location search after cancellation */
+	zbus_chan_pub(&LOCATION_CHAN, &trigger_msg, K_NO_WAIT);
+	k_sleep(K_MSEC(100));
+
+	/* Verify second location request was made */
+	TEST_ASSERT_EQUAL(2, location_request_fake.call_count);
+}
+
 /* This is required to be added to each test. That is because unity's
  * main may return nonzero, while zephyr's main currently must
  * return 0 in all cases (other values are reserved).

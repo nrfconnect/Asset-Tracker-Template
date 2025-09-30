@@ -232,6 +232,13 @@ static void send_button_press(enum button_msg_type button_type)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
+void test_init_state_passthrough_mode(void)
+{
+	/* Initial state passthrough_disconnected publishes location cancel event */
+	expect_location_event(LOCATION_SEARCH_CANCEL);
+	expect_no_events(7200);
+}
+
 void test_init_to_sample_data_state(void)
 {
 	/* Give the app_main thread time to start and initialize */
@@ -257,6 +264,7 @@ void test_init_to_sample_data_state(void)
 
 	/* Cleanup */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 	expect_no_events(1);
 }
 
@@ -279,6 +287,7 @@ void test_button_press_on_connected(void)
 
 	/* Cleanup */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 	purge_all_events();
 
 	expect_no_events(7200);
@@ -288,6 +297,7 @@ void test_button_press_on_disconnected(void)
 {
 	/* Given */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 
 	/* When */
 	button_handler(DK_BTN1_MSK, DK_BTN1_MSK);
@@ -368,6 +378,7 @@ void test_fota_waiting_for_network_disconnect(void)
 	/* Cleanup */
 	send_fota_msg(FOTA_DOWNLOAD_CANCELED);
 	expect_fota_event(FOTA_DOWNLOAD_CANCELED);
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 
 	expect_no_events(7200);
 }
@@ -404,6 +415,7 @@ void test_fota_waiting_for_network_disconnect_to_apply_image(void)
 	/* Cleanup */
 	send_fota_msg(FOTA_DOWNLOAD_CANCELED);
 	expect_fota_event(FOTA_DOWNLOAD_CANCELED);
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 
 	expect_no_events(1);
 }
@@ -432,6 +444,7 @@ void test_passthrough_mode_initialization(void)
 
 	/* Cleanup */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 	expect_no_events(1);
 }
 
@@ -457,6 +470,7 @@ void test_passthrough_sampling_and_immediate_send(void)
 
 	/* Cleanup */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 	expect_no_events(1);
 }
 
@@ -464,6 +478,7 @@ void test_passthrough_disconnected_behavior(void)
 {
 	/* App starts in passthrough mode, ensure we're disconnected */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 
 	/* In passthrough disconnected mode, no sampling should occur */
 	k_sleep(K_SECONDS(5));
@@ -480,6 +495,7 @@ void test_passthrough_disconnected_behavior(void)
 
 	/* Cleanup */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 	expect_no_events(1);
 }
 
@@ -513,6 +529,7 @@ void test_passthrough_button_interactions(void)
 
 	/* Cleanup */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 	expect_no_events(1);
 }
 
@@ -533,6 +550,7 @@ void test_passthrough_timer_cancellation_on_disconnect(void)
 	 * Disconnect from cloud - this should cancel the timer.
 	 */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 
 	/* Wait longer than the normal sampling interval to verify timer was cancelled.
 	 * If timer wasn't cancelled, we would see a LOCATION_SEARCH_TRIGGER.
@@ -553,6 +571,7 @@ void test_passthrough_timer_cancellation_on_disconnect(void)
 
 	/* Test disconnect again during waiting state to ensure consistent behavior */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 
 	/* Again, verify no timer-based events occur after disconnect */
 	k_sleep(K_SECONDS(CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS + 5));
@@ -606,8 +625,12 @@ void test_storage_mode_request_handling(void)
 
 	expect_storage_event(STORAGE_MODE_PASSTHROUGH);
 
+	/* When switching to passthrough mode while connected, sampling begins immediately */
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
 	/* Cleanup */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 	expect_no_events(1);
 }
 
@@ -694,18 +717,6 @@ void test_timer_cancellation_during_fota(void)
 
 void test_multiple_cloud_data_send_intervals(void)
 {
-	int err;
-	struct storage_msg storage_msg = {
-		.type = STORAGE_MODE_BUFFER,
-	};
-
-	/* Switch to buffer mode to enable cloud data sending timer */
-	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	expect_storage_event(STORAGE_MODE_BUFFER);
-	expect_location_event(LOCATION_SEARCH_TRIGGER);
-
 	/* Connect and complete initial sampling */
 	send_cloud_connected();
 	expect_cloud_event(CLOUD_CONNECTED);
@@ -743,21 +754,9 @@ void test_multiple_cloud_data_send_intervals(void)
 
 void test_cloud_data_send_with_sampling_interleaved(void)
 {
-	int err;
-	struct storage_msg storage_msg = {
-		.type = STORAGE_MODE_BUFFER,
-	};
-
-	/* Switch to buffer mode */
-	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	expect_storage_event(STORAGE_MODE_BUFFER);
-
 	/* Connect and complete initial sampling */
 	send_cloud_connected();
 	expect_cloud_event(CLOUD_CONNECTED);
-	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
@@ -812,6 +811,8 @@ void test_trigger_interval_change_in_connected(void)
 	/* Connect to cloud */
 	send_cloud_connected();
 
+	/* Transitioning from disconnected to connected publishes LOCATION_SEARCH_CANCEL first */
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 	/* Initial transition to passthrough mode triggers a sample */
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
@@ -843,6 +844,7 @@ void test_trigger_interval_change_in_connected(void)
 
 	/* Cleanup */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 	expect_no_events(WEEK_IN_SECONDS);
 }
 
@@ -878,6 +880,7 @@ void test_trigger_disconnect_and_connect_when_sampling(void)
 		/* Disconnect and connect every second iteration */
 		if (i % 2 == 0) {
 			send_cloud_disconnected();
+			expect_location_event(LOCATION_SEARCH_CANCEL);
 			expect_no_events(7200);
 			send_cloud_connected();
 
@@ -887,6 +890,7 @@ void test_trigger_disconnect_and_connect_when_sampling(void)
 
 	/* Cleanup */
 	send_cloud_disconnected();
+	expect_location_event(LOCATION_SEARCH_CANCEL);
 	expect_no_events(WEEK_IN_SECONDS);
 }
 

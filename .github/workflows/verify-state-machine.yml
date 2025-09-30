@@ -43,6 +43,9 @@ jobs:
           - name: STORAGE
             c_file: app/src/modules/storage/storage.c
             uml_file: tests/state_machines/source_of_truth/storage.puml
+          - name: LOCATION
+            c_file: app/src//modules/location/location.c
+            uml_file: tests/state_machines/source_of_truth/location.puml
       # Don't cancel all jobs if one fails
       fail-fast: false
 

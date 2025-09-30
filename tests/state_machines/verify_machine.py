@@ -39,40 +39,41 @@ def compare_state_machines(c_code, plantuml):
 
         Input:
         • C implementation:
-            – States defined via `struct smf_state`
-            – Transitions invoked with `smf_set_state()`
+            - States defined via `struct smf_state`
+            - Transitions invoked with `smf_set_state()`
         • PlantUML source:
-            – States and sub-states
-            – Initial transitions (`[*] -->`)
-            – Transitions between states
+            - States and sub-states
+            - Initial transitions (`[*] -->`)
+            - Transitions between states
 
         Validation steps:
         1. Extract all state identifiers from both C and PlantUML.
         2. Extract all transition pairs (source → target) from both.
-        3. Extract the parent–child (hierarchy) relationships among states from both.
+        3. Extract the parent-child (hierarchy) relationships among states from both.
         4. Verify initial transitions (`[*] --> state`) exist in both.
         5. Ensure that every state, transition, and hierarchical relationship appears in both representations.
+        6. Ensure that the UML input is syntactically valid.
 
         Output:
         A single JSON object with two fields:
             • `match` (boolean):
-                – `true` if all states, transitions, and hierarchies align
-                – `false` otherwise
+                - `true` if all states, transitions, and hierarchies align
+                - `false` otherwise
             • `details` (string):
-                – On success, a brief confirmation message.
-                – On failure, list the missing or mismatched elements.
+                - On success, a brief confirmation message.
+                - On failure, list the missing or mismatched elements.
 
         Guidance:
-        – Only consider states, transitions, and hierarchy. Ignore entry/running/exit functions.
-        – Consider PlantUML deep history (`[H*]` inside a composite state, with transitions targeting that
+        - Only consider states, transitions, and hierarchy. Ignore entry/running/exit functions.
+        - Consider PlantUML deep history (`[H*]` inside a composite state, with transitions targeting that
           alias) as semantically equivalent to the C implementation resuming the last active leaf state
           within that composite state.
-        – Consider a PlantUML choice pseudostate used for initial routing (e.g., `CHOOSE_INITIAL` with
+        - Consider a PlantUML choice pseudostate used for initial routing (e.g., `CHOOSE_INITIAL` with
           guards that point to alternative initial children) as semantically equivalent to a C setup where
           the initial child is decided conditionally (e.g., at build time via configuration or runtime).
           If either of the guarded targets matches a valid initial child in C, treat the initial alignment
           as satisfied.
-        – If any ambiguity arises, default `match` to `true` and document the ambiguity in `details`.
+        - If any ambiguity arises, default `match` to `false` and document the ambiguity in `details`.
         """
 
 
@@ -85,7 +86,7 @@ def compare_state_machines(c_code, plantuml):
         "    \"match\": <true|false>,\n"
         "    \"details\": \"<description of any missing/mismatched elements or 'All aligned.'>\"\n"
         "  }\n"
-        "If in doubt, set \"match\" to true and note the ambiguity in \"details.\" "
+        "If in doubt, set \"match\" to false and note the ambiguity in \"details.\" "
         "Return **only** the JSON object (no extra text)."
     )
 

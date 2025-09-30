@@ -170,11 +170,11 @@ static void l4_event_handler(struct net_mgmt_event_callback *cb,
 
 	switch (event) {
 	case NET_EVENT_L4_CONNECTED:
-		LOG_INF("Network connectivity established");
+		LOG_DBG("Network connectivity established");
 		network_status_notify(NETWORK_CONNECTED);
 		break;
 	case NET_EVENT_L4_DISCONNECTED:
-		LOG_INF("Network connectivity lost");
+		LOG_DBG("Network connectivity lost");
 		network_status_notify(NETWORK_DISCONNECTED);
 		break;
 	default:
@@ -327,7 +327,7 @@ static void state_running_entry(void *obj)
 	net_mgmt_add_event_callback(&conn_cb);
 
 	/* Connecting to the configured connectivity layer. */
-	LOG_INF("Bringing network interface up and connecting to the network");
+	LOG_DBG("Bringing network interface up and connecting to the network");
 
 	err = conn_mgr_all_if_up(true);
 	if (err) {
