@@ -91,13 +91,13 @@ def compare_state_machines(c_code, plantuml):
 
     # Call OpenAI ChatCompletion
     response = client.chat.completions.create(
-        model="o4-mini",
+        model="gpt-5",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ],
-        # temperature=0.2,
-        # seed=42,
+        # temperature=1,
+        seed=313,
     )
 
     # Respose is a string in json-like format
