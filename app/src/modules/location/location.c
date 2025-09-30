@@ -52,6 +52,10 @@ static void location_event_handler(const struct location_event_data *event_data)
 enum location_module_state {
 	/* The module is running */
 	STATE_RUNNING,
+		/* Location search is inactive. */
+		STATE_LOCATION_SEARCH_INACTIVE,
+		/* Location search is active. */
+		STATE_LOCATION_SEARCH_ACTIVE,
 };
 
 /* State object.
@@ -70,16 +74,32 @@ struct location_state_object {
 
 /* Forward declarations of state handlers */
 static void state_running_entry(void *obj);
-static enum smf_state_result state_running_run(void *obj);
+static void state_location_search_inactive_entry(void *obj);
+static enum smf_state_result state_location_search_inactive_run(void *obj);
+static void state_location_search_active_entry(void *obj);
+static enum smf_state_result state_location_search_active_run(void *obj);
+static void state_location_search_active_exit(void *obj);
 
 /* State machine definition */
 /* States are defined in the state object */
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
 		SMF_CREATE_STATE(state_running_entry,
-				 state_running_run,
 				 NULL,
 				 NULL,
+				 NULL,
+				 &states[STATE_LOCATION_SEARCH_INACTIVE]),
+	[STATE_LOCATION_SEARCH_INACTIVE] =
+		SMF_CREATE_STATE(state_location_search_inactive_entry,
+				 state_location_search_inactive_run,
+				 NULL,
+				 &states[STATE_RUNNING],
+				 NULL),
+	[STATE_LOCATION_SEARCH_ACTIVE] =
+		SMF_CREATE_STATE(state_location_search_active_entry,
+				 state_location_search_active_run,
+				 state_location_search_active_exit,
+				 &states[STATE_RUNNING],
 				 NULL),
 };
 
@@ -163,6 +183,7 @@ static void gnss_enable(void)
 		if (err) {
 			LOG_ERR("Activating GNSS in the modem failed: %d", err);
 			SEND_FATAL_ERROR();
+			return;
 		}
 	}
 }
@@ -175,50 +196,14 @@ static void gnss_disable(void)
 		if (err) {
 			LOG_ERR("Deactivating GNSS in the modem failed: %d", err);
 			SEND_FATAL_ERROR();
+			return;
 		}
 	}
 }
 
-void trigger_location_update(void)
-{
-	int err;
-
-	gnss_enable();
-
-	err = location_request(NULL);
-	if (err == -EBUSY) {
-		LOG_WRN("Location request already in progress");
-	} else if (err) {
-		LOG_ERR("Unable to send location request: %d", err);
-		SEND_FATAL_ERROR();
-	}
-}
-
-static void handle_location_chan(const struct location_msg *location_msg)
-{
-	int err;
-
-	if (location_msg->type == LOCATION_SEARCH_TRIGGER) {
-		LOG_DBG("Location search trigger received, getting location");
-		trigger_location_update();
-	} else if (location_msg->type == LOCATION_SEARCH_CANCEL) {
-		LOG_DBG("Location search cancel received, cancelling location request");
-
-		err = location_request_cancel();
-		if (err == -EPERM) {
-			LOG_WRN("Location library not initialized, cannot cancel request");
-			SEND_FATAL_ERROR();
-		} else if (err) {
-			LOG_ERR("Unable to cancel location request: %d", err);
-		} else {
-			LOG_DBG("Location request cancelled successfully");
-
-			gnss_disable();
-		}
-	}
-}
 
 /* State handlers */
+
 static void state_running_entry(void *obj)
 {
 	ARG_UNUSED(obj);
@@ -237,17 +222,93 @@ static void state_running_entry(void *obj)
 	LOG_DBG("Location library initialized");
 }
 
-static enum smf_state_result state_running_run(void *obj)
+static void state_location_search_inactive_entry(void *obj)
 {
-	struct location_state_object const *state_object = obj;
+	ARG_UNUSED(obj);
+
+	LOG_DBG("%s", __func__);
+}
+
+static enum smf_state_result state_location_search_inactive_run(void *obj)
+{
+	struct location_state_object *state_object = obj;
 
 	if (state_object->chan == &LOCATION_CHAN) {
-		handle_location_chan(MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf));
+		const struct location_msg *location_msg =
+			MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
 
-		return SMF_EVENT_HANDLED;
+		if (location_msg->type == LOCATION_SEARCH_CANCEL) {
+			LOG_DBG("Location search cancel received in inactive state, ignoring");
+		} else if (location_msg->type == LOCATION_SEARCH_TRIGGER) {
+			LOG_DBG("Location search trigger received, starting location request");
+
+			smf_set_state(SMF_CTX(state_object), &states[STATE_LOCATION_SEARCH_ACTIVE]);
+
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	return SMF_EVENT_PROPAGATE;
+}
+
+static void state_location_search_active_entry(void *obj)
+{
+	ARG_UNUSED(obj);
+
+	LOG_DBG("%s", __func__);
+
+	gnss_enable();
+
+	int err = location_request(NULL);
+
+	if (err) {
+		LOG_WRN("location_request, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+}
+
+static enum smf_state_result state_location_search_active_run(void *obj)
+{
+	struct location_state_object *state_object = obj;
+
+	if (state_object->chan == &LOCATION_CHAN) {
+		const struct location_msg *location_msg =
+			MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+		int err;
+
+		if (location_msg->type == LOCATION_SEARCH_TRIGGER) {
+			LOG_DBG("Location search trigger received while active, ignoring");
+		} else if (location_msg->type == LOCATION_SEARCH_CANCEL) {
+			LOG_DBG("Location search cancel received, cancelling location request");
+
+			err = location_request_cancel();
+			if (err) {
+				LOG_ERR("Unable to cancel location request: %d", err);
+			} else {
+				LOG_DBG("Location request cancelled successfully");
+			}
+
+			status_send(LOCATION_SEARCH_DONE);
+		} else if (location_msg->type == LOCATION_SEARCH_DONE) {
+			LOG_DBG("Location search done message received, going to inactive state");
+
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_LOCATION_SEARCH_INACTIVE]);
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
+
+static void state_location_search_active_exit(void *obj)
+{
+	ARG_UNUSED(obj);
+
+	LOG_DBG("%s", __func__);
+
+	gnss_disable();
 }
 
 static void location_print_data_details(enum location_method method,
@@ -323,7 +384,6 @@ static void location_event_handler(const struct location_event_data *event_data)
 #endif /* CONFIG_LOCATION_METHOD_GNSS */
 
 		status_send(LOCATION_SEARCH_DONE);
-		gnss_disable();
 		break;
 	case LOCATION_EVT_STARTED:
 		status_send(LOCATION_SEARCH_STARTED);
@@ -331,7 +391,6 @@ static void location_event_handler(const struct location_event_data *event_data)
 	case LOCATION_EVT_TIMEOUT:
 		LOG_DBG("Getting location timed out");
 		status_send(LOCATION_SEARCH_DONE);
-		gnss_disable();
 		break;
 	case LOCATION_EVT_ERROR:
 		LOG_WRN("Location request failed:");
@@ -341,7 +400,6 @@ static void location_event_handler(const struct location_event_data *event_data)
 		location_print_data_details(event_data->method, &event_data->error.details);
 
 		status_send(LOCATION_SEARCH_DONE);
-		gnss_disable();
 		break;
 	case LOCATION_EVT_FALLBACK:
 		LOG_DBG("Location request fallback has occurred:");
@@ -375,7 +433,6 @@ static void location_event_handler(const struct location_event_data *event_data)
 	case LOCATION_EVT_RESULT_UNKNOWN:
 		LOG_DBG("Location result unknown");
 		status_send(LOCATION_SEARCH_DONE);
-		gnss_disable();
 		break;
 	default:
 		LOG_DBG("Getting location: Unknown event %d", event_data->id);
@@ -415,7 +472,7 @@ static void location_module_thread(void)
 		}
 
 		err = zbus_sub_wait_msg(&location, &location_state.chan,
-				       location_state.msg_buf, zbus_wait_ms);
+					 location_state.msg_buf, zbus_wait_ms);
 		if (err == -ENOMSG) {
 			continue;
 		} else if (err) {

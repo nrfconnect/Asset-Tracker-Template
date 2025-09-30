@@ -308,7 +308,7 @@ static void state_polling_for_update_entry(void *obj)
 	/* Start the FOTA processing */
 	int err = nrf_cloud_fota_poll_process(&state_object->fota_ctx);
 
-	if ((err == -EINVAL) || (err == -ENOTRECOVERABLE)) {
+	if (err == -EINVAL) {
 		LOG_DBG("nrf_cloud_fota_poll_process, error: %d", err);
 		SEND_FATAL_ERROR();
 
