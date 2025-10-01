@@ -20,6 +20,8 @@ Once you have created the project, you can access various development actions th
 
 For more details on how to use the VS Code extension, refer to the [nRF Connect for VS Code documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html).
 
+For pre-built binaries, refer to the latest tag and the [release artifacts](release.md) documentation.
+
 ## Prerequisites
 
 * **The nRF Util command line tool and the SDK manager command**
@@ -29,7 +31,7 @@ For more details on how to use the VS Code extension, refer to the [nRF Connect 
 
 * **nRF Connect SDK toolchain v3.0.0 or later**
 
-    - Follow the instructions in the [sdk-manager command](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-sdk-manager/nrfutil-sdk-manager.html) documentation to install v3.0.0 of the nRF Connect SDK toolchain.
+    - Follow the instructions in the [sdk-manager command](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-sdk-manager/nrfutil-sdk-manager.html) documentation to install v3.1.0 of the nRF Connect SDK toolchain.
 
 ## Supported boards
 
@@ -48,13 +50,13 @@ The Asset Tracker Template is continuously verified in CI on the following board
 Before initializing, start the toolchain environment:
 
 ```shell
-nrfutil sdk-manager toolchain launch --ncs-version v3.0.0 --shell
+nrfutil sdk-manager toolchain launch --ncs-version v3.1.0 --shell
 ```
 
-Alternatively, you can run the command with a specific nRF Connect SDK version. For example, if you are using version 3.0.1, run:
+Alternatively, you can run the command with a specific nRF Connect SDK version. For example, if you are using v3.1.0, run:
 
 ```shell
-nrfutil sdk-manager toolchain launch --ncs-version v3.0.0 -- <your command>
+nrfutil sdk-manager toolchain launch --ncs-version v3.1.0 -- <your command>
 ```
 
 To run for instance the `west` command with the specified version of toolchain. You can create an alias or shell function for this command to avoid typing it in full every time.
@@ -153,7 +155,7 @@ To test that everything is working as expected, you can do the following:
 
     ```shell
 
-    *** Booting nRF Connect SDK v3.0.0-3bfc46578e42 ***
+    *** Booting nRF Connect SDK v3.1.0-3bfc46578e42 ***
     *** Using Zephyr OS v4.0.99-a0e545cb437a ***
     Attempting to boot slot 0.
     Attempting to boot from address 0x8200.
@@ -172,7 +174,7 @@ To test that everything is working as expected, you can do the following:
     [00:00:00.257,324] <inf> spi_nor: GD25LE255E@0: 32 MiBy flash
     [00:00:00.311,828] <inf> wifi_nrf_bus: SPIM spi@b000: freq = 8 MHz
     [00:00:00.311,889] <inf> wifi_nrf_bus: SPIM spi@b000: latency = 0
-    ]mJ*** Using nRF Connect SDK v3.0.0-3bfc46578e42 ***
+    ]mJ*** Using nRF Connect SDK v3.1.0-3bfc46578e42 ***
     *** Using Zephyr OS v4.0.99-a0e545cb437a ***
     [00:00:00.520,202] <dbg> main: main: Main has started
     [00:00:00.520,263] <dbg> main: running_entry: running_entry
