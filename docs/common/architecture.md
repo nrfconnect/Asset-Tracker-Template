@@ -13,6 +13,7 @@ This document provides an overview of the architecture and explains how the diff
 The Asset Tracker Template is built around a modular architecture where each module is responsible for a specific functionality. The template consists of the following modules:
 
 - **[Main module](../modules/main.md)**: The central coordinator that implements the business logic and controls the overall application flow.
+- **[Storage module](../modules/storage.md)**: Forwards or stores data from enabled modules.
 - **[Network module](../modules/network.md)**: Manages LTE connectivity and tracks network status.
 - **[Cloud module](../modules/cloud.md)**: Handles communication with nRF Cloud using CoAP.
 - **[Location module](../modules/location.md)**: Provides location services using GNSS, Wi-Fi, and cellular positioning.
@@ -224,9 +225,8 @@ In the image, the black dots and arrow indicate initial transitions.
 In this case, the initial state is set to `STATE_RUNNING`. In the state machine definition, initial transitions are configured, such that the state machine ends up in `STATE_DISCONNECTED_SEARCHING` when first initialized.
 From there, transitions follows the arrows according to the messages received and the state machine logic.
 
-!!! important "Important"
-
-    In a hierarchical state machine, the run function of the current state is executed first, and then the run function of the parent state is executed, unless a state transition happens, or the child state marks the message as handled using `smf_state_handled()`.
+> [!IMPORTANT]
+> In a hierarchical state machine, the run function of the current state is executed first, and then the run function of the parent state is executed, unless a state transition happens, or the child state marks the message as handled using `smf_state_handled()`.
 
 ### State machine context
 

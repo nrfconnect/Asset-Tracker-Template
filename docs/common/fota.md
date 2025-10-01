@@ -1,18 +1,18 @@
-# Firmware Updates (FOTA)
+# Firmware updates (FOTA)
 
 This guide covers how to perform Firmware Over The Air (FOTA) updates using nRF Cloud, including both the web UI and REST API methods.
 
-## Firmware Versioning
+## Firmware versioning
 
-### Version Components
+### Version components
 
-Firmware versions are defined in `app/VERSION`:
+Firmware versions are defined in the `app/VERSION` file:
 
 - **VERSION_MAJOR**: Major version
 - **VERSION_MINOR**: Minor version
 - **PATCHLEVEL**: Patch level
 - **VERSION_TWEAK**: Additional component (typically 0)
-- **EXTRAVERSION**: Extra string (e.g., "dev", "rc1")
+- **EXTRAVERSION**: Extra string (for example, "dev", "rc1")
 
 Example resulting in version `1.2.3-dev`:
 
@@ -24,67 +24,80 @@ VERSION_TWEAK = 0
 EXTRAVERSION = dev
 ```
 
-### Preparing Firmware
+### Preparing firmware
 
-1. **Update `app/VERSION`** - Increment the appropriate version component
-2. **Build the firmware**
+Complete the following steps for preparing firmware:
 
-   Using the command line:
+1. Update the `app/VERSION` file. Increment the appropriate version component.
+1. Build the firmware.
 
-   ```bash
-   west build -p -b thingy91x/nrf9151/ns # Make sure you build for the appropriate board
-   ```
+    Using the command line:
 
-   Or use the nRF Connect for VS Code extension - see the [Getting Started](getting_started.md) guide for details on building with the extension.
+    ```bash
+    west build -p -b thingy91x/nrf9151/ns # Make sure you build for the appropriate board
+    ```
 
-3. **Locate update bundles**:
-   - `build/app/zephyr/dfu_application.zip` - Application firmware update
-   - `build/app/zephyr/dfu_mcuboot.zip` - Bootloader update
+    Or use the nRF Connect for VS Code extension. See the [Getting Started](getting_started.md) guide for details on building with the extension.
 
-### Version Verification
+1. Locate update bundles:
 
-**Important**: The `fwversion` field in a firmware bundle is independent from the device's reported version.
+    - `build/app/zephyr/dfu_application.zip` - Application firmware update
+    - `build/app/zephyr/dfu_mcuboot.zip` - Bootloader update
+
+### Version verification
+
+> [!IMPORTANT]
+> The `fwversion` field in a firmware bundle is independent from the device's reported version.
 
 To verify a successful update:
 
-- **Application updates**: Check that the FOTA job shows **Completed** status AND the **App Version** field in device information reflects the new version
-- **Modem updates**: Check that the FOTA job shows **Completed** status AND the **Modem Firmware** field in device information shows the new version
+- **Application updates**: Check that the FOTA job shows `Completed` status and the **App Version** field in device information reflects the new version.
+- **Modem updates**: Check that the FOTA job shows `Completed` status and the **Modem Firmware** field in device information shows the new version.
 
 ![Device information showing app version](../images/device_information.png)
 
-## Performing FOTA Updates
+## Performing FOTA updates
+
+You can update the FOTA updates using nRF Cloud Web UI or REST API.
 
 ### Option 1: nRF Cloud Web UI
 
 This is the recommended method for manual updates and testing.
 
-1. **Navigate to Firmware Updates** in the nRF Cloud portal under **Device Management**
-2. **Create Update Bundle**:
-   - Click "Add bundle"
-   - Upload your bundle file:
-     - For application updates: `dfu_application.zip`
-     - For bootloader updates: `dfu_mcuboot.zip`
-   - Set **Update Type** (e.g., LTE)
-   - Enter a **Name** for the bundle
-   - Enter a **Version** string (can be any identifier - this is the `fwversion` shown in the bundle list)
-   - Click "Create/Upload Bundle"
+1. Navigate to [nRF Cloud](https://nrfcloud.com) and log in to your account.
+1. Select **Firmware Updates** in the **Device Management** tab on the left.
+1. Create Update Bundle:
 
-3. **Create FOTA Update**:
-   - Enter a **Name** and a **Description** of the update
-   - Select target device(s) via device or group selection
-   - Click on **Deploy now**
-   - Click "Create FOTA Update"
+    1. Click "Add bundle".
+    1. Upload your bundle file:
 
-4. **Monitor Progress**:
-   - View job status in the "Overall Progress" section of the update
-   - Status will progress: Queued → In Progress → Downloading → Completed
-   - The device will automatically download and apply the update once it becomes online
+       - For application updates: `dfu_application.zip`
+       - For bootloader updates: `dfu_mcuboot.zip`
 
-5. **Verify Update**:
-   - Navigate to your device page, **Device Management** → **Devices** and select your device
-   - Click on **Device info** under the **Device Information** card
-   - Check the **App Version** (for app updates) or **Modem Firmware** (for modem updates) field
-   - Confirm the version matches your new firmware
+    1. Set **Update Type** (for example, LTE).
+    1. Enter a **Name** for the bundle.
+    1. Enter a **Version** string (can be any identifier - this is the `fwversion` shown in the bundle list).
+    1. Click **Create/Upload Bundle**.
+
+1. Create FOTA Update:
+
+    1. Enter a **Name** and a **Description** of the update.
+    1. Select target device(s) through device or group selection.
+    1. Click on **Deploy now**.
+    1. Click **Create FOTA Update**.
+
+1. Monitor Progress:
+
+    - View job status in the **Overall Progress** section of the update.
+    - Status will progress: Queued → In Progress → Downloading → Completed.
+    - The device will automatically download and apply the update once it becomes online.
+
+1. Verify Update:
+
+    1. Navigate to your device page, click **Devices** under **Device Management** in the navigation pane on the left, and select your device
+    1. Click on **Device info** under the **Device Information** card.
+    1. Check the **App Version** (for app updates) or **Modem Firmware** (for modem updates) field.
+    1. Confirm the version matches your new firmware.
 
 ### Option 2: REST API
 
@@ -97,74 +110,74 @@ export API_KEY=<your-nrf-cloud-api-key>
 export DEVICE_ID=<your-device-id>
 ```
 
-Find your API key in **User Account** settings in nRF Cloud. See [nRF Cloud REST API](https://api.nrfcloud.com/) for reference.
+Find your API key in **User Account** settings in [nRF Cloud](https://nrfcloud.com/). See [nRF Cloud REST API](https://api.nrfcloud.com/) for reference.
 
 #### Complete Update Workflow
 
-1. **Create manifest and upload bundle**:
+1. Create manifest and upload bundle:
 
-   ```bash
-   # Set path to your application binary
-   export BIN_FILE="build/app/zephyr/zephyr.signed.bin"
-   export FW_VERSION="1.2.3"
+    ```bash
+    # Set path to your application binary
+    export BIN_FILE="build/app/zephyr/zephyr.signed.bin"
+    export FW_VERSION="1.2.3"
 
-   # Create manifest.json with firmware details
-   cat > manifest.json << EOF
-   {
-       "name": "My Firmware",
-       "description": "Firmware description",
-       "fwversion": "${FW_VERSION}",
-       "format-version": 1,
-       "files": [
-           {
-               "file": "$(basename ${BIN_FILE})",
-               "type": "application",
-               "size": $(stat -f%z ${BIN_FILE})
-           }
-       ]
-   }
-   EOF
+    # Create manifest.json with firmware details
+    cat > manifest.json << EOF
+    {
+        "name": "My Firmware",
+        "description": "Firmware description",
+        "fwversion": "${FW_VERSION}",
+        "format-version": 1,
+        "files": [
+            {
+                "file": "$(basename ${BIN_FILE})",
+                "type": "application",
+                "size": $(stat -f%z ${BIN_FILE})
+            }
+        ]
+    }
+    EOF
 
-   # Create zip containing firmware and manifest
-   zip -j firmware.zip ${BIN_FILE} manifest.json
+    # Create zip containing firmware and manifest
+    zip -j firmware.zip ${BIN_FILE} manifest.json
 
-   # Upload to nRF Cloud and extract bundle ID
-   UPLOAD_RESPONSE=$(curl -X POST "https://api.nrfcloud.com/v1/firmwares" \
-     -H "Authorization: Bearer ${API_KEY}" \
-     -H "Content-Type: application/zip" \
-     --data-binary @firmware.zip)
+    # Upload to nRF Cloud and extract bundle ID
+    UPLOAD_RESPONSE=$(curl -X POST "https://api.nrfcloud.com/v1/firmwares" \
+      -H "Authorization: Bearer ${API_KEY}" \
+      -H "Content-Type: application/zip" \
+      --data-binary @firmware.zip)
 
-   # Extract the bundle ID from the response (UUID from the URI path)
-   export BUNDLE_ID=$(echo $UPLOAD_RESPONSE | jq -r '.uris[0]' | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
-   ```
+    # Extract the bundle ID from the response (UUID from the URI path)
+    export BUNDLE_ID=$(echo $UPLOAD_RESPONSE | jq -r '.uris[0]' | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
+    ```
 
-2. **Create and apply FOTA job**:
+1. Create and apply FOTA job:
 
-   ```bash
-   # Create job
-   JOB_RESPONSE=$(curl -X POST "https://api.nrfcloud.com/v1/fota-jobs" \
-     -H "Authorization: Bearer ${API_KEY}" \
-     -H "Content-Type: application/json" \
-     -d "{\"deviceIds\": [\"${DEVICE_ID}\"], \"bundleId\": \"${BUNDLE_ID}\"}")
+    ```bash
+    # Create job
+    JOB_RESPONSE=$(curl -X POST "https://api.nrfcloud.com/v1/fota-jobs" \
+      -H "Authorization: Bearer ${API_KEY}" \
+      -H "Content-Type: application/json" \
+      -d "{\"deviceIds\": [\"${DEVICE_ID}\"], \"bundleId\": \"${BUNDLE_ID}\"}")
 
-   export JOB_ID=$(echo $JOB_RESPONSE | jq -r '.jobId')
+    export JOB_ID=$(echo $JOB_RESPONSE | jq -r '.jobId')
 
-   # Apply job
-   curl -X POST "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}/apply" \
-     -H "Authorization: Bearer ${API_KEY}"
-   ```
+    # Apply job
+    curl -X POST "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}/apply" \
+      -H "Authorization: Bearer ${API_KEY}"
+    ```
 
-3. **Monitor job status**:
+1. Monitor job status:
 
-   ```bash
-   curl -X GET "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}" \
-     -H "Authorization: Bearer ${API_KEY}" \
-     -H "Accept: application/json"
-   ```
+    ```bash
+    curl -X GET "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}" \
+      -H "Authorization: Bearer ${API_KEY}" \
+      -H "Accept: application/json"
+    ```
 
-   Job status values: `QUEUED`, `IN_PROGRESS`, `DOWNLOADING`, `SUCCEEDED`, `FAILED`, `TIMED_OUT`, `CANCELLED`, `REJECTED`
+    Job status values: `QUEUED`, `IN_PROGRESS`, `DOWNLOADING`, `SUCCEEDED`, `FAILED`, `TIMED_OUT`, `CANCELLED`, `REJECTED`
 
-4. **Verify the update** by checking the device information in nRF Cloud (App Version or Modem Firmware field)
+1. Verify the update by checking the device information in [nRF Cloud](https://nrfcloud.com/) (**App Version** or **Modem Firmware** field).
 
 #### API Reference
 

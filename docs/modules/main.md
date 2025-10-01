@@ -14,6 +14,7 @@ The Main module uses the following zbus channels, both for subscribing to incomi
 |---------------------|-----------------------------------------------------------------------------------------------|
 | **BUTTON_CHAN**     | Processes user button presses for manually triggering data samples.                           |
 | **CLOUD_CHAN**      | Receive connectivity status (connected, disconnected) and cloud response data. Trigger device shadow polling to retrieve configuration updates. |
+| **STORAGE_CHAN**    | Control the storage module and receive control or status responses. |
 | **ENVIRONMENTAL_CHAN** | Request sensor data from the environmental module.                                           |
 | **FOTA_CHAN**       | Poll for FOTA updates and manage the FOTA process. Apply FOTA updates to install the new firmware image. |
 | **LED_CHAN**        | Update LED pattern to indicate system state.                                                  |
@@ -31,11 +32,11 @@ The Main module can be configured using the following Kconfig options:
 
 * **CONFIG_APP_SENSOR_SAMPLING_INTERVAL_SECONDS:**
   Default sensor data sampling interval. Triggers sensor sampling and location search.
-  In passthrough mode, also triggers cloud shadow and FOTA status polling and data sending.
+  In passthrough mode, it also triggers cloud shadow and FOTA status polling and data sending.
 
 * **CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS:**
-  Interval for cloud synchronization activities including polling and data sending. Triggers cloud shadow and FOTA status polling.
-  Data sending only applies when storage module is in buffer mode.
+  Interval for cloud synchronization activities, including polling and data sending. Triggers cloud shadow and FOTA status polling.
+  Data sending only applies when the storage module is in buffer mode.
 
 * **CONFIG_APP_REQUEST_NETWORK_QUALITY:**
   When enabled, requests network quality metrics during regular sampling.

@@ -1,4 +1,4 @@
-# Location Services
+# Location services
 
 The Asset Tracker uses [nRF Cloud's location services](https://docs.nordicsemi.com/bundle/nrf-cloud/page/LocationServices/LSOverview.html) to provide accurate device positioning through multiple methods. This document explains the available location services and their capabilities.
 

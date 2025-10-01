@@ -1,4 +1,4 @@
-# Getting Started
+# Getting started
 
 To get started with Asset tracker template, you need to set up the development environment, build the application, and run it on supported hardware.
 You can use any of the following tools, depending on your preferred development environment:
@@ -19,6 +19,8 @@ Once you have created the project, you can access various development actions th
 ![Extension actions](../images/actions.png)
 
 For more details on how to use the VS Code extension, refer to the [nRF Connect for VS Code documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html).
+
+For pre-built binaries, refer to the latest tag and the [release artifacts](release.md) documentation.
 
 ## Prerequisites
 
@@ -126,7 +128,7 @@ west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.con
 
 To connect to [nRF Cloud](https://nrfcloud.com), the device must be provisioned to your account. You can provision the device using one of the following methods:
 
-* **Quickstart application**: Use the [Download nRF Connect for Desktop](https://www.nordicsemi.com/Products/Development-tools/nrf-connect-for-desktop/download#infotabs) Quick Start application for a streamlined setup process.
+* **Quickstart application**: Use the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in the [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop)`_  for a streamlined setup process.
 * **Manual provisioning**: Follow the detailed steps in the [Provisioning](provisioning.md) documentation.
 
 The provisioning process establishes the necessary credentials and certificates for secure communication between your device and nRF Cloud.

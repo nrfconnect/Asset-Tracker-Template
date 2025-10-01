@@ -8,6 +8,8 @@ For more knowledge on debugging and troubleshooting [nRF Connect SDK](https://gi
 - [nRF Connect SDK Debugging Guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/test_and_optimize/debugging.html)
 - [Zephyr Debugging Guide](https://docs.zephyrproject.org/latest/develop/debug/index.html)
 
+<div class="hidden-content">
+
 ## Table of Contents
 
 - [Shell Commands](#shell-commands)
@@ -32,6 +34,8 @@ For more knowledge on debugging and troubleshooting [nRF Connect SDK](https://gi
   - [Dumping modem traces over UART after capture](#dumping-modem-traces-over-uart-after-capture)
   - [Application logs and modem traces over RTT - Parallel capture](#application-logs-and-modem-traces-over-rtt---parallel-capture)
 - [Common Issues and Solutions](#common-issues-and-solutions)
+
+</div>
 
 ## Shell Commands
 
@@ -363,15 +367,13 @@ For more information, refer the following documentation:
 - [TF-M Documentation](https://tf-m-user-guide.trustedfirmware.org/)
 - [nRF Connect SDK TF-M Guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/security/tfm/index.html)
 
-!!! note "Note"
-
-      On hardfault, the fault frame might not be printed due to the device rebooting before the log buffer is flushed.
-      To circumvent this issue add the following configurations:
-
-      ```bash
-      CONFIG_LOG_MODE_IMMEDIATE=y
-      CONFIG_RESET_ON_FATAL_ERROR=n
-      ```
+> [!NOTE]
+> On hardfault, the fault frame might not be printed due to the device rebooting before the log buffer is flushed.
+> To circumvent this issue add the following configurations:
+> ```bash
+> CONFIG_LOG_MODE_IMMEDIATE=y
+> CONFIG_RESET_ON_FATAL_ERROR=n
+> ```
 
 When enabling immediate logging, it might be necessary to increase the stack size of certain threads due to logging being executed in context which increases stack usage.
 
@@ -395,8 +397,10 @@ To build the application with support for Memfault, you need to build with the M
 
 If you also want to upload the [Embedded Trace Buffer](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/debug/etb_trace.html), you can include the overlay `overlay-etb.conf`.
 
-!!! important "important"
-      Enabling Memfault will increase your device's data usage. This is especially true when using the modem trace upload feature, which can send upwards of 1 MB of modem trace data in case of application crashes. Consider this when planning your data usage and costs.
+> [!IMPORTANT]
+> Enabling Memfault will increase your device's data usage.
+> This is especially true when using the modem trace upload feature, which can send upwards of 1 MB of modem trace data in case of application crashes.
+> Consider this when planning your data usage and costs.
 
 For detailed build instructions and how to configure the project key, refer to the [Getting Started Guide](getting_started.md) where build instructions for building with Memfault are given.
 To build with all available Memfault functionality:
@@ -409,8 +413,9 @@ Screen capture from a coredump received in Memfault:
 
 ![Memfault UI](../images/memfault.png)
 
-!!! important "important"
-      In order to properly use Memfault and be able to decode metrics and coredumps sent from the device, you need to upload the ELF file located in the build folder of the template once you have built the application. This is covered in the [Remote Debugging with Memfault](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/exercise-4-remote-debugging-with-memfault/) developer Academy excersise.
+> [!IMPORTANT]
+> In order to properly use Memfault and be able to decode metrics and coredumps sent from the device, you need to upload the ELF file located in the build folder of the template once you have built the application.
+> This is covered in the [Remote Debugging with Memfault](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/exercise-4-remote-debugging-with-memfault/) developer Academy excersise.
 
 #### Test shell commands
 
@@ -480,7 +485,7 @@ nrfutil trace lte --input-file modem_trace.bin --output-pcapng rtt-trace.pcapng
 
 ### Dumping modem traces over UART after capture
 
-The device can be configured to continuously capture modem traces to external flash memory. After capture, a shell command can be used to dump the stored traces over UART to the [Cellular Monitor](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) application for storage and analysis.
+You can configure the device to continuously capture modem traces to external flash memory. After capture, you can use a shell command to dump the stored traces over UART using the [Cellular Monitor app](https://docs.nordicsemi.com/bundle/nrf-connect-cellularmonitor/page/index.html) for storage and analysis.
 
 Add to `prj.conf`:
 
@@ -497,29 +502,28 @@ CONFIG_NRF_MODEM_LIB_TRACE_BACKEND_FLASH_PARTITION_SIZE=0xFF000
 CONFIG_NRF_MODEM_LIB_SHELL_TRACE=y
 ```
 
-!!! important "Important"
-
-      **Flash Partition Configuration:**
-      
-      The flash partition size configuration allocates 255 sectors of 4 kB each (approximately 1 MB) for trace storage. 
-      Adjust `CONFIG_NRF_MODEM_LIB_TRACE_FLASH_SECTORS` and `CONFIG_NRF_MODEM_LIB_TRACE_BACKEND_FLASH_PARTITION_SIZE` according to your available flash memory.
-
-      **Trace Buffer Limitations:**
-      
-      Depending on the trace level, network, and IP activity, the trace buffer might get full. Due to a current limitation in Zephyr, the maximum size of the buffer is approximately 1 MB.
-
-      **Trace Level Configuration:**
-      
-      To mitigate buffer overflow issues, the trace level can be adjusted through the `CONFIG_NRF_MODEM_LIB_TRACE_LEVEL` choice symbol:
-
-      - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_OFF`**: Disable output
-      - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_COREDUMP_ONLY`**: Coredump only
-      - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_IP_ONLY`**: IP only
-      - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_LTE_AND_IP`**: LTE and IP (recommended for most use cases)
-      - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_FULL`**: LTE, IP, GNSS, and coredump (highest data volume)
-
-      Adjusting the trace level will set how often the trace buffer is filled up. When the trace buffer gets full, the oldest entry will be overwritten.
-      To disable this, disable `CONFIG_NRF_MODEM_TRACE_FLASH_NOSPACE_ERASE_OLDEST`.
+> [!IMPORTANT]
+> **Flash Partition Configuration:**
+>
+> The flash partition size configuration allocates 255 sectors of 4 kB each (approximately 1 MB) for trace storage.
+> Adjust the `CONFIG_NRF_MODEM_LIB_TRACE_FLASH_SECTORS` and `CONFIG_NRF_MODEM_LIB_TRACE_BACKEND_FLASH_PARTITION_SIZE` Kconfig options according to your available flash memory.
+>
+> **Trace Buffer Limitations:**
+>
+> Depending on the trace level, network, and IP activity, the trace buffer might get full. Due to a current limitation in Zephyr, the maximum size of the buffer is approximately 1 MB.
+>
+> **Trace Level Configuration:**
+>
+> To mitigate buffer overflow issues, the trace level can be adjusted through the `CONFIG_NRF_MODEM_LIB_TRACE_LEVEL` choice symbol:
+>
+> - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_OFF`**: Disable output
+> - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_COREDUMP_ONLY`**: Coredump only
+> - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_IP_ONLY`**: IP only
+> - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_LTE_AND_IP`**: LTE and IP (recommended for most use cases)
+> - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_FULL`**: LTE, IP, GNSS, and coredump (highest data volume)
+>
+> Adjusting the trace level will set how often the trace buffer is filled up. When the trace buffer gets full, the oldest entry will be overwritten.
+> To disable this, disable `CONFIG_NRF_MODEM_TRACE_FLASH_NOSPACE_ERASE_OLDEST`.
 
 The following `modem_trace` shell commands are available:
 
@@ -536,23 +540,23 @@ Subcommands:
   dump_uart  : Dump stored traces to UART.
 ```
 
-To capture traces:
+Complete the following to capture traces:
 
 1. Connect to the device using a serial terminal.
-2. Start capturing traces in the [Cellular Monitor](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) application on UART 1 or call the following nRF Util command:
+1. Start capturing traces using the [Cellular Monitor app](https://docs.nordicsemi.com/bundle/nrf-connect-cellularmonitor/page/index.html) on UART 1 or call the following nRF Util command:
 
     ```bash
     nrfutil trace lte --input-serialport /dev/tty.usbmodemxxxxxx --output-raw raw-file.bin
     ```
 
-3. Execute the dump command:
+1. Execute the dump command:
 
     ```bash
     uart:~$ modem_trace stop
     uart:~$ modem_trace dump_uart
     ```
 
-4. When the traces have been captured they can be converted to PCAP in [Cellular Monitor](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) for analysis.
+1. When the traces have been captured, they can be converted to PCAP in the Cellular Monitor app for analysis.
 
 ### Application logs and modem traces over RTT - Parallel capture
 
@@ -577,9 +581,13 @@ JLinkRTTLogger -Device NRF9160_XXAA -If SWD -Speed 50000 -RTTChannel 2 modem_tra
 JLinkRTTLogger -Device NRF9160_XXAA -If SWD -Speed 50000 -RTTChannel 0 terminal.txt
 ```
 
-!!! note "Note"
-
-      You may need to adjust the RTT channel numbers depending on your configuration. The default channel mapping is: terminal: 0, shell: 1, modem trace: 2.
+> [!NOTE]
+> You may need to adjust the RTT channel numbers depending on your configuration.
+> The following is the default channel mapping:
+>
+> * Terminal: 0
+> * Shell: 1
+> * Modem trace: 2
 
 For more information, see [nRF Connect SDK Modem Tracing](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrfxlib/nrf_modem/doc/modem_trace.html).
 
