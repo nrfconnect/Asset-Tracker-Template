@@ -22,8 +22,8 @@ The storage module implements a state machine with the following states and tran
 - **PASSTHROUGH**: Forwards data immediately as `STORAGE_DATA` on `STORAGE_DATA_CHAN`.
 - **BUFFER**: Stores data in backend, serves flush and batch requests. Has sub-states `IDLE` and `PIPE_ACTIVE`.
 
-Initial state: `PASSTHROUGH` (default) or `BUFFER` (if `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y`).
-Runtime switching: Send `STORAGE_MODE_*_REQUEST` on `STORAGE_CHAN`.
+- Initial state: `PASSTHROUGH` (default) or `BUFFER` (if `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y`).
+- Runtime switching: Send `STORAGE_MODE_*_REQUEST` on `STORAGE_CHAN`.
 
 ### Backend
 
@@ -115,10 +115,9 @@ CONFIG_APP_STORAGE_SHELL_STATS=n
 # CONFIG_APP_NETWORK=n
 ```
 
-!!! note "Note"
-
-    - If you later enable buffer or batch, increase the value of the `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` Kconfig option, so that at least one header plus the largest item fits.
-    - The actual RAM consumed by ring buffers and slabs scales with which data types are enabled and the value of the `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` Kconfig option.
+> [!NOTE]
+> - If you later enable buffer or batch, increase the value of the `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` Kconfig option, so that at least one header plus the largest item fits.
+> - The actual RAM consumed by ring buffers and slabs scales with which data types are enabled and the value of the `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` Kconfig option.
 
 ## Messages
 
@@ -237,7 +236,7 @@ The following includes the key configuration categories:
 
 ### Development Features
 
-- **`CONFIG_APP_STORAGE_SHELL`** (default: y): Enable shell commands for storage interaction.
+- **`CONFIG_APP_STORAGE_SHELL`** (default: `y`): Enable shell commands for storage interaction.
 
 - **`CONFIG_APP_STORAGE_SHELL_STATS`**: Enable statistics commands (increases code size).
 
@@ -324,10 +323,9 @@ int storage_batch_read(struct storage_data_item *out_item, k_timeout_t timeout);
 
 It reads stored data through the batch interface, handling header parsing and data extraction automatically. All other operations (requesting batch access, session management, etc.) go through zbus messages.
 
-!!! important "Important"
-
-    This function should only be called after receiving a `STORAGE_BATCH_AVAILABLE` message in response to a `STORAGE_BATCH_REQUEST`.
-    When done consuming all items, send `STORAGE_BATCH_CLOSE` with the same `session_id`.
+> [!IMPORTANT]
+> This function should only be called after receiving a `STORAGE_BATCH_AVAILABLE` message in response to a `STORAGE_BATCH_REQUEST`.
+> When done consuming all items, send `STORAGE_BATCH_CLOSE` with the same `session_id`.
 
 ## Usage
 
@@ -343,7 +341,7 @@ struct storage_msg msg = { .type = STORAGE_MODE_BUFFER_REQUEST };
 err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
 ```
 
-Responses: `STORAGE_MODE_PASSTHROUGH`/`STORAGE_MODE_BUFFER` (success) or `STORAGE_MODE_CHANGE_REJECTED` (e.g., batch active).
+Responses: `STORAGE_MODE_PASSTHROUGH`/`STORAGE_MODE_BUFFER` (success) or `STORAGE_MODE_CHANGE_REJECTED` (for example, batch active).
 
 ### Data Retrieval
 

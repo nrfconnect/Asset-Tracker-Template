@@ -14,13 +14,17 @@
 
 ## Overview
 
-The Asset Tracker Template is a modular framework for developing IoT applications on nRF91-based devices. Built on [nRF Connect SDK](https://www.nordicsemi.com/Products/Development-software/nRF-Connect-SDK) and [Zephyr RTOS](https://docs.zephyrproject.org/latest/), it provides an event-driven architecture for battery-powered IoT use cases with cloud connectivity, location tracking, and sensor data collection.
+The Asset Tracker Template is a modular framework for developing IoT applications on nRF91-based devices.
+It is built on the [nRF Connect SDK](https://www.nordicsemi.com/Products/Development-software/nRF-Connect-SDK) and [Zephyr RTOS](https://docs.zephyrproject.org/latest/), and provides a modular, event-driven architecture suitable for battery-powered IoT use cases.
+The framework supports features such as cloud connectivity, location tracking, and sensor data collection.
 
-The system uses modules that communicate through [zbus](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) channels for loose coupling and maintainability. It's suitable for asset tracking, environmental monitoring, and other IoT applications requiring modularity and power efficiency.
+The system is organized into modules, each responsible for a specific functionality, such as managing network connectivity, handling cloud communication, or collecting environmental data.
+Modules communicate through [zbus](https://docs.zephyrproject.org/latest/services/zbus/index.html) channels, ensuring loose coupling and maintainability.
 
 **Supported hardware**: [Thingy:91 X](https://www.nordicsemi.com/Products/Development-hardware/Nordic-Thingy-91-X), [nRF9151 DK](https://www.nordicsemi.com/Products/Development-hardware/nRF9151-DK)
 
-> **Note**: If you're new to nRF91 series and cellular IoT, consider taking the [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals).
+> [!NOTE]
+> If you're new to nRF91 series and cellular IoT, consider taking the [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals).
 
 ## Quick Start
 
@@ -29,9 +33,9 @@ For detailed setup instructions using the [nRF Connect for VS Code extension](ht
 For pre-built binaries, refer to the latest tag and release artifacts documentaion; [release artifacts](docs/common/release.md).
 
 > [!TIP]
-> Use the [Download nRF Connect for Desktop Quick Start application](https://www.nordicsemi.com/Products/Development-tools/nrf-connect-for-desktop/download#infotabs) for a guided setup and provisioning process.
+> Download and run the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in the [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop) for a guided setup and provisioning process.
 >
-> You can also refer to [Exercise 1](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals/lessons/lesson-1-cellular-fundamentals/topic/lesson-1-exercise-1/) in [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals).
+> You can also refer to [Exercise 1](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals/lessons/lesson-1-cellular-fundamentals/topic/lesson-1-exercise-1/) in [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals) for more details.
 
 ### Prerequisites
 
