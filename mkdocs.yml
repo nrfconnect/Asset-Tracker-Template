@@ -56,6 +56,7 @@ nav:
   - Architecture: common/architecture.md
   - Configuration: common/configuration.md
   - Customization: common/customization.md
+  - Provisioning: common/provisioning.md
   - Location Services: common/location_services.md
   - nRF Cloud Fota: common/nrfcloud_fota.md
   - Testing and CI Setup: common/test_and_ci_setup.md
