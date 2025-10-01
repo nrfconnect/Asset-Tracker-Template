@@ -362,10 +362,13 @@ static void sample(int64_t *ref_time)
 
 	LOG_DBG("State of charge: %f", (double)roundf(state_of_charge));
 	LOG_DBG("The battery is %s", charging ? "charging" : "not charging");
+	LOG_DBG("Battery voltage: %f V", (double)voltage);
 
 	struct power_msg msg = {
 		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE,
-		.percentage = (double)roundf(state_of_charge)
+		.percentage = (double)roundf(state_of_charge),
+		.charging = charging,
+		.voltage = (double)voltage,
 	};
 
 #if defined(CONFIG_APP_POWER_TIMESTAMP)
