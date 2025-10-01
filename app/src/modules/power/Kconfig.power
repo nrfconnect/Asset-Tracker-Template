@@ -13,6 +13,12 @@ config APP_POWER
 
 if APP_POWER
 
+config APP_POWER_SHELL
+	bool "Power module shell commands"
+	default y if SHELL
+	help
+	  Enable shell commands for the power module.
+
 config APP_POWER_DISABLE_UART_ON_VBUS_REMOVED
 	bool "Disable UART when VBUS is removed"
 	default y
