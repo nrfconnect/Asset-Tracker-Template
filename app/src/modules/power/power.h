@@ -43,6 +43,12 @@ struct power_msg {
 
 	/** Timestamp of the sample in milliseconds since epoch. */
 	int64_t timestamp;
+
+	/** True if the battery is charging, false otherwise. */
+	bool charging;
+
+	/** Voltage in volts. */
+	double voltage;
 };
 
 #define MSG_TO_POWER_MSG(_msg)	(*(const struct power_msg *)_msg)
