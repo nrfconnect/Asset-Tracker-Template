@@ -31,10 +31,10 @@ def test_shell(dut_cloud, hex_file):
         'Sending on payload channel: {"messageType":"DATA","appId":"donald","data":"duck"',
     ]
     patterns_network_disconnected = [
-        "network: Network connectivity lost",
+        "network: l4_event_handler: Network connectivity lost",
     ]
     patterns_network_connected = [
-        "network: Network connectivity established",
+        "network: l4_event_handler: Network connectivity established",
     ]
 
     # Boot

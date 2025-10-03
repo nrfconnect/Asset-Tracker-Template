@@ -31,7 +31,7 @@ def _perform_initial_device_setup_and_factory_reset(dut_cloud, hex_file: str):
 def _wait_for_lte_connection(dut_cloud, timeout: int = 240):
     logger.info("Waiting for device to connect to LTE network...")
 
-    log_pattern_network_connected = "network: Network connectivity established"
+    log_pattern_network_connected = "network: l4_event_handler: Network connectivity established"
     dut_cloud.uart.wait_for_str(
         log_pattern_network_connected,
         timeout=timeout,
@@ -44,7 +44,7 @@ def _wait_for_lte_connection(dut_cloud, timeout: int = 240):
 def _disconnect_network_and_clear_modem_credentials(dut_cloud, sec_tag: int):
     logger.info("Disconnecting network and clearing modem credentials...")
 
-    log_pattern_network_disconnected = "network: Network connectivity lost"
+    log_pattern_network_disconnected = "network: l4_event_handler: Network connectivity lost"
     dut_cloud.uart.write("att_network disconnect\r\n")
     dut_cloud.uart.wait_for_str(
         log_pattern_network_disconnected,
@@ -102,7 +102,7 @@ def _unclaim_device_from_nrf_cloud_if_exists(dut_cloud):
 def _connect_to_network_and_wait_for_claiming_prompt(dut_cloud):
     logger.info("Connecting to network and waiting for device to request claiming...")
 
-    log_pattern_network_connected = "network: Network connectivity established"
+    log_pattern_network_connected = "network: l4_event_handler: Network connectivity established"
     log_pattern_need_claiming = (
         "Claim the device using the device's attestation token on nrfcloud.com"
     )

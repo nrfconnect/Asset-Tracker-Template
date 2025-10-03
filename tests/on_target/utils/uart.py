@@ -15,7 +15,7 @@ from utils.logger import get_logger
 from typing import Union
 
 DEFAULT_UART_TIMEOUT = 60 * 15
-DEFAULT_WAIT_FOR_STR_TIMEOUT = 60 * 5
+DEFAULT_WAIT_FOR_STR_TIMEOUT = 60 * 10
 
 logger = get_logger()
 
