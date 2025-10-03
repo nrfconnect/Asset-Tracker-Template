@@ -4,15 +4,35 @@ on:
   workflow_dispatch:
     inputs:
       build_all:
-        description: Build all configurations
+        description: Build all board configurations
         type: boolean
         required: true
         default: false
-      devices:
-        description: Devices to test, space separated list
-        type: string
-        required: true
-        default: thingy91x
+      device_thingy91x:
+        description: 'Test thingy91x'
+        type: boolean
+        required: false
+        default: true
+      device_nrf9151dk:
+        description: 'Test nrf9151dk'
+        type: boolean
+        required: false
+        default: false
+      device_ppk_thingy91x:
+        description: 'Test ppk_thingy91x'
+        type: boolean
+        required: false
+        default: false
+      device_gnss_nrf9151dk:
+        description: 'Test gnss_nrf9151dk'
+        type: boolean
+        required: false
+        default: false
+      device_prov_thingy91x:
+        description: 'Test prov_thingy91x'
+        type: boolean
+        required: false
+        default: false
 
   schedule:
     - cron: "0 0 * * *"
@@ -43,7 +63,25 @@ jobs:
             devices="thingy91x"
             build_all=false
           else
-            devices="${{ inputs.devices }}"
+            # Build devices list from selected checkboxes
+            devices=""
+            if [[ "${{ inputs.device_thingy91x }}" == "true" ]]; then
+              devices="$devices thingy91x"
+            fi
+            if [[ "${{ inputs.device_nrf9151dk }}" == "true" ]]; then
+              devices="$devices nrf9151dk"
+            fi
+            if [[ "${{ inputs.device_ppk_thingy91x }}" == "true" ]]; then
+              devices="$devices ppk_thingy91x"
+            fi
+            if [[ "${{ inputs.device_gnss_nrf9151dk }}" == "true" ]]; then
+              devices="$devices gnss_nrf9151dk"
+            fi
+            if [[ "${{ inputs.device_prov_thingy91x }}" == "true" ]]; then
+              devices="$devices prov_thingy91x"
+            fi
+            # Trim leading space
+            devices=$(echo "$devices" | xargs)
             build_all=${{ inputs.build_all }}
           fi
           echo "devices=$devices"
