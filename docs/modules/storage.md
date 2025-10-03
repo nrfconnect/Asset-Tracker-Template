@@ -22,8 +22,8 @@ The storage module implements a state machine with the following states and tran
 - **PASSTHROUGH**: Forwards data immediately as `STORAGE_DATA` on `STORAGE_DATA_CHAN`.
 - **BUFFER**: Stores data in backend, serves flush and batch requests. Has sub-states `IDLE` and `PIPE_ACTIVE`.
 
-Initial state: `PASSTHROUGH` (default) or `BUFFER` (if `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y`).
-Runtime switching: Send `STORAGE_MODE_*_REQUEST` on `STORAGE_CHAN`.
+- Initial state: `PASSTHROUGH` (default) or `BUFFER` (if `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y`).
+- Runtime switching: Send `STORAGE_MODE_*_REQUEST` on `STORAGE_CHAN`.
 
 ### Backend
 
@@ -237,7 +237,7 @@ The following includes the key configuration categories:
 
 ### Development Features
 
-- **`CONFIG_APP_STORAGE_SHELL`** (default: y): Enable shell commands for storage interaction.
+- **`CONFIG_APP_STORAGE_SHELL`** (default: `y`): Enable shell commands for storage interaction.
 
 - **`CONFIG_APP_STORAGE_SHELL_STATS`**: Enable statistics commands (increases code size).
 
@@ -343,7 +343,7 @@ struct storage_msg msg = { .type = STORAGE_MODE_BUFFER_REQUEST };
 err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
 ```
 
-Responses: `STORAGE_MODE_PASSTHROUGH`/`STORAGE_MODE_BUFFER` (success) or `STORAGE_MODE_CHANGE_REJECTED` (e.g., batch active).
+Responses: `STORAGE_MODE_PASSTHROUGH`/`STORAGE_MODE_BUFFER` (success) or `STORAGE_MODE_CHANGE_REJECTED` (for example, batch active).
 
 ### Data Retrieval
 
