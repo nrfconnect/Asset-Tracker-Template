@@ -26,7 +26,7 @@ def test_mqtt_firmware(dut_board, hex_file_mqtt):
     dut_board.uart.xfactoryreset()
 
     # Log patterns to check
-    pattern_connect_to_broker = "network: Network connectivity established"
+    pattern_connect_to_broker = "network: l4_event_handler: Network connectivity established"
     pattern_cloud = "cloud: on_mqtt_connack: MQTT connection established, session present: 0"
 
     # Cloud connection

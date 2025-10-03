@@ -199,7 +199,7 @@ To test that everything is working as expected, you can do the following:
     [00:00:01.109,924] <dbg> location_module: on_cfun: Modem CFUN mode: 21
     [00:00:03.170,928] <dbg> network: lte_lc_evt_handler: PSM parameters received, TAU: 7200, Active time: 6
     [00:00:03.171,447] <dbg> network: lte_lc_evt_handler: eDRX parameters received, mode: 7, eDRX: 5.12 s, PTW: 1.28 s
-    [00:00:03.171,752] <inf> network: Network connectivity established
+    [00:00:03.171,752] <dbg> network: l4_event_handler: Network connectivity established
     [00:00:03.172,821] <dbg> cloud: state_connecting_entry: state_connecting_entry
     [00:00:03.172,851] <dbg> cloud: state_connecting_attempt_entry: state_connecting_attempt_entry
     [00:00:03.174,224] <dbg> network: state_connected_entry: state_connected_entry

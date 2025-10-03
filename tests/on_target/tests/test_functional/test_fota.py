@@ -66,8 +66,8 @@ def run_fota_resumption(dut_fota, fota_type):
     dut_fota.uart.wait_for_str("50%", timeout=timeout_50_percent)
     logger.debug(f"Testing fota resumption on disconnect for {fota_type} fota")
 
-    patterns_lte_offline = ["network: Network connectivity lost"]
-    patterns_lte_normal = ["network: Network connectivity established"]
+    patterns_lte_offline = ["network: l4_event_handler: Network connectivity lost"]
+    patterns_lte_normal = ["network: l4_event_handler: Network connectivity established"]
 
     # LTE disconnect
     dut_fota.uart.flush()
@@ -78,8 +78,8 @@ def run_fota_resumption(dut_fota, fota_type):
     dut_fota.uart.flush()
     dut_fota.uart.write("att_network connect\r\n")
     dut_fota.uart.wait_for_str(patterns_lte_normal, timeout=120)
-    dut_fota.uart.wait_for_str("fota_download: Refuse fragment, restart with offset")
-    dut_fota.uart.wait_for_str("fota_download: Downloading from offset:")
+    dut_fota.uart.wait_for_str("fota_download: Refuse fragment, restart with offset", timeout=600)
+    dut_fota.uart.wait_for_str("fota_download: Downloading from offset:", timeout=600)
 
 def run_fota_reschedule(dut_fota, fota_type):
     dut_fota.uart.wait_for_str("5%", timeout=APP_FOTA_TIMEOUT)
