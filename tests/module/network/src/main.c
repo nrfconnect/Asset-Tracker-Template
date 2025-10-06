@@ -182,11 +182,11 @@ static void send_uicc_failure(void)
 	lte_evt_handler(&evt);
 }
 
-static void send_mdmev_evt(enum lte_lc_modem_evt evt)
+static void send_mdmev_evt(enum lte_lc_modem_evt_type evt)
 {
 	struct lte_lc_evt lte_evt = {
 		.type = LTE_LC_EVT_MODEM_EVENT,
-		.modem_evt = evt,
+		.modem_evt.type = evt,
 	};
 
 	lte_evt_handler(&lte_evt);
