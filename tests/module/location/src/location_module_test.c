@@ -49,28 +49,67 @@ static int custom_location_init(location_event_handler_t handler)
 	return 0;
 }
 
+/* Common helper functions for message handling */
+static int wait_for_message(enum location_msg_type expected_type, struct location_msg *received_msg)
+{
+	const struct zbus_channel *chan;
+	int err = zbus_sub_wait_msg(&test_subscriber, &chan, received_msg, K_MSEC(100));
+
+	TEST_ASSERT_EQUAL_PTR(&LOCATION_CHAN, chan);
+	TEST_ASSERT_EQUAL(0, err);
+	TEST_ASSERT_EQUAL(expected_type, received_msg->type);
+
+	return err;
+}
+
+static void consume_published_message(enum location_msg_type expected_type)
+{
+	struct location_msg consumed_msg;
+
+	wait_for_message(expected_type, &consumed_msg);
+}
+
+static void verify_search_done_follows(void)
+{
+	struct location_msg received_msg;
+
+	wait_for_message(LOCATION_SEARCH_DONE, &received_msg);
+}
+
+/* Common timing helpers */
+static void wait_for_initialization(void)
+{
+	k_sleep(K_MSEC(100));
+}
+
+static void wait_for_processing(void)
+{
+	k_sleep(K_MSEC(100));
+}
+
+/* Helper for publishing and consuming test messages */
+static void publish_and_consume_message(enum location_msg_type msg_type)
+{
+	struct location_msg msg = { .type = msg_type };
+
+	zbus_chan_pub(&LOCATION_CHAN, &msg, K_NO_WAIT);
+	wait_for_processing();
+	consume_published_message(msg_type);
+}
+
 /* Helper function to verify location status messages */
 static void verify_location_status(enum location_msg_type expected_status)
 {
 	struct location_msg received_msg;
-	int err;
 
-	err = zbus_chan_read(&LOCATION_CHAN, &received_msg, K_MSEC(100));
-
-	TEST_ASSERT_EQUAL(0, err);
-	TEST_ASSERT_EQUAL(expected_status, received_msg.type);
+	wait_for_message(expected_status, &received_msg);
 }
 
 /* Helper function to verify cellular cloud request payload */
 static void verify_cellular_cloud_request(const struct lte_lc_cells_info *expected_cells)
 {
 	struct location_msg received_msg;
-	int err;
-
-	err = zbus_chan_read(&LOCATION_CHAN, &received_msg, K_MSEC(100));
-
-	TEST_ASSERT_EQUAL(0, err);
-	TEST_ASSERT_EQUAL(LOCATION_CLOUD_REQUEST, received_msg.type);
+	wait_for_message(LOCATION_CLOUD_REQUEST, &received_msg);
 
 	/* Verify cellular data payload */
 	TEST_ASSERT_NOT_NULL(received_msg.cloud_request.cell_data);
@@ -130,18 +169,16 @@ static void verify_cellular_cloud_request(const struct lte_lc_cells_info *expect
 		TEST_ASSERT_EQUAL(expected_cells->gci_cells[i].measurement_time,
 			received_msg.cloud_request.cell_data->gci_cells[i].measurement_time);
 	}
+
+	/* Verify that search done message follows */
+	verify_search_done_follows();
 }
 
 /* Helper function to verify Wi-Fi cloud request payload */
 static void verify_wifi_cloud_request(const struct wifi_scan_info *expected_wifi)
 {
 	struct location_msg received_msg;
-	int err;
-
-	err = zbus_chan_read(&LOCATION_CHAN, &received_msg, K_MSEC(100));
-
-	TEST_ASSERT_EQUAL(0, err);
-	TEST_ASSERT_EQUAL(LOCATION_CLOUD_REQUEST, received_msg.type);
+	wait_for_message(LOCATION_CLOUD_REQUEST, &received_msg);
 
 	/* Verify Wi-Fi data payload */
 	TEST_ASSERT_NOT_NULL(received_msg.cloud_request.wifi_data);
@@ -162,6 +199,9 @@ static void verify_wifi_cloud_request(const struct wifi_scan_info *expected_wifi
 		TEST_ASSERT_EQUAL(expected_wifi->ap_info[i].rssi,
 				  received_msg.cloud_request.wifi_data->ap_info[i].rssi);
 	}
+
+	/* Verify that search done message follows */
+	verify_search_done_follows();
 }
 
 /* Helper function to verify combined cellular and Wi-Fi cloud request payload */
@@ -169,12 +209,7 @@ static void verify_combined_cloud_request(const struct lte_lc_cells_info *expect
 					   const struct wifi_scan_info *expected_wifi)
 {
 	struct location_msg received_msg;
-	int err;
-
-	err = zbus_chan_read(&LOCATION_CHAN, &received_msg, K_MSEC(100));
-
-	TEST_ASSERT_EQUAL(0, err);
-	TEST_ASSERT_EQUAL(LOCATION_CLOUD_REQUEST, received_msg.type);
+	wait_for_message(LOCATION_CLOUD_REQUEST, &received_msg);
 
 	/* Verify both cellular and Wi-Fi data are present */
 	TEST_ASSERT_NOT_NULL(received_msg.cloud_request.cell_data);
@@ -193,18 +228,16 @@ static void verify_combined_cloud_request(const struct lte_lc_cells_info *expect
 	TEST_ASSERT_EQUAL_STRING_LEN(expected_wifi->ap_info[0].ssid,
 				     received_msg.cloud_request.wifi_data->ap_info[0].ssid,
 				     expected_wifi->ap_info[0].ssid_length);
+
+	/* Verify that search done message follows */
+	verify_search_done_follows();
 }
 
 /* Helper function to verify A-GNSS request payload */
 static void verify_agnss_request(const struct nrf_modem_gnss_agnss_data_frame *expected_agnss)
 {
 	struct location_msg received_msg;
-	int err;
-
-	err = zbus_chan_read(&LOCATION_CHAN, &received_msg, K_MSEC(100));
-
-	TEST_ASSERT_EQUAL(0, err);
-	TEST_ASSERT_EQUAL(LOCATION_AGNSS_REQUEST, received_msg.type);
+	wait_for_message(LOCATION_AGNSS_REQUEST, &received_msg);
 
 	/* Verify A-GNSS data payload */
 	TEST_ASSERT_EQUAL(expected_agnss->data_flags, received_msg.agnss_request.data_flags);
@@ -303,8 +336,7 @@ void setUp(void)
 		/* Purge all messages from the channel */
 	}
 
-	/* Wait for module initialization */
-	k_sleep(K_MSEC(100));
+	wait_for_initialization();
 }
 
 /* Test location library initialization */
@@ -329,8 +361,7 @@ void test_location_search_trigger(void)
 	/* Publish trigger message */
 	zbus_chan_pub(&LOCATION_CHAN, &msg, K_NO_WAIT);
 
-	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
 
 	/* Verify location request was made */
 	TEST_ASSERT_EQUAL(1, location_request_fake.call_count);
@@ -360,16 +391,16 @@ void test_location_event_handler_basic(void)
 	};
 
 	/* Wait for module initialization */
-	k_sleep(K_MSEC(100));
+	wait_for_initialization();
 
 	/* Simulate location event */
 	simulate_location_event(&mock_event);
 
 	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
 
-	/* Verify location done message was published */
-	verify_location_status(LOCATION_SEARCH_DONE);
+	/* Verify GNSS location data was published first for GNSS events */
+	verify_gnss_location_data(&mock_location);
 }
 
 /* Test GNSS location data is sent to cloud when GNSS location is obtained */
@@ -418,8 +449,7 @@ void test_gnss_location_data_sent_to_cloud(void)
 	/* Verify GNSS location data */
 	verify_gnss_location_data(&mock_location);
 
-	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
 
 	/* Verify date_time_set was called with GNSS time */
 	TEST_ASSERT_EQUAL(1, date_time_set_fake.call_count);
@@ -455,14 +485,12 @@ void test_cloud_location_request(void)
 		.cloud_location_request = mock_cloud_request
 	};
 
-	/* Wait for module initialization */
-	k_sleep(K_MSEC(100));
+	wait_for_initialization();
 
 	/* Simulate cloud location request event */
 	simulate_location_event(&mock_event);
 
-	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
 
 	/* Verify cloud location request message was published */
 	verify_cellular_cloud_request(&mock_cells_info);
@@ -522,14 +550,13 @@ void test_cloud_location_request_multiple_cells(void)
 		.cloud_location_request = mock_cloud_request
 	};
 
-	/* Wait for module initialization */
-	k_sleep(K_MSEC(100));
+	wait_for_initialization();
 
 	/* Simulate cloud location request event with multiple cells */
 	simulate_location_event(&mock_event);
 
 	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
 
 	/* Verify cloud location request message was published */
 	verify_cellular_cloud_request(&mock_cells_info);
@@ -607,14 +634,12 @@ void test_cloud_location_request_with_gci_cells(void)
 		.cloud_location_request = mock_cloud_request
 	};
 
-	/* Wait for module initialization */
-	k_sleep(K_MSEC(100));
+	wait_for_initialization();
 
 	/* Simulate cloud location request event with GCI cells */
 	simulate_location_event(&mock_event);
 
-	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
 
 	/* Verify cloud location request message was published */
 	verify_cellular_cloud_request(&mock_cells_info);
@@ -678,14 +703,12 @@ void test_wifi_location_request(void)
 		.cloud_location_request = mock_cloud_request
 	};
 
-	/* Wait for module initialization */
-	k_sleep(K_MSEC(100));
+	wait_for_initialization();
 
 	/* Simulate Wi-Fi location request event */
 	simulate_location_event(&mock_event);
 
-	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
 
 	/* Verify cloud location request message was published */
 	verify_wifi_cloud_request(&mock_wifi_info);
@@ -765,14 +788,12 @@ void test_combined_location_request(void)
 		.cloud_location_request = mock_cloud_request
 	};
 
-	/* Wait for module initialization */
-	k_sleep(K_MSEC(100));
+	wait_for_initialization();
 
 	/* Simulate combined location request event */
 	simulate_location_event(&mock_event);
 
-	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
 
 	/* Verify cloud location request message was published */
 	verify_combined_cloud_request(&mock_cells_info, &mock_wifi_info);
@@ -799,14 +820,12 @@ void test_agnss_request(void)
 		.agnss_request = mock_agnss_request
 	};
 
-	/* Wait for module initialization */
-	k_sleep(K_MSEC(100));
+	wait_for_initialization();
 
 	/* Simulate A-GNSS assistance request event */
 	simulate_location_event(&mock_event);
 
-	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
 
 	/* Verify A-GNSS request message was published */
 	verify_agnss_request(&mock_agnss_request);
@@ -820,14 +839,12 @@ void test_location_error_handling(void)
 		.method = LOCATION_METHOD_GNSS
 	};
 
-	/* Wait for module initialization */
-	k_sleep(K_MSEC(100));
+	wait_for_initialization();
 
 	/* Simulate location error event */
 	simulate_location_event(&mock_event);
 
-	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
 
 	/* Verify location done message was published (error is treated as completion) */
 	verify_location_status(LOCATION_SEARCH_DONE);
@@ -841,14 +858,12 @@ void test_location_timeout_handling(void)
 		.method = LOCATION_METHOD_GNSS
 	};
 
-	/* Wait for module initialization */
-	k_sleep(K_MSEC(100));
+	wait_for_initialization();
 
 	/* Simulate location timeout event */
 	simulate_location_event(&mock_event);
 
-	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
 
 	/* Verify location done message was published (timeout is treated as completion) */
 	verify_location_status(LOCATION_SEARCH_DONE);
@@ -862,14 +877,12 @@ void test_location_search_started(void)
 		.method = LOCATION_METHOD_GNSS
 	};
 
-	/* Wait for module initialization */
-	k_sleep(K_MSEC(100));
+	wait_for_initialization();
 
 	/* Simulate location search started event */
 	simulate_location_event(&mock_event);
 
-	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
 
 	/* Verify location search started message was published */
 	verify_location_status(LOCATION_SEARCH_STARTED);
@@ -890,14 +903,12 @@ void test_cellular_location_no_gnss_data_sent(void)
 		.location = mock_location
 	};
 
-	/* Wait for module initialization */
-	k_sleep(K_MSEC(100));
+	wait_for_initialization();
 
 	/* Simulate cellular location event */
 	simulate_location_event(&mock_event);
 
-	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
 
 	/* Verify only location done message was published (no GNSS data) */
 	verify_location_status(LOCATION_SEARCH_DONE);
@@ -917,7 +928,7 @@ void test_location_cancel_when_inactive(void)
 	zbus_chan_pub(&LOCATION_CHAN, &msg, K_NO_WAIT);
 
 	/* Give the module time to process */
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
 
 	/* Verify that location_request_cancel was NOT called since we're inactive */
 	TEST_ASSERT_EQUAL(0, location_request_cancel_fake.call_count);
@@ -938,14 +949,20 @@ void test_location_cancel_when_active(void)
 
 	/* Start location search */
 	zbus_chan_pub(&LOCATION_CHAN, &trigger_msg, K_NO_WAIT);
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
+
+	/* Consume the trigger message that was published */
+	consume_published_message(LOCATION_SEARCH_TRIGGER);
 
 	/* Verify location search started */
 	TEST_ASSERT_EQUAL(1, location_request_fake.call_count);
 
 	/* Cancel location search */
 	zbus_chan_pub(&LOCATION_CHAN, &cancel_msg, K_NO_WAIT);
-	k_sleep(K_MSEC(100));
+	wait_for_processing();
+
+	/* Consume the cancel message that was published */
+	consume_published_message(LOCATION_SEARCH_CANCEL);
 
 	/* Verify location_request_cancel was called */
 	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
@@ -957,28 +974,18 @@ void test_location_cancel_when_active(void)
 /* Test multiple cancel requests during active search */
 void test_location_multiple_cancel_requests(void)
 {
-	struct location_msg trigger_msg = {
-		.type = LOCATION_SEARCH_TRIGGER
-	};
-	struct location_msg cancel_msg = {
-		.type = LOCATION_SEARCH_CANCEL
-	};
-
 	/* Start location search */
-	zbus_chan_pub(&LOCATION_CHAN, &trigger_msg, K_NO_WAIT);
-	k_sleep(K_MSEC(100));
+	publish_and_consume_message(LOCATION_SEARCH_TRIGGER);
 
 	/* Send first cancel */
-	zbus_chan_pub(&LOCATION_CHAN, &cancel_msg, K_NO_WAIT);
-	k_sleep(K_MSEC(100));
+	publish_and_consume_message(LOCATION_SEARCH_CANCEL);
 
 	/* Verify first cancel was processed */
 	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
 	verify_location_status(LOCATION_SEARCH_DONE);
 
 	/* Send second cancel (should be ignored as we're now inactive) */
-	zbus_chan_pub(&LOCATION_CHAN, &cancel_msg, K_NO_WAIT);
-	k_sleep(K_MSEC(100));
+	publish_and_consume_message(LOCATION_SEARCH_CANCEL);
 
 	/* Verify no additional cancel calls were made */
 	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
@@ -987,27 +994,17 @@ void test_location_multiple_cancel_requests(void)
 /* Test cancellation followed by new search trigger */
 void test_location_cancel_then_new_search(void)
 {
-	struct location_msg trigger_msg = {
-		.type = LOCATION_SEARCH_TRIGGER
-	};
-	struct location_msg cancel_msg = {
-		.type = LOCATION_SEARCH_CANCEL
-	};
-
 	/* Start first location search */
-	zbus_chan_pub(&LOCATION_CHAN, &trigger_msg, K_NO_WAIT);
-	k_sleep(K_MSEC(100));
+	publish_and_consume_message(LOCATION_SEARCH_TRIGGER);
 	TEST_ASSERT_EQUAL(1, location_request_fake.call_count);
 
 	/* Cancel location search */
-	zbus_chan_pub(&LOCATION_CHAN, &cancel_msg, K_NO_WAIT);
-	k_sleep(K_MSEC(100));
+	publish_and_consume_message(LOCATION_SEARCH_CANCEL);
 	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
 	verify_location_status(LOCATION_SEARCH_DONE);
 
 	/* Start new location search after cancellation */
-	zbus_chan_pub(&LOCATION_CHAN, &trigger_msg, K_NO_WAIT);
-	k_sleep(K_MSEC(100));
+	publish_and_consume_message(LOCATION_SEARCH_TRIGGER);
 
 	/* Verify second location request was made */
 	TEST_ASSERT_EQUAL(2, location_request_fake.call_count);
