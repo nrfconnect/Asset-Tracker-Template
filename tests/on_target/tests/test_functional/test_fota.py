@@ -61,13 +61,12 @@ def get_modemversion(dut_fota):
     shadow = dut_fota.fota.get_device(dut_fota.device_id)
     return shadow["state"]["reported"]["device"]["deviceInfo"]["modemFirmware"]
 
-def run_fota_resumption(dut_fota, fota_type):
-    timeout_50_percent= APP_FOTA_TIMEOUT/2
-    dut_fota.uart.wait_for_str("50%", timeout=timeout_50_percent)
-    logger.debug(f"Testing fota resumption on disconnect for {fota_type} fota")
-
+def perform_disconnect_reconnect(dut_fota, expected_percentage):
+    """Helper function to perform a disconnect/reconnect sequence and verify resumption at expected percentage"""
     patterns_lte_offline = ["network: l4_event_handler: Network connectivity lost"]
     patterns_lte_normal = ["network: l4_event_handler: Network connectivity established"]
+
+    logger.info(f"Disconnecting at {expected_percentage}% - device should resume at same percentage")
 
     # LTE disconnect
     dut_fota.uart.flush()
@@ -80,6 +79,45 @@ def run_fota_resumption(dut_fota, fota_type):
     dut_fota.uart.wait_for_str(patterns_lte_normal, timeout=120)
     dut_fota.uart.wait_for_str("fota_download: Refuse fragment, restart with offset", timeout=600)
     dut_fota.uart.wait_for_str("fota_download: Downloading from offset:", timeout=600)
+
+    # Verify resumption starts at or very close to the expected percentage
+    # Look for the next percentage update to confirm we're resuming properly
+    next_percentage = expected_percentage + 5
+    try:
+        # Wait for the next percentage (or same percentage if we're exactly at boundary)
+        dut_fota.uart.wait_for_str(f"{expected_percentage}%", timeout=60)
+        logger.info(f"✓ Verified: Resumed at {expected_percentage}% as expected")
+    except AssertionError:
+        try:
+            # If we don't see the exact percentage, look for the next one
+            dut_fota.uart.wait_for_str(f"{next_percentage}%", timeout=60)
+            logger.info(f"✓ Verified: Resumed correctly, now at {next_percentage}%")
+        except AssertionError:
+            logger.error(f"✗ Failed to verify resumption at expected percentage {expected_percentage}%")
+            raise AssertionError(f"Could not verify FOTA resumed at {expected_percentage}%")
+
+def run_fota_resumption(dut_fota, fota_type):
+    if fota_type == "app":
+        timeout_50_percent = APP_FOTA_TIMEOUT/2
+        dut_fota.uart.wait_for_str("50%", timeout=timeout_50_percent)
+        logger.debug(f"Testing fota resumption on disconnect for {fota_type} fota")
+
+        perform_disconnect_reconnect(dut_fota, 50)
+    elif fota_type == "full":
+        # Test resumption at 20% and 80%
+        logger.debug(f"Testing fota resumption on disconnect for {fota_type} fota at 20% and 80%")
+
+        # First disconnect at 20%
+        timeout_20_percent = FULL_MFW_FOTA_TIMEOUT * 0.2
+        dut_fota.uart.wait_for_str("20%", timeout=timeout_20_percent)
+        logger.info("Performing first disconnect/reconnect at 20%")
+        perform_disconnect_reconnect(dut_fota, 20)
+
+        # Second disconnect at 80%
+        timeout_80_percent = FULL_MFW_FOTA_TIMEOUT * 0.6  # Additional 60% of total timeout
+        dut_fota.uart.wait_for_str("80%", timeout=timeout_80_percent)
+        logger.info("Performing second disconnect/reconnect at 80%")
+        perform_disconnect_reconnect(dut_fota, 80)
 
 def run_fota_reschedule(dut_fota, fota_type):
     dut_fota.uart.wait_for_str("5%", timeout=APP_FOTA_TIMEOUT)
@@ -149,6 +187,8 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
 
         if fota_type == "app":
             run_fota_resumption(dut_fota, "app")
+        elif fota_type == "full":
+            run_fota_resumption(dut_fota, "full")
         await_nrfcloud(
             functools.partial(dut_fota.fota.get_fota_status, dut_fota.data['job_id']),
             "IN_PROGRESS",
