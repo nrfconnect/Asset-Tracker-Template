@@ -22,11 +22,13 @@ enum ntn_msg_type {
 	NTN_SET_IDLE,            /* Set idle state */
 	GNSS_TIMER,          /* GNSS timer expired - get new fix */
 	NTN_TIMER,           /* LTE timer expired - connect to network */
+	NTN_SHELL_SET_TIME,  /* Set new time of pass from shell */
 };
 
 /* NTN module message */
 struct ntn_msg {
 	enum ntn_msg_type type;
+	char time_of_pass[32];  /* For NTN_SHELL_SET_TIME */
 };
 
 /* Declare the NTN message channel */

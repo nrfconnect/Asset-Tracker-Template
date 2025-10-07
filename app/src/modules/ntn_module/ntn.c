@@ -101,6 +101,61 @@ static const struct smf_state states[] = {
 				&states[STATE_RUNNING], NULL),
 };
 
+
+/* Helper function to parse time and set up timers */
+static int reschedule_timers(struct ntn_state_object *state, const char * const time_of_pass)
+{
+	int err;
+	int64_t current_time;
+	
+	/* Get current time */
+	err = date_time_now(&current_time);
+	if (err) {
+		LOG_ERR("Failed to get current time: %d", err);
+		return err;
+	}
+
+	current_time = current_time / 1000;
+
+	/* Parse configured time of pass */
+	struct tm pass_time = {0};
+	char *parse_result = strptime(time_of_pass, "%Y-%m-%d-%H:%M:%S", &pass_time);
+	if (parse_result == NULL) {
+		LOG_ERR("Failed to parse configured time of pass");
+		return -EINVAL;
+	}
+
+	/* Convert to Unix timestamp */
+	time_t pass_timestamp = timegm(&pass_time);
+
+	/* Calculate time until pass */
+	int64_t seconds_until_pass = pass_timestamp - current_time;
+	LOG_INF("Current time: %lld, Pass time: %lld", current_time, (int64_t)pass_timestamp);
+	LOG_INF("Seconds until pass: %lld", seconds_until_pass);
+
+	if (seconds_until_pass < 0) {
+		LOG_ERR("Satellite already passed");
+		return -ETIME;
+	}
+
+	/* Start GNSS timer to wake up 300 seconds before pass */
+	int64_t gnss_timeout_value = seconds_until_pass - CONFIG_APP_NTN_TIMER_GNSS_VALUE_SECONDS;
+	k_timer_start(&state->gnss_timer,
+			K_SECONDS(gnss_timeout_value),
+			K_NO_WAIT);
+
+	/* Start LTE timer to wake up 20 seconds before pass */
+	int64_t ntn_timeout_value = seconds_until_pass - CONFIG_APP_NTN_TIMER_NTN_VALUE_SECONDS;
+	k_timer_start(&state->ntn_timer,
+			K_SECONDS(ntn_timeout_value),
+			K_NO_WAIT);
+
+	LOG_INF("GNSS timer set to wake up in %lld seconds", gnss_timeout_value);
+	LOG_INF("NTN timer set to wake up in %lld seconds", ntn_timeout_value);
+
+	return 0;
+}
+
 /* Helper function to publish NTN messages */
 static void ntn_msg_publish(enum ntn_msg_type type)
 {
@@ -502,6 +557,8 @@ static int sock_send_gnss_data(const struct nrf_modem_gnss_pvt_data_frame *gnss_
 	if (err < 0) {
 		snprintf(oper, sizeof(oper), "N/A");
 	}
+	// imei,ping_rtt,rsrp,band,ue_mode,oper,lat_str,lon_str,accuracy,...
+	// ...battery_str,temp_str,pressure_str,humidity_str
 	snprintf(message, sizeof(message),
 				"%s,,%d,%s,%s,%s,%s,%.2f,%.2f,%d,%s,%s,%s,%s",
 				imei,
@@ -513,7 +570,7 @@ static int sock_send_gnss_data(const struct nrf_modem_gnss_pvt_data_frame *gnss_
 				gnss_data->latitude,
 				gnss_data->longitude,
 				(int)gnss_data->accuracy,
-				"99.99","99.99","999.99","99.99");
+				"99.99","25.00","999.99","99.99");
 #else
 	// /* Custom UDP endpoint */
 	snprintf(message, sizeof(message),
@@ -567,6 +624,7 @@ static void state_running_entry(void *obj)
 static void state_running_run(void *obj)
 {
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+	int err;
 
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
@@ -584,6 +642,10 @@ static void state_running_run(void *obj)
 			break;
 		case NTN_SET_IDLE:
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+			break;
+		case NTN_SHELL_SET_TIME:
+			reschedule_timers(state, msg->time_of_pass);
+			break;
 		default:
 			/* Don't care */
 			break;
@@ -608,6 +670,7 @@ static void state_gnss_entry(void *obj)
 static void state_gnss_run(void *obj)
 {
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+	int err;
 
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
@@ -615,54 +678,8 @@ static void state_gnss_run(void *obj)
 		if (msg->type == NTN_LOCATION_SEARCH_DONE) {
 			/* Location search completed */
 			if (state->is_first_gnss_fix) {
-				/* Get current time */
-				int64_t current_time;
-				int err = date_time_now(&current_time);
-				if (err) {
-					LOG_ERR("Failed to get current time: %d", err);
-					return;
-				}
-
-				current_time = current_time / 1000;
-
-				/* Parse configured time of pass */
-				struct tm pass_time = {0};
-				char *parse_result = strptime(CONFIG_APP_NTN_LEO_TIME_OF_PASS, "%Y-%m-%d %H:%M:%S", &pass_time);
-				if (parse_result == NULL) {
-					LOG_ERR("Failed to parse configured time of pass");
-					return;
-				}
-
-				/* Convert to Unix timestamp */
-				time_t pass_timestamp = timegm(&pass_time);
-
-				/* Calculate time until pass */
-				int64_t seconds_until_pass = pass_timestamp - current_time;
-				LOG_INF("Current time: %lld, Pass time: %lld", current_time, (int64_t)pass_timestamp);
-				LOG_INF("Seconds until pass: %lld", seconds_until_pass);
-
-				if (seconds_until_pass < 0) {
-					LOG_ERR("Satellite already passed");
-					ntn_msg_publish(NTN_SET_IDLE);
-					return;
-				}
-
-				/* Start GNSS timer to wake up 300 seconds before pass */
-				int64_t gnss_timeout_value = seconds_until_pass - CONFIG_APP_NTN_TIMER_GNSS_VALUE_SECONDS;
-				k_timer_start(&state->gnss_timer,
-						K_SECONDS(gnss_timeout_value),
-						K_NO_WAIT);
-
-				/* Start LTE timer to wake up 20 seconds before pass */
-				int64_t ntn_timeout_value = seconds_until_pass - CONFIG_APP_NTN_TIMER_NTN_VALUE_SECONDS;
-				k_timer_start(&state->ntn_timer,
-						K_SECONDS(ntn_timeout_value),
-						K_NO_WAIT);
-
+				reschedule_timers(state, CONFIG_APP_NTN_LEO_TIME_OF_PASS);
 				state->is_first_gnss_fix = false;
-
-				LOG_INF("GNSS timer set to wake up  in %lld seconds", gnss_timeout_value);
-				LOG_INF("NTN timer set to wake up in %lld seconds", ntn_timeout_value);
 			}
 
 			ntn_msg_publish(NTN_SET_IDLE);

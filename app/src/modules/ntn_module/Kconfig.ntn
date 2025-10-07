@@ -116,7 +116,7 @@ if APP_NTN_LEO
 
 config APP_NTN_LEO_TIME_OF_PASS
 	string "Time of pass of LEO satellite (UTC)"
-	default "2025-09-29 10:20:00"
+	default "2025-09-29-10:20:00"
 	help
 	  Pre-provision ATT with time of pass in UTC using format: YYYY-MM-DD HH:mm:ss
 	  Example: 2025-09-29 12:00:00 for September 29, 2025 12:00:00 UTC
