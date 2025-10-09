@@ -1217,11 +1217,7 @@ static void passthrough_mode_exit(void *o)
 
 static void passthrough_disconnected_entry(void *o)
 {
-	int err;
 	struct main_state *state_object = (struct main_state *)o;
-	struct location_msg location_msg = {
-		.type = LOCATION_SEARCH_CANCEL,
-	};
 
 	LOG_DBG("%s", __func__);
 
@@ -1230,16 +1226,8 @@ static void passthrough_disconnected_entry(void *o)
 	/* Stop any running sampling timers when disconnecting in passthrough mode */
 	timer_sample_stop();
 
-	/* Cancel any ongoing location search */
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
-	if (err) {
-		LOG_ERR("Failed to publish location search cancel, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-
 #if defined(CONFIG_APP_LED)
+	int err;
 	struct led_msg led_msg = {
 		.type = LED_RGB_SET,
 		.red = 150,

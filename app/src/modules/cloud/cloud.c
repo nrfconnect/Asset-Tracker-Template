@@ -1026,11 +1026,7 @@ static void handle_cloud_location_request(const struct location_data_cloud *requ
 
 #if defined(CONFIG_LOCATION_METHOD_CELLULAR)
 	if (request->cell_data != NULL) {
-		/* NOSONAR: Cast away const qualifier is required due to API design mismatch
-		 * between location library (const pointers) and nRF Cloud API (non-const pointers).
-		 * The underlying nrf_cloud_coap_location_get function only reads the data.
-		 */
-		loc_req.cell_info = (struct lte_lc_cells_info *)request->cell_data; /* NOSONAR */
+		loc_req.cell_info = (struct lte_lc_cells_info *)request->cell_data;
 
 		LOG_DBG("Cellular data present: current cell ID: %d, neighbor cells: %d, "
 			"GCI cells count: %d",
@@ -1042,11 +1038,7 @@ static void handle_cloud_location_request(const struct location_data_cloud *requ
 
 #if defined(CONFIG_LOCATION_METHOD_WIFI)
 	if (request->wifi_data != NULL) {
-		/* NOSONAR: Cast away const qualifier is required due to API design mismatch
-		 * between location library (const pointers) and nRF Cloud API (non-const pointers).
-		 * The underlying nrf_cloud_coap_location_get function only reads the data.
-		 */
-		loc_req.wifi_info = (struct wifi_scan_info *)request->wifi_data; /* NOSONAR */
+		loc_req.wifi_info = (struct wifi_scan_info *)request->wifi_data;
 
 		LOG_DBG("Wi-Fi data present: %d APs", request->wifi_data->cnt);
 	}
