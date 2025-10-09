@@ -1044,6 +1044,49 @@ static void handle_cloud_location_request(const struct location_data_cloud *requ
 	}
 #endif
 
+	/* Print location request details */
+	LOG_INF("Location request details:");
+	LOG_INF("  Config: do_reply=%s", loc_req.config->do_reply ? "true" : "false");
+	
+#if defined(CONFIG_LOCATION_METHOD_CELLULAR)
+	if (loc_req.cell_info != NULL) {
+		LOG_INF("  Cellular info:");
+		LOG_INF("    Current cell ID: %d", loc_req.cell_info->current_cell.id);
+		LOG_INF("    Current cell TAC: %d", loc_req.cell_info->current_cell.tac);
+		LOG_INF("    Current cell EARFCN: %d", loc_req.cell_info->current_cell.earfcn);
+		LOG_INF("    Current cell timing advance: %d", loc_req.cell_info->current_cell.timing_advance);
+		LOG_INF("    Current cell RSRP: %d", loc_req.cell_info->current_cell.rsrp);
+		LOG_INF("    Current cell RSRQ: %d", loc_req.cell_info->current_cell.rsrq);
+		LOG_INF("    Neighbor cells count: %d", loc_req.cell_info->ncells_count);
+		LOG_INF("    GCI cells count: %d", loc_req.cell_info->gci_cells_count);
+	} else {
+		LOG_INF("  Cellular info: NULL");
+	}
+#endif
+
+#if defined(CONFIG_LOCATION_METHOD_WIFI)
+	if (loc_req.wifi_info != NULL) {
+		LOG_INF("  Wi-Fi info:");
+		LOG_INF("    AP count: %d", loc_req.wifi_info->cnt);
+		for (int i = 0; i < loc_req.wifi_info->cnt; i++) {
+			LOG_INF("    AP[%d]: SSID=%.*s, BSSID=%02x:%02x:%02x:%02x:%02x:%02x, RSSI=%d, Channel=%d",
+				i,
+				loc_req.wifi_info->ap_info[i].ssid_length,
+				loc_req.wifi_info->ap_info[i].ssid,
+				loc_req.wifi_info->ap_info[i].mac[0],
+				loc_req.wifi_info->ap_info[i].mac[1],
+				loc_req.wifi_info->ap_info[i].mac[2],
+				loc_req.wifi_info->ap_info[i].mac[3],
+				loc_req.wifi_info->ap_info[i].mac[4],
+				loc_req.wifi_info->ap_info[i].mac[5],
+				loc_req.wifi_info->ap_info[i].rssi,
+				loc_req.wifi_info->ap_info[i].channel);
+		}
+	} else {
+		LOG_INF("  Wi-Fi info: NULL");
+	}
+#endif
+
 	/* Send location request to nRF Cloud */
 	err = nrf_cloud_coap_location_get(&loc_req, &result);
 	if (err == COAP_RESPONSE_CODE_NOT_FOUND) {
