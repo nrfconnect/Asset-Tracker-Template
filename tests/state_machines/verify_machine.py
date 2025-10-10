@@ -34,46 +34,64 @@ def normalize_match_value(val):
 def compare_state_machines(c_code, plantuml):
     # Construct prompt for LLM
     system_prompt = """
-        You are a validation tool that compares a Zephyr SMF state-machine implementation (in C) against a PlantUML “source of truth.”
-        Your job is to verify that states, transitions, and hierarchy match exactly, ignoring entry/running/exit callbacks.
+        You are a validation tool that compares a Zephyr SMF state-machine implementation (in C) against a PlantUML "source of truth."
+        Your job is to verify that states, transitions, and hierarchy match semantically, ignoring entry/running/exit callbacks.
 
         Input:
         • C implementation:
-            - States defined via `struct smf_state`
-            - Transitions invoked with `smf_set_state()`
+            - States defined via `struct smf_state` with SMF_CREATE_STATE(entry, run, exit, parent, initial_child)
+            - The 5th parameter (initial_child) defines the initial substate when entering a composite state
+            - Transitions invoked with `smf_set_state()` in run functions
+            - Parent state run functions can handle events and transition on behalf of child states
         • PlantUML source:
             - States and sub-states
-            - Initial transitions (`[*] -->`)
-            - Transitions between states
+            - Initial transitions (`[*] -->`) at various hierarchy levels
+            - Transitions between states with event labels
 
         Validation steps:
         1. Extract all state identifiers from both C and PlantUML.
         2. Extract all transition pairs (source → target) from both.
         3. Extract the parent-child (hierarchy) relationships among states from both.
-        4. Verify initial transitions (`[*] --> state`) exist in both.
+        4. Verify initial transitions exist in both - see equivalence rules below.
         5. Ensure that every state, transition, and hierarchical relationship appears in both representations.
         6. Ensure that the UML input is syntactically valid.
 
         Output:
         A single JSON object with two fields:
             • `match` (boolean):
-                - `true` if all states, transitions, and hierarchies align
-                - `false` otherwise
+                - `true` if all states, transitions, and hierarchies align semantically
+                - `false` only if there are genuine mismatches (not just representation differences)
             • `details` (string):
                 - On success, a brief confirmation message.
-                - On failure, list the missing or mismatched elements.
+                - On failure, list only the GENUINE missing or mismatched elements.
 
-        Guidance:
-        - Only consider states, transitions, and hierarchy. Ignore entry/running/exit functions.
-        - Consider PlantUML deep history (`[H*]` inside a composite state, with transitions targeting that
-          alias) as semantically equivalent to the C implementation resuming the last active leaf state
-          within that composite state.
-        - Consider a PlantUML choice pseudostate used for initial routing (e.g., `CHOOSE_INITIAL` with
-          guards that point to alternative initial children) as semantically equivalent to a C setup where
-          the initial child is decided conditionally (e.g., at build time via configuration or runtime).
-          If either of the guarded targets matches a valid initial child in C, treat the initial alignment
-          as satisfied.
-        - If any ambiguity arises, default `match` to `false` and document the ambiguity in `details`.
+        CRITICAL EQUIVALENCE RULES - Apply these before flagging mismatches:
+
+        1. INITIAL STATE SEMANTICS:
+           - When PlantUML shows `[*] --> PARENT` and PARENT contains `[*] --> CHILD`, this is equivalent to
+             C code where STATE_PARENT has initial_child pointing to CHILD.
+           - The combination means: "system starts in PARENT, which immediately enters CHILD"
+           - This is functionally identical to C directly starting in CHILD with PARENT as its parent.
+
+        2. CHOICE PSEUDOSTATES FOR INITIAL ROUTING:
+           - PlantUML: `[*] --> CHOOSE_INITIAL` followed by conditional transitions to different children
+             (e.g., `CHOOSE_INITIAL --> CHILD_A: config_a` and `CHOOSE_INITIAL --> CHILD_B: otherwise`)
+           - C: `initial_child = &states[INITIAL_MODE]` where INITIAL_MODE is a preprocessor conditional
+             (e.g., `#if CONFIG_X ... #define INITIAL_MODE STATE_A #else ... #define INITIAL_MODE STATE_B`)
+           - These are semantically equivalent: both select the initial child conditionally.
+           - If any of the choice targets matches the C initial child, consider it a match.
+
+        3. DEEP HISTORY:
+           - PlantUML `[H*]` inside a composite state, with transitions targeting that composite
+           - C implementation: tracking last active leaf state and restoring it on re-entry
+           - These are semantically equivalent.
+
+        IMPORTANT:
+        - Focus on semantic equivalence, not syntactic exactness.
+        - If the STATE MACHINES would behave identically at runtime, they match.
+        - Only flag genuine mismatches (missing states, wrong targets, missing transitions).
+        - If in doubt about equivalence, default `match` to `true` and note the equivalence in `details`.
+        - Be permissive: the goal is to verify behavior, not syntax.
         """
 
 
