@@ -33,12 +33,14 @@ To add a new zbus event, complete the following procedure:
     };
     ```
 
-2. Implement publishing VBUS connected/disconnected events in the appropriate handler in `power.c: event_callback()`:
+2. Implement publishing of VBUS connected and disconnected events by modifying the existing `event_callback()` function in `power.c`:
     ```c
-    if (pins & BIT(NPM1300_EVENT_VBUS_DETECTED)) {
+    if (pins & BIT(NPM13XX_EVENT_VBUS_DETECTED)) {
         LOG_DBG("VBUS detected");
 
-        enum power_msg_type msg = POWER_VBUS_CONNECTED;
+        struct power_msg msg = {
+            .type = POWER_VBUS_CONNECTED
+        };
 
         err = zbus_chan_pub(&POWER_CHAN, &msg, K_SECONDS(1));
         if (err) {
@@ -46,13 +48,16 @@ To add a new zbus event, complete the following procedure:
             SEND_FATAL_ERROR();
             return;
         }
-        // ... existing code ...
-        }
 
-    if (pins & BIT(NPM1300_EVENT_VBUS_REMOVED)) {
+        // ... existing code ...
+    }
+
+    if (pins & BIT(NPM13XX_EVENT_VBUS_REMOVED)) {
         LOG_DBG("VBUS removed");
 
-        enum power_msg_type msg = POWER_VBUS_DISCONNECTED;
+        struct power_msg msg = {
+            .type = POWER_VBUS_DISCONNECTED
+        };
 
         err = zbus_chan_pub(&POWER_CHAN, &msg, K_SECONDS(1));
         if (err) {
@@ -65,17 +70,21 @@ To add a new zbus event, complete the following procedure:
     }
     ```
 
-1. Make sure the channel is included in the subscriber module (for example, `main.c`). Add the channel to the channel list:
+3. Make sure the channel is included in the subscriber module (for example, `main.c`). Add the channel to the channel list:
 
     ```c
-    #define LIST_OF_CHANNELS(X)                          \
-        X(LED_CHAN,		    enum led_msg_type)          \
-        X(LOCATION_CHAN,		enum location_msg_type)     \
-        X(POWER_CHAN,		enum power_msg_type)	    \
-        X(TIMER_CHAN,		int)
+    # define CHANNEL_LIST(X)      \
+    X(CLOUD_CHAN,  struct cloud_msg)  \
+    X(BUTTON_CHAN,  struct button_msg)  \
+    X(FOTA_CHAN,  enum fota_msg_type)  \
+    X(NETWORK_CHAN,  struct network_msg)  \
+    X(LOCATION_CHAN, struct location_msg)  \
+    X(STORAGE_CHAN,  struct storage_msg)  \
+    X(TIMER_CHAN,  enum timer_msg_type) \
+    X(POWER_CHAN,  struct power_msg) \
     ```
 
-1. Implement a handler for the new events in the subscriber module (for example, in the main module's state machine in `running_run`):
+4. Implement a handler for the new events in the subscriber module (for example, in the main module's state machine in `running_run`):
 
     ```c
     if (state_object->chan == &POWER_CHAN) {
@@ -129,7 +138,7 @@ To add a new zbus event, complete the following procedure:
     }
     ```
 
-1. Test the implementation by connecting and disconnecting VBUS to verify the LED patterns change as expected.
+5. Test the implementation by connecting and disconnecting VBUS to verify the LED patterns change as expected.
 
 ## Add environmental sensor
 
@@ -164,10 +173,10 @@ Thingy:91 X is used as an example, as it is a supported board in the template wi
     };
     ```
 
-1. Update the environmental module's state structure to include the magnetometer device reference and data storage:
+2. Update the environmental module's state structure to include the magnetometer device reference and data storage:
 
     ```c
-    struct environmental_state {
+    struct environmental_state_object {
         /* ... existing fields ... */
 
        /* BMM350 sensor device reference */
@@ -180,16 +189,16 @@ Thingy:91 X is used as an example, as it is a supported board in the template wi
     };
     ```
 
-1. Initialize the device reference using the devicetree label:
+3. Initialize the device reference using the devicetree label:
 
     ```c
-    struct environmental_state environmental_state = {
+    struct environmental_state_object environmental_state = {
         .bme680 = DEVICE_DT_GET(DT_NODELABEL(bme680)),
         .bmm350 = DEVICE_DT_GET(DT_NODELABEL(magnetometer)),
     };
     ```
 
-1. Update the sensor sampling function signature to include the magnetometer device:
+4. Update the sensor sampling function signature to include the magnetometer device:
 
      ```c
      static void sample_sensors(const struct device *const bme680, const struct device *const bmm350)
@@ -201,7 +210,7 @@ Thingy:91 X is used as an example, as it is a supported board in the template wi
      sample_sensors(state_object->bme680, state_object->bmm350);
     ```
 
-1. Implement sensor data acquisition using the Zephyr Sensor API:
+5. Implement sensor data acquisition using the Zephyr Sensor API:
 
     ```c
      err = sensor_sample_fetch(bmm350);
@@ -234,41 +243,75 @@ Thingy:91 X is used as an example, as it is a supported board in the template wi
     };
     ```
 
-1. Add cloud integration for the magnetometer data:
+6. Update the `environmental_msg` structure in `environmental.h` to include the magnetic field data:
 
     ```c
-    char message[100] = { 0 };
+    struct environmental_msg {
+        enum environmental_msg_type type;
 
-    err = snprintk(message, sizeof(message),
-                "%.2f %.2f %.2f",
-                msg.magnetic_field[0],
-                msg.magnetic_field[1],
-                msg.magnetic_field[2]);
-    if (err < 0 || err >= sizeof(message)) {
-        LOG_ERR("Failed to format magnetometer data: %d", err);
-        SEND_FATAL_ERROR();
-        return;
-    }
+        /** Contains the current temperature in celsius. */
+        double temperature;
 
-    err = nrf_cloud_coap_message_send(CUSTOM_JSON_APPID_VAL_MAGNETIC,
-                                  message,
-                                  false,
-                                  NRF_CLOUD_NO_TIMESTAMP,
-                                  confirmable);
-    if (err == -ENETUNREACH) {
-        LOG_WRN("Network unreachable: %d", err);
-        return;
-    } else if (err) {
-        LOG_ERR("Failed to send magnetometer data: %d", err);
-        SEND_FATAL_ERROR();
-        return;
-    }
+        /** Contains the current humidity in percentage. */
+        double humidity;
+
+        /** Contains the current pressure in Pa. */
+        double pressure;
+
+        /** Magnetic field measurements (X, Y, Z) in µT (microtesla). */
+        double magnetic_field[3];
+
+        /** Timestamp of the sample in milliseconds since epoch. */
+        int64_t timestamp;
+    };
     ```
 
-1. Define a custom APP ID for magnetic field data:
+    The magnetometer data is now part of the environmental message and will be automatically handled by the storage module through the existing `ENVIRONMENTAL` data type. No changes to `storage_data_types.h` or `storage_data_types.c` are needed since the existing `environmental_check()` and `environmental_extract()` functions will handle the entire structure including the magnetic field data.
+
+7. Add cloud integration in the `send_storage_data_to_cloud()` function in `cloud.c` to send magnetometer data to nRF Cloud. Add this code after the existing environmental sensor data handling:
 
     ```c
-    #define CUSTOM_JSON_APPID_VAL_MAGNETIC "MAGNETIC_FIELD"
+    #if defined(CONFIG_APP_ENVIRONMENTAL)
+        if (item->type == STORAGE_TYPE_ENVIRONMENTAL) {
+            const struct environmental_msg *env = &item->data.ENVIRONMENTAL;
+
+            /* ... existing temperature, pressure, humidity sending code ... */
+
+            /* Send magnetometer data if available (non-zero values) */
+            if (env->magnetic_field[0] != 0.0 ||
+                env->magnetic_field[1] != 0.0 ||
+                env->magnetic_field[2] != 0.0) {
+                char message[64];
+
+                /* Format magnetometer data as a string with three values */
+                err = snprintk(message, sizeof(message),
+                              "%.2f %.2f %.2f",
+                              env->magnetic_field[0],
+                              env->magnetic_field[1],
+                              env->magnetic_field[2]);
+                if (err < 0 || err >= sizeof(message)) {
+                    LOG_ERR("Failed to format magnetometer data: %d", err);
+                    return -ENOMEM;
+                }
+
+                /* Send as a custom app ID message */
+                err = nrf_cloud_coap_message_send("MAGNETIC_FIELD",
+                                                 message,
+                                                 false,
+                                                 timestamp_ms,
+                                                 confirmable);
+                if (err) {
+                    LOG_ERR("Failed to send magnetometer data to cloud, error: %d", err);
+                    return err;
+                }
+
+                LOG_DBG("Magnetometer data sent to cloud: X=%.2f µT, Y=%.2f µT, Z=%.2f µT",
+                       env->magnetic_field[0], env->magnetic_field[1], env->magnetic_field[2]);
+            }
+
+            return 0;
+        }
+    #endif /* CONFIG_APP_ENVIRONMENTAL */
     ```
 
 ## Add your own module
@@ -332,7 +375,7 @@ To add your own module, complete the following steps:
     #endif /* _DUMMY_H_ */
     ```
 
-1. In `dummy.c`, implement the module's functionality:
+4. In `dummy.c`, implement the module's functionality:
 
     ```c
     #include <zephyr/kernel.h>
@@ -488,7 +531,7 @@ To add your own module, complete the following steps:
                     K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
     ```
 
-1. In `Kconfig.dummy`, define module configuration options:
+5. In `Kconfig.dummy`, define module configuration options:
 
     ```kconfig
     menuconfig APP_DUMMY
@@ -524,14 +567,14 @@ To add your own module, complete the following steps:
     endif # APP_DUMMY
     ```
 
-1. In `CMakeLists.txt`, configure the build system:
+6. In `CMakeLists.txt`, configure the build system:
 
     ```cmake
     target_sources_ifdef(CONFIG_APP_DUMMY app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/dummy.c)
     target_include_directories(app PRIVATE .)
     ```
 
-1. Add the module to the main application's CMakeLists.txt:
+7. Add the module to the main application's CMakeLists.txt:
 
     ```cmake
     add_subdirectory(src/modules/dummy)
