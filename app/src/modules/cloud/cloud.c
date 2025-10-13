@@ -27,6 +27,7 @@
 #include "cloud_internal.h"
 #include "cloud_provisioning.h"
 #include "cloud_location.h"
+#include "cloud_environmental.h"
 #include "app_common.h"
 #include "network.h"
 #include "storage.h"
@@ -339,7 +340,6 @@ static void send_request_failed(void)
 	}
 }
 
-
 #if defined(CONFIG_APP_NETWORK)
 static void handle_network_data_message(const struct network_msg *msg)
 {
@@ -413,37 +413,7 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 	if (item->type == STORAGE_TYPE_ENVIRONMENTAL) {
 		const struct environmental_msg *env = &item->data.ENVIRONMENTAL;
 
-		err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_TEMP,
-						 env->temperature,
-						 timestamp_ms,
-						 confirmable);
-		if (err) {
-			LOG_ERR("Failed to send temperature data to cloud, error: %d", err);
-			return err;
-		}
-
-		err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_AIR_PRESS,
-						 env->pressure,
-						 timestamp_ms,
-						 confirmable);
-		if (err) {
-			LOG_ERR("Failed to send pressure data to cloud, error: %d", err);
-			return err;
-		}
-
-		err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_HUMID,
-						 env->humidity,
-						 timestamp_ms,
-						 confirmable);
-		if (err) {
-			LOG_ERR("Failed to send humidity data to cloud, error: %d", err);
-			return err;
-		}
-
-		LOG_DBG("Environmental data sent to cloud: T=%.1f°C, P=%.1fhPa, H=%.1f%%",
-			(double)env->temperature, (double)env->pressure, (double)env->humidity);
-
-		return 0;
+		return cloud_environmental_send(env, timestamp_ms, confirmable);
 	}
 #endif /* CONFIG_APP_ENVIRONMENTAL */
 
