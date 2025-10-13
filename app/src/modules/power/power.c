@@ -123,13 +123,11 @@ static void state_running_entry(void *obj)
 		return;
 	}
 
-	if (IS_ENABLED(CONFIG_APP_POWER_DISABLE_UART_ON_VBUS_REMOVED)) {
-		err = subscribe_to_vsbus_events(pmic, &event_cb);
-		if (err) {
-			LOG_ERR("subscribe_to_vsbus_events, error: %d", err);
-			SEND_FATAL_ERROR();
-			return;
-		}
+	err = subscribe_to_vsbus_events(pmic, &event_cb);
+	if (err) {
+		LOG_ERR("subscribe_to_vsbus_events, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
 	}
 
 	err = charger_read_sensors(&parameters.v0, &parameters.i0, &parameters.t0, &chg_status);
@@ -256,22 +254,26 @@ static void event_callback(const struct device *dev, struct gpio_callback *cb, u
 	if (pins & BIT(NPM13XX_EVENT_VBUS_DETECTED)) {
 		LOG_DBG("VBUS detected");
 
-		err = uart_enable();
-		if (err) {
-			LOG_ERR("uart_enable, error: %d", err);
-			SEND_FATAL_ERROR();
-			return;
+		if (IS_ENABLED(CONFIG_APP_POWER_DISABLE_UART_ON_VBUS_REMOVED)) {
+			err = uart_enable();
+			if (err) {
+				LOG_ERR("uart_enable, error: %d", err);
+				SEND_FATAL_ERROR();
+				return;
+			}
 		}
 	}
 
 	if (pins & BIT(NPM13XX_EVENT_VBUS_REMOVED)) {
 		LOG_DBG("VBUS removed");
 
-		err = uart_disable();
-		if (err) {
-			LOG_ERR("uart_disable, error: %d", err);
-			SEND_FATAL_ERROR();
-			return;
+		if (IS_ENABLED(CONFIG_APP_POWER_DISABLE_UART_ON_VBUS_REMOVED)) {
+			err = uart_disable();
+			if (err) {
+				LOG_ERR("uart_disable, error: %d", err);
+				SEND_FATAL_ERROR();
+				return;
+			}
 		}
 	}
 }
