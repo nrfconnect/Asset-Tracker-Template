@@ -7,6 +7,7 @@
 target_sources(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cloud.c)
 target_sources(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cloud_provisioning.c)
 target_sources_ifdef(CONFIG_APP_LOCATION app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cloud_location.c)
+target_sources_ifdef(CONFIG_APP_ENVIRONMENTAL app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cloud_environmental.c)
 target_sources_ifdef(CONFIG_APP_CLOUD_SHELL app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cloud_shell.c)
 target_include_directories(app PRIVATE .)
 
