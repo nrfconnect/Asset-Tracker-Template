@@ -85,6 +85,7 @@ def compare_state_machines(c_code, plantuml):
            - PlantUML `[H*]` inside a composite state, with transitions targeting that composite
            - C implementation: tracking last active leaf state and restoring it on re-entry
            - These are semantically equivalent.
+           - It is allowed to re-enter into a parent state if the parent state has an initial transition to a child leaf state.
 
         IMPORTANT:
         - Focus on semantic equivalence, not syntactic exactness.
