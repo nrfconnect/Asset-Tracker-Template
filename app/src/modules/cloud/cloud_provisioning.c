@@ -10,24 +10,11 @@
 #include <net/nrf_provisioning.h>
 
 #include "cloud_provisioning.h"
+#include "cloud_internal.h"
 #include "app_common.h"
 #include "network.h"
 
 LOG_MODULE_DECLARE(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
-
-/* Private cloud channel messages for provisioning events */
-enum priv_cloud_msg {
-	CLOUD_CONNECTION_FAILED,
-	CLOUD_CONNECTION_SUCCESS,
-	CLOUD_NOT_AUTHENTICATED,
-	CLOUD_PROVISIONING_FINISHED,
-	CLOUD_PROVISIONING_FAILED,
-	CLOUD_BACKOFF_EXPIRED,
-	CLOUD_SEND_REQUEST_FAILED,
-};
-
-/* Declare the private cloud channel defined in cloud.c */
-ZBUS_CHAN_DECLARE(PRIV_CLOUD_CHAN);
 
 static void nrf_provisioning_callback(const struct nrf_provisioning_callback_data *event)
 {
