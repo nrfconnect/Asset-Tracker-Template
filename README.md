@@ -28,6 +28,9 @@ For detailed setup instructions using the [nRF Connect for VS Code extension](ht
 
 For pre-built binaries, refer to the latest tag and release artifacts documentaion; [release artifacts](docs/common/release.md).
 
+> [!TIP]
+> Use the [Download nRF Connect for Desktop Quick Start application](https://www.nordicsemi.com/Products/Development-tools/nrf-connect-for-desktop/download#infotabs) for a guided setup and provisioning process.
+
 ### Prerequisites
 
 * nRF Connect SDK development environment ([setup guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation.html))
