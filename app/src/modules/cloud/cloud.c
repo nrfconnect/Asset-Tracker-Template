@@ -185,12 +185,6 @@ static enum smf_state_result state_connected_ready_run(void *obj);
 static void state_connected_paused_entry(void *obj);
 static enum smf_state_result state_connected_paused_run(void *obj);
 
-
-/* Forward declarations of network handler used before its definition */
-#if defined(CONFIG_APP_NETWORK)
-static void handle_network_data_message(const struct network_msg *msg);
-#endif
-
 /* State machine definition */
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
@@ -344,6 +338,39 @@ static void send_request_failed(void)
 		SEND_FATAL_ERROR();
 	}
 }
+
+
+#if defined(CONFIG_APP_NETWORK)
+static void handle_network_data_message(const struct network_msg *msg)
+{
+	int err;
+	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
+
+	if (msg->type != NETWORK_QUALITY_SAMPLE_RESPONSE) {
+		return;
+	}
+
+	err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_CONEVAL,
+					msg->conn_eval_params.energy_estimate,
+					NRF_CLOUD_NO_TIMESTAMP,
+					confirmable);
+	if (err) {
+		LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+		send_request_failed();
+
+		return;
+	}
+
+	err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_RSRP,
+					msg->conn_eval_params.rsrp,
+					NRF_CLOUD_NO_TIMESTAMP,
+					confirmable);
+	if (err) {
+		LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
+		send_request_failed();
+	}
+}
+#endif /* CONFIG_APP_NETWORK */
 
 /* Storage handling functions */
 
@@ -586,6 +613,159 @@ static void handle_storage_data(const struct storage_msg *msg)
 	err = send_storage_data_to_cloud(&item);
 	if (err) {
 		LOG_ERR("Failed to send real-time storage data to cloud, error: %d", err);
+	}
+}
+
+static void shadow_poll(enum shadow_poll_type type)
+{
+	int err;
+	struct cloud_msg msg = {
+		.type = (type == SHADOW_POLL_DELTA) ? CLOUD_SHADOW_RESPONSE_DELTA :
+						      CLOUD_SHADOW_RESPONSE_DESIRED,
+		.response = {
+			.buffer_data_len = sizeof(msg.response.buffer),
+		},
+	};
+
+	LOG_DBG("Requesting device shadow from the device");
+
+	err = nrf_cloud_coap_shadow_get(msg.response.buffer,
+					&msg.response.buffer_data_len,
+					(type == SHADOW_POLL_DELTA) ? true : false,
+					COAP_CONTENT_FORMAT_APP_CBOR);
+	if (err) {
+		LOG_ERR("nrf_cloud_coap_shadow_get, error: %d", err);
+
+		send_request_failed();
+		return;
+	}
+
+	if (msg.response.buffer_data_len == 0) {
+		LOG_DBG("Shadow %s section not present",
+			(type == SHADOW_POLL_DELTA) ? "delta" : "desired");
+		return;
+	}
+
+	/* Workaround: Sometimes nrf_cloud_coap_shadow_get() returns 0 even though obtaining
+	 * the shadow failed. Ignore the payload if the first 10 bytes are zero.
+	 */
+	if (!memcmp(msg.response.buffer, "\0\0\0\0\0\0\0\0\0\0", 10)) {
+		LOG_WRN("Returned buffer is empty, ignore");
+		return;
+	}
+
+	/* Clear the shadow delta by reporting the same data back to the shadow reported state  */
+	err = nrf_cloud_coap_patch("state/reported", NULL,
+				   msg.response.buffer,
+				   msg.response.buffer_data_len,
+				   COAP_CONTENT_FORMAT_APP_CBOR,
+				   true,
+				   NULL,
+				   NULL);
+	if (err) {
+		LOG_ERR("nrf_cloud_coap_patch, error: %d", err);
+
+		send_request_failed();
+		return;
+	}
+
+	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+}
+
+static void handle_cloud_channel_message(struct cloud_state_object const *state_object)
+{
+	int err;
+	const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
+	const bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
+
+	switch (msg->type) {
+	case CLOUD_PAYLOAD_JSON:
+		err = nrf_cloud_coap_json_message_send(msg->payload.buffer,
+						       false, confirmable);
+		if (err) {
+			LOG_ERR("nrf_cloud_coap_json_message_send, error: %d", err);
+			send_request_failed();
+		}
+		break;
+	case CLOUD_POLL_SHADOW:
+		LOG_DBG("Poll shadow trigger received");
+		/* On shadow poll requests, we only poll for delta changes. This is because
+		 * we have gotten our entire desired section when polling the shadow
+		 * on an established connection.
+		 */
+		shadow_poll(SHADOW_POLL_DELTA);
+		break;
+	case CLOUD_PROVISIONING_REQUEST:
+		LOG_DBG("Provisioning request received");
+		smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONING]);
+		break;
+	default:
+		break;
+	}
+}
+
+static void handle_priv_cloud_message(struct cloud_state_object const *state_object)
+{
+	enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
+
+	if (msg == CLOUD_SEND_REQUEST_FAILED) {
+		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
+	}
+}
+
+static void handle_storage_channel_message(struct cloud_state_object const *state_object)
+{
+	const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+
+	switch (msg->type) {
+	case STORAGE_BATCH_AVAILABLE:
+		LOG_DBG("Storage batch available, %d items, session_id: 0x%X",
+			msg->data_len, msg->session_id);
+		handle_storage_batch_available(msg);
+		break;
+	case STORAGE_BATCH_EMPTY:
+		LOG_DBG("Storage batch empty, session_id: 0x%X", msg->session_id);
+		handle_storage_batch_empty(msg);
+		break;
+	case STORAGE_BATCH_ERROR:
+		LOG_ERR("Storage batch error, session_id: 0x%X", msg->session_id);
+		handle_storage_batch_error(msg);
+		break;
+	case STORAGE_BATCH_BUSY:
+		LOG_WRN("Storage batch busy, session_id: 0x%X", msg->session_id);
+		handle_storage_batch_busy(msg);
+		break;
+	default:
+		break;
+	}
+}
+
+static void handle_storage_data_message(struct cloud_state_object const *state_object)
+{
+	const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+
+	if (msg->type == STORAGE_DATA) {
+		LOG_DBG("Storage data received, type: %d, size: %d",
+			msg->data_type, msg->data_len);
+		handle_storage_data(msg);
+	}
+}
+
+static void network_connection_status_retain(struct cloud_state_object *state_object)
+{
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		if (msg.type == NETWORK_DISCONNECTED || msg.type == NETWORK_CONNECTED) {
+			/* Update network status to retain the last connection status */
+			state_object->network_connected =
+				(msg.type == NETWORK_CONNECTED) ? true : false;
+		}
 	}
 }
 
@@ -892,68 +1072,6 @@ static void state_connected_exit(void *obj)
 	}
 }
 
-
-static void shadow_poll(enum shadow_poll_type type)
-{
-	int err;
-	struct cloud_msg msg = {
-		.type = (type == SHADOW_POLL_DELTA) ? CLOUD_SHADOW_RESPONSE_DELTA :
-						      CLOUD_SHADOW_RESPONSE_DESIRED,
-		.response = {
-			.buffer_data_len = sizeof(msg.response.buffer),
-		},
-	};
-
-	LOG_DBG("Requesting device shadow from the device");
-
-	err = nrf_cloud_coap_shadow_get(msg.response.buffer,
-					&msg.response.buffer_data_len,
-					(type == SHADOW_POLL_DELTA) ? true : false,
-					COAP_CONTENT_FORMAT_APP_CBOR);
-	if (err) {
-		LOG_ERR("nrf_cloud_coap_shadow_get, error: %d", err);
-
-		send_request_failed();
-		return;
-	}
-
-	if (msg.response.buffer_data_len == 0) {
-		LOG_DBG("Shadow %s section not present",
-			(type == SHADOW_POLL_DELTA) ? "delta" : "desired");
-		return;
-	}
-
-	/* Workaroud: Sometimes nrf_cloud_coap_shadow_get() returns 0 even though obtaining
-	 * the shadow failed. Ignore the payload if the first 10 bytes are zero.
-	 */
-	if (!memcmp(msg.response.buffer, "\0\0\0\0\0\0\0\0\0\0", 10)) {
-		LOG_WRN("Returned buffer is empty, ignore");
-		return;
-	}
-
-	/* Clear the shadow delta by reporting the same data back to the shadow reported state  */
-	err = nrf_cloud_coap_patch("state/reported", NULL,
-				   msg.response.buffer,
-				   msg.response.buffer_data_len,
-				   COAP_CONTENT_FORMAT_APP_CBOR,
-				   true,
-				   NULL,
-				   NULL);
-	if (err) {
-		LOG_ERR("nrf_cloud_coap_patch, error: %d", err);
-
-		send_request_failed();
-		return;
-	}
-
-	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
-}
-
 static void state_connected_ready_entry(void *obj)
 {
 	int err;
@@ -985,118 +1103,6 @@ static void state_connected_ready_entry(void *obj)
 	shadow_poll(SHADOW_POLL_DESIRED);
 
 	first = false;
-}
-
-static void handle_priv_cloud_message(struct cloud_state_object const *state_object)
-{
-	enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
-
-	if (msg == CLOUD_SEND_REQUEST_FAILED) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
-	}
-}
-
-#if defined(CONFIG_APP_NETWORK)
-static void handle_network_data_message(const struct network_msg *msg)
-{
-	int err;
-	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
-
-	if (msg->type != NETWORK_QUALITY_SAMPLE_RESPONSE) {
-		return;
-	}
-
-	err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_CONEVAL,
-					msg->conn_eval_params.energy_estimate,
-					NRF_CLOUD_NO_TIMESTAMP,
-					confirmable);
-	if (err) {
-		LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-		send_request_failed();
-
-		return;
-	}
-
-	err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_RSRP,
-					msg->conn_eval_params.rsrp,
-					NRF_CLOUD_NO_TIMESTAMP,
-					confirmable);
-	if (err) {
-		LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-		send_request_failed();
-	}
-}
-#endif /* CONFIG_APP_NETWORK */
-
-
-static void handle_storage_channel_message(struct cloud_state_object const *state_object)
-{
-	const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
-
-	switch (msg->type) {
-	case STORAGE_BATCH_AVAILABLE:
-		LOG_DBG("Storage batch available, %d items, session_id: 0x%X",
-			msg->data_len, msg->session_id);
-		handle_storage_batch_available(msg);
-		break;
-	case STORAGE_BATCH_EMPTY:
-		LOG_DBG("Storage batch empty, session_id: 0x%X", msg->session_id);
-		handle_storage_batch_empty(msg);
-		break;
-	case STORAGE_BATCH_ERROR:
-		LOG_ERR("Storage batch error, session_id: 0x%X", msg->session_id);
-		handle_storage_batch_error(msg);
-		break;
-	case STORAGE_BATCH_BUSY:
-		LOG_WRN("Storage batch busy, session_id: 0x%X", msg->session_id);
-		handle_storage_batch_busy(msg);
-		break;
-	default:
-		break;
-	}
-}
-
-static void handle_storage_data_message(struct cloud_state_object const *state_object)
-{
-	const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
-
-	if (msg->type == STORAGE_DATA) {
-		LOG_DBG("Storage data received, type: %d, size: %d",
-			msg->data_type, msg->data_len);
-		handle_storage_data(msg);
-	}
-}
-
-static void handle_cloud_channel_message(struct cloud_state_object const *state_object)
-{
-	int err;
-	const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
-	const bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
-
-	switch (msg->type) {
-	case CLOUD_PAYLOAD_JSON:
-		err = nrf_cloud_coap_json_message_send(msg->payload.buffer,
-						       false, confirmable);
-		if (err) {
-			LOG_ERR("nrf_cloud_coap_json_message_send, error: %d", err);
-			send_request_failed();
-		}
-		break;
-	case CLOUD_POLL_SHADOW:
-		LOG_DBG("Poll shadow trigger received");
-		/* On shadow poll requests, we only poll for delta changes. This is because
-		 * we have gotten our entire desired section when polling the shadow
-		 * on an established connection.
-		 */
-		shadow_poll(SHADOW_POLL_DELTA);
-		break;
-	case CLOUD_PROVISIONING_REQUEST:
-		LOG_DBG("Provisioning request received");
-		smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONING]);
-		break;
-	default:
-		break;
-	}
 }
 
 static enum smf_state_result state_connected_ready_run(void *obj)
@@ -1194,19 +1200,6 @@ static enum smf_state_result state_connected_paused_run(void *obj)
 	}
 
 	return SMF_EVENT_PROPAGATE;
-}
-
-static void network_connection_status_retain(struct cloud_state_object *state_object)
-{
-	if (state_object->chan == &NETWORK_CHAN) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
-
-		if (msg.type == NETWORK_DISCONNECTED || msg.type == NETWORK_CONNECTED) {
-			/* Update network status to retain the last connection status */
-			state_object->network_connected =
-				(msg.type == NETWORK_CONNECTED) ? true : false;
-		}
-	}
 }
 
 static void cloud_module_thread(void)
