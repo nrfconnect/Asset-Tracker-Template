@@ -22,9 +22,7 @@
 #include "location.h"
 #endif
 
-#ifdef CONFIG_APP_NETWORK
 #include "network.h"
-#endif
 
 /**
  * @brief Register all enabled data types with the storage module
@@ -99,7 +97,6 @@ void environmental_extract(const struct environmental_msg *msg,
 #endif /* CONFIG_APP_ENVIRONMENTAL */
 
 /* Network module storage */
-#ifdef CONFIG_APP_NETWORK
 
 /* Provide functions used by storage module to check and extract data */
 bool network_check(const struct network_msg *msg)
@@ -111,4 +108,3 @@ void network_extract(const struct network_msg *msg, struct network_msg *data)
 {
 	*data = *msg;
 }
-#endif /* CONFIG_APP_NETWORK */
