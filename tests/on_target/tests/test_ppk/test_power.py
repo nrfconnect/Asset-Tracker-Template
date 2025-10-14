@@ -39,6 +39,7 @@ SEGGER = os.getenv('SEGGER')
 def save_badge_data(average):
     badge_filename = "power_badge.json"
     logger.info(f"Minimum average current measured: {average}uA")
+    color = "green"
     if average < 0:
         pytest.skip(f"Current can't be negative, current average: {average}")
     elif average <= GREEN_THRESOLD_CURRENT_UA:
@@ -93,7 +94,7 @@ def generate_time_series_html(csv_file, date_column, value_column, output_file="
     - str: The path to the generated HTML file.
     """
     # Load the CSV file
-    df = pd.read_csv(csv_file, parse_dates=[date_column])
+    df = pd.read_csv(csv_file)
 
     title = "Asset Tracket Template Current Consumption Plot\n\n"
     note_text = "Note: Measures are taken with PPK2"
@@ -108,11 +109,23 @@ def generate_time_series_html(csv_file, date_column, value_column, output_file="
     logger.info(f"HTML file generated: {output_file}")
     return output_file
 
-
-@pytest.fixture(scope="module")
-def thingy91x_ppk2():
+def check_ppk_serial_operational(s):
     '''
-    This fixture sets up ppk measurement tool.
+    Check if the PPK serial is operational by writing "device" and waiting for "devices"
+    '''
+    for _ in range(5):
+        try:
+            s.write("device\r\n")
+            s.wait_for_str("devices", timeout=2)
+            break
+        except Exception:
+            continue
+    else:
+        pytest.skip("PPK device is not responding, skipping test")
+
+def get_ppk2_serials():
+    '''
+    Get the serial ports of the PPK2 devices
     '''
     ppk2s_connected = PPK2_API.list_devices()
     ppk2s_connected.sort()
@@ -120,10 +133,39 @@ def thingy91x_ppk2():
         ppk2_port = ppk2s_connected[0]
         ppk2_serial = ppk2s_connected[1]
         logger.info(f"Found PPK2 at port: {ppk2_port}, serial: {ppk2_serial}")
+        return ppk2_port, ppk2_serial
     elif len(ppk2s_connected) == 0:
         pytest.skip("No ppk found")
     else:
         pytest.skip(f"PPK should list 2 ports, but found {ppk2s_connected}")
+
+@pytest.fixture(scope="module")
+
+def thingy91x_ppk2():
+    ppk2_port, ppk2_serial = get_ppk2_serials()
+    shell = Uart(ppk2_serial)
+    try:
+        check_ppk_serial_operational(shell)
+        try:
+            shell.write("kernel reboot cold\r\n")
+            time.sleep(1)
+            shell.stop()
+        except Exception:
+            pass
+        time.sleep(1)
+        ppk2_port, ppk2_serial = get_ppk2_serials()
+        shell = Uart(ppk2_serial)
+        check_ppk_serial_operational(shell)
+        time.sleep(1)
+        shell.write("kernel uptime\r\n")
+        uptime = shell.wait_for_str_re("Uptime: (.*) ms", timeout=2)
+        device_uptime_ms = int(uptime[0])
+        if device_uptime_ms > 20000:
+            pytest.skip("PPK device was not rebooted, skipping test")
+    except Exception as e:
+        logger.error(f"Exception when rebooting PPK device: {e}")
+    finally:
+        shell.stop()
 
     ppk2_dev = PPK2_API(ppk2_port, timeout=1, write_timeout=1, exclusive=True)
 
