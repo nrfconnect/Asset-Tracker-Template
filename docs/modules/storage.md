@@ -288,10 +288,10 @@ The subscribers interested in data should observe this channel.
 
 Data types are automatically registered using the `DATA_SOURCE_LIST` macro in `storage_data_types.h`. The system currently supports:
 
+- **Network**: Stores `struct network_msg` from `NETWORK_QUALITY_SAMPLE_RESPONSE`
 - **Battery** (`CONFIG_APP_POWER`): Stores `double` from `POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE`
 - **Location** (`CONFIG_APP_LOCATION`): Stores `struct location_msg` from `LOCATION_GNSS_DATA`/`LOCATION_CLOUD_REQUEST`
 - **Environmental** (`CONFIG_APP_ENVIRONMENTAL`): Stores `struct environmental_msg` from `ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE`
-- **Network** (`CONFIG_APP_NETWORK`): Stores `struct network_msg` from `NETWORK_QUALITY_SAMPLE_RESPONSE`
 
 Each data type registration includes:
 

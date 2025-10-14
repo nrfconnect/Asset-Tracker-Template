@@ -12,6 +12,8 @@
 
 #include "app_common.h"
 
+#include "network.h"
+
 #if IS_ENABLED(CONFIG_APP_POWER)
 #include "power.h"
 #endif
@@ -69,9 +71,8 @@
 	IF_ENABLED(CONFIG_APP_LOCATION,								\
 		   (X(LOCATION, LOCATION_CHAN, struct location_msg,				\
 		      struct location_msg, location_check, location_extract)))			\
-	IF_ENABLED(CONFIG_APP_NETWORK,								\
-		   (X(NETWORK, NETWORK_CHAN, struct network_msg,				\
-		      struct network_msg, network_check, network_extract)))
+		   X(NETWORK, NETWORK_CHAN, struct network_msg,				\
+		      struct network_msg, network_check, network_extract)
 
 #define STORAGE_DATA_TYPE(_name)								\
 	STORAGE_TYPE_ ## _name
