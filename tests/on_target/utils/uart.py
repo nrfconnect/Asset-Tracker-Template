@@ -10,6 +10,7 @@ import queue
 import os
 import sys
 import re
+import subprocess
 sys.path.append(os.getcwd())
 from utils.logger import get_logger
 from typing import Union
@@ -32,6 +33,7 @@ class Uart:
         name: str = "",
         serial_timeout: int = 1,
     ) -> None:
+        check_uart_usage(uart)
         self.baudrate = baudrate
         self.uart = uart
         self.name = name
@@ -124,9 +126,9 @@ class Uart:
                 logger.error(f"{self.name}: Caught SerialException, restarting")
                 s.close()
                 while True:
+                    time.sleep(2)
                     if self._evt.is_set():
                         return
-                    time.sleep(5)
                     try:
                         s = serial.Serial(
                             self.uart,
@@ -331,3 +333,20 @@ def wait_until_uart_available(name, timeout_seconds=60):
         timeout_seconds -= 1
     logger.error(f"UART '{name}' not found within {timeout_seconds} seconds")
     return None
+
+def check_uart_usage(uart):
+    if not os.path.exists(uart):
+        raise RuntimeError(f"Uart {uart} does not exist!")
+    try:
+        result = subprocess.run(["lsof", uart], capture_output=True)
+        if result.stdout:
+            # Parse the output for details (optional)
+            for line in result.stdout.splitlines()[1:]:  # Skip header
+                fields = re.split(r'\s+', line.decode("utf-8").strip())
+                if len(fields) >= 4:
+                    command, pid, user = fields[0], fields[1], fields[2]
+                    raise RuntimeError(f"Uart {uart} in use!\nCommand: {command}, PID: {pid}, User: {user}")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error running lsof: {e}")
+    except FileNotFoundError:
+        logger.error("'lsof' command not found.")
