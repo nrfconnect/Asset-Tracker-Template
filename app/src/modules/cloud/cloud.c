@@ -342,7 +342,6 @@ static void send_request_failed(void)
 	}
 }
 
-#if defined(CONFIG_APP_NETWORK)
 static void handle_network_data_message(const struct network_msg *msg)
 {
 	int err;
@@ -372,7 +371,6 @@ static void handle_network_data_message(const struct network_msg *msg)
 		send_request_failed();
 	}
 }
-#endif /* CONFIG_APP_NETWORK */
 
 /* Storage handling functions */
 
@@ -429,7 +427,6 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 	}
 #endif /* CONFIG_APP_LOCATION && CONFIG_LOCATION_METHOD_GNSS */
 
-#if defined(CONFIG_APP_NETWORK)
 	if (item->type == STORAGE_TYPE_NETWORK) {
 		const struct network_msg *net = &item->data.NETWORK;
 
@@ -437,7 +434,6 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 
 		return 0;
 	}
-#endif /* CONFIG_APP_NETWORK */
 
 	LOG_WRN("Unknown storage data type: %d", item->type);
 
