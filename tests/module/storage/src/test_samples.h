@@ -13,6 +13,7 @@
 #include "power.h"
 #include "environmental.h"
 #include "location.h"
+#include "network.h"
 
 /* Battery samples */
 extern const double battery_samples[100];
@@ -25,5 +26,9 @@ extern const size_t env_samples_size;
 /* Location samples */
 extern const struct location_msg location_samples[100];
 extern const size_t location_samples_size;
+
+/* Network samples */
+extern const struct network_msg network_samples[100];
+extern const size_t network_samples_size;
 
 #endif /* TEST_SAMPLES_H */

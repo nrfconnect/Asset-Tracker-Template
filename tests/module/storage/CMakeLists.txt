@@ -26,6 +26,7 @@ zephyr_include_directories(../../../app/src/modules/storage)
 zephyr_include_directories(../../../app/src/modules/storage/backends)
 zephyr_include_directories(../../../app/src/common)
 zephyr_include_directories(../../../app/src/modules/power)
+zephyr_include_directories(../../../app/src/modules/network)
 zephyr_include_directories(../../../app/src/modules/environmental)
 zephyr_include_directories(../../../app/src/modules/location)
 zephyr_include_directories(${ZEPHYR_BASE}/../nrfxlib/nrf_modem/include)
@@ -40,7 +41,7 @@ zephyr_compile_definitions(UNITY_INCLUDE_DOUBLE)
 # Options that cannot be passed through Kconfig fragments
 target_compile_definitions(app PRIVATE
 	-DCONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=1
-	-DCONFIG_APP_STORAGE_MAX_TYPES=3
+	-DCONFIG_APP_STORAGE_MAX_TYPES=4
 	-DCONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=100
 	-DCONFIG_APP_STORAGE_MESSAGE_QUEUE_SIZE=10
 	-DCONFIG_APP_STORAGE_THREAD_STACK_SIZE=2048
@@ -55,4 +56,5 @@ target_compile_definitions(app PRIVATE
 	-DCONFIG_LOCATION_METHOD_CELLULAR=1
 	-DCONFIG_LOCATION_METHOD_WIFI=1
 	-DCONFIG_LOCATION_METHODS_LIST_SIZE=3
+	-DCONFIG_LTE_LC_CONN_EVAL_MODULE=1
 )
