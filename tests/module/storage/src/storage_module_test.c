@@ -11,6 +11,7 @@
 
 #include <unity.h>
 #include <zephyr/fff.h>
+#include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
@@ -22,6 +23,7 @@
 #include "power.h"
 #include "environmental.h"
 #include "location.h"
+#include "network.h"
 #include "app_common.h"
 #include "test_samples.h"
 
@@ -55,6 +57,14 @@ ZBUS_CHAN_DEFINE(LOCATION_CHAN,
 		 ZBUS_MSG_INIT(0)
 );
 
+ZBUS_CHAN_DEFINE(NETWORK_CHAN,
+		 struct network_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
+
 /* Forward declarations */
 static void dummy_cb(const struct zbus_channel *chan);
 static void storage_chan_cb(const struct zbus_channel *chan);
@@ -65,12 +75,14 @@ ZBUS_LISTENER_DEFINE(storage_test_listener, storage_chan_cb);
 ZBUS_LISTENER_DEFINE(power_test_listener, dummy_cb);
 ZBUS_LISTENER_DEFINE(environmental_test_listener, dummy_cb);
 ZBUS_LISTENER_DEFINE(location_test_listener, dummy_cb);
+ZBUS_LISTENER_DEFINE(network_test_listener, dummy_cb);
 
 ZBUS_CHAN_ADD_OBS(STORAGE_CHAN, storage_test_listener, 0);
 ZBUS_CHAN_ADD_OBS(STORAGE_DATA_CHAN, storage_test_listener, 0);
 ZBUS_CHAN_ADD_OBS(POWER_CHAN, power_test_listener, 0);
 ZBUS_CHAN_ADD_OBS(ENVIRONMENTAL_CHAN, environmental_test_listener, 0);
 ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, location_test_listener, 0);
+ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network_test_listener, 0);
 
 static double received_battery_samples[ARRAY_SIZE(battery_samples)];
 static uint8_t received_battery_samples_count;
@@ -80,6 +92,9 @@ static uint8_t received_env_samples_count;
 
 static struct location_msg received_location_samples[ARRAY_SIZE(location_samples)];
 static uint8_t received_location_samples_count;
+
+static struct network_msg received_network_samples[ARRAY_SIZE(network_samples)];
+static uint8_t received_network_samples_count;
 
 /* Variables to store received data */
 static struct storage_msg received_msg;
@@ -106,11 +121,13 @@ static void populate_env_message(size_t i, struct environmental_msg *env_msg)
 
 static void populate_all_messages(size_t i, struct power_msg *bat_msg,
 				   struct environmental_msg *env_msg,
-				   struct location_msg *loc_msg)
+				   struct location_msg *loc_msg,
+				   struct network_msg *network_msg)
 {
 	bat_msg->percentage = battery_samples[i];
 	populate_env_message(i, env_msg);
 	*loc_msg = location_samples[i];
+	*network_msg = network_samples[i];
 }
 
 static void request_batch_and_assert(void)
@@ -159,8 +176,18 @@ static void storage_chan_cb(const struct zbus_channel *chan)
 				*(const struct environmental_msg *)msg->buffer;
 			break;
 		case STORAGE_TYPE_LOCATION:
-			received_location_samples[received_location_samples_count++] =
-				*(const struct location_msg *)msg->buffer;
+			if (received_location_samples_count < ARRAY_SIZE(received_location_samples)) {
+				memcpy(&received_location_samples[received_location_samples_count++],
+				       msg->buffer,
+				       sizeof(struct location_msg));
+			}
+			break;
+		case STORAGE_TYPE_NETWORK:
+			if (received_network_samples_count < ARRAY_SIZE(received_network_samples)) {
+				memcpy(&received_network_samples[received_network_samples_count++],
+				       msg->buffer,
+				       sizeof(struct network_msg));
+			}
 			break;
 		default:
 			break;
@@ -207,6 +234,13 @@ static size_t read_batch_data(size_t expected_item_count)
 					tmp.data.LOCATION;
 			}
 			break;
+		case STORAGE_TYPE_NETWORK:
+			if (received_network_samples_count <
+			    ARRAY_SIZE(received_network_samples)) {
+				received_network_samples[received_network_samples_count++] =
+					tmp.data.NETWORK;
+			}
+			break;
 		default:
 			break;
 		}
@@ -224,10 +258,12 @@ void setUp(void)
 	received_battery_samples_count = 0;
 	received_env_samples_count = 0;
 	received_location_samples_count = 0;
+	received_network_samples_count = 0;
 
 	memset(&received_battery_samples, 0, sizeof(received_battery_samples));
 	memset(&received_env_samples, 0, sizeof(received_env_samples));
 	memset(&received_location_samples, 0, sizeof(received_location_samples));
+	memset(&received_network_samples, 0, sizeof(received_network_samples));
 	memset(&received_msg, 0, sizeof(received_msg));
 }
 
@@ -313,10 +349,11 @@ void test_receive_mixed_data(void)
 	struct storage_msg flush_msg = {
 		.type = STORAGE_FLUSH
 	};
+	struct network_msg network_msg = { .type = NETWORK_QUALITY_SAMPLE_RESPONSE };
 	const uint8_t num_samples = CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE;
 
 	for (size_t i = 0; i < num_samples; i++) {
-		populate_all_messages(i, &bat_msg, &env_msg, &loc_msg);
+		populate_all_messages(i, &bat_msg, &env_msg, &loc_msg, &network_msg);
 
 		/* Store battery data */
 		publish_and_assert(&POWER_CHAN, &bat_msg);
@@ -326,6 +363,9 @@ void test_receive_mixed_data(void)
 
 		/* Store location data */
 		publish_and_assert(&LOCATION_CHAN, &loc_msg);
+
+		/* Store network data */
+		publish_and_assert(&NETWORK_CHAN, &network_msg);
 	}
 
 	err = zbus_chan_pub(&STORAGE_CHAN, &flush_msg, K_SECONDS(1));
@@ -560,10 +600,11 @@ void test_storage_batch_request_mixed_data(void)
 	struct power_msg bat_msg = { .type = POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE };
 	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
 	struct location_msg loc_msg = { .type = LOCATION_GNSS_DATA };
+	struct network_msg network_msg = { .type = NETWORK_QUALITY_SAMPLE_RESPONSE };
 	struct storage_msg batch_msg = { .type = STORAGE_BATCH_REQUEST, .session_id = 0x12345678 };
 	struct storage_msg clear_msg = { .type = STORAGE_CLEAR };
 	const uint8_t num_samples = 30;
-	const uint8_t data_types_count = 3;
+	const uint8_t data_types_count = 4;
 	uint8_t total_samples_expected = num_samples * data_types_count;
 	uint8_t total_samples_received = 0;
 	uint8_t total_battery_received = 0;
@@ -576,7 +617,7 @@ void test_storage_batch_request_mixed_data(void)
 	k_sleep(K_SECONDS(1));
 
 	for (size_t i = 0; i < num_samples; i++) {
-		populate_all_messages(i, &bat_msg, &env_msg, &loc_msg);
+		populate_all_messages(i, &bat_msg, &env_msg, &loc_msg, &network_msg);
 
 		/* Store battery data */
 		publish_and_assert(&POWER_CHAN, &bat_msg);
@@ -586,6 +627,9 @@ void test_storage_batch_request_mixed_data(void)
 
 		/* Store location data */
 		publish_and_assert(&LOCATION_CHAN, &loc_msg);
+
+		/* Store network data */
+		publish_and_assert(&NETWORK_CHAN, &network_msg);
 	}
 
 	k_sleep(K_SECONDS(10));
