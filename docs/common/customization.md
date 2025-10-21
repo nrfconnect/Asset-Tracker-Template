@@ -33,7 +33,7 @@ To add a new zbus event, complete the following procedure:
     };
     ```
 
-2. Implement publishing of VBUS connected and disconnected events by modifying the existing `event_callback()` function in `power.c`:
+1. Implement publishing of VBUS connected and disconnected events by modifying the existing `event_callback()` function in `power.c`:
     ```c
     if (pins & BIT(NPM13XX_EVENT_VBUS_DETECTED)) {
         LOG_DBG("VBUS detected");
@@ -70,7 +70,7 @@ To add a new zbus event, complete the following procedure:
     }
     ```
 
-3. Make sure the channel is included in the subscriber module (for example, `main.c`). Add the channel to the channel list:
+1. Make sure the channel is included in the subscriber module (for example, `main.c`). Add the channel to the channel list:
 
     ```c
     # define CHANNEL_LIST(X)      \
@@ -84,7 +84,7 @@ To add a new zbus event, complete the following procedure:
     X(POWER_CHAN,  struct power_msg) \
     ```
 
-4. Implement a handler for the new events in the subscriber module (for example, in the main module's state machine in `running_run`):
+1. Implement a handler for the new events in the subscriber module (for example, in the main module's state machine in `running_run`):
 
     ```c
     if (state_object->chan == &POWER_CHAN) {
@@ -136,7 +136,7 @@ To add a new zbus event, complete the following procedure:
     }
     ```
 
-5. Test the implementation by connecting and disconnecting VBUS to verify the LED patterns change as expected.
+1. Test the implementation by connecting and disconnecting VBUS to verify the LED patterns change as expected.
 
 ## Add environmental sensor
 
@@ -171,7 +171,7 @@ Thingy:91 X is used as an example, as it is a supported board in the template wi
     };
     ```
 
-2. Update the environmental module's state structure to include the magnetometer device reference and data storage:
+1. Update the environmental module's state structure to include the magnetometer device reference and data storage:
 
     ```c
     struct environmental_state_object {
@@ -187,7 +187,7 @@ Thingy:91 X is used as an example, as it is a supported board in the template wi
     };
     ```
 
-3. Initialize the device reference using the devicetree label:
+1. Initialize the device reference using the devicetree label:
 
     ```c
     struct environmental_state_object environmental_state = {
@@ -196,7 +196,7 @@ Thingy:91 X is used as an example, as it is a supported board in the template wi
     };
     ```
 
-4. Update the sensor sampling function signature to include the magnetometer device:
+1. Update the sensor sampling function signature to include the magnetometer device:
 
      ```c
      static void sample_sensors(const struct device *const bme680, const struct device *const bmm350)
@@ -208,7 +208,7 @@ Thingy:91 X is used as an example, as it is a supported board in the template wi
      sample_sensors(state_object->bme680, state_object->bmm350);
     ```
 
-5. Implement sensor data acquisition using the Zephyr Sensor API:
+1. Implement sensor data acquisition using the Zephyr Sensor API:
 
     ```c
     err = sensor_sample_fetch(bmm350);
@@ -241,7 +241,7 @@ Thingy:91 X is used as an example, as it is a supported board in the template wi
     };
     ```
 
-6. Update the `environmental_msg` structure in `environmental.h` to include the magnetic field data:
+1. Update the `environmental_msg` structure in `environmental.h` to include the magnetic field data:
 
     ```c
     struct environmental_msg {
@@ -254,9 +254,9 @@ Thingy:91 X is used as an example, as it is a supported board in the template wi
     };
     ```
 
-    The magnetometer data is now part of the environmental message and will be automatically handled by the storage module through the existing `ENVIRONMENTAL` data type. No changes to `storage_data_types.h` or `storage_data_types.c` are needed since the existing `environmental_check()` and `environmental_extract()` functions will handle the entire structure including the magnetic field data.
+    The magnetometer data is now part of the environmental message and will be automatically handled by the storage module through the existing `ENVIRONMENTAL` data type. No changes to `storage_data_types.h` or `storage_data_types.c` are needed since the existing `environmental_check()` and `environmental_extract()` functions will handle the entire structure, including the magnetic field data.
 
-7. Add cloud integration in the `send_storage_data_to_cloud()` function in `cloud.c` to send magnetometer data to nRF Cloud. Add this code after the existing environmental sensor data handling:
+1. Add cloud integration in the `send_storage_data_to_cloud()` function in `cloud.c` to send magnetometer data to nRF Cloud. Add this code after the existing environmental sensor data handling:
 
     ```c
     #if defined(CONFIG_APP_ENVIRONMENTAL)
@@ -316,14 +316,14 @@ To add your own module, complete the following steps:
     mkdir -p app/src/modules/dummy
     ```
 
-2. Create the following files in the module directory:
+1. Create the following files in the module directory:
 
     - `dummy.h` - Module interface definitions.
     - `dummy.c` - Module implementation.
     - `Kconfig.dummy` - Module configuration options.
     - `CMakeLists.txt` - Build system configuration.
 
-3. In `dummy.h`, define the module's interface:
+1. In `dummy.h`, define the module's interface:
 
     ```c
     #ifndef _DUMMY_H_
@@ -363,7 +363,7 @@ To add your own module, complete the following steps:
     #endif /* _DUMMY_H_ */
     ```
 
-4. In `dummy.c`, implement the module's functionality:
+1. In `dummy.c`, implement the module's functionality:
 
     ```c
     #include <zephyr/kernel.h>
@@ -521,7 +521,7 @@ To add your own module, complete the following steps:
                     K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
     ```
 
-5. In `Kconfig.dummy`, define module configuration options:
+1. In `Kconfig.dummy`, define module configuration options:
 
     ```kconfig
     menuconfig APP_DUMMY
@@ -557,20 +557,20 @@ To add your own module, complete the following steps:
     endif # APP_DUMMY
     ```
 
-6. In `CMakeLists.txt`, configure the build system to include the source files of the module:
+1. In `CMakeLists.txt`, configure the build system to include the source files of the module:
 
     ```cmake
     target_sources(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/dummy.c)
     target_include_directories(app PRIVATE .)
     ```
 
-7. Add the module to the main application's CMakeLists.txt:
+1. Add the module to the main application's CMakeLists.txt:
 
     ```cmake
     add_subdirectory(src/modules/dummy)
     ```
 
-8. Increase `CONFIG_TASK_WDT_CHANNELS` in the `prj.conf` file to accommadate for the new module's task watchdog integration.
+1. Increase the value of the `CONFIG_TASK_WDT_CHANNELS` Kconfig option in the `prj.conf` file to accommadate for the new module's task watchdog integration.
 
 The dummy module is now ready to use. It provides the following functionality:
 

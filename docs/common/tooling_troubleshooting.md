@@ -8,6 +8,22 @@ For more knowledge on debugging and troubleshooting [nRF Connect SDK](https://gi
 - [nRF Connect SDK Debugging Guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/test_and_optimize/debugging.html)
 - [Zephyr Debugging Guide](https://docs.zephyrproject.org/latest/develop/debug/index.html)
 
+## Tools for debugging and troubleshooting
+
+You can use the following tools for debugging and troubleshooting for the Asset Tracker Template:
+
+- [Shell Commands](#shell-commands)
+- [Debugging Tools](#debugging-tools)
+
+    - [Low Power Profiling](#low-power-profiling)
+    - [GDB Debugging](#gdb-debugging)
+    - [SEGGER SystemView](#segger-systemview)
+    - [Thread Analysis](#thread-analysis)
+    - [Hardfaults](#hardfaults)
+
+- [Memfault Remote Debugging](#memfault-remote-debugging)
+- [Modem Tracing](#modem-tracing)
+
 ## Shell Commands
 
 The template provides several shell commands for controlling and monitoring device behavior. Connect to the device's UART interface using either:

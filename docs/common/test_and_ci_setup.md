@@ -1,4 +1,4 @@
-# Testing and CI Setup
+# Testing and CI setup
 
 The Asset Tracker Template features a comprehensive testing infrastructure with tests run both on real hardware (on target) and emulation.
 Code analysis is performed through compliance checks and SonarCloud analysis.

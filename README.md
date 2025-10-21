@@ -25,10 +25,6 @@ Modules communicate through [zbus](https://docs.nordicsemi.com/bundle/ncs-latest
 
 > **Note**: If you're new to nRF91 series and cellular IoT, consider taking the [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals).
 
-## Documentation
-
-For official documentation for the Asset tracker template, see [documentation](https://docs.nordicsemi.com/bundle/asset-tracker-template-latest/page/index.html).
-
 ## Quick Start
 
 For detailed setup instructions using the [nRF Connect for VS Code extension](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) and advanced configuration options, see the [Getting Started Guide](docs/common/getting_started.md).
@@ -36,9 +32,9 @@ For detailed setup instructions using the [nRF Connect for VS Code extension](ht
 For pre-built binaries, refer to the latest tag and release artifacts documentaion; [release artifacts](docs/common/release.md).
 
 > [!TIP]
-> Use the [Download nRF Connect for Desktop Quick Start application](https://www.nordicsemi.com/Products/Development-tools/nrf-connect-for-desktop/download#infotabs) for a guided setup and provisioning process.
+> Download and run the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in the [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop)`_ for a guided setup and provisioning process.
 >
-> You can also refer to [Exercise 1](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals/lessons/lesson-1-cellular-fundamentals/topic/lesson-1-exercise-1/) in [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals).
+> You can also refer to [Exercise 1](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals/lessons/lesson-1-cellular-fundamentals/topic/lesson-1-exercise-1/) in [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals) for more details.
 
 ### Prerequisites
 

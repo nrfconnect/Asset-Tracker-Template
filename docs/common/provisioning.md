@@ -17,23 +17,25 @@ Device provisioning establishes credentials for secure communication with nRF Cl
 1. Log in to the [nRF Cloud](https://nrfcloud.com/#/) portal.
 1. Select **Security Services** in the left sidebar.
 
-   A panel opens to the right.
+    A panel opens to the right.
+
 1. Select **Claimed Devices**.
 1. Click **Claim Device**
 
-   A pop-up opens.
+    A pop-up opens.
+
 1. Copy and paste the attestation token into the **Claim token** text box.
 1. Set rule to nRF Cloud Onboarding and click **Claim Device**.
 
-   <details>
-   <summary><strong>If "nRF Cloud Onboarding" rule is not showing:</strong></summary>
+    <details>
+    <summary><strong>If "nRF Cloud Onboarding" rule is not showing:</strong></summary>
 
-   Create a new rule using the following configuration:
+    Create a new rule using the following configuration:
 
-   <img src="../images/claim.png" alt="Claim Device" width="300" />
-   </details>
+    <img src="../images/claim.png" alt="Claim Device" width="300" />
+    </details>
 
-4. Once connected, the device should be available under **Device Management** → **Devices**.
+1. Once connected, the device should be available under **Device Management** → **Devices**.
 
 ### REST API Alternative
 
@@ -54,7 +56,7 @@ To update device credentials:
 
 ### Manual
 
-1. Log in to the In [nRF Cloud](https://nrfcloud.com/#/) portal.
+1. Log in to the [nRF Cloud](https://nrfcloud.com/#/) portal.
 1. Select **Security Services** in the left sidebar.
 
    A panel opens to the right.

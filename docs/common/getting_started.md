@@ -1,4 +1,4 @@
-# Getting Started
+# Getting started
 
 To get started with Asset tracker template, you need to set up the development environment, build the application, and run it on supported hardware.
 You can use any of the following tools, depending on your preferred development environment:
@@ -31,7 +31,7 @@ For pre-built binaries, refer to the latest tag and the [release artifacts](rele
 
 * **nRF Connect SDK toolchain v3.0.0 or later**
 
-    - Follow the instructions in the [sdk-manager command](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-sdk-manager/nrfutil-sdk-manager.html) documentation to install v3.1.0 of the nRF Connect SDK toolchain.
+    - Follow the instructions in the [sdk-manager command](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-sdk-manager/nrfutil-sdk-manager.html) documentation to install v3.0.0 of the nRF Connect SDK toolchain.
 
 ## Supported boards
 
@@ -50,13 +50,13 @@ The Asset Tracker Template is continuously verified in CI on the following board
 Before initializing, start the toolchain environment:
 
 ```shell
-nrfutil sdk-manager toolchain launch --ncs-version v3.1.0 --shell
+nrfutil sdk-manager toolchain launch --ncs-version v3.0.0 --shell
 ```
 
-Alternatively, you can run the command with a specific nRF Connect SDK version. For example, if you are using v3.1.0, run:
+Alternatively, you can run the command with a specific nRF Connect SDK version. For example, if you are using version 3.0.1, run:
 
 ```shell
-nrfutil sdk-manager toolchain launch --ncs-version v3.1.0 -- <your command>
+nrfutil sdk-manager toolchain launch --ncs-version v3.0.0 -- <your command>
 ```
 
 To run for instance the `west` command with the specified version of toolchain. You can create an alias or shell function for this command to avoid typing it in full every time.
@@ -128,7 +128,7 @@ west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.con
 
 To connect to [nRF Cloud](https://nrfcloud.com), the device must be provisioned to your account. You can provision the device using one of the following methods:
 
-* **Quickstart application**: Use the [Download nRF Connect for Desktop](https://www.nordicsemi.com/Products/Development-tools/nrf-connect-for-desktop/download#infotabs) Quick Start application for a streamlined setup process.
+* **Quickstart application**: Use the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in the [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop)`_  for a streamlined setup process.
 * **Manual provisioning**: Follow the detailed steps in the [Provisioning](provisioning.md) documentation.
 
 The provisioning process establishes the necessary credentials and certificates for secure communication between your device and nRF Cloud.
@@ -155,7 +155,7 @@ To test that everything is working as expected, you can do the following:
 
     ```shell
 
-    *** Booting nRF Connect SDK v3.1.0-3bfc46578e42 ***
+    *** Booting nRF Connect SDK v3.0.0-3bfc46578e42 ***
     *** Using Zephyr OS v4.0.99-a0e545cb437a ***
     Attempting to boot slot 0.
     Attempting to boot from address 0x8200.
@@ -174,7 +174,7 @@ To test that everything is working as expected, you can do the following:
     [00:00:00.257,324] <inf> spi_nor: GD25LE255E@0: 32 MiBy flash
     [00:00:00.311,828] <inf> wifi_nrf_bus: SPIM spi@b000: freq = 8 MHz
     [00:00:00.311,889] <inf> wifi_nrf_bus: SPIM spi@b000: latency = 0
-    ]mJ*** Using nRF Connect SDK v3.1.0-3bfc46578e42 ***
+    ]mJ*** Using nRF Connect SDK v3.0.0-3bfc46578e42 ***
     *** Using Zephyr OS v4.0.99-a0e545cb437a ***
     [00:00:00.520,202] <dbg> main: main: Main has started
     [00:00:00.520,263] <dbg> main: running_entry: running_entry
