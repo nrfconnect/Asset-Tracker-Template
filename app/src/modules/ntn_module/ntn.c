@@ -426,7 +426,7 @@ static int sock_open_and_connect(void)
 
 	server4->sin_family = AF_INET;
 	server4->sin_port = htons(CONFIG_APP_NTN_SERVER_PORT);
-	
+
 	inet_pton(AF_INET, CONFIG_APP_NTN_SERVER_ADDR, &server4->sin_addr);
 
 	/* Create UDP socket */
@@ -452,7 +452,10 @@ static int sock_send_gnss_data(const struct nrf_modem_gnss_pvt_data_frame *gnss_
 {
 	int err;
 	char message[256];
-	char imei[16] = {0}, temp[16] = {0};
+	char imei[16] = {0};
+	char imei_suffix[5];
+	size_t imei_len;
+	char temp[16] = {0};
 
 	if (sock_fd < 0) {
 		LOG_ERR("Socket not connected");
@@ -461,31 +464,71 @@ static int sock_send_gnss_data(const struct nrf_modem_gnss_pvt_data_frame *gnss_
 
 	err = modem_info_string_get(MODEM_INFO_IMEI, imei, sizeof(imei));
 	if (err < 0) {
-			snprintf(imei, sizeof(imei), "N/A");
+		err = snprintk(imei, sizeof(imei), "N/A");
+		if (err < 0 || err >= sizeof(imei)) {
+			LOG_ERR("Failed to get IMEI, error: %d", err);
+
+			return -EINVAL;
 		}
-	/* Extract last 4 characters of IMEI safely */
-	const char *imei_suffix = imei;
-	size_t imei_len = strlen(imei);
-	if (imei_len > 4) {
-		imei_suffix = imei + (imei_len - 4);
 	}
+
+	/* Extract last 4 characters of IMEI safely */
+
+	imei_len = strnlen(imei, sizeof(imei));
+	if (imei_len > 4) {
+		err = snprintk(imei_suffix, sizeof(imei_suffix), "%s", imei + (imei_len - 4));
+		if (err < 0 || err >= sizeof(imei_suffix)) {
+			LOG_ERR("Failed to get IMEI suffix, error: %d", err);
+
+			return -EINVAL;
+		}
+	} else {
+		err = snprintk(imei_suffix, sizeof(imei_suffix), "N/A");
+		if (err < 0 || err >= sizeof(imei_suffix)) {
+			LOG_ERR("Failed to get IMEI suffix, error: %d", err);
+
+			return -EINVAL;
+		}
+
+		LOG_WRN("IMEI is too short, using N/A");
+	}
+
+	imei_suffix[sizeof(imei_suffix) - 1] = '\0';
+
+	/* Get the temperature from the modem */
+	err = modem_info_string_get(MODEM_INFO_TEMP, temp, sizeof(temp));
+	if (err < 0) {
+		err = snprintk(temp, sizeof(temp), "N/A");
+		if (err < 0 || err >= sizeof(temp)) {
+			LOG_ERR("Failed to get temperature, error: %d", err);
+
+			return -EINVAL;
+		}
+	}
+
+	temp[sizeof(temp) - 1] = '\0';
 
 #if defined(CONFIG_APP_NTN_SEND_GNSS_DATA)
 	/* Format GNSS data as string */
-	snprintf(message, sizeof(message),
-		"Device: *%s, lat=%.2f, lon=%.2f, alt=%.2f, time=%04d-%02d-%02d %02d:%02d:%02d", imei_suffix,
+	err = snprintk(message, sizeof(message),
+		"Device: *%s, temp: %s, lat=%.2f, lon=%.2f, alt=%.2f, time=%04d-%02d-%02d %02d:%02d:%02d", imei_suffix, temp,
 		(double)gnss_data->latitude, (double)gnss_data->longitude, (double)gnss_data->altitude,
 		gnss_data->datetime.year, gnss_data->datetime.month, gnss_data->datetime.day,
 		gnss_data->datetime.hour, gnss_data->datetime.minute, gnss_data->datetime.seconds);
-#else
-	err = modem_info_string_get(MODEM_INFO_TEMP, temp, sizeof(temp));
-	if (err < 0) {
-		snprintf(temp, sizeof(temp), "N/A");
-	}
+	if (err < 0 || err >= sizeof(message)) {
+		LOG_ERR("Failed to format GNSS data, error: %d", err);
 
-	snprintf(message, sizeof(message),
-		"Device: *%s, temp: %s",
-		imei_suffix, temp);
+		return -EINVAL;
+	}
+#else
+	err = snprintk(message, sizeof(message),
+		       "Device: *%s, temp: %s",
+		       imei_suffix, temp);
+	if (err < 0 || err >= sizeof(message)) {
+		LOG_ERR("Failed to format GNSS data, error: %d", err);
+
+		return -EINVAL;
+	}
 #endif
 
 	/* Send data */
@@ -496,6 +539,7 @@ static int sock_send_gnss_data(const struct nrf_modem_gnss_pvt_data_frame *gnss_
 	}
 
 	LOG_DBG("Sent GNSS data payload of %d bytes", strlen(message));
+
 	return 0;
 }
 
@@ -506,7 +550,7 @@ static void state_running_entry(void *obj)
 {
 	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
-	
+
 	LOG_INF("Initializing NTN module");
 
 	k_work_init(&timer_work, timer_work_handler);
