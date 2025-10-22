@@ -190,8 +190,8 @@ static void gnss_location_work_handler(struct k_work *work)
 		(double)pvt_data.longitude,
 		(double)pvt_data.altitude);
 
-        apply_gnss_time(&pvt_data);
-        publish_last_pvt(&pvt_data);
+	apply_gnss_time(&pvt_data);
+	publish_last_pvt(&pvt_data);
 
 	/* Log SV (Satellite Vehicle) data */
 	for (int i = 0; i < NRF_MODEM_GNSS_MAX_SATELLITES; i++) {
@@ -553,7 +553,9 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 #if defined(CONFIG_APP_NTN_SEND_GNSS_DATA)
 	/* Format GNSS data as string */
 	err = snprintk(message, sizeof(message),
-		"Device: *%s, temp: %s, lat=%.2f, lon=%.2f, alt=%.2f, time=%04d-%02d-%02d %02d:%02d:%02d", imei_suffix, temp,
+		"Device: *%s, temp: %s, lat=%.2f, lon=%.2f, alt=%.2f, "
+		"time=%04d-%02d-%02d %02d:%02d:%02d",
+		imei_suffix, temp,
 		(double)gnss_data->latitude, (double)gnss_data->longitude, (double)gnss_data->altitude,
 		gnss_data->datetime.year, gnss_data->datetime.month, gnss_data->datetime.day,
 		gnss_data->datetime.hour, gnss_data->datetime.minute, gnss_data->datetime.seconds);
