@@ -26,7 +26,6 @@ config APP_NTN_TIMER_TIMEOUT_MINUTES
 
 config APP_NTN_BANDLOCK_ENABLE
 	bool "Enable NTN band lock"
-	default n
 	help
 	  Enable band lock for NTN mode.
 
@@ -42,7 +41,6 @@ endif # APP_NTN_BANDLOCK_ENABLE
 
 config APP_NTN_CHANNEL_SELECT_ENABLE
 	bool "Enable NTN channel select"
-	default n
 	help
 	  Enable channel selection for NTN mode.
 
@@ -58,7 +56,6 @@ endif # APP_NTN_CHANNEL_SELECT_ENABLE
 
 config APP_NTN_DISABLE_EPCO
 	bool "Disable ePCO"
-	default n
 	help
 	  Disable ePCO.
 
@@ -76,7 +73,6 @@ config APP_NTN_SERVER_PORT
 
 config APP_NTN_SEND_GNSS_DATA
 	bool "Send GNSS data to UDP endpoint"
-	default n
 	help
 	  Send GNSS data to UDP endpoint.
 

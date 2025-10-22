@@ -49,9 +49,8 @@ config APP_MSG_PROCESSING_TIMEOUT_SECONDS
 
 config APP_NTN_MODE
 	bool "Enable NTN mode"
-	default false
 	help
-	  NTN mode
+	  Use Non-Terrestrial Network (NTN) for data transmission.
 
 module = APP
 module-str = APP
