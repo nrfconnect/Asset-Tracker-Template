@@ -20,6 +20,7 @@
 #include <zephyr/net/socket.h>
 #include <errno.h>
 
+#include "app_common.h"
 #include "ntn.h"
 #include "button.h"
 
@@ -79,9 +80,9 @@ struct ntn_state_object {
 	bool socket_connected;
 	bool ntn_initialized;
 	bool gnss_initialized;
+	struct nrf_modem_gnss_pvt_data_frame last_pvt;
 };
 
-static struct nrf_modem_gnss_pvt_data_frame last_pvt;
 static struct k_work timer_work;
 static struct k_work gnss_location_work;
 
@@ -126,7 +127,22 @@ static void ntn_msg_publish(enum ntn_msg_type type)
 	err = zbus_chan_pub(&NTN_CHAN, &msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("Failed to publish NTN message, error: %d", err);
+
 		return;
+	}
+}
+
+static void publish_last_pvt(const struct nrf_modem_gnss_pvt_data_frame *pvt)
+{
+	int err;
+	struct ntn_msg msg = {
+		.type = NTN_LOCATION_SEARCH_DONE,
+		.pvt = *pvt
+	};
+
+	err = zbus_chan_pub(&NTN_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to publish last PVT message, error: %d", err);
 	}
 }
 
@@ -177,9 +193,9 @@ static void gnss_location_work_handler(struct k_work *work)
 		(double)pvt_data.latitude,
 		(double)pvt_data.longitude,
 		(double)pvt_data.altitude);
-        memcpy(&last_pvt, &pvt_data, sizeof(last_pvt));
-        apply_gnss_time(&last_pvt);
-        ntn_msg_publish(NTN_LOCATION_SEARCH_DONE);
+
+        apply_gnss_time(&pvt_data);
+        publish_last_pvt(&pvt_data);
 
 	/* Log SV (Satellite Vehicle) data */
 	for (int i = 0; i < NRF_MODEM_GNSS_MAX_SATELLITES; i++) {
@@ -228,12 +244,14 @@ static int set_ntn_dormant_mode(void)
 	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
 	if (err) {
 		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
+
 		return err;
 	}
 
 	err = nrf_modem_at_printf("AT+CEREG=1");
 	if (err) {
 		printk("AT+CEREG failed\n");
+
 		return 0;
 	}
 
@@ -258,9 +276,9 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 		}
 		/* Configure location using latest GNSS data */
 		err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"%f\",0,0",
-					(double)last_pvt.latitude,
-					(double)last_pvt.longitude,
-					(double)last_pvt.altitude);
+					(double)state->last_pvt.latitude,
+					(double)state->last_pvt.longitude,
+					(double)state->last_pvt.altitude);
 		if (err) {
 			LOG_ERR("Failed to set AT%%LOCATION, error: %d", err);
 
@@ -319,9 +337,9 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 
 		/* Configure location using latest GNSS data */
 		err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"%f\",0,0",
-					(double)last_pvt.latitude,
-					(double)last_pvt.longitude,
-					(double)last_pvt.altitude);
+					(double)state->last_pvt.latitude,
+					(double)state->last_pvt.longitude,
+					(double)state->last_pvt.altitude);
 		if (err) {
 			LOG_ERR("Failed to set AT%%LOCATION, error: %d", err);
 
@@ -678,6 +696,8 @@ static enum smf_state_result state_gnss_run(void *obj)
 
 		if (msg->type == NTN_LOCATION_SEARCH_DONE) {
 			/* Location search completed, transition to NTN mode */
+			memcpy(&state->last_pvt, &msg->pvt, sizeof(state->last_pvt));
+
 			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
 		}
 	}
@@ -741,10 +761,10 @@ static enum smf_state_result state_ntn_run(void *obj)
 			state->socket_connected = true;
 
 			/* Send initial GNSS data if available */
-			if (last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
+			if (state->last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
 				LOG_DBG("Sending initial GNSS data");
 
-				err = sock_send_gnss_data(&last_pvt);
+				err = sock_send_gnss_data(&state->last_pvt);
 				if (err) {
 					LOG_ERR("Failed to send initial GNSS data, error: %d", err);
 				} else {
@@ -756,11 +776,12 @@ static enum smf_state_result state_ntn_run(void *obj)
 		}
 
 		/*
-		In future, we should wait until we get ACK for data being transmitted,
-		and cast CFUN=45 only after data were sent.
-		It may take 10s to send data in NTN.
-		k_sleep is added as intermediate solution
-		*/
+		 * In future, we should wait until we get ACK for data being transmitted,
+		 * and send CFUN=45 only after data were sent successfully.
+		 *
+		 * It may take 10s to send data in NTN.
+		 * k_sleep is added as intermediate solution
+		 */
 		k_sleep(K_MSEC(20000));
 
 		smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);

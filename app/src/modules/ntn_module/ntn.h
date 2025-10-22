@@ -9,6 +9,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
+#include <nrf_modem_gnss.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,6 +26,7 @@ enum ntn_msg_type {
 /* NTN module message */
 struct ntn_msg {
 	enum ntn_msg_type type;
+	struct nrf_modem_gnss_pvt_data_frame pvt;
 };
 
 /* Declare the NTN message channel */
