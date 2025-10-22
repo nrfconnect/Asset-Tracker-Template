@@ -900,6 +900,9 @@ static void ntn_module_thread(void)
 	int err;
 	int task_wdt_id;
 	const uint32_t wdt_timeout_ms = CONFIG_APP_NTN_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC;
+	const uint32_t execution_time_ms =
+		(CONFIG_APP_NTN_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
+	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	struct ntn_state_object ntn_state = { 0 };
 	ntn_state.gnss_initialized=false;
 	ntn_state.ntn_initialized=false;
@@ -907,6 +910,8 @@ static void ntn_module_thread(void)
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, ntn_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {
 		LOG_ERR("Failed to add task to watchdog: %d", task_wdt_id);
+		SEND_FATAL_ERROR();
+
 		return;
 	}
 
@@ -917,16 +922,20 @@ static void ntn_module_thread(void)
 		err = task_wdt_feed(task_wdt_id);
 		if (err) {
 			LOG_ERR("task_wdt_feed, error: %d", err);
+			SEND_FATAL_ERROR();
 
 			return;
 		}
 
 		/* Wait for messages */
-		err = zbus_sub_wait_msg(&ntn, &ntn_state.chan, ntn_state.msg_buf, K_FOREVER);
-		if (err) {
-			LOG_ERR("Failed to receive message, error: %d", err);
-
+		err = zbus_sub_wait_msg(&ntn, &ntn_state.chan, ntn_state.msg_buf, zbus_wait_ms);
+		if (err == -ENOMSG) {
 			continue;
+		} else if (err) {
+			LOG_ERR("zbus_sub_wait_msg, error: %d", err);
+			SEND_FATAL_ERROR();
+
+			return;
 		}
 
 		/* Run state machine */

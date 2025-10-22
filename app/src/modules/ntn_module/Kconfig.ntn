@@ -12,12 +12,6 @@ config APP_NTN_THREAD_STACK_SIZE
 	int "NTN module thread stack size"
 	default 2048
 
-config APP_NTN_WATCHDOG_TIMEOUT_SECONDS
-	int "NTN module watchdog timeout in seconds"
-	default 60
-	help
-	  Watchdog timeout for the NTN module thread.
-
 config APP_NTN_TIMER_TIMEOUT_MINUTES
 	int "NTN timer timeout in minutes"
 	default 15
@@ -75,6 +69,20 @@ config APP_NTN_SEND_GNSS_DATA
 	bool "Send GNSS data to UDP endpoint"
 	help
 	  Send GNSS data to UDP endpoint.
+
+config APP_NTN_WATCHDOG_TIMEOUT_SECONDS
+	int "NTN module watchdog timeout in seconds"
+	default 60
+	help
+	  If the NTN module thread is stuck for this amount of time,
+	  the device will reset.
+
+config APP_NTN_MSG_PROCESSING_TIMEOUT_SECONDS
+	int "Maximum time in seconds allowed for processing a single message"
+	default 60
+	help
+	  Maximum time allowed for processing a single message in the NTN module.
+	  Must be less than APP_NTN_WATCHDOG_TIMEOUT_SECONDS.
 
 module = APP_NTN
 module-str = NTN
