@@ -30,6 +30,8 @@ For pre-built binaries, refer to the latest tag and release artifacts documentai
 
 > [!TIP]
 > Use the [Download nRF Connect for Desktop Quick Start application](https://www.nordicsemi.com/Products/Development-tools/nrf-connect-for-desktop/download#infotabs) for a guided setup and provisioning process.
+>
+> You can also refer to [Exercise 1](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals/lessons/lesson-1-cellular-fundamentals/topic/lesson-1-exercise-1/) in [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals).
 
 ### Prerequisites
 
@@ -99,7 +101,7 @@ west flash --erase
     <img src="docs/images/claim.png" alt="Claim Device" width="300" />
     </details>
 
-4. Wait for the device to provision credentials and connect to nRF Cloud over CoAP.
+4. Wait for the device to provision credentials and connect to nRF Cloud over CoAP. Once connected, the device should be available under **Device Management** → **Devices**.
 
 See [Provisioning](docs/common/provisioning.md) for more details.
 </details>

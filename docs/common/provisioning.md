@@ -23,6 +23,8 @@ Device provisioning establishes credentials for secure communication with nRF Cl
    <img src="../images/claim.png" alt="Claim Device" width="300" />
     </details>
 
+4. Once connected, the device should be available under **Device Management** → **Devices**.
+
 ### REST API Alternative
 
 ```bash
