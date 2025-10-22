@@ -24,11 +24,6 @@
 #include "ntn.h"
 #include "button.h"
 
-/* Socket state */
-static int sock_fd = -1;
-static struct sockaddr_storage host_addr;
-
-
 /* AT monitor for network notifications */
 AT_MONITOR(cereg_monitor, "CEREG", cereg_mon, PAUSED);
 
@@ -81,6 +76,7 @@ struct ntn_state_object {
 	bool ntn_initialized;
 	bool gnss_initialized;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
+	int sock_fd;
 };
 
 static struct k_work timer_work;
@@ -460,31 +456,32 @@ static int set_gnss_inactive_mode(void)
 }
 
 /* Socket functions */
-static int sock_open_and_connect(void)
+static int sock_open_and_connect(struct ntn_state_object *state)
 {
 	int err;
+	struct sockaddr_storage host_addr;
 	struct sockaddr_in *server4 = ((struct sockaddr_in *)&host_addr);
 
 	server4->sin_family = AF_INET;
 	server4->sin_port = htons(CONFIG_APP_NTN_SERVER_PORT);
 
-	inet_pton(AF_INET, CONFIG_APP_NTN_SERVER_ADDR, &server4->sin_addr);
+	(void)inet_pton(AF_INET, CONFIG_APP_NTN_SERVER_ADDR, &server4->sin_addr);
 
 	/* Create UDP socket */
-	sock_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (sock_fd < 0) {
+	state->sock_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (state->sock_fd < 0) {
 		LOG_ERR("Failed to create UDP socket, error: %d", errno);
 
 		return -errno;
 	}
 
 	/* Connect socket */
-	err = connect(sock_fd, (struct sockaddr *)&host_addr, sizeof(struct sockaddr_in));
+	err = connect(state->sock_fd, (struct sockaddr *)&host_addr, sizeof(struct sockaddr_in));
 	if (err < 0) {
 		LOG_ERR("Failed to connect socket, error: %d", errno);
-		close(sock_fd);
+		close(state->sock_fd);
 
-		sock_fd = -1;
+		state->sock_fd = -1;
 
 		return -errno;
 	}
@@ -492,7 +489,7 @@ static int sock_open_and_connect(void)
 	return 0;
 }
 
-static int sock_send_gnss_data(const struct nrf_modem_gnss_pvt_data_frame *gnss_data)
+static int sock_send_gnss_data(struct ntn_state_object *state)
 {
 	int err;
 	char message[256];
@@ -501,7 +498,7 @@ static int sock_send_gnss_data(const struct nrf_modem_gnss_pvt_data_frame *gnss_
 	size_t imei_len;
 	char temp[16] = {0};
 
-	if (sock_fd < 0) {
+	if (state->sock_fd < 0) {
 		LOG_ERR("Socket not connected");
 
 		return -ENOTCONN;
@@ -577,7 +574,7 @@ static int sock_send_gnss_data(const struct nrf_modem_gnss_pvt_data_frame *gnss_
 #endif
 
 	/* Send data */
-	err = send(sock_fd, message, strlen(message), 0);
+	err = send(state->sock_fd, message, strlen(message), 0);
 	if (err < 0) {
 		LOG_ERR("Failed to send GNSS data, error: %d", errno);
 		return -errno;
@@ -656,10 +653,10 @@ static void state_gnss_entry(void *obj)
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
 	/* Close socket if it was open */
-	if (sock_fd >= 0) {
-		close(sock_fd);
+	if (state->sock_fd >= 0) {
+		close(state->sock_fd);
 
-		sock_fd = -1;
+		state->sock_fd = -1;
 		state->socket_connected = false;
 	}
 
@@ -750,7 +747,7 @@ static enum smf_state_result state_ntn_run(void *obj)
 		LOG_DBG("Setting up socket");
 
 		/* Network is connected, set up socket */
-		err = sock_open_and_connect();
+		err = sock_open_and_connect(state);
 		if (err) {
 			LOG_ERR("Failed to connect socket, error: %d", err);
 
@@ -764,7 +761,7 @@ static enum smf_state_result state_ntn_run(void *obj)
 			if (state->last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
 				LOG_DBG("Sending initial GNSS data");
 
-				err = sock_send_gnss_data(&state->last_pvt);
+				err = sock_send_gnss_data(state);
 				if (err) {
 					LOG_ERR("Failed to send initial GNSS data, error: %d", err);
 				} else {
@@ -798,10 +795,10 @@ static void state_ntn_exit(void *obj)
 	int err;
 
 	/* Close socket if it was open */
-	if (sock_fd >= 0) {
-		close(sock_fd);
+	if (state->sock_fd >= 0) {
+		close(state->sock_fd);
 
-		sock_fd = -1;
+		state->sock_fd = -1;
 		state->socket_connected = false;
 	}
 
@@ -924,7 +921,9 @@ static void ntn_module_thread(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_NTN_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	struct ntn_state_object ntn_state = { 0 };
+	struct ntn_state_object ntn_state = {
+		.sock_fd = -1,
+	 };
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, ntn_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {
