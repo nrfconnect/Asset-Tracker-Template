@@ -252,17 +252,9 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	int err;
 
 	if (state->ntn_initialized) {
-		err = nrf_modem_at_printf("AT+CEREG=5");
-		if (err) {
-			LOG_ERR("AT+CEREG failed, error: %d", err);
-
-			return err;
-		}
-
 		/* Start monitoring incoming CEREG Notifications */
 		LOG_DBG("Start monitoring incoming CEREG Notifications");
 		at_monitor_resume(&cereg_monitor);
-
 
 		/* Configure NTN system mode */
 		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
