@@ -236,11 +236,11 @@ static void cereg_mon(const char *notif)
 	}
 }
 
-static int set_ntn_dormant_mode(void)
+static int set_ntn_offline_mode(void)
 {
 	int err;
 
-	/* Set modem to dormant mode without loosing registration */
+	/* Set modem to offline mode without losing registration */
 	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
 	if (err) {
 		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
@@ -483,7 +483,7 @@ static void state_running_entry(void *obj)
 {
 	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
-	
+
 	LOG_DBG("%s", __func__);
 
 	k_work_init(&timer_work, timer_work_handler);
@@ -827,9 +827,9 @@ static void state_ntn_exit(void *obj)
 
 	LOG_DBG("%s", __func__);
 
-	err = set_ntn_dormant_mode();
+	err = set_ntn_offline_mode();
 	if (err) {
-		LOG_ERR("Failed to set NTN dormant mode, error: %d", err);
+		LOG_ERR("Failed to set NTN offline mode, error: %d", err);
 	}
 }
 
