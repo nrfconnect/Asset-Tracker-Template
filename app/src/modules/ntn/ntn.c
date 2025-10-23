@@ -220,16 +220,12 @@ static void gnss_location_work_handler(struct k_work *work)
 
 static void cereg_mon(const char *notif)
 {
-	enum lte_lc_nw_reg_status status = atoi(notif + strlen("+CEREG: "));
+	enum lte_lc_nw_reg_status status = atoi(notif + (sizeof("+CEREG: ") - 1));
 
-	if (status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
-		LOG_DBG("Network registration status: ROAMING");
-		ntn_msg_publish(NETWORK_CONNECTED);
-		LOG_DBG("Stop monitoring incoming CEREG Notifications");
-		at_monitor_pause(&cereg_monitor);
-	} else if (status == LTE_LC_NW_REG_REGISTERED_HOME) {
-		/* Amari Callbox */
-		LOG_DBG("Network registration status: HOME");
+	if ((status == LTE_LC_NW_REG_REGISTERED_ROAMING) ||
+	    (status == LTE_LC_NW_REG_REGISTERED_HOME)) {
+		LOG_DBG("Network registration status: %s",
+			status == LTE_LC_NW_REG_REGISTERED_ROAMING ? "ROAMING" : "HOME");
 		ntn_msg_publish(NETWORK_CONNECTED);
 		LOG_DBG("Stop monitoring incoming CEREG Notifications");
 		at_monitor_pause(&cereg_monitor);
@@ -256,7 +252,7 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	int err;
 
 	if (state->ntn_initialized) {
-		err = nrf_modem_at_printf("AT+CEREG=1");
+		err = nrf_modem_at_printf("AT+CEREG=5");
 		if (err) {
 			LOG_ERR("AT+CEREG failed, error: %d", err);
 
