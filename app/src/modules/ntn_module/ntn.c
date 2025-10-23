@@ -24,21 +24,17 @@
 #include "ntn.h"
 #include "button.h"
 
-/* AT monitor for network notifications */
-AT_MONITOR(cereg_monitor, "CEREG", cereg_mon, PAUSED);
-
-static int cereg_status;
-enum cereg_status {
-	NO_NETWORK = 0,
-	HOME = 1,
-	SEARCHING = 2,
-	DENIED = 3,
-	UNKNOWN = 4,
-	ROAMING = 5,
-	UICC_FAILURE = 90
-};
-
 LOG_MODULE_REGISTER(ntn, CONFIG_APP_NTN_LOG_LEVEL);
+
+/* AT monitor for network notifications.
+ * The monitor is needed to receive notification when in the case where the modem has been
+ * put into offline mode while keeping registration context.
+ * In this case, the modem will send a +CEREG notification with status 1 or 5 when NTN is
+ * re-enabled. The LTE link controller does not forward this because it is equal to the previous
+ * registration status. To work around this, we monitor the +CEREG notification and forward it
+ * to the NTN module when offline-while-keeping-registration mode is enabled.
+ */
+AT_MONITOR(cereg_monitor, "CEREG", cereg_mon, PAUSED);
 
 /* Define channels provided by this module */
 ZBUS_CHAN_DEFINE(NTN_CHAN,
@@ -216,14 +212,14 @@ static void gnss_location_work_handler(struct k_work *work)
 
 static void cereg_mon(const char *notif)
 {
-	cereg_status = atoi(notif + strlen("+CEREG: "));
+	enum lte_lc_nw_reg_status status = atoi(notif + strlen("+CEREG: "));
 
-	if (cereg_status == ROAMING) {
+	if (status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
 		LOG_DBG("Network registration status: ROAMING");
 		ntn_msg_publish(NTN_NETWORK_CONNECTED);
 		LOG_DBG("Stop monitoring incoming CEREG Notifications");
 		at_monitor_pause(&cereg_monitor);
-	} else if (cereg_status == HOME) {
+	} else if (status == LTE_LC_NW_REG_REGISTERED_HOME) {
 		/* Amari Callbox */
 		LOG_DBG("Network registration status: HOME");
 		ntn_msg_publish(NTN_NETWORK_CONNECTED);
@@ -236,7 +232,7 @@ static int set_ntn_dormant_mode(void)
 {
 	int err;
 
-	/* Set modem to dormant mode without loosing ATTACH  */
+	/* Set modem to dormant mode without loosing registration  */
 	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
 	if (err) {
 		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
@@ -246,9 +242,9 @@ static int set_ntn_dormant_mode(void)
 
 	err = nrf_modem_at_printf("AT+CEREG=1");
 	if (err) {
-		printk("AT+CEREG failed\n");
+		LOG_ERR("AT+CEREG failed, error: %d", err);
 
-		return 0;
+		return err;
 	}
 
 	/* Start monitoring incoming CEREG Notifications */
