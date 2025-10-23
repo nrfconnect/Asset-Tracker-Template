@@ -52,13 +52,14 @@ plugins:
 
 nav:
   - Overview: index.md
-  - Getting Started: common/getting_started.md
+  - Getting started: common/getting_started.md
   - Architecture: common/architecture.md
   - Configuration: common/configuration.md
   - Customization: common/customization.md
-  - Location Services: common/location_services.md
+  - Provisioning: common/provisioning.md
+  - Location services: common/location_services.md
   - nRF Cloud Fota: common/nrfcloud_fota.md
-  - Testing and CI Setup: common/test_and_ci_setup.md
+  - Testing and CI setup: common/test_and_ci_setup.md
   - Tooling and Troubleshooting: common/tooling_troubleshooting.md
   - Application modules:
     - Main module: modules/main.md
@@ -71,5 +72,5 @@ nav:
     - Network module: modules/network.md
     - Power module: modules/power.md
     - Storage module: modules/storage.md
-  - Release Artifacts: common/release.md
+  - Release artifacts: common/release.md
   - Release notes: common/release_notes.md
