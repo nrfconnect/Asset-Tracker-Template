@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 
 menuconfig APP_NTN
-	bool "NTN"
+	bool "NTN module"
 	default y if APP_NTN_MODE
 
 if APP_NTN
