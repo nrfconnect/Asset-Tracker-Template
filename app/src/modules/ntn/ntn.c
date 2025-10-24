@@ -83,6 +83,11 @@ enum ntn_module_state {
 		STATE_IDLE,
 };
 
+struct conn_state {
+	bool pdn_activated;
+	bool registered;
+};
+
 /* State object */
 struct ntn_state_object {
 	struct smf_ctx ctx;
@@ -90,6 +95,8 @@ struct ntn_state_object {
 	uint8_t msg_buf[MAX_MSG_SIZE];
 	struct k_timer ntn_timer;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
+	struct conn_state tn_conn_state;
+	struct conn_state ntn_conn_state;
 };
 
 static struct k_work timer_work;
@@ -147,17 +154,32 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 {
 	switch (evt->type) {
 	case LTE_LC_EVT_NW_REG_STATUS:
-		if (evt->nw_reg_status == LTE_LC_NW_REG_UICC_FAIL) {
+		switch (evt->nw_reg_status) {
+		case LTE_LC_NW_REG_UICC_FAIL:
 			LOG_ERR("No SIM card detected!");
-		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NOT_REGISTERED) {
+
+			break;
+		case LTE_LC_NW_REG_NOT_REGISTERED:
 			LOG_WRN("Not registered, check rejection cause");
-		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NO_SUITABLE_CELL) {
+
+			break;
+		case LTE_LC_NW_REG_NO_SUITABLE_CELL:
 			LOG_DBG("LTE_LC_NW_REG_NO_SUITABLE_CELL");
 			ntn_msg_publish(NETWORK_NO_SUITABLE_CELL);
-		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME) {
+
+			break;
+		case LTE_LC_NW_REG_REGISTERED_HOME:
 			LOG_DBG("LTE_LC_NW_REG_REGISTERED_HOME");
-		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
+			ntn_msg_publish(NETWORK_REGISTERED);
+
+			break;
+		case LTE_LC_NW_REG_REGISTERED_ROAMING:
 			LOG_DBG("LTE_LC_NW_REG_REGISTERED_ROAMING");
+			ntn_msg_publish(NETWORK_REGISTERED);
+
+			break;
+		default:
+			break;
 		}
 
 		break;
@@ -194,15 +216,17 @@ static void pdn_event_handler(uint8_t cid, enum pdn_event event, int reason)
 #endif
 	case PDN_EVENT_ACTIVATED:
 		LOG_DBG("PDN_EVENT_ACTIVATED");
-		ntn_msg_publish(NETWORK_CONNECTED);
+		ntn_msg_publish(PDN_ACTIVATED);
 
 		break;
 	case PDN_EVENT_NETWORK_DETACH:
 		LOG_DBG("PDN_EVENT_NETWORK_DETACH");
+		ntn_msg_publish(NETWORK_DEREGISTERED);
 
 		break;
 	case PDN_EVENT_DEACTIVATED:
 		LOG_DBG("PDN_EVENT_DEACTIVATED");
+		ntn_msg_publish(PDN_DEACTIVATED);
 
 		break;
 	case PDN_EVENT_CTX_DESTROYED:
@@ -210,7 +234,7 @@ static void pdn_event_handler(uint8_t cid, enum pdn_event event, int reason)
 
 		break;
 	default:
-		LOG_ERR("Unexpected PDN event: %d", event);
+		LOG_DBG("Unhandled PDN event: %d", event);
 
 		break;
 	}
@@ -335,7 +359,7 @@ static void cereg_mon(const char *notif)
 	    (status == LTE_LC_NW_REG_REGISTERED_HOME)) {
 		LOG_DBG("Network registration status: %s",
 			status == LTE_LC_NW_REG_REGISTERED_ROAMING ? "ROAMING" : "HOME");
-		ntn_msg_publish(NETWORK_CONNECTED);
+		ntn_msg_publish(NETWORK_REGISTERED);
 		LOG_DBG("Stop monitoring incoming CEREG Notifications");
 		at_monitor_pause(&cereg_monitor);
 	}
@@ -565,6 +589,35 @@ static int connect_to_cloud(void)
 	return 0;
 }
 
+/* Update the connection state based on the message type.
+ * Returns true if both PDN is active and the device is registered to the network, otherwise false.
+ */
+static bool update_conn_state(struct conn_state *conn_state, enum ntn_msg_type type)
+{
+	switch (type) {
+	case PDN_ACTIVATED:
+		conn_state->pdn_activated = true;
+
+		break;
+	case PDN_DEACTIVATED:
+		conn_state->pdn_activated = false;
+
+		break;
+	case NETWORK_REGISTERED:
+		conn_state->registered = true;
+
+		break;
+	case NETWORK_DEREGISTERED:
+		conn_state->registered = false;
+
+		break;
+	default:
+		break;
+	}
+
+	return conn_state->pdn_activated && conn_state->registered;
+}
+
 /* State handlers */
 
 static void state_running_entry(void *obj)
@@ -709,7 +762,19 @@ static enum smf_state_result state_tn_run(void *obj)
 		int err;
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
-		if (msg->type == NETWORK_NO_SUITABLE_CELL) {
+		switch (msg->type) {
+		case PDN_ACTIVATED: __fallthrough;
+		case PDN_DEACTIVATED: __fallthrough;
+		case NETWORK_REGISTERED: __fallthrough;
+		case NETWORK_DEREGISTERED:
+			if (update_conn_state(&state->tn_conn_state, msg->type)) {
+				ntn_msg_publish(NETWORK_CONNECTED);
+			} else {
+				ntn_msg_publish(NETWORK_DISCONNECTED);
+			}
+
+			return SMF_EVENT_HANDLED;
+		case NETWORK_NO_SUITABLE_CELL:
 			/* The modem performed a complete network search and found no suitable cell,
 			 * go to idle state.
 			 */
@@ -717,7 +782,7 @@ static enum smf_state_result state_tn_run(void *obj)
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
 			return SMF_EVENT_HANDLED;
-		} else if (msg->type == NETWORK_CONNECTED) {
+		case NETWORK_CONNECTED:
 			LOG_DBG("Received NETWORK_CONNECTED, connecting to nRF Cloud CoAP");
 
 			err = connect_to_cloud();
@@ -746,6 +811,8 @@ static enum smf_state_result state_tn_run(void *obj)
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
 			return SMF_EVENT_HANDLED;
+		default:
+			break;
 		}
 	}
 
@@ -883,14 +950,26 @@ static enum smf_state_result state_ntn_run(void *obj)
 		return SMF_EVENT_PROPAGATE;
 	}
 
-	if (msg->type == NETWORK_NO_SUITABLE_CELL) {
+	switch (msg->type) {
+	case PDN_ACTIVATED: __fallthrough;
+	case PDN_DEACTIVATED: __fallthrough;
+	case NETWORK_REGISTERED: __fallthrough;
+	case NETWORK_DEREGISTERED:
+		if (update_conn_state(&state->ntn_conn_state, msg->type)) {
+			ntn_msg_publish(NETWORK_CONNECTED);
+		} else {
+			ntn_msg_publish(NETWORK_DISCONNECTED);
+		}
+
+		return SMF_EVENT_HANDLED;
+	case NETWORK_NO_SUITABLE_CELL:
 		/* The modem performed a complete network search and found no suitable cell,
-			* go to idle state.
-			*/
+		 * go to idle state.
+		 */
 		smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
 		return SMF_EVENT_HANDLED;
-	} else if (msg->type == NETWORK_CONNECTED) {
+	case NETWORK_CONNECTED:
 		int64_t timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
 		bool confirmable = IS_ENABLED(CONFIG_APP_NTN_CLOUD_CONFIRMABLE_MESSAGES);
 		struct nrf_cloud_gnss_data gnss_data = {
@@ -936,6 +1015,8 @@ static enum smf_state_result state_ntn_run(void *obj)
 		smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
 		return SMF_EVENT_HANDLED;
+	default:
+		break;
 	}
 
 	return SMF_EVENT_PROPAGATE;

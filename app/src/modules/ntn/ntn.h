@@ -23,8 +23,23 @@ enum ntn_msg_type {
 	/* NTN mode timeout occurred */
 	NTN_TIMEOUT,
 
+	/* PDN activated */
+	PDN_ACTIVATED,
+
+	/* PDN deactivated */
+	PDN_DEACTIVATED,
+
+	/* Registered to network */
+	NETWORK_REGISTERED,
+
+	/* Network deregistered */
+	NETWORK_DEREGISTERED,
+
 	/* Network connectivity established */
 	NETWORK_CONNECTED,
+
+	/* Network connectivity lost */
+	NETWORK_DISCONNECTED,
 
 	/* Network no suitable cell found */
 	NETWORK_NO_SUITABLE_CELL,
