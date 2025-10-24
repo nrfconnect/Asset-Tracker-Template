@@ -596,6 +596,7 @@ static void state_running_entry(void *obj)
 	err = nrf_modem_lib_init();
 	if (err) {
 		LOG_ERR("Failed to initialize the modem library, error: %d", err);
+		SEND_FATAL_ERROR();
 
 		return;
 	}
@@ -610,6 +611,7 @@ static void state_running_entry(void *obj)
 	err = pdn_default_ctx_cb_reg(pdn_event_handler);
 	if (err) {
 		LOG_ERR("pdn_default_ctx_cb_reg, error: %d", err);
+		SEND_FATAL_ERROR();
 
 		return;
 	}
@@ -618,6 +620,7 @@ static void state_running_entry(void *obj)
 	err = nrf_cloud_coap_init();
 	if (err) {
 		LOG_ERR("nrf_cloud_coap_init, error: %d", err);
+		SEND_FATAL_ERROR();
 
 		return;
 	}
