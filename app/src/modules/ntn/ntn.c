@@ -915,15 +915,6 @@ static enum smf_state_result state_ntn_run(void *obj)
 				LOG_INF("GNSS location data sent to nRF Cloud successfully");
 			}
 
-			/*
-			 * We should wait until we get ACK for data being transmitted if !confirmable,
-			 * and cast CFUN=45 only after data were sent.
-			 * It may take 10s to send data in NTN.
-			 */
-			if (!confirmable) {
-				k_sleep(K_MSEC(20000));
-			}
-
 			err = nrf_cloud_coap_pause();
 			if ((err < 0) && (err != -EBADF)) {
 				/* -EBADF means cloud was disconnected */
