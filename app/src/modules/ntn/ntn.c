@@ -57,15 +57,30 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(ntn_subscriber);
 ZBUS_CHAN_ADD_OBS(NTN_CHAN, ntn_subscriber, 0);
 ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, ntn_subscriber, 0);
 
+/* Define maximum message size that the ntn_subscriber will receive */
 #define MAX_MSG_SIZE	MAX(sizeof(struct ntn_msg), sizeof(struct button_msg))
 
 /* State machine states */
 enum ntn_module_state {
+	/* The module is initialized and is running */
 	STATE_RUNNING,
-	STATE_TN,
-	STATE_GNSS,
-	STATE_NTN,
-	STATE_IDLE,
+		/* In TN mode, the module is connecting to terrestrial network and establishing
+		 * a CoAP over DTLS connection to nRF Cloud.
+		 */
+		STATE_TN,
+		/* In GNSS mode, the module is searching for GNSS satellites and acquiring a GNSS
+		 * fix. The location is to be used when searching for a suitable cell in NTN mode.
+		 */
+		STATE_GNSS,
+		/* In NTN mode, the module attempts to connect to an suitable NTN cell.
+		 * Once a suitable cell is found, the module sends GNSS location data to nRF Cloud,
+		 * resuming the existing CoAP connection to nRF Cloud.
+		 */
+		STATE_NTN,
+		/* In IDLE mode, the module is not connected to any network and is waiting for a
+		 * timeout or button press to transition to another mode.
+		 */
+		STATE_IDLE,
 };
 
 /* State object */
@@ -87,8 +102,8 @@ static struct k_work gnss_location_work;
 static void gnss_event_handler(int event);
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt);
 static void pdn_event_handler(uint8_t cid, enum pdn_event event, int reason);
+static void ntn_msg_publish(enum ntn_msg_type type);
 
-/* Forward declarations */
 static void state_running_entry(void *obj);
 static enum smf_state_result state_running_run(void *obj);
 static void state_tn_entry(void *obj);
@@ -117,7 +132,113 @@ static const struct smf_state states[] = {
 				&states[STATE_RUNNING], NULL),
 };
 
-/* Helper function to publish NTN messages */
+/* Event handlers */
+
+static void timer_work_handler(struct k_work *work)
+{
+	ntn_msg_publish(NTN_TIMEOUT);
+}
+
+/* Timer callback for NTN mode timeout */
+static void ntn_timer_handler(struct k_timer *timer)
+{
+	k_work_submit(&timer_work);
+}
+
+static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
+{
+	switch (evt->type) {
+	case LTE_LC_EVT_NW_REG_STATUS:
+		if (evt->nw_reg_status == LTE_LC_NW_REG_UICC_FAIL) {
+			LOG_ERR("No SIM card detected!");
+		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NOT_REGISTERED) {
+			LOG_WRN("Not registered, check rejection cause");
+		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NO_SUITABLE_CELL) {
+			LOG_DBG("LTE_LC_NW_REG_NO_SUITABLE_CELL");
+			ntn_msg_publish(NETWORK_NO_SUITABLE_CELL);
+		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME) {
+			LOG_DBG("LTE_LC_NW_REG_REGISTERED_HOME");
+		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
+			LOG_DBG("LTE_LC_NW_REG_REGISTERED_ROAMING");
+		}
+
+		break;
+	case LTE_LC_EVT_MODEM_EVENT:
+		if (evt->modem_evt.type == LTE_LC_MODEM_EVT_RESET_LOOP) {
+			LOG_WRN("The modem has detected a reset loop!");
+		} else if (evt->modem_evt.type == LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE) {
+			LOG_DBG("LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE");
+		}
+
+		break;
+	case LTE_LC_EVT_RRC_UPDATE:
+		if (evt->rrc_mode == LTE_LC_RRC_MODE_CONNECTED) {
+			LOG_DBG("LTE_LC_RRC_MODE_CONNECTED");
+
+		} else if (evt->rrc_mode == LTE_LC_RRC_MODE_IDLE) {
+			LOG_DBG("LTE_LC_RRC_MODE_IDLE");
+		}
+
+		break;
+	default:
+		break;
+	}
+}
+
+static void pdn_event_handler(uint8_t cid, enum pdn_event event, int reason)
+{
+	switch (event) {
+#if CONFIG_PDN_ESM_STRERROR
+	case PDN_EVENT_CNEC_ESM:
+		LOG_DBG("Event: PDP context %d, %s", cid, pdn_esm_strerror(reason));
+
+		break;
+#endif
+	case PDN_EVENT_ACTIVATED:
+		LOG_DBG("PDN_EVENT_ACTIVATED");
+		ntn_msg_publish(NETWORK_CONNECTED);
+
+		break;
+	case PDN_EVENT_NETWORK_DETACH:
+		LOG_DBG("PDN_EVENT_NETWORK_DETACH");
+
+		break;
+	case PDN_EVENT_DEACTIVATED:
+		LOG_DBG("PDN_EVENT_DEACTIVATED");
+
+		break;
+	case PDN_EVENT_CTX_DESTROYED:
+		LOG_DBG("PDN_EVENT_CTX_DESTROYED");
+
+		break;
+	default:
+		LOG_ERR("Unexpected PDN event: %d", event);
+
+		break;
+	}
+}
+
+static void gnss_event_handler(int event)
+{
+	switch (event) {
+	case NRF_MODEM_GNSS_EVT_PVT:
+		/* Schedule work to handle PVT data in thread context */
+		k_work_submit(&gnss_location_work);
+
+		break;
+	/* TODO: add handling for GNSS_SEARCH_FAILED, see mosh gnss.c */
+	default:
+		break;
+	}
+}
+
+static void ntn_wdt_callback(int channel_id, void *user_data)
+{
+	LOG_ERR("NTN watchdog expired, Channel: %d, Thread: %s",
+		channel_id, k_thread_name_get((k_tid_t)user_data));
+}
+
+/* Helper function to publish messages on the internal NTN channel */
 static void ntn_msg_publish(enum ntn_msg_type type)
 {
 	int err;
@@ -133,6 +254,7 @@ static void ntn_msg_publish(enum ntn_msg_type type)
 	}
 }
 
+/* Publish last PVT data on the internal NTN channel */
 static void publish_last_pvt(const struct nrf_modem_gnss_pvt_data_frame *pvt)
 {
 	int err;
@@ -145,17 +267,6 @@ static void publish_last_pvt(const struct nrf_modem_gnss_pvt_data_frame *pvt)
 	if (err) {
 		LOG_ERR("Failed to publish last PVT message, error: %d", err);
 	}
-}
-
-static void timer_work_handler(struct k_work *work)
-{
-	ntn_msg_publish(NTN_TIMEOUT);
-}
-
-/* Timer callback for NTN mode timeout */
-static void ntn_timer_handler(struct k_timer *timer)
-{
-	k_work_submit(&timer_work);
 }
 
 static void apply_gnss_time(const struct nrf_modem_gnss_pvt_data_frame *pvt_data)
@@ -468,7 +579,6 @@ static int set_gnss_inactive_mode(void)
 
 	return 0;
 }
-
 
 /* State handlers */
 
@@ -830,101 +940,6 @@ static void state_ntn_exit(void *obj)
 	if (err) {
 		LOG_ERR("Failed to set NTN offline mode, error: %d", err);
 	}
-}
-
-static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
-{
-	switch (evt->type) {
-	case LTE_LC_EVT_NW_REG_STATUS:
-		if (evt->nw_reg_status == LTE_LC_NW_REG_UICC_FAIL) {
-			LOG_ERR("No SIM card detected!");
-		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NOT_REGISTERED) {
-			LOG_WRN("Not registered, check rejection cause");
-		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NO_SUITABLE_CELL) {
-			LOG_DBG("LTE_LC_NW_REG_NO_SUITABLE_CELL");
-			ntn_msg_publish(NETWORK_NO_SUITABLE_CELL);
-		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME) {
-			LOG_DBG("LTE_LC_NW_REG_REGISTERED_HOME");
-		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
-			LOG_DBG("LTE_LC_NW_REG_REGISTERED_ROAMING");
-		}
-
-		break;
-	case LTE_LC_EVT_MODEM_EVENT:
-		if (evt->modem_evt.type == LTE_LC_MODEM_EVT_RESET_LOOP) {
-			LOG_WRN("The modem has detected a reset loop!");
-		} else if (evt->modem_evt.type == LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE) {
-			LOG_DBG("LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE");
-		}
-
-		break;
-	case LTE_LC_EVT_RRC_UPDATE:
-		if (evt->rrc_mode == LTE_LC_RRC_MODE_CONNECTED) {
-			LOG_DBG("LTE_LC_RRC_MODE_CONNECTED");
-
-		}
-		else if (evt->rrc_mode == LTE_LC_RRC_MODE_IDLE) {
-			LOG_DBG("LTE_LC_RRC_MODE_IDLE");
-		}
-
-		break;
-	default:
-		break;
-	}
-}
-
-/* Event handlers */
-static void pdn_event_handler(uint8_t cid, enum pdn_event event, int reason)
-{
-	switch (event) {
-#if CONFIG_PDN_ESM_STRERROR
-	case PDN_EVENT_CNEC_ESM:
-		LOG_DBG("Event: PDP context %d, %s", cid, pdn_esm_strerror(reason));
-
-		break;
-#endif
-	case PDN_EVENT_ACTIVATED:
-		LOG_DBG("PDN_EVENT_ACTIVATED");
-		ntn_msg_publish(NETWORK_CONNECTED);
-
-		break;
-	case PDN_EVENT_NETWORK_DETACH:
-		LOG_DBG("PDN_EVENT_NETWORK_DETACH");
-
-		break;
-	case PDN_EVENT_DEACTIVATED:
-		LOG_DBG("PDN_EVENT_DEACTIVATED");
-
-		break;
-	case PDN_EVENT_CTX_DESTROYED:
-		LOG_DBG("PDN_EVENT_CTX_DESTROYED");
-
-		break;
-	default:
-		LOG_ERR("Unexpected PDN event: %d", event);
-
-		break;
-	}
-}
-
-static void gnss_event_handler(int event)
-{
-	switch (event) {
-	case NRF_MODEM_GNSS_EVT_PVT:
-		/* Schedule work to handle PVT data in thread context */
-		k_work_submit(&gnss_location_work);
-
-		break;
-	/* TODO: add handling for GNSS_SEARCH_FAILED, see mosh gnss.c */
-	default:
-		break;
-	}
-}
-
-static void ntn_wdt_callback(int channel_id, void *user_data)
-{
-	LOG_ERR("NTN watchdog expired, Channel: %d, Thread: %s",
-		channel_id, k_thread_name_get((k_tid_t)user_data));
 }
 
 static void ntn_module_thread(void)

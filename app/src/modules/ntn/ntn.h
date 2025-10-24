@@ -17,13 +17,23 @@ extern "C" {
 
 /* NTN module message types */
 enum ntn_msg_type {
-	/* Events that trigger state transitions */
-	NTN_LOCATION_SEARCH_DONE, /* Location search completed - triggers transition to NTN mode */
-	NTN_TIMEOUT,              /* NTN mode timeout occurred - triggers transition to GNSS mode */
-	NETWORK_CONNECTED,    /* Network connectivity established */
-	NETWORK_NO_SUITABLE_CELL, /* Network no suitable cell found*/
-	SET_NTN_IDLE, /* Set Idle */
-	GNSS_SEARCH_FAILED, /* GNSS search failed*/
+	/* Location search completed and GNSS location data is availabl e*/
+	NTN_LOCATION_SEARCH_DONE,
+
+	/* NTN mode timeout occurred */
+	NTN_TIMEOUT,
+
+	/* Network connectivity established */
+	NETWORK_CONNECTED,
+
+	/* Network no suitable cell found */
+	NETWORK_NO_SUITABLE_CELL,
+
+	/* Set Idle */
+	SET_NTN_IDLE,
+
+	/* GNSS search failed */
+	GNSS_SEARCH_FAILED,
 };
 
 /* NTN module message */
