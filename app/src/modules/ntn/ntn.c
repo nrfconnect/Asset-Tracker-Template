@@ -51,13 +51,13 @@ ZBUS_CHAN_DEFINE(NTN_CHAN,
 );
 
 /* Register subscriber */
-ZBUS_MSG_SUBSCRIBER_DEFINE(ntn);
+ZBUS_MSG_SUBSCRIBER_DEFINE(ntn_subscriber);
 
 /* Observe NTN channel */
-ZBUS_CHAN_ADD_OBS(NTN_CHAN, ntn, 0);
-ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, ntn, 0);
+ZBUS_CHAN_ADD_OBS(NTN_CHAN, ntn_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, ntn_subscriber, 0);
 
-#define MAX_MSG_SIZE sizeof(struct ntn_msg)
+#define MAX_MSG_SIZE	MAX(sizeof(struct ntn_msg), sizeof(struct button_msg))
 
 /* State machine states */
 enum ntn_module_state {
@@ -947,7 +947,8 @@ static void ntn_module_thread(void)
 		}
 
 		/* Wait for messages */
-		err = zbus_sub_wait_msg(&ntn, &ntn_state.chan, ntn_state.msg_buf, zbus_wait_ms);
+		err = zbus_sub_wait_msg(&ntn_subscriber, &ntn_state.chan, ntn_state.msg_buf,
+					zbus_wait_ms);
 		if (err == -ENOMSG) {
 			continue;
 		} else if (err) {
