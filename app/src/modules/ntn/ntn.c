@@ -257,7 +257,8 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 		at_monitor_resume(&cereg_monitor);
 
 		/* Configure NTN system mode */
-		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT,
+					     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
 		if (err) {
 			LOG_ERR("Failed to set NTN system mode, error: %d", err);
 
@@ -317,7 +318,8 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 #endif
 
 		/* Configure NTN system mode */
-		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT,
+					     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
 		if (err) {
 			LOG_ERR("Failed to set NTN system mode, error: %d", err);
 
@@ -385,7 +387,8 @@ static int set_gnss_active_mode(struct ntn_state_object *state)
 
 	if (state->gnss_initialized) {
 		/* Configure GNSS system mode */
-		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_GPS, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_GPS,
+					     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
 		if (err) {
 			LOG_ERR("Failed to set GNSS system mode, error: %d", err);
 
@@ -411,7 +414,8 @@ static int set_gnss_active_mode(struct ntn_state_object *state)
 		}
 
 		/* Configure GNSS system mode */
-		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_GPS, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_GPS,
+					     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
 		if (err) {
 			LOG_ERR("Failed to set GNSS system mode, error: %d", err);
 
@@ -425,6 +429,7 @@ static int set_gnss_active_mode(struct ntn_state_object *state)
 
 			return err;
 		}
+
 		state->gnss_initialized=true;
 	}
 
@@ -516,11 +521,13 @@ static enum smf_state_result state_running_run(void *obj)
 
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
+
 		if (msg->type == SET_NTN_IDLE) {
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 		}
 	} else if (state->chan == &BUTTON_CHAN) {
 		struct button_msg *msg = (struct button_msg *)state->msg_buf;
+
 		if (msg->type == BUTTON_PRESS_LONG) {
 			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
 		}
@@ -552,8 +559,9 @@ static void state_tn_entry(void *obj)
 		return;
 	}
 
-	// Connect to network
+	/* Connect to network */
 	LOG_DBG("TN mode, using lte_lc_connect_async to connect to network");
+
 	err = lte_lc_connect_async(lte_lc_evt_handler);
 	if (err) {
 		LOG_ERR("lte_lc_connect_async, error: %d\n", err);
@@ -600,6 +608,7 @@ static enum smf_state_result state_tn_run(void *obj)
 			LOG_INF("CLOUD connected via TN network");
 
 			k_sleep(K_MSEC(5000));
+
 			err = nrf_cloud_coap_pause();
 			if ((err < 0) && (err != -EBADF)) {
 				/* -EBADF means cloud was disconnected */
@@ -651,11 +660,13 @@ static enum smf_state_result state_idle_run(void *obj)
 
 	if (state->chan == &BUTTON_CHAN) {
 		struct button_msg *msg = (struct button_msg *)state->msg_buf;
+
 		if (msg->type == BUTTON_PRESS_SHORT) {
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 		}
 	} else if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
+
 		if (msg->type == NTN_TIMEOUT) {
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 		}
@@ -732,6 +743,18 @@ static enum smf_state_result state_ntn_run(void *obj)
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
 		if (msg->type == NETWORK_CONNECTED) {
+			int64_t timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
+			bool confirmable = IS_ENABLED(CONFIG_APP_NTN_CLOUD_CONFIRMABLE_MESSAGES);
+			struct nrf_cloud_gnss_data gnss_data = {
+				.type = NRF_CLOUD_GNSS_TYPE_PVT,
+				.ts_ms = timestamp_ms,
+				.pvt = {
+					.lat = state->last_pvt.latitude,
+					.lon = state->last_pvt.longitude,
+					.accuracy = state->last_pvt.accuracy,
+				}
+			};
+
 			err = nrf_cloud_client_id_get(buf, sizeof(buf));
 			if (err == 0) {
 				LOG_INF("Connecting to nRF Cloud CoAP with client ID: %s", buf);
@@ -757,18 +780,6 @@ static enum smf_state_result state_ntn_run(void *obj)
 
 				return SMF_EVENT_PROPAGATE;
 			}
-
-			int64_t timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
-			bool confirmable = IS_ENABLED(CONFIG_APP_NTN_CLOUD_CONFIRMABLE_MESSAGES);
-			struct nrf_cloud_gnss_data gnss_data = {
-				.type = NRF_CLOUD_GNSS_TYPE_PVT,
-				.ts_ms = timestamp_ms,
-				.pvt = {
-					.lat = state->last_pvt.latitude,
-					.lon = state->last_pvt.longitude,
-					.accuracy = state->last_pvt.accuracy,
-				}
-			};
 
 			LOG_DBG("Sending to nrfcloud GNSS location data: lat: %f, lon: %f, acc: %f",
 				(double)state->last_pvt.latitude,
