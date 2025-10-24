@@ -510,7 +510,7 @@ static int set_gnss_active_mode(struct ntn_state_object *state)
 	return 0;
 }
 
-static int set_gnss_inactive_mode(void)
+static void set_gnss_inactive_mode(void)
 {
 	int err;
 
@@ -523,11 +523,7 @@ static int set_gnss_inactive_mode(void)
 	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_DEACTIVATE_GNSS);
 	if (err) {
 		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
-
-		return err;
 	}
-
-	return 0;
 }
 
 static int connect_to_cloud(void)
@@ -832,7 +828,8 @@ static enum smf_state_result state_gnss_run(void *obj)
 		switch (msg->type) {
 		case NTN_LOCATION_SEARCH_DONE:
 			/* Location search completed, transition to NTN mode */
-			memcpy(&state->last_pvt, &msg->pvt, sizeof(state->last_pvt));
+			state->last_pvt = msg->pvt;
+
 			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
 
 			return SMF_EVENT_HANDLED;
