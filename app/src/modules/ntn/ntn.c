@@ -429,42 +429,6 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 			return err;
 		}
 	} else {
-		/* Set NTN SIM profile.
-		 * 2: Configure cellular profile
-		 * 0: Cellular profile index
-		 * 4: Access technology: Satellite E-UTRAN (NB-S1 mode)
-		 * 0: SIM slot, physical SIM
-		*/
-		err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,0,4,0");
-		if (err) {
-			LOG_ERR("Failed to set modem NTN profile, error: %d", err);
-
-			return err;
-		}
-
-		/* Set TN SIM profile for LTE-M
-		 * 2: Configure cellular profile
-		 * 1: Cellular profile index
-		 * 1: Access technology: LE-UTRAN (WB-S1 mode), LTE-M
-		 * 0: SIM slot, physical SIM
-		*/
-		err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,1,1,0");
-		if (err) {
-			LOG_ERR("Failed to set modem TN profile, error: %d", err);
-
-			return err;
-		}
-
-#if defined(CONFIG_APP_NTN_DISABLE_EPCO)
-		/* Disable ePCO */
-		err = nrf_modem_at_printf("AT%%XEPCO=0");
-		if (err) {
-			LOG_ERR("Failed to set XEPCO off, error: %d", err);
-
-			return err;
-		}
-#endif
-
 		/* Configure NTN system mode */
 		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT,
 					     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
@@ -643,6 +607,45 @@ static void state_running_entry(void *obj)
 
 		return;
 	}
+
+	/* Set NTN SIM profile.
+	 * 2: Configure cellular profile
+	 * 0: Cellular profile index
+	 * 4: Access technology: Satellite E-UTRAN (NB-S1 mode)
+	 * 0: SIM slot, physical SIM
+	 */
+	err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,0,4,0");
+	if (err) {
+		LOG_ERR("Failed to set modem NTN profile, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+
+	/* Set TN SIM profile for LTE-M
+		* 2: Configure cellular profile
+		* 1: Cellular profile index
+		* 1: Access technology: LE-UTRAN (WB-S1 mode), LTE-M
+		* 0: SIM slot, physical SIM
+	*/
+	err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,1,1,0");
+	if (err) {
+		LOG_ERR("Failed to set modem TN profile, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+
+#if defined(CONFIG_APP_NTN_DISABLE_EPCO)
+	/* Disable ePCO */
+	err = nrf_modem_at_printf("AT%%XEPCO=0");
+	if (err) {
+		LOG_ERR("Failed to set XEPCO off, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+#endif
 
 	/* Init nrfcloud coap */
 	err = nrf_cloud_coap_init();
