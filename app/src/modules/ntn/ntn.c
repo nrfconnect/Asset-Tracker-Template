@@ -90,7 +90,6 @@ struct ntn_state_object {
 	uint8_t msg_buf[MAX_MSG_SIZE];
 	struct k_timer ntn_timer;
 	bool ntn_initialized;
-	bool gnss_initialized;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
 };
 
@@ -495,63 +494,54 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 static int set_gnss_active_mode(struct ntn_state_object *state)
 {
 	int err;
+	enum lte_lc_func_mode mode;
 
-	if (state->gnss_initialized) {
-		/* Configure GNSS system mode */
-		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_GPS,
-					     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
-		if (err) {
-			LOG_ERR("Failed to set GNSS system mode, error: %d", err);
+	err = lte_lc_func_mode_get(&mode);
+	if (err) {
+		LOG_ERR("Failed to get LTE function mode, error: %d", err);
 
-			return err;
-		}
+		return err;
+	}
 
-		/* Activate GNSS fun mode */
-		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
-		if (err) {
-			LOG_ERR("Failed to activate GNSS fun mode, error: %d", err);
-
-			return err;
-		}
-	} else {
-		/* Offline modem
-		 * Powering off modem would close nrfcloud socket
-		 */
+	if ((mode != LTE_LC_FUNC_MODE_OFFLINE) && (mode != LTE_LC_FUNC_MODE_POWER_OFF)) {
+		/* Go offline to be able to set GNSS system mode */
 		err = lte_lc_offline();
 		if (err) {
 			LOG_ERR("lte_lc_offline, error: %d", err);
 
 			return err;
 		}
-
-		/* Configure GNSS system mode */
-		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_GPS,
-					     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
-		if (err) {
-			LOG_ERR("Failed to set GNSS system mode, error: %d", err);
-
-			return err;
-		}
-
-		/* Activate GNSS mode */
-		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
-		if (err) {
-			LOG_ERR("Failed to activate GNSS fun mode, error: %d", err);
-
-			return err;
-		}
-
-		state->gnss_initialized=true;
 	}
 
+	/* Configure GNSS system mode */
+	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_GPS,
+					LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+	if (err) {
+		LOG_ERR("Failed to set GNSS system mode, error: %d", err);
+
+		return err;
+	}
+
+	/* Activate GNSS functional mode */
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
+	if (err) {
+		LOG_ERR("Failed to activate GNSS fun mode, error: %d", err);
+
+		return err;
+	}
+
+	/* Set GNSS to single fix mode */
 	err = nrf_modem_gnss_fix_interval_set(0);
 	if (err) {
 		LOG_ERR("Failed to set GNSS fix interval, error: %d", err);
 	}
+
+	/* Set GNSS fix timeout to 180 seconds */
 	err = nrf_modem_gnss_fix_retry_set(180);
 	if (err) {
 		LOG_ERR("Failed to set GNSS fix retry, error: %d", err);
 	}
+
 	err = nrf_modem_gnss_start();
 	if (err) {
 		LOG_ERR("Failed to start GNSS, error: %d", err);
