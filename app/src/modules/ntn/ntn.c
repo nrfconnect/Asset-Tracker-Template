@@ -360,6 +360,32 @@ static int set_ntn_offline_mode(void)
 static int set_ntn_active_mode(struct ntn_state_object *state)
 {
 	int err;
+	enum lte_lc_func_mode mode;
+
+	err = lte_lc_func_mode_get(&mode);
+	if (err) {
+		LOG_ERR("Failed to get LTE function mode, error: %d", err);
+
+		return err;
+	}
+
+	/* If needed, go offline to be able to set NTN system mode */
+	switch (mode) {
+	case LTE_LC_FUNC_MODE_OFFLINE: __fallthrough;
+	case LTE_LC_FUNC_MODE_POWER_OFF: __fallthrough;
+	case LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG: __fallthrough;
+	case LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG_UICC_ON: __fallthrough;
+		break;
+	default:
+		err = lte_lc_offline();
+		if (err) {
+			LOG_ERR("lte_lc_offline, error: %d", err);
+
+			return err;
+		}
+
+		break;
+	}
 
 	if (state->ntn_initialized) {
 		/* Start monitoring incoming CEREG Notifications */
@@ -374,6 +400,7 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 
 			return err;
 		}
+
 		/* Configure location using latest GNSS data */
 		err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"%f\",0,0",
 					(double)state->last_pvt.latitude,
@@ -384,7 +411,9 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 
 			return err;
 		}
-		LOG_DBG("NTN initialized, using AT+CFUN=21");
+
+		LOG_DBG("NTN initialized, activating LTE functional mode");
+
 		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
 		if (err) {
 			LOG_ERR("lte_lc_func_mode_set, error: %d", err);
@@ -392,16 +421,7 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 			return err;
 		}
 	} else {
-		/* Offline modem
-		 * Powering off modem would close nrfcloud socket
-		 */
-		err = lte_lc_offline();
-		if (err) {
-			LOG_ERR("lte_lc_offline, error: %d", err);
-
-			return err;
-		}
-		/* Set NTN profile */
+		/* Set NTN SIM profile */
 		err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,0,4,0");
 		if (err) {
 			LOG_ERR("Failed to set modem NTN profile, error: %d", err);
