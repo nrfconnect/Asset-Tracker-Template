@@ -377,11 +377,12 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 
 		break;
 	case LTE_LC_FUNC_MODE_OFFLINE: __fallthrough;
-	case LTE_LC_FUNC_MODE_POWER_OFF: __fallthrough;
+	case LTE_LC_FUNC_MODE_POWER_OFF:
+		break;
 	default:
-		err = lte_lc_offline();
+		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
 		if (err) {
-			LOG_ERR("lte_lc_offline, error: %d", err);
+			LOG_ERR("lte_lc_func_mode_set, error: %d", err);
 
 			return err;
 		}
@@ -389,105 +390,61 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 		break;
 	}
 
-	/* Check if we are in offline-while-keeping-registration mode. If so, it indicates that
-	 * the modem has already been able to register to an NTN network, which in turn means
-	 * that the NTN parameters are already configured.
-	 */
-	if (ntn_initialized) {
-		/* Start monitoring incoming CEREG notifications temporarily to receive +CEREG
-		 * notifications when in offline-while-keeping-registration mode.
-		 */
-		LOG_DBG("Start monitoring incoming CEREG Notifications");
-		at_monitor_resume(&cereg_monitor);
+	/* Configure NTN system mode */
+	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT,
+				     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+	if (err) {
+		LOG_ERR("Failed to set NTN system mode, error: %d", err);
 
-		/* Configure NTN system mode */
-		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT,
-					     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
-		if (err) {
-			LOG_ERR("Failed to set NTN system mode, error: %d", err);
+		return err;
+	}
 
-			return err;
-		}
+	/* Configure location using latest GNSS data */
+	err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"%f\",0,0",
+				(double)state->last_pvt.latitude,
+				(double)state->last_pvt.longitude,
+				(double)state->last_pvt.altitude);
+	if (err) {
+		LOG_ERR("Failed to set AT%%LOCATION, error: %d", err);
 
-		/* Configure location using latest GNSS data */
-		err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"%f\",0,0",
-					(double)state->last_pvt.latitude,
-					(double)state->last_pvt.longitude,
-					(double)state->last_pvt.altitude);
-		if (err) {
-			LOG_ERR("Failed to set AT%%LOCATION, error: %d", err);
-
-			return err;
-		}
-
-		LOG_DBG("NTN initialized, activating LTE functional mode");
-
-		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
-		if (err) {
-			LOG_ERR("lte_lc_func_mode_set, error: %d", err);
-
-			return err;
-		}
-	} else {
-		/* Configure NTN system mode */
-		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT,
-					     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
-		if (err) {
-			LOG_ERR("Failed to set NTN system mode, error: %d", err);
-
-			return err;
-		}
-
-		/* Configure location using latest GNSS data */
-		err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"%f\",0,0",
-					(double)state->last_pvt.latitude,
-					(double)state->last_pvt.longitude,
-					(double)state->last_pvt.altitude);
-		if (err) {
-			LOG_ERR("Failed to set AT%%LOCATION, error: %d", err);
-
-			return err;
-		}
+		return err;
+	}
 
 #if defined(CONFIG_APP_NTN_BANDLOCK_ENABLE)
-		/* Set NTN band lock */
-		err = nrf_modem_at_printf("AT%%XBANDLOCK=2,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
-		if (err) {
-			LOG_ERR("Failed to set NTN band lock, error: %d", err);
+	err = nrf_modem_at_printf("AT%%XBANDLOCK=2,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
+	if (err) {
+		LOG_ERR("Failed to set NTN band lock, error: %d", err);
 
-			return err;
-		}
+		return err;
+	}
 #endif
 
 #if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
-		err = nrf_modem_at_printf("AT%%CHSELECT=1,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
-		if (err) {
-			LOG_ERR("Failed to set NTN channel, error: %d", err);
+	err = nrf_modem_at_printf("AT%%CHSELECT=1,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
+	if (err) {
+		LOG_ERR("Failed to set NTN channel, error: %d", err);
 
-			return err;
-		}
+		return err;
+	}
 #endif
 
-		/*
-		 * Modem is activating AT+CPSMS via CONFIG_LTE_LC_PSM_MODULE=y.
-		 * Cast AT+CPSMS=0 to deactivate legacy PSM.
-		 * CFUN=45 + legacy PSM is has bugs in mfw ntn-0.5.0, fixed in mfw ntn-0.5.1.
-		 */
-		err = nrf_modem_at_printf("AT+CPSMS=0");
-		if (err) {
-			LOG_ERR("Failed to set AT+CPSMS=0, error: %d", err);
+	/* Check if we are in offline-while-keeping-registration mode. If so, the modem has already
+	 * been able to register to an NTN network, which means that the LTE link controller will
+	 * ignore +CEREG notifications with status 1 or 5. To work around this, we monitor the
+	 * +CEREG notifications in the application.
+	 */
+	if (ntn_initialized) {
+		LOG_DBG("Start monitoring incoming CEREG Notifications");
+		at_monitor_resume(&cereg_monitor);
+	}
 
-			return err;
-		}
+	LOG_DBG("NTN initialized, activating LTE functional mode");
 
-		LOG_DBG("NTN not initialized, using lte_lc_connect_async to connect to network");
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
+	if (err) {
+		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
 
-		err = lte_lc_connect_async(lte_lc_evt_handler);
-		if (err) {
-			LOG_ERR("lte_lc_connect_async, error: %d\n", err);
-
-			return err;
-		}
+		return err;
 	}
 
 	return 0;
@@ -505,11 +462,12 @@ static int set_gnss_active_mode(struct ntn_state_object *state)
 		return err;
 	}
 
-	if ((mode != LTE_LC_FUNC_MODE_OFFLINE) && (mode != LTE_LC_FUNC_MODE_POWER_OFF)) {
+	if ((mode != LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG) &&
+	    (mode != LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG_UICC_ON)) {
 		/* Go offline to be able to set GNSS system mode */
-		err = lte_lc_offline();
+		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
 		if (err) {
-			LOG_ERR("lte_lc_offline, error: %d", err);
+			LOG_ERR("lte_lc_func_mode_set, error: %d", err);
 
 			return err;
 		}
@@ -517,7 +475,7 @@ static int set_gnss_active_mode(struct ntn_state_object *state)
 
 	/* Configure GNSS system mode */
 	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_GPS,
-					LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+				     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
 	if (err) {
 		LOG_ERR("Failed to set GNSS system mode, error: %d", err);
 
@@ -696,7 +654,7 @@ static void state_tn_entry(void *obj)
 		return;
 	}
 
-	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM, LTE_LC_SYSTEM_MODE_PREFER_LTEM);
+	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM_NBIOT, LTE_LC_SYSTEM_MODE_PREFER_LTEM);
 	if (err) {
 		LOG_ERR("lte_lc_system_mode_set, error: %d", err);
 
@@ -784,9 +742,9 @@ static void state_tn_exit(void *obj)
 
 	LOG_DBG("%s", __func__);
 
-	err = lte_lc_offline();
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
 	if (err) {
-		LOG_ERR("lte_lc_offline, error: %d", err);
+		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
 
 		return;
 	}
