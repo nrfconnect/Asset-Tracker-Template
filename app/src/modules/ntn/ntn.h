@@ -29,9 +29,6 @@ enum ntn_msg_type {
 	/* Network no suitable cell found */
 	NETWORK_NO_SUITABLE_CELL,
 
-	/* Set Idle */
-	SET_NTN_IDLE,
-
 	/* GNSS search failed */
 	GNSS_SEARCH_FAILED,
 };

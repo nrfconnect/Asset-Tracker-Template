@@ -621,13 +621,7 @@ static enum smf_state_result state_running_run(void *obj)
 
 	LOG_DBG("%s", __func__);
 
-	if (state->chan == &NTN_CHAN) {
-		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
-
-		if (msg->type == SET_NTN_IDLE) {
-			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-		}
-	} else if (state->chan == &BUTTON_CHAN) {
+	if (state->chan == &BUTTON_CHAN) {
 		struct button_msg *msg = (struct button_msg *)state->msg_buf;
 
 		if (msg->type == BUTTON_PRESS_LONG) {
@@ -879,9 +873,10 @@ static enum smf_state_result state_ntn_run(void *obj)
 				LOG_INF("Connecting to nRF Cloud CoAP with client ID: %s", buf);
 			} else {
 				LOG_ERR("nrf_cloud_client_id_get, error: %d, cannot continue", err);
-				ntn_msg_publish(SET_NTN_IDLE);
 
-				return SMF_EVENT_PROPAGATE;
+				smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+				return SMF_EVENT_HANDLED;
 			}
 
 			err = nrf_cloud_coap_connect(APP_VERSION_STRING);
@@ -889,15 +884,15 @@ static enum smf_state_result state_ntn_run(void *obj)
 				LOG_INF("nRF Cloud CoAP connection successful");
 			} else if (err == -EACCES || err == -ENOEXEC || err == -ECONNREFUSED) {
 				LOG_WRN("nrf_cloud_coap_connect, error: %d", err);
-				LOG_WRN("nRF Cloud CoAP connection failed, unauthorized or invalid credentials");
-				ntn_msg_publish(SET_NTN_IDLE);
 
-				return SMF_EVENT_PROPAGATE;
+				smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+				return SMF_EVENT_HANDLED;
 			} else {
 				LOG_WRN("nRF Cloud CoAP connection refused");
-				ntn_msg_publish(SET_NTN_IDLE);
+				smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
-				return SMF_EVENT_PROPAGATE;
+				return SMF_EVENT_HANDLED;
 			}
 
 			LOG_DBG("Sending to nrfcloud GNSS location data: lat: %f, lon: %f, acc: %f",
@@ -928,9 +923,13 @@ static enum smf_state_result state_ntn_run(void *obj)
 				LOG_ERR("Error pausing connection: %d", err);
 			}
 
-			ntn_msg_publish(SET_NTN_IDLE);
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+			return SMF_EVENT_HANDLED;
 		} else if (msg->type == NETWORK_NO_SUITABLE_CELL) {
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
 
