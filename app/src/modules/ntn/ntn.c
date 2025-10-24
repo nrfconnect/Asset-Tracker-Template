@@ -429,7 +429,7 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 			return err;
 		}
 
-		/* Set TN profile */
+		/* Set TN SIM profile for LTE-M */
 		err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,1,1,0");
 		if (err) {
 			LOG_ERR("Failed to set modem TN profile, error: %d", err);
@@ -831,14 +831,20 @@ static enum smf_state_result state_gnss_run(void *obj)
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
-		if (msg->type == NTN_LOCATION_SEARCH_DONE) {
+		switch (msg->type) {
+		case NTN_LOCATION_SEARCH_DONE:
 			/* Location search completed, transition to NTN mode */
 			memcpy(&state->last_pvt, &msg->pvt, sizeof(state->last_pvt));
-
 			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
-		} else if (msg->type == GNSS_SEARCH_FAILED) {
-			LOG_ERR("GNSS_SEARCH_FAILED");
+
+			return SMF_EVENT_HANDLED;
+		case GNSS_SEARCH_FAILED:
+			LOG_ERR("GNSS search failed, going to idle state");
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+			return SMF_EVENT_HANDLED;
+		default:
+			break;
 		}
 	}
 
