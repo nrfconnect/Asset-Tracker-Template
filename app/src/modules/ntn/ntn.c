@@ -683,45 +683,52 @@ static enum smf_state_result state_tn_run(void *obj)
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
 		if (msg->type == NETWORK_CONNECTED) {
-			LOG_DBG("Received NETWORK_CONNECTED, connecting to nRFCloud");
+			LOG_DBG("Received NETWORK_CONNECTED, connecting to nRF Cloud CoAP");
 
 			err = nrf_cloud_client_id_get(buf, sizeof(buf));
-			if (err == 0) {
-				LOG_INF("Connecting to nRF Cloud CoAP with client ID: %s", buf);
-			} else {
+			if (err) {
 				LOG_ERR("nrf_cloud_client_id_get, error: %d, cannot continue", err);
 
-				return SMF_EVENT_PROPAGATE;
+				return SMF_EVENT_HANDLED;
 			}
 
+			LOG_INF("Connecting to nRF Cloud CoAP using client ID: %s", buf);
+
 			err = nrf_cloud_coap_connect(APP_VERSION_STRING);
-			if (err == 0) {
-				LOG_INF("nRF Cloud CoAP connection successful");
-			} else if (err == -EACCES || err == -ENOEXEC || err == -ECONNREFUSED) {
+			if (err == -EACCES || err == -ENOEXEC || err == -ECONNREFUSED) {
 				LOG_WRN("nrf_cloud_coap_connect, error: %d", err);
 				LOG_WRN("nRF Cloud CoAP connection failed, unauthorized or invalid credentials");
 
-				return SMF_EVENT_PROPAGATE;
-			} else {
+				return SMF_EVENT_HANDLED;
+			} else if (err < 0) {
 				LOG_WRN("nRF Cloud CoAP connection refused");
 
-				return SMF_EVENT_PROPAGATE;
+				return SMF_EVENT_HANDLED;
 			}
 
-			LOG_INF("CLOUD connected via TN network");
+			LOG_INF("Cloud connection established via TN network");
 
-			k_sleep(K_MSEC(5000));
-
+			/* Pause the CoAP connection to save the DTLS CID and resume it later
+			 * when transitioning to NTN mode.
+			 */
 			err = nrf_cloud_coap_pause();
 			if ((err < 0) && (err != -EBADF)) {
 				/* -EBADF means cloud was disconnected */
 				LOG_ERR("Error pausing connection: %d", err);
+
+				return SMF_EVENT_HANDLED;
 			}
 
-			ntn_msg_publish(SET_NTN_IDLE);
+			LOG_INF("CoAP connection paused");
+
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+			return SMF_EVENT_HANDLED;
 		} else if (msg->type == NETWORK_NO_SUITABLE_CELL) {
-			LOG_INF("Out of LTE coverage, going to idle state.");
-			ntn_msg_publish(SET_NTN_IDLE);
+			LOG_INF("Out of LTE coverage, going to idle state");
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
 
@@ -751,8 +758,8 @@ static void state_idle_entry(void *obj)
 	LOG_DBG("%s", __func__);
 
 	k_timer_start(&state->ntn_timer,
-			K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES),
-			K_NO_WAIT);
+		      K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES),
+		      K_NO_WAIT);
 }
 
 static enum smf_state_result state_idle_run(void *obj)
@@ -766,12 +773,16 @@ static enum smf_state_result state_idle_run(void *obj)
 
 		if (msg->type == BUTTON_PRESS_SHORT) {
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
+
+			return SMF_EVENT_HANDLED;
 		}
 	} else if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
 		if (msg->type == NTN_TIMEOUT) {
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
 
