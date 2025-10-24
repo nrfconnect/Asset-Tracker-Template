@@ -709,7 +709,15 @@ static enum smf_state_result state_tn_run(void *obj)
 		int err;
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
-		if (msg->type == NETWORK_CONNECTED) {
+		if (msg->type == NETWORK_NO_SUITABLE_CELL) {
+			/* The modem performed a complete network search and found no suitable cell,
+			 * go to idle state.
+			 */
+			LOG_INF("Out of LTE coverage, going to idle state");
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+			return SMF_EVENT_HANDLED;
+		} else if (msg->type == NETWORK_CONNECTED) {
 			LOG_DBG("Received NETWORK_CONNECTED, connecting to nRF Cloud CoAP");
 
 			err = connect_to_cloud();
@@ -735,11 +743,6 @@ static enum smf_state_result state_tn_run(void *obj)
 				LOG_INF("CoAP connection paused");
 			}
 
-			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-
-			return SMF_EVENT_HANDLED;
-		} else if (msg->type == NETWORK_NO_SUITABLE_CELL) {
-			LOG_INF("Out of LTE coverage, going to idle state");
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
 			return SMF_EVENT_HANDLED;
@@ -874,61 +877,65 @@ static enum smf_state_result state_ntn_run(void *obj)
 {
 	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+	struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
-	if (state->chan == &NTN_CHAN) {
-		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
+	if (state->chan != &NTN_CHAN) {
+		return SMF_EVENT_PROPAGATE;
+	}
 
-		if (msg->type == NETWORK_CONNECTED) {
-			int64_t timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
-			bool confirmable = IS_ENABLED(CONFIG_APP_NTN_CLOUD_CONFIRMABLE_MESSAGES);
-			struct nrf_cloud_gnss_data gnss_data = {
-				.type = NRF_CLOUD_GNSS_TYPE_PVT,
-				.ts_ms = timestamp_ms,
-				.pvt = {
-					.lat = state->last_pvt.latitude,
-					.lon = state->last_pvt.longitude,
-					.accuracy = state->last_pvt.accuracy,
-				}
-			};
+	if (msg->type == NETWORK_NO_SUITABLE_CELL) {
+		/* The modem performed a complete network search and found no suitable cell,
+			* go to idle state.
+			*/
+		smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
-			err = connect_to_cloud();
-			if (err) {
-				LOG_WRN("Failed to connect to nRF Cloud CoAP on NTN");
-
-				smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-
-				return SMF_EVENT_HANDLED;
+		return SMF_EVENT_HANDLED;
+	} else if (msg->type == NETWORK_CONNECTED) {
+		int64_t timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
+		bool confirmable = IS_ENABLED(CONFIG_APP_NTN_CLOUD_CONFIRMABLE_MESSAGES);
+		struct nrf_cloud_gnss_data gnss_data = {
+			.type = NRF_CLOUD_GNSS_TYPE_PVT,
+			.ts_ms = timestamp_ms,
+			.pvt = {
+				.lat = state->last_pvt.latitude,
+				.lon = state->last_pvt.longitude,
+				.accuracy = state->last_pvt.accuracy,
 			}
+		};
 
-			LOG_INF("Cloud connection established via NTN network");
+		err = connect_to_cloud();
+		if (err) {
+			LOG_WRN("Failed to connect to nRF Cloud CoAP on NTN");
 
-			LOG_DBG("Sending to nrfcloud GNSS location data: lat: %f, lon: %f, acc: %f",
-				(double)state->last_pvt.latitude,
-				(double)state->last_pvt.longitude,
-				(double)state->last_pvt.accuracy);
-
-			/* Send GNSS location data to nRF Cloud */
-			err = nrf_cloud_coap_location_send(&gnss_data, confirmable);
-			if (err) {
-				LOG_ERR("nrf_cloud_coap_location_send, error: %d", err);
-			} else {
-				LOG_INF("GNSS location data sent to nRF Cloud successfully");
-			}
-
-			err = nrf_cloud_coap_pause();
-			if ((err < 0) && (err != -EBADF)) {
-				/* -EBADF means cloud was disconnected */
-				LOG_ERR("Error pausing connection: %d", err);
-			}
-
-			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-
-			return SMF_EVENT_HANDLED;
-		} else if (msg->type == NETWORK_NO_SUITABLE_CELL) {
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
 			return SMF_EVENT_HANDLED;
 		}
+
+		LOG_INF("Cloud connection established via NTN network");
+
+		LOG_DBG("Sending to nrfcloud GNSS location data: lat: %f, lon: %f, acc: %f",
+			(double)state->last_pvt.latitude,
+			(double)state->last_pvt.longitude,
+			(double)state->last_pvt.accuracy);
+
+		/* Send GNSS location data to nRF Cloud */
+		err = nrf_cloud_coap_location_send(&gnss_data, confirmable);
+		if (err) {
+			LOG_ERR("nrf_cloud_coap_location_send, error: %d", err);
+		} else {
+			LOG_INF("GNSS location data sent to nRF Cloud successfully");
+		}
+
+		err = nrf_cloud_coap_pause();
+		if ((err < 0) && (err != -EBADF)) {
+			/* -EBADF means cloud was disconnected */
+			LOG_ERR("Error pausing connection: %d", err);
+		}
+
+		smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+		return SMF_EVENT_HANDLED;
 	}
 
 	return SMF_EVENT_PROPAGATE;
