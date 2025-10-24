@@ -89,7 +89,6 @@ struct ntn_state_object {
 	const struct zbus_channel *chan;
 	uint8_t msg_buf[MAX_MSG_SIZE];
 	struct k_timer ntn_timer;
-	bool ntn_initialized;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
 };
 
@@ -361,6 +360,7 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 {
 	int err;
 	enum lte_lc_func_mode mode;
+	bool ntn_initialized = false;
 
 	err = lte_lc_func_mode_get(&mode);
 	if (err) {
@@ -371,11 +371,13 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 
 	/* If needed, go offline to be able to set NTN system mode */
 	switch (mode) {
+	case LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG: __fallthrough;
+	case LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG_UICC_ON:;
+		ntn_initialized = true;
+
+		break;
 	case LTE_LC_FUNC_MODE_OFFLINE: __fallthrough;
 	case LTE_LC_FUNC_MODE_POWER_OFF: __fallthrough;
-	case LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG: __fallthrough;
-	case LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG_UICC_ON: __fallthrough;
-		break;
 	default:
 		err = lte_lc_offline();
 		if (err) {
@@ -387,8 +389,14 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 		break;
 	}
 
-	if (state->ntn_initialized) {
-		/* Start monitoring incoming CEREG Notifications */
+	/* Check if we are in offline-while-keeping-registration mode. If so, it indicates that
+	 * the modem has already been able to register to an NTN network, which in turn means
+	 * that the NTN parameters are already configured.
+	 */
+	if (ntn_initialized) {
+		/* Start monitoring incoming CEREG notifications temporarily to receive +CEREG
+		 * notifications when in offline-while-keeping-registration mode.
+		 */
 		LOG_DBG("Start monitoring incoming CEREG Notifications");
 		at_monitor_resume(&cereg_monitor);
 
@@ -421,7 +429,12 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 			return err;
 		}
 	} else {
-		/* Set NTN SIM profile */
+		/* Set NTN SIM profile.
+		 * 2: Configure cellular profile
+		 * 0: Cellular profile index
+		 * 4: Access technology: Satellite E-UTRAN (NB-S1 mode)
+		 * 0: SIM slot, physical SIM
+		*/
 		err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,0,4,0");
 		if (err) {
 			LOG_ERR("Failed to set modem NTN profile, error: %d", err);
@@ -429,7 +442,12 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 			return err;
 		}
 
-		/* Set TN SIM profile for LTE-M */
+		/* Set TN SIM profile for LTE-M
+		 * 2: Configure cellular profile
+		 * 1: Cellular profile index
+		 * 1: Access technology: LE-UTRAN (WB-S1 mode), LTE-M
+		 * 0: SIM slot, physical SIM
+		*/
 		err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,1,1,0");
 		if (err) {
 			LOG_ERR("Failed to set modem TN profile, error: %d", err);
@@ -438,7 +456,7 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 		}
 
 #if defined(CONFIG_APP_NTN_DISABLE_EPCO)
-		/* Set XEPCO off */
+		/* Disable ePCO */
 		err = nrf_modem_at_printf("AT%%XEPCO=0");
 		if (err) {
 			LOG_ERR("Failed to set XEPCO off, error: %d", err);
@@ -468,6 +486,7 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 		}
 
 #if defined(CONFIG_APP_NTN_BANDLOCK_ENABLE)
+		/* Set NTN band lock */
 		err = nrf_modem_at_printf("AT%%XBANDLOCK=2,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
 		if (err) {
 			LOG_ERR("Failed to set NTN band lock, error: %d", err);
@@ -486,10 +505,10 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 #endif
 
 		/*
-		Modem is activating AT+CPSMS via CONFIG_LTE_LC_PSM_MODULE=y.
-		Cast AT+CPSMS=0 to deactivate legacy PSM.
-		CFUN=45 + legacy PSM is has bugs in mfw ntn-0.5.0, fixed in mfw ntn-0.5.1.
-		*/
+		 * Modem is activating AT+CPSMS via CONFIG_LTE_LC_PSM_MODULE=y.
+		 * Cast AT+CPSMS=0 to deactivate legacy PSM.
+		 * CFUN=45 + legacy PSM is has bugs in mfw ntn-0.5.0, fixed in mfw ntn-0.5.1.
+		 */
 		err = nrf_modem_at_printf("AT+CPSMS=0");
 		if (err) {
 			LOG_ERR("Failed to set AT+CPSMS=0, error: %d", err);
@@ -497,9 +516,8 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 			return err;
 		}
 
-		state->ntn_initialized = true;
-
 		LOG_DBG("NTN not initialized, using lte_lc_connect_async to connect to network");
+
 		err = lte_lc_connect_async(lte_lc_evt_handler);
 		if (err) {
 			LOG_ERR("lte_lc_connect_async, error: %d\n", err);
