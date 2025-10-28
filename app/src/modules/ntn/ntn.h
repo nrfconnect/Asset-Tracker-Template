@@ -24,6 +24,7 @@ enum ntn_msg_type {
 	GNSS_TIMER,          /* GNSS timer expired - get new fix */
 	NTN_TIMER,           /* LTE timer expired - connect to network */
 	NTN_SHELL_SET_TIME,  /* Set new time of pass from shell */
+	KEEPALIVE_TIMER,     /* Keepalive timer */
 };
 
 /* NTN module message */

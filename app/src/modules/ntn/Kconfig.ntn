@@ -10,13 +10,7 @@ if APP_NTN
 
 config APP_NTN_THREAD_STACK_SIZE
 	int "NTN module thread stack size"
-	default 2048
-
-config APP_NTN_TIMER_TIMEOUT_MINUTES
-	int "NTN timer timeout in minutes"
-	default 15
-	help
-	  Timer timeout for NTN mode before switching back to GNSS mode.
+	default 8192
 
 config APP_NTN_BANDLOCK_ENABLE
 	bool "Enable NTN band lock"
