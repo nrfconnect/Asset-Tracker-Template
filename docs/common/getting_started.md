@@ -242,3 +242,12 @@ To test that everything is working as expected, you can do the following:
 
 If you experience issues, check the logs in the serial terminal for any error messages. You can find troubleshooting tips in the [Troubleshooting](tooling_troubleshooting.md) section of the documentation.
 You can also open a support ticket on [DevZone](https://devzone.nordicsemi.com) for further assistance.
+
+## Next Steps
+
+Now that you have the application running, you can:
+
+* **Explore the architecture** - Learn about the modular design in the [Architecture](architecture.md) guide
+* **Configure the application** - Customize behavior using the [Configuration](configuration.md) guide
+* **Perform firmware updates** - Deploy new versions using the [Firmware Updates (FOTA)](fota.md) guide
+* **Customize functionality** - Add or modify features following the [Customization](customization.md) guide
