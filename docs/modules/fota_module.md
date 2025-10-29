@@ -62,10 +62,10 @@ All input messages are requests from the application to the FOTA module. The out
 
 ## Configuration
 
-The following Kconfig options can be used to customize the FOTA module’s behavior:
+The following Kconfig options can be used to customize the FOTA module's behavior:
 
 - **CONFIG_APP_FOTA_THREAD_STACK_SIZE:**
-  Size of the stack for the FOTA module’s thread.
+  Size of the stack for the FOTA module's thread.
 - **CONFIG_APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS:**
   Maximum time allowed for processing individual FOTA messages.
 - **CONFIG_APP_FOTA_WATCHDOG_TIMEOUT_SECONDS:**

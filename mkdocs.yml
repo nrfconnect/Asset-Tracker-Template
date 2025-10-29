@@ -57,7 +57,7 @@ nav:
   - Configuration: common/configuration.md
   - Customization: common/customization.md
   - Location Services: common/location_services.md
-  - nRF Cloud Fota: common/nrfcloud_fota.md
+  - nRF Cloud Fota: common/fota.md
   - Testing and CI Setup: common/test_and_ci_setup.md
   - Tooling and Troubleshooting: common/tooling_troubleshooting.md
   - Application modules:
@@ -65,7 +65,7 @@ nav:
     - Button module: modules/button.md
     - Cloud module: modules/cloud.md
     - Environmental module: modules/environmental.md
-    - FOTA module: modules/fota.md
+    - FOTA module: modules/fota_module.md
     - LED module: modules/led.md
     - Location module: modules/location.md
     - Network module: modules/network.md

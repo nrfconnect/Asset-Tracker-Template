@@ -117,7 +117,7 @@ Core modules include:
 * **[Location](docs/modules/location.md)**: GNSS, Wi-Fi, and cellular positioning
 * **[LED](docs/modules/led.md)**: RGB LED control for Thingy:91 X
 * **[Button](docs/modules/button.md)**: User input handling
-* **[FOTA](docs/modules/fota.md)**: Firmware over-the-air updates
+* **[FOTA](docs/modules/fota_module.md)**: Firmware over-the-air updates
 * **[Environmental](docs/modules/environmental.md)**: Sensor data collection
 * **[Power](docs/modules/power.md)**: Battery monitoring and power management
 
@@ -151,7 +151,7 @@ The architecture is detailed in the [Architecture documentation](docs/common/arc
   * [Enable support for MQTT](docs/common/customization.md#enable-support-for-mqtt)
 * [Location Services](docs/common/location_services.md)
 * [Test and CI Setup](docs/common/test_and_ci_setup.md)
-* [nRF Cloud FOTA](docs/common/nrfcloud_fota.md)
+* [Firmware Updates (FOTA)](docs/common/fota.md)
 * [Tooling and Troubleshooting](docs/common/tooling_troubleshooting.md)
   * [Shell Commands](docs/common/tooling_troubleshooting.md#shell-commands)
   * [Debugging Tools](docs/common/tooling_troubleshooting.md#debugging-tools)
@@ -166,7 +166,7 @@ The architecture is detailed in the [Architecture documentation](docs/common/arc
 * [Cloud](docs/modules/cloud.md)
 * [Storage](docs/modules/storage.md)
 * [Environmental](docs/modules/environmental.md)
-* [FOTA](docs/modules/fota.md)
+* [FOTA](docs/modules/fota_module.md)
 * [LED](docs/modules/led.md)
 * [Location](docs/modules/location.md)
 * [Main](docs/modules/main.md)

@@ -18,7 +18,7 @@ The Asset Tracker Template is built around a modular architecture where each mod
 - **[Location module](../modules/location.md)**: Provides location services using GNSS, Wi-Fi, and cellular positioning.
 - **[LED module](../modules/led.md)**: Controls RGB LED for visual feedback.
 - **[Button module](../modules/button.md)**: Handles button input for user interaction.
-- **[FOTA module](../modules/fota.md)**: Manages firmware over-the-air updates.
+- **[FOTA module](../modules/fota_module.md)**: Manages firmware over-the-air updates.
 - **[Environmental module](../modules/environmental.md)**: Collects environmental sensor data (temperature, humidity, pressure).
 - **[Power module](../modules/power.md)**: Monitors battery status and provides power management.
 
