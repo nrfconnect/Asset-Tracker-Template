@@ -21,6 +21,7 @@ config APP_POWER_SHELL
 
 config APP_POWER_DISABLE_UART_ON_VBUS_REMOVED
 	bool "Disable UART when VBUS is removed"
+	default y
 	help
 	  Disable UART when VBUS is removed to save power.
 	  The UART is re-enabled when VBUS is connected again.
