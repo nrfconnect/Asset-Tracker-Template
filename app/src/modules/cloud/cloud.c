@@ -681,8 +681,10 @@ static void handle_priv_cloud_message(struct cloud_state_object const *state_obj
 {
 	enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
 
-	if (msg == CLOUD_SEND_REQUEST_FAILED) {
+	if ((msg == CLOUD_SEND_REQUEST_FAILED) && (state_object->network_connected)) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
+	} else if ((msg == CLOUD_SEND_REQUEST_FAILED) && (!state_object->network_connected)) {
+		smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
 	}
 }
 
