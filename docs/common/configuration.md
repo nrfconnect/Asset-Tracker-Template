@@ -8,9 +8,8 @@ The Asset Tracker can be configured remotely through nRF Cloud's device shadow m
 
 ### Configuration through nRF Cloud UI
 
-!!! important "Important"
-
-    For new devices, the **View Config** section in the nRF Cloud UI will not be visible. It will become visible once the shadow is patched using the REST call documented below.
+> [!NOTE]
+> For new devices, the **View Config** section in the nRF Cloud UI will not be visible. It will become visible once the shadow is patched using the REST call documented below.
 
 1. Log in to [nRF Cloud](https://nrfcloud.com/).
 1. Navigate to **Devices** and select your device.
@@ -104,6 +103,40 @@ The following are the available location methods:
     CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_FIRST_GNSS=y
     CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_SECOND_CELLULAR=y
     ```
+
+## Storage Mode Configuration
+
+The storage module handles collected data in two modes: **Passthrough** (forward immediately, default) or **Buffer** (store and transmit in batches for lower power consumption).
+See [Storage Module Documentation](../modules/storage.md) for details.
+
+**Basic configuration** in `prj.conf`:
+
+Passthrough mode is the default mode, to enable buffer mode use:
+
+```bash
+CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y
+```
+
+To configure buffer size and records per stored data type:
+
+```bash
+CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=8      # Records per data type
+CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE=256       # Batch buffer size
+```
+
+For minimal use include the `overlay-storage-minimal.conf` overlay
+
+**Runtime control** (shell commands when `CONFIG_APP_STORAGE_SHELL=y`):
+
+```bash
+att_storage mode passthrough   # Switch to passthrough
+att_storage mode buffer        # Switch to buffer
+att_storage flush              # Flush stored data
+att_storage clear              # Clear all data
+att_storage stats              # Show statistics (if enabled)
+```
+
+See [Storage Module Configurations](../modules/storage.md#configurations) for all options.
 
 ## Network configuration
 
@@ -207,9 +240,8 @@ Common scenarios for APN configuration:
 - Connecting to specific network services.
 - Working with MVNOs (Mobile Virtual Network Operators).
 
-!!! note "Note"
-
-    In most cases, the default APN provided by the carrier should work without additional configuration.
+> [!NOTE]
+> In most cases, the default APN provided by the carrier should work without additional configuration.
 
 ## LED Status Indicators
 
