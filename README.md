@@ -150,6 +150,7 @@ The architecture is detailed in the [Architecture documentation](docs/common/arc
   * [Add your own module](docs/common/customization.md#add-your-own-module)
   * [Enable support for MQTT](docs/common/customization.md#enable-support-for-mqtt)
 * [Location Services](docs/common/location_services.md)
+* [Achieving Low Power](docs/common/low_power.md)
 * [Test and CI Setup](docs/common/test_and_ci_setup.md)
 * [Firmware Updates (FOTA)](docs/common/fota.md)
 * [Tooling and Troubleshooting](docs/common/tooling_troubleshooting.md)

@@ -57,6 +57,7 @@ nav:
   - Configuration: common/configuration.md
   - Customization: common/customization.md
   - Location Services: common/location_services.md
+  - Achieving Low Power: common/low_power.md
   - nRF Cloud Fota: common/fota.md
   - Testing and CI Setup: common/test_and_ci_setup.md
   - Tooling and Troubleshooting: common/tooling_troubleshooting.md
