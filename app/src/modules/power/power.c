@@ -8,7 +8,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
-#include <zephyr/pm/device.h>
+#include <zephyr/pm/device_runtime.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/drivers/sensor/npm13xx_charger.h>
 #include <zephyr/drivers/mfd/npm13xx.h>
@@ -19,6 +19,9 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
 #include <modem/nrf_modem_lib_trace.h>
+#if defined(CONFIG_SHELL)
+#include <zephyr/shell/shell_uart.h>
+#endif
 
 #include "lp803448_model.h"
 #include "app_common.h"
@@ -195,15 +198,29 @@ static int uart_disable(void)
 	 */
 	k_busy_wait(100 * USEC_PER_MSEC);
 
-	err = pm_device_action_run(uart1_dev, PM_DEVICE_ACTION_SUSPEND);
+#if defined(CONFIG_SHELL)
+	const struct shell *shell_uart = shell_backend_uart_get_ptr();
+
+	if (!shell_uart) {
+		return -ENODEV;
+	}
+
+	err = shell_stop(shell_uart);
+	if (err) {
+		LOG_ERR("shell_stop, error: %d", err);
+		return err;
+	}
+#endif
+
+	err = pm_device_runtime_put(uart1_dev);
 	if (err && (err != -EALREADY)) {
-		LOG_ERR("pm_device_action_run, error: %d", err);
+		LOG_ERR("pm_device_runtime_put, error: %d", err);
 		return err;
 	}
 
-	err = pm_device_action_run(uart0_dev, PM_DEVICE_ACTION_SUSPEND);
+	err = pm_device_runtime_put(uart0_dev);
 	if (err && (err != -EALREADY)) {
-		LOG_ERR("pm_device_action_run, error: %d", err);
+		LOG_ERR("pm_device_runtime_put, error: %d", err);
 		return err;
 	}
 
@@ -228,17 +245,31 @@ static int uart_enable(void)
 	}
 #endif
 
-	err = pm_device_action_run(uart0_dev, PM_DEVICE_ACTION_RESUME);
+	err = pm_device_runtime_get(uart0_dev);
 	if (err && (err != -EALREADY)) {
-		LOG_ERR("pm_device_action_run, error: %d", err);
+		LOG_ERR("pm_device_runtime_get, error: %d", err);
 		return err;
 	}
 
-	err = pm_device_action_run(uart1_dev, PM_DEVICE_ACTION_RESUME);
+	err = pm_device_runtime_get(uart1_dev);
 	if (err && (err != -EALREADY)) {
-		LOG_ERR("pm_device_action_run, error: %d", err);
+		LOG_ERR("pm_device_runtime_get, error: %d", err);
 		return err;
 	}
+
+#if defined(CONFIG_SHELL)
+	const struct shell *shell_uart = shell_backend_uart_get_ptr();
+
+	if (!shell_uart) {
+		 return -ENODEV;
+	}
+
+	err = shell_start(shell_uart);
+	if (err) {
+		LOG_ERR("shell_start, error: %d", err);
+		return err;
+	}
+#endif
 
 	LOG_DBG("UART devices enabled");
 	return 0;
