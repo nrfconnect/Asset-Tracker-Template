@@ -15,16 +15,16 @@ from utils.logger import get_logger
 
 logger = get_logger()
 
-MFW_202_FILEPATH = "artifacts/mfw_nrf91x1_2.0.2.zip"
+MFW_FILEPATH = "artifacts/mfw_nrf91x1_2.0.3.zip"
 
 # Stable version used for testing
 TEST_APP_VERSION = "1.0.2"
 
-DELTA_MFW_BUNDLEID_20X_TO_FOTA_TEST = "59cec896-c842-40fe-9a95-a4f3e88a4cdb"
-DELTA_MFW_BUNDLEID_FOTA_TEST_TO_20X = "7b79d95d-5f3b-4ae1-9a04-214ec273515d"
-FULL_MFW_BUNDLEID = "d692915d-d978-4c77-ab02-f05f511971f9"
-MFW_DELTA_VERSION_20X_FOTA_TEST = "mfw_nrf91x1_2.0.2-FOTA-TEST"
-MFW_202_VERSION = "mfw_nrf91x1_2.0.2"
+DELTA_MFW_BUNDLEID_20X_TO_FOTA_TEST = "c8443b86-d295-4305-8e39-0ae2731178e1"
+DELTA_MFW_BUNDLEID_FOTA_TEST_TO_20X = "fcefc1f6-ee51-469a-9c06-8237a42acf95"
+FULL_MFW_BUNDLEID = "61cedb8d-0b6f-4684-9150-5aa782c6c8d5"
+MFW_DELTA_VERSION_FOTA_TEST = "mfw_nrf91x1_2.0.3-FOTA-TEST"
+MFW_VERSION = "mfw_nrf91x1_2.0.3"
 
 APP_BUNDLEID = os.getenv("APP_BUNDLEID")
 
@@ -260,7 +260,7 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
             try:
                 await_nrfcloud(
                     functools.partial(get_modemversion, dut_fota),
-                    MFW_202_VERSION,
+                    MFW_VERSION,
                     "modemFirmware",
                     DEVICE_MSG_TIMEOUT
                 )
@@ -288,11 +288,11 @@ def test_delta_mfw_fota(run_fota_fixture):
         run_fota_fixture(
             bundle_id=DELTA_MFW_BUNDLEID_20X_TO_FOTA_TEST,
             fota_type="delta",
-            new_version=MFW_DELTA_VERSION_20X_FOTA_TEST
+            new_version=MFW_DELTA_VERSION_FOTA_TEST
         )
     finally:
-        # Restore mfw202, no matter if test pass/fails
-        flash_device(os.path.abspath(MFW_202_FILEPATH))
+        # Restore mfw, no matter if test pass/fails
+        flash_device(os.path.abspath(MFW_FILEPATH))
 
 @pytest.mark.slow
 def test_full_mfw_fota(run_fota_fixture):
@@ -304,10 +304,10 @@ def test_full_mfw_fota(run_fota_fixture):
         run_fota_fixture(
             bundle_id=FULL_MFW_BUNDLEID,
             fota_type="full",
-            new_version=MFW_202_VERSION,
+            new_version=MFW_VERSION,
             fotatimeout=FULL_MFW_FOTA_TIMEOUT,
             reschedule=True
         )
     finally:
-        # Restore mfw202, no matter if test pass/fails
-        flash_device(os.path.abspath(MFW_202_FILEPATH))
+        # Restore mfw, no matter if test pass/fails
+        flash_device(os.path.abspath(MFW_FILEPATH))

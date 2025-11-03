@@ -128,6 +128,14 @@ jobs:
               --check-uploaded \
               asset-tracker-template-${{ inputs.artifact_fw_version }}-debug-${{ vars.DUT_DEVICE_TYPE }}-nrf91.elf
 
+      - name: Program modem firmware
+        if: contains(fromJSON('["thingy91x", "nrf9151dk", "gnss_nrf9151dk", "prov_thingy91x"]'), matrix.device)
+        working-directory: asset-tracker-template/tests/on_target
+        run: |
+          nrfutil device program \
+            --serial-number ${{ env.RUNNER_SERIAL_NUMBER }} \
+            --firmware artifacts/mfw_nrf91x1_2.0.3.zip
+
       - name: Target Tests
         working-directory: asset-tracker-template/tests/on_target
         run: |
