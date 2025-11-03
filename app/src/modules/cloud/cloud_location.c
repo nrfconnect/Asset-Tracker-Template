@@ -63,15 +63,13 @@ static void handle_cloud_location_request(const struct location_data_cloud *requ
 #endif
 
 #if defined(CONFIG_LOCATION_METHOD_WIFI)
-	if (request->wifi_data != NULL && request->wifi_data->cnt > 0) {
+	if (request->wifi_data != NULL) {
 		/* Cast away const: nRF Cloud API limitation - struct fields are non-const
 		 * but the data is not modified by the API
 		 */
 		loc_req.wifi_info = (struct wifi_scan_info *)request->wifi_data; /* NOSONAR */
 
 		LOG_DBG("Wi-Fi data present: %d APs", request->wifi_data->cnt);
-	} else if (request->wifi_data != NULL && request->wifi_data->cnt == 0) {
-		LOG_DBG("Wi-Fi scan found 0 APs, omitting Wi-Fi data from location request");
 	}
 #endif
 

@@ -246,7 +246,6 @@ void setUp(void)
 	RESET_FAKE(nrf_cloud_coap_disconnect);
 	RESET_FAKE(nrf_cloud_coap_json_message_send);
 	RESET_FAKE(nrf_cloud_coap_location_send);
-	RESET_FAKE(nrf_cloud_coap_location_get);
 	RESET_FAKE(nrf_cloud_coap_shadow_get);
 	RESET_FAKE(nrf_cloud_coap_patch);
 	RESET_FAKE(date_time_now);
@@ -254,7 +253,6 @@ void setUp(void)
 	RESET_FAKE(nrf_provisioning_trigger_manually);
 	RESET_FAKE(storage_batch_read);
 	RESET_FAKE(nrf_cloud_coap_sensor_send);
-	RESET_FAKE(location_cloud_location_ext_result_set);
 
 	nrf_cloud_client_id_get_fake.custom_fake = nrf_cloud_client_id_get_custom_fake;
 	nrf_provisioning_init_fake.custom_fake = nrf_provisioning_init_custom_fake;
@@ -265,7 +263,6 @@ void setUp(void)
 
 	/* Set default return values */
 	nrf_cloud_coap_location_send_fake.return_val = 0;
-	nrf_cloud_coap_location_get_fake.return_val = 0;
 	storage_batch_read_fake.return_val = -EAGAIN;
 
 	/* Clear all channels */
@@ -608,161 +605,6 @@ void test_gnss_location_data_handling(void)
 	/* Basic verification that the function was called with valid arguments */
 	if (nrf_cloud_coap_location_send_fake.call_count > 0) {
 		TEST_ASSERT_NOT_NULL(nrf_cloud_coap_location_send_fake.arg0_val);
-	}
-}
-
-/* Test cloud location request with valid Wi-Fi data */
-void test_cloud_location_request_with_valid_wifi(void)
-{
-	int err;
-	struct wifi_scan_result mock_aps[2] = {
-		{.ssid = {0}, .ssid_length = 0, .rssi = -50, .channel = 1},
-		{.ssid = {0}, .ssid_length = 0, .rssi = -60, .channel = 6}
-	};
-	struct wifi_scan_info mock_wifi_info = {
-		.ap_info = mock_aps,
-		.cnt = 2
-	};
-	struct location_data_cloud mock_cloud_request = {
-		.cell_data = NULL,
-		.wifi_data = &mock_wifi_info
-	};
-	struct location_msg location_msg = {
-		.type = LOCATION_CLOUD_REQUEST,
-		.cloud_request = mock_cloud_request
-	};
-	struct storage_msg passthrough_msg = {
-		.type = STORAGE_MODE_PASSTHROUGH
-	};
-	struct storage_msg storage_data_msg = {
-		.type = STORAGE_DATA,
-		.data_type = STORAGE_TYPE_LOCATION,
-		.data_len = sizeof(struct location_msg)
-	};
-
-	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
-
-	connect_cloud();
-
-	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(10));
-
-	/* Send cloud location request with valid Wi-Fi data */
-	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
-
-	/* Verify that location request was sent to nRF Cloud */
-	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
-
-	/* Verify request was not NULL */
-	if (nrf_cloud_coap_location_get_fake.call_count > 0) {
-		TEST_ASSERT_NOT_NULL(nrf_cloud_coap_location_get_fake.arg0_val);
-	}
-}
-
-/* Test cloud location request with 0 Wi-Fi APs still sends request */
-void test_cloud_location_request_with_zero_wifi_aps(void)
-{
-	int err;
-	struct wifi_scan_info mock_wifi_info = {
-		.ap_info = NULL,
-		.cnt = 0
-	};
-	struct location_data_cloud mock_cloud_request = {
-		.cell_data = NULL,
-		.wifi_data = &mock_wifi_info
-	};
-	struct location_msg location_msg = {
-		.type = LOCATION_CLOUD_REQUEST,
-		.cloud_request = mock_cloud_request
-	};
-	struct storage_msg passthrough_msg = {
-		.type = STORAGE_MODE_PASSTHROUGH
-	};
-	struct storage_msg storage_data_msg = {
-		.type = STORAGE_DATA,
-		.data_type = STORAGE_TYPE_LOCATION,
-		.data_len = sizeof(struct location_msg)
-	};
-
-	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
-
-	connect_cloud();
-
-	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(10));
-
-	/* Send cloud location request with 0 Wi-Fi APs */
-	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
-
-	/* Verify that location request was still sent (Wi-Fi omitted internally) */
-	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
-
-	/* Verify request was not NULL */
-	if (nrf_cloud_coap_location_get_fake.call_count > 0) {
-		TEST_ASSERT_NOT_NULL(nrf_cloud_coap_location_get_fake.arg0_val);
-	}
-}
-
-/* Test cloud location request with cellular data and 0 Wi-Fi APs */
-void test_cloud_location_request_cellular_with_zero_wifi_aps(void)
-{
-	int err;
-	struct lte_lc_cell mock_cell = {
-		.mcc = 242,
-		.mnc = 1,
-		.id = 12345,
-		.tac = 678
-	};
-	struct lte_lc_cells_info mock_cells_info = {
-		.current_cell = mock_cell,
-		.ncells_count = 0
-	};
-	struct wifi_scan_info mock_wifi_info = {
-		.ap_info = NULL,
-		.cnt = 0
-	};
-	struct location_data_cloud mock_cloud_request = {
-		.cell_data = &mock_cells_info,
-		.wifi_data = &mock_wifi_info
-	};
-	struct location_msg location_msg = {
-		.type = LOCATION_CLOUD_REQUEST,
-		.cloud_request = mock_cloud_request
-	};
-	struct storage_msg passthrough_msg = {
-		.type = STORAGE_MODE_PASSTHROUGH
-	};
-	struct storage_msg storage_data_msg = {
-		.type = STORAGE_DATA,
-		.data_type = STORAGE_TYPE_LOCATION,
-		.data_len = sizeof(struct location_msg)
-	};
-
-	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
-
-	connect_cloud();
-
-	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(10));
-
-	/* Send cloud location request with cellular data and 0 Wi-Fi APs */
-	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
-
-	/* Verify that location request was sent (cellular used, Wi-Fi omitted) */
-	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
-
-	/* Verify request was not NULL */
-	if (nrf_cloud_coap_location_get_fake.call_count > 0) {
-		TEST_ASSERT_NOT_NULL(nrf_cloud_coap_location_get_fake.arg0_val);
 	}
 }
 
