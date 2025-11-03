@@ -415,39 +415,10 @@ static void location_event_handler(const struct location_event_data *event_data)
 
 		location_print_data_details(event_data->method, &event_data->fallback.details);
 		break;
-	case LOCATION_EVT_CLOUD_LOCATION_EXT_REQUEST: {
+	case LOCATION_EVT_CLOUD_LOCATION_EXT_REQUEST:
 		LOG_DBG("Cloud location request received from location library");
 
-		bool has_valid_data = false;
-
-#if defined(CONFIG_LOCATION_METHOD_CELLULAR)
-		if (event_data->cloud_location_request.cell_data != NULL) {
-			has_valid_data = true;
-			LOG_DBG("Cellular data present");
-		}
-#endif
-#if defined(CONFIG_LOCATION_METHOD_WIFI)
-		if (event_data->cloud_location_request.wifi_data != NULL &&
-		    event_data->cloud_location_request.wifi_data->cnt > 0) {
-			has_valid_data = true;
-			LOG_DBG("Wi-Fi data present: %d APs",
-				event_data->cloud_location_request.wifi_data->cnt);
-		}
-#endif
-
-		if (!has_valid_data) {
-			LOG_WRN("Cloud location request has no valid cellular or Wi-Fi data, "
-				"letting the library fall back to the next method");
-			/* Send error result to allow fallback to next method */
-			location_cloud_location_ext_result_set(LOCATION_EXT_RESULT_ERROR, NULL);
-			break;
-		}
-
-		/* Cancel the current location request to avoid falling back to the next
-		 * location source. Treat the fact that we have found Wi-Fi APs and/or cellular data
-		 * as a successful location request, even if we don't know whether the
-		 * cloud is able to resolve data to a location or not.
-		 */
+		/* Cancel the current location request since we're now using cloud-based location */
 		int err = location_request_cancel();
 
 		if (err) {
@@ -459,7 +430,6 @@ static void location_event_handler(const struct location_event_data *event_data)
 		cloud_request_send(&event_data->cloud_location_request);
 		status_send(LOCATION_SEARCH_DONE);
 		break;
-	}
 #if defined(CONFIG_NRF_CLOUD_AGNSS)
 	case LOCATION_EVT_GNSS_ASSISTANCE_REQUEST:
 		LOG_DBG("A-GNSS assistance request received from location library");
