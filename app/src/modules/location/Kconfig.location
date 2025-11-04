@@ -12,7 +12,7 @@ if APP_LOCATION
 
 config APP_LOCATION_THREAD_STACK_SIZE
 	int "Thread stack size"
-	default 2048
+	default 4096
 
 config APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout"
@@ -33,6 +33,18 @@ config APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS
 	help
 	  Maximum time allowed for processing a single message in the module's state machine.
 	  The value must be smaller than CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS.
+
+config APP_LOCATION_WIFI_APS_MAX
+	int "Maximum number of Wi-Fi APs"
+	default 10
+	help
+	  Maximum number of Wi-Fi access points to store in a location request.
+
+config APP_LOCATION_NEIGHBOR_CELLS_MAX
+	int "Maximum number of neighbor cells"
+	default 10
+	help
+	  Maximum number of neighbor cells to store in a location request.
 
 module = APP_LOCATION
 module-str = Location

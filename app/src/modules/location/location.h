@@ -79,6 +79,48 @@ enum location_msg_type {
 	LOCATION_SEARCH_CANCEL,
 };
 
+struct location_wifi_ap_info {
+	int8_t rssi;
+	uint8_t mac[WIFI_MAC_ADDR_LEN];
+	uint8_t mac_length;
+};
+
+struct location_cell_info {
+	uint32_t id;             /* Cell ID (ECI) */
+	int mcc;                 /* Mobile Country Code */
+	int mnc;                 /* Mobile Network Code */
+	uint32_t tac;            /* Tracking area Code */
+
+	uint16_t timing_advance; /* Timing advance */
+	uint32_t earfcn;
+	int16_t rsrp;
+	int16_t rsrq;
+};
+
+struct location_neighbor_cell_info {
+	uint32_t earfcn;       /* E-UTRA Absolute Radio Frequency Channel Number */
+	int time_diff;         /* Time difference for neighbor cells */
+	uint16_t phys_cell_id; /* Physical Cell ID (PCI) */
+	int16_t rsrp;          /* Reference Signal Received Power */
+	int16_t rsrq;          /* Reference Signal Received Quality */
+};
+
+struct location_cloud_request_data {
+	/* Current cell information, valid if current_cell.id != LTE_LC_CELL_EUTRAN_ID_INVALID */
+	struct location_cell_info current_cell;
+
+	/* Neighboring and GCI cell information, valid if count > 0 */
+	uint8_t ncells_count;
+	struct location_neighbor_cell_info neighbor_cells[CONFIG_APP_LOCATION_NEIGHBOR_CELLS_MAX];
+
+	uint8_t gci_cells_count;
+	struct location_cell_info gci_cells[CONFIG_APP_LOCATION_NEIGHBOR_CELLS_MAX];
+
+	/* Wi-Fi data, valid if wifi_cnt > 0 */
+	uint16_t wifi_cnt;
+	struct location_wifi_ap_info wifi_aps[CONFIG_APP_LOCATION_WIFI_APS_MAX];
+};
+
 /* Structure to pass location data through zbus */
 struct location_msg {
 	enum location_msg_type type;
@@ -86,7 +128,7 @@ struct location_msg {
 		/** Contains cloud location request data with cellular and/or Wi-Fi information.
 		 *  cloud_request is valid for LOCATION_CLOUD_REQUEST events.
 		 */
-		struct location_data_cloud cloud_request;
+		struct location_cloud_request_data cloud_request;
 
 		/** Contains A-GNSS assistance data request parameters.
 		 *  agnss_request is valid for LOCATION_AGNSS_REQUEST events.

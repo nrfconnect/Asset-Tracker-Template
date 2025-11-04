@@ -477,8 +477,6 @@ static void sampling_begin_common(struct main_state *state_object)
 
 		return;
 	}
-
-	LOG_ERR("LED pattern published");
 #endif /* CONFIG_APP_LED */
 
 	state_object->sample_start_time = k_uptime_seconds();
