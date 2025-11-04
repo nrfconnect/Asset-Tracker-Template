@@ -21,6 +21,111 @@ LOG_MODULE_DECLARE(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 
 #define AGNSS_MAX_DATA_SIZE 3800
 
+#if defined(CONFIG_LOCATION_METHOD_CELLULAR)
+static int cellular_cell_data_construct(struct lte_lc_cells_info *dest,
+					struct lte_lc_ncell *neighbor_cells,
+					size_t neighbor_cells_count,
+					struct lte_lc_cell *gci_cells,
+					size_t gci_cells_count,
+					const struct location_cloud_request_data *src)
+{
+	if (!dest || !src || !neighbor_cells || !gci_cells) {
+		LOG_ERR("Invalid NULL parameter(s) provided");
+		return -EINVAL;
+	}
+
+	if (neighbor_cells_count < src->ncells_count) {
+		LOG_ERR("Insufficient neighbor_cells_count: %zu, required: %d",
+			neighbor_cells_count, src->ncells_count);
+		return -ENOMEM;
+	}
+
+	if (gci_cells_count < src->gci_cells_count) {
+		LOG_ERR("Insufficient gci_cells_count: %zu, required: %d",
+			gci_cells_count, src->gci_cells_count);
+		return -ENOMEM;
+	}
+
+	/* Copy current cell information */
+	dest->current_cell.mcc = src->current_cell.mcc;
+	dest->current_cell.mnc = src->current_cell.mnc;
+	dest->current_cell.id = src->current_cell.id;
+	dest->current_cell.tac = src->current_cell.tac;
+	dest->current_cell.timing_advance = src->current_cell.timing_advance;
+	dest->current_cell.earfcn = src->current_cell.earfcn;
+	dest->current_cell.rsrp = src->current_cell.rsrp;
+	dest->current_cell.rsrq = src->current_cell.rsrq;
+
+	dest->ncells_count = src->ncells_count;
+	dest->gci_cells_count = src->gci_cells_count;
+
+	/* Copy neighbor cells */
+	for (uint8_t i = 0; i < src->ncells_count; i++) {
+		neighbor_cells[i].earfcn = src->neighbor_cells[i].earfcn;
+		neighbor_cells[i].time_diff = src->neighbor_cells[i].time_diff;
+		neighbor_cells[i].phys_cell_id = src->neighbor_cells[i].phys_cell_id;
+		neighbor_cells[i].rsrp = src->neighbor_cells[i].rsrp;
+		neighbor_cells[i].rsrq = src->neighbor_cells[i].rsrq;
+	}
+
+	dest->neighbor_cells = neighbor_cells;
+
+	/* Copy GCI cells */
+	for (uint8_t i = 0; i < src->gci_cells_count; i++) {
+		gci_cells[i].id = src->gci_cells[i].id;
+		gci_cells[i].mcc = src->gci_cells[i].mcc;
+		gci_cells[i].mnc = src->gci_cells[i].mnc;
+		gci_cells[i].tac = src->gci_cells[i].tac;
+		gci_cells[i].timing_advance = src->gci_cells[i].timing_advance;
+		gci_cells[i].earfcn = src->gci_cells[i].earfcn;
+		gci_cells[i].rsrp = src->gci_cells[i].rsrp;
+		gci_cells[i].rsrq = src->gci_cells[i].rsrq;
+	}
+
+	dest->gci_cells = gci_cells;
+
+	return 0;
+}
+#endif	/* CONFIG_LOCATION_METHOD_CELLULAR */
+
+#if defined(CONFIG_LOCATION_METHOD_WIFI)
+static int wifi_ap_data_construct(struct wifi_scan_info *dest,
+				  struct wifi_scan_result *ap_info,
+				  size_t ap_info_count,
+				  const struct location_cloud_request_data *src)
+{
+	if (!dest || !src || !ap_info) {
+		LOG_ERR("Invalid NULL parameter(s) provided");
+		return -EINVAL;
+	}
+
+	if ((ap_info_count < src->wifi_cnt)) {
+		LOG_ERR("Insufficient ap_info_count: %zu, required: %d",
+			ap_info_count, src->wifi_cnt);
+		return -ENOMEM;
+	}
+
+	if (sizeof(ap_info->mac) < sizeof(src->wifi_aps->mac)) {
+		LOG_ERR("Insufficient mac length in wifi_scan_result");
+		return -EINVAL;
+	}
+
+	/* Copy WiFi AP data */
+	for (uint16_t i = 0; i < ap_info_count; i++) {
+		ap_info[i].rssi = src->wifi_aps[i].rssi;
+		memcpy(ap_info[i].mac,
+		       src->wifi_aps[i].mac,
+		       WIFI_MAC_ADDR_LEN);
+		ap_info[i].mac_length = src->wifi_aps[i].mac_length;
+	}
+
+	dest->ap_info = ap_info;
+	dest->cnt = ap_info_count;
+
+	return 0;
+}
+#endif /* CONFIG_LOCATION_METHOD_WIFI */
+
 static void send_request_failed(void)
 {
 	int err;
@@ -34,7 +139,7 @@ static void send_request_failed(void)
 }
 
 /* Handle cloud location requests from the location module */
-static void handle_cloud_location_request(const struct location_data_cloud *request)
+static void handle_cloud_location_request(const struct location_cloud_request_data *request)
 {
 	int err;
 	struct nrf_cloud_location_config loc_config = {
@@ -48,32 +153,48 @@ static void handle_cloud_location_request(const struct location_data_cloud *requ
 	LOG_DBG("Handling cloud location request");
 
 #if defined(CONFIG_LOCATION_METHOD_CELLULAR)
-	if (request->cell_data != NULL) {
-		/* Cast away const: nRF Cloud API limitation - struct fields are non-const
-		 * but the data is not modified by the API
-		 */
-		loc_req.cell_info = (struct lte_lc_cells_info *)request->cell_data; /* NOSONAR */
+	struct lte_lc_cells_info cell_info = { 0 };
+	struct lte_lc_ncell neighbor_cells[CONFIG_LTE_NEIGHBOR_CELLS_MAX];
+	struct lte_lc_cell gci_cells[CONFIG_LTE_NEIGHBOR_CELLS_MAX];
 
-		LOG_DBG("Cellular data present: current cell ID: %d, neighbor cells: %d, "
-			"GCI cells count: %d",
-			request->cell_data->current_cell.id,
-			request->cell_data->ncells_count,
-			request->cell_data->gci_cells_count);
+	if ((request->current_cell.id != LTE_LC_CELL_EUTRAN_ID_INVALID) &&
+	    (request->ncells_count > 0)) {
+		err = cellular_cell_data_construct(&cell_info, neighbor_cells,
+						   ARRAY_SIZE(neighbor_cells),
+						   gci_cells,
+						   ARRAY_SIZE(gci_cells),
+						   request);
+		if (err) {
+			LOG_ERR("Failed to reconstruct cellular data, error: %d", err);
+			SEND_FATAL_ERROR();
+			return;
+		}
+
+		loc_req.cell_info = &cell_info;
 	}
-#endif
+#endif /* CONFIG_LOCATION_METHOD_CELLULAR */
 
 #if defined(CONFIG_LOCATION_METHOD_WIFI)
-	if (request->wifi_data != NULL) {
-		/* Cast away const: nRF Cloud API limitation - struct fields are non-const
-		 * but the data is not modified by the API
-		 */
-		loc_req.wifi_info = (struct wifi_scan_info *)request->wifi_data; /* NOSONAR */
+	struct wifi_scan_result ap_info[CONFIG_LOCATION_METHOD_WIFI_SCANNING_RESULTS_MAX_CNT];
+	struct wifi_scan_info wifi_info = { 0 };
 
-		LOG_DBG("Wi-Fi data present: %d APs", request->wifi_data->cnt);
+	if (request->wifi_cnt > 0) {
+		err = wifi_ap_data_construct(&wifi_info, ap_info, ARRAY_SIZE(ap_info), request);
+		if (err) {
+			LOG_ERR("Failed to reconstruct Wi-Fi data, error: %d", err);
+			SEND_FATAL_ERROR();
+			return;
+		}
+
+		loc_req.wifi_info = &wifi_info;
 	}
-#endif
+#endif /* CONFIG_LOCATION_METHOD_WIFI */
 
-	/* Send location request to nRF Cloud */
+	if (!loc_req.cell_info && !loc_req.wifi_info) {
+		LOG_ERR("No cellular or Wi-Fi data provided for location request");
+		return;
+	}
+
 	err = nrf_cloud_coap_location_get(&loc_req, &result);
 	if (err == COAP_RESPONSE_CODE_NOT_FOUND) {
 		LOG_WRN("nRF Cloud CoAP location coordinates not found, error: %d", err);
@@ -95,12 +216,9 @@ static void handle_agnss_request(const struct nrf_modem_gnss_agnss_data_frame *r
 {
 	int err;
 	static char agnss_buf[AGNSS_MAX_DATA_SIZE];
-	/* Cast away const: nRF Cloud API limitation - struct fields are non-const
-	 * but the data is not modified by the API
-	 */
 	struct nrf_cloud_rest_agnss_request agnss_req = {
 		.type = NRF_CLOUD_REST_AGNSS_REQ_CUSTOM,
-		.agnss_req = (struct nrf_modem_gnss_agnss_data_frame *)request, /* NOSONAR */
+		.agnss_req = (struct nrf_modem_gnss_agnss_data_frame *)request,
 		.net_info = NULL,
 		.filtered = false,
 		.mask_angle = 0

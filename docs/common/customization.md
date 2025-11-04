@@ -683,10 +683,14 @@ The cloud MQTT module implements an internal state machine to manage the connect
 
 The MQTT cloud module is designed as a demonstration of how to replace the template's default nRF Cloud CoAP-based cloud module with an MQTT-based implementation. It is not intended to be a fully-featured solution and has the following limitations:
 
-- **Location and FOTA Support**:
-  The example MQTT module does not support location services or firmware over-the-air (FOTA) updates, as these features rely on nRF Cloud CoAP functionality.
+- **Sensor and location support**:
+  The MQTT module does not implement support for encoding and sending sensor/location data to the MQTT broker.
+  You can send test payloads using the `att_cloud_publish_mqtt` shell command.
 
-- **Stub Channels for FOTA and LOCATION**:
-  To prevent build errors, the MQTT module includes placeholder (stub) channel declarations for FOTA and LOCATION. If your application requires these features, you will need to implement custom modules tailored to your chosen cloud service.
+- **FOTA Support**:
+  The example MQTT module does not support firmware over-the-air (FOTA) updates as this features rely on nRF Cloud CoAP functionality. Dependency of the FOTA module.
 
-For production use, it is recommended to utilize the default nRF Cloud CoAP cloud module, which provides comprehensive support for location services, FOTA, and other advanced features.
+- **Stub Channel for FOTA**:
+  To prevent build errors, the MQTT module includes placeholder (stub) channel declaration for FOTA. If your application requires these features, you will need to implement a custom module tailored to your chosen cloud/FOTA service.
+
+For production use, it is recommended to utilize the default nRF Cloud CoAP cloud module, which provides comprehensive support for FOTA and other advanced features.

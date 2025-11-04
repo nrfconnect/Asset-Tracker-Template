@@ -10,9 +10,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
 #include <modem/location.h>
-#include <modem/lte_lc.h>
 #include <nrf_modem_gnss.h>
-#include <net/wifi_location_common.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,6 +20,8 @@ extern "C" {
 ZBUS_CHAN_DECLARE(
 	LOCATION_CHAN
 );
+
+#define MAC_ADDR_LEN 6
 
 enum location_msg_type {
 	/* Output message types */
@@ -79,6 +79,91 @@ enum location_msg_type {
 	LOCATION_SEARCH_CANCEL,
 };
 
+/** Wi-Fi access point information. */
+struct location_wifi_ap_info {
+	/** Received Signal Strength Indicator (RSSI) in dBm. */
+	int8_t rssi;
+
+	/** MAC address of the Wi-Fi access point. */
+	uint8_t mac[MAC_ADDR_LEN];
+
+	/** Length of the MAC address. */
+	uint8_t mac_length;
+};
+
+/** Cell information.
+ *  See lte_lc.h for detailed field descriptions and value ranges.
+ */
+struct location_cell_info {
+	/** E-UTRAN cell ID */
+	uint32_t id;
+
+	/** Mobile Country Code */
+	int mcc;
+
+	/** Mobile Network Code */
+	int mnc;
+
+	/** Tracking Area Code */
+	uint32_t tac;
+
+	/** Timing advance */
+	uint16_t timing_advance;
+
+	/** EARFCN */
+	uint32_t earfcn;
+
+	/** Reference Signal Received Power */
+	int16_t rsrp;
+
+	/** Reference Signal Received Quality */
+	int16_t rsrq;
+};
+
+/** Neighbor cell information.
+ *  See lte_lc.h for detailed field descriptions and value ranges.
+ */
+struct location_neighbor_cell_info {
+	/** EARFCN per 3GPP TS 36.101. */
+	uint32_t earfcn;
+
+	/** Time difference */
+	int time_diff;
+
+	/** Physical Cell ID. */
+	uint16_t phys_cell_id;
+
+	/** Reference Signal Received Power */
+	int16_t rsrp;
+
+	/** Reference Signal Received Quality */
+	int16_t rsrq;
+};
+
+/** Cloud location request data containing cellular and/or Wi-Fi scanning information. */
+struct location_cloud_request_data {
+	/** Current/serving cell information. */
+	struct location_cell_info current_cell;
+
+	/** Number of neighboring cells. */
+	uint8_t ncells_count;
+
+	/** Neighboring cell information. */
+	struct location_neighbor_cell_info neighbor_cells[CONFIG_APP_LOCATION_NEIGHBOR_CELLS_MAX];
+
+	/** Number of GCI (Global Cell Identity) cells. */
+	uint8_t gci_cells_count;
+
+	/** GCI cell information with full cell details. */
+	struct location_cell_info gci_cells[CONFIG_APP_LOCATION_NEIGHBOR_CELLS_MAX];
+
+	/** Number of Wi-Fi access points. */
+	uint16_t wifi_cnt;
+
+	/** Wi-Fi access point information. */
+	struct location_wifi_ap_info wifi_aps[CONFIG_APP_LOCATION_WIFI_APS_MAX];
+};
+
 /* Structure to pass location data through zbus */
 struct location_msg {
 	enum location_msg_type type;
@@ -86,7 +171,7 @@ struct location_msg {
 		/** Contains cloud location request data with cellular and/or Wi-Fi information.
 		 *  cloud_request is valid for LOCATION_CLOUD_REQUEST events.
 		 */
-		struct location_data_cloud cloud_request;
+		struct location_cloud_request_data cloud_request;
 
 		/** Contains A-GNSS assistance data request parameters.
 		 *  agnss_request is valid for LOCATION_AGNSS_REQUEST events.
