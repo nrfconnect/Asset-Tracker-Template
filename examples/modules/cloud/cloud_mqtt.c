@@ -22,18 +22,9 @@
  * because they are not supported with the MQTT cloud.
  */
 #include "fota.h"
-#include "location.h"
 
 ZBUS_CHAN_DEFINE(FOTA_CHAN,
 		 enum fota_msg_type,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-
-ZBUS_CHAN_DEFINE(LOCATION_CHAN,
-		 enum location_msg_type,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,

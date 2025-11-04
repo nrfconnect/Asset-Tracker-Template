@@ -18,12 +18,22 @@
 #include "app_common.h"
 #include "modem/lte_lc.h"
 #include "location.h"
+#include "location_helper.h"
 
 LOG_MODULE_REGISTER(location_module, CONFIG_APP_LOCATION_LOG_LEVEL);
 
 BUILD_ASSERT(CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS >
 	     CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS,
 	     "Watchdog timeout must be greater than maximum message processing time");
+
+#if defined(CONFIG_LOCATION_METHOD_CELLULAR)
+BUILD_ASSERT(CONFIG_APP_LOCATION_NEIGHBOR_CELLS_MAX >= CONFIG_LTE_NEIGHBOR_CELLS_MAX);
+#endif /* CONFIG_LOCATION_METHOD_CELLULAR */
+
+#if defined(CONFIG_LOCATION_METHOD_WIFI)
+BUILD_ASSERT(CONFIG_APP_LOCATION_WIFI_APS_MAX >=
+	     CONFIG_LOCATION_METHOD_WIFI_SCANNING_RESULTS_MAX_CNT);
+#endif /* CONFIG_LOCATION_METHOD_WIFI */
 
 /* Define channels provided by this module */
 ZBUS_CHAN_DEFINE(LOCATION_CHAN,
@@ -111,13 +121,20 @@ static void location_wdt_callback(int channel_id, void *user_data)
 	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
 }
 
+#if defined(CONFIG_LOCATION_METHOD_WIFI) || defined(CONFIG_LOCATION_METHOD_CELLULAR)
 static void cloud_request_send(const struct location_data_cloud *cloud_request)
 {
 	int err;
 	struct location_msg location_msg = {
 		.type = LOCATION_CLOUD_REQUEST,
-		.cloud_request = *cloud_request
 	};
+
+	err = location_cloud_request_data_copy(&location_msg.cloud_request, cloud_request);
+	if (err) {
+		LOG_ERR("location_cloud_request_data_copy, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 
 	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
 	if (err) {
@@ -126,6 +143,7 @@ static void cloud_request_send(const struct location_data_cloud *cloud_request)
 		return;
 	}
 }
+#endif /* defined(CONFIG_LOCATION_METHOD_WIFI) || defined(CONFIG_LOCATION_METHOD_CELLULAR) */
 
 #if defined(CONFIG_NRF_CLOUD_AGNSS)
 static void agnss_request_send(const struct nrf_modem_gnss_agnss_data_frame *agnss_request)
@@ -415,27 +433,31 @@ static void location_event_handler(const struct location_event_data *event_data)
 
 		location_print_data_details(event_data->method, &event_data->fallback.details);
 		break;
+#if defined(CONFIG_LOCATION_METHOD_WIFI) || defined(CONFIG_LOCATION_METHOD_CELLULAR)
 	case LOCATION_EVT_CLOUD_LOCATION_EXT_REQUEST:
 		LOG_DBG("Cloud location request received from location library");
 
-		/* Cancel the current location request since we're now using cloud-based location */
+		/* Cancel the current location request to avoid falling back to the next
+		 * location source. Treat the fact that we have found Wi-Fi APs and/or cellular data
+		 * as a successful location request, even if we don't know whether the
+		 * cloud is able to resolve data to a location or not.
+		 */
 		int err = location_request_cancel();
 
 		if (err) {
 			LOG_ERR("Unable to cancel location request: %d", err);
-		} else {
-			LOG_DBG("Location request cancelled successfully");
 		}
 
 		cloud_request_send(&event_data->cloud_location_request);
 		status_send(LOCATION_SEARCH_DONE);
 		break;
+#endif /* CONFIG_LOCATION_METHOD_WIFI || CONFIG_LOCATION_METHOD_CELLULAR */
 #if defined(CONFIG_NRF_CLOUD_AGNSS)
 	case LOCATION_EVT_GNSS_ASSISTANCE_REQUEST:
 		LOG_DBG("A-GNSS assistance request received from location library");
 		agnss_request_send(&event_data->agnss_request);
 		break;
-#endif
+#endif /* CONFIG_NRF_CLOUD_AGNSS */
 	case LOCATION_EVT_RESULT_UNKNOWN:
 		LOG_DBG("Location result unknown");
 		status_send(LOCATION_SEARCH_DONE);

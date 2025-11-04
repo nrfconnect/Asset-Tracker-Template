@@ -785,6 +785,254 @@ void test_provisioning_failed_with_network_disconnected_should_go_to_disconnecte
 	TEST_ASSERT_EQUAL(1, nrf_provisioning_trigger_manually_fake.call_count);
 }
 
+/* Test that cloud module correctly handles LOCATION_CLOUD_REQUEST with cellular data */
+void test_location_cloud_request_cellular_data(void)
+{
+	int err;
+	struct network_msg network_msg = {
+		.type = NETWORK_CONNECTED
+	};
+	struct storage_msg passthrough_msg = {
+		.type = STORAGE_MODE_PASSTHROUGH
+	};
+
+	/* Prepare location cloud request with cellular data */
+	struct location_msg location_msg = {
+		.type = LOCATION_CLOUD_REQUEST,
+		.cloud_request = {
+			.current_cell = {
+				.id = 0x12345678,
+				.mcc = 242,
+				.mnc = 1,
+				.tac = 0x1234,
+				.timing_advance = 100,
+				.earfcn = 6200,
+				.rsrp = -85,
+				.rsrq = -12
+			},
+			.ncells_count = 2,
+			.neighbor_cells = {
+				{
+					.earfcn = 6201,
+					.phys_cell_id = 43,
+					.rsrp = -90,
+					.rsrq = -15,
+					.time_diff = 50
+				},
+				{
+					.earfcn = 6202,
+					.phys_cell_id = 44,
+					.rsrp = -95,
+					.rsrq = -18,
+					.time_diff = 100
+				}
+			},
+			.gci_cells_count = 0,
+			.wifi_cnt = 0
+		}
+	};
+
+	struct storage_msg storage_data_msg = {
+		.type = STORAGE_DATA,
+		.data_type = STORAGE_TYPE_LOCATION,
+		.data_len = sizeof(location_msg)
+	};
+
+	/* Copy location message into storage message buffer */
+	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
+
+	/* Connect to cloud */
+	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
+	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Enable passthrough mode */
+	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+
+	/* Reset call count */
+	RESET_FAKE(nrf_cloud_coap_location_get);
+
+	/* Send location cloud request via storage data channel */
+	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+
+	/* Verify that nrf_cloud_coap_location_get was called with the cellular data.
+	 * We cannot verify the actual data content since nrf_cloud_rest_location_request
+	 * is an opaque type, but the fact that the function was called proves the
+	 * reconstruct_cellular_data() function successfully processed the data.
+	 */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
+}
+
+/* Test that cloud module correctly handles LOCATION_CLOUD_REQUEST with Wi-Fi data */
+void test_location_cloud_request_wifi_data(void)
+{
+	int err;
+	struct network_msg network_msg = {
+		.type = NETWORK_CONNECTED
+	};
+	struct storage_msg passthrough_msg = {
+		.type = STORAGE_MODE_PASSTHROUGH
+	};
+
+	/* Prepare location cloud request with Wi-Fi data */
+	struct location_msg location_msg = {
+		.type = LOCATION_CLOUD_REQUEST,
+		.cloud_request = {
+			.current_cell = {
+				.id = LTE_LC_CELL_EUTRAN_ID_INVALID
+			},
+			.ncells_count = 0,
+			.gci_cells_count = 0,
+			.wifi_cnt = 3,
+			.wifi_aps = {
+				{
+					.rssi = -50,
+					.mac = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x11},
+					.mac_length = 6
+				},
+				{
+					.rssi = -55,
+					.mac = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x22},
+					.mac_length = 6
+				},
+				{
+					.rssi = -60,
+					.mac = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x33},
+					.mac_length = 6
+				}
+			}
+		}
+	};
+
+	struct storage_msg storage_data_msg = {
+		.type = STORAGE_DATA,
+		.data_type = STORAGE_TYPE_LOCATION,
+		.data_len = sizeof(location_msg)
+	};
+
+	/* Copy location message into storage message buffer */
+	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
+
+	/* Connect to cloud */
+	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
+	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Enable passthrough mode */
+	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+
+	/* Reset call count */
+	RESET_FAKE(nrf_cloud_coap_location_get);
+
+	/* Send location cloud request via storage data channel */
+	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+
+	/* Verify that nrf_cloud_coap_location_get was called with the Wi-Fi data.
+	 * We cannot verify the actual data content since nrf_cloud_rest_location_request
+	 * is an opaque type, but the fact that the function was called proves the
+	 * reconstruct_wifi_data() function successfully processed the data.
+	 */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
+}
+
+/* Test that cloud module correctly handles LOCATION_CLOUD_REQUEST
+ * with both cellular and Wi-Fi data
+ */
+void test_location_cloud_request_combined_data(void)
+{
+	int err;
+	struct network_msg network_msg = {
+		.type = NETWORK_CONNECTED
+	};
+	struct storage_msg passthrough_msg = {
+		.type = STORAGE_MODE_PASSTHROUGH
+	};
+
+	/* Prepare location cloud request with both cellular and Wi-Fi data */
+	struct location_msg location_msg = {
+		.type = LOCATION_CLOUD_REQUEST,
+		.cloud_request = {
+			.current_cell = {
+				.id = 0x87654321,
+				.mcc = 242,
+				.mnc = 2,
+				.tac = 0x5678,
+				.timing_advance = 200,
+				.earfcn = 3400,
+				.rsrp = -75,
+				.rsrq = -9
+			},
+			.ncells_count = 1,
+			.neighbor_cells = {
+				{
+					.earfcn = 3401,
+					.phys_cell_id = 100,
+					.rsrp = -80,
+					.rsrq = -11,
+					.time_diff = 150
+				}
+			},
+			.gci_cells_count = 0,
+			.wifi_cnt = 2,
+			.wifi_aps = {
+				{
+					.rssi = -45,
+					.mac = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66},
+					.mac_length = 6
+				},
+				{
+					.rssi = -48,
+					.mac = {0x66, 0x55, 0x44, 0x33, 0x22, 0x11},
+					.mac_length = 6
+				}
+			}
+		}
+	};
+
+	struct storage_msg storage_data_msg = {
+		.type = STORAGE_DATA,
+		.data_type = STORAGE_TYPE_LOCATION,
+		.data_len = sizeof(location_msg)
+	};
+
+	/* Copy location message into storage message buffer */
+	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
+
+	/* Connect to cloud */
+	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
+	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Enable passthrough mode */
+	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+
+	/* Reset call count */
+	RESET_FAKE(nrf_cloud_coap_location_get);
+
+	/* Send location cloud request via storage data channel */
+	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+
+	/* Verify that nrf_cloud_coap_location_get was called with both data types.
+	 * We cannot verify the actual data content since nrf_cloud_rest_location_request
+	 * is an opaque type, but the fact that the function was called proves both
+	 * reconstruct_cellular_data() and reconstruct_wifi_data() successfully
+	 * processed the data.
+	 */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
+}
+
 /* This is required to be added to each test. That is because unity's
  * main may return nonzero, while zephyr's main currently must
  * return 0 in all cases (other values are reserved).

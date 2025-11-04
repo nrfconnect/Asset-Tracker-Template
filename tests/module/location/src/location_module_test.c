@@ -112,62 +112,57 @@ static void verify_cellular_cloud_request(const struct lte_lc_cells_info *expect
 	wait_for_message(LOCATION_CLOUD_REQUEST, &received_msg);
 
 	/* Verify cellular data payload */
-	TEST_ASSERT_NOT_NULL(received_msg.cloud_request.cell_data);
 	TEST_ASSERT_EQUAL(expected_cells->current_cell.mcc,
-			  received_msg.cloud_request.cell_data->current_cell.mcc);
+			  received_msg.cloud_request.current_cell.mcc);
 	TEST_ASSERT_EQUAL(expected_cells->current_cell.mnc,
-			  received_msg.cloud_request.cell_data->current_cell.mnc);
+			  received_msg.cloud_request.current_cell.mnc);
 	TEST_ASSERT_EQUAL(expected_cells->current_cell.id,
-			  received_msg.cloud_request.cell_data->current_cell.id);
+			  received_msg.cloud_request.current_cell.id);
 	TEST_ASSERT_EQUAL(expected_cells->current_cell.tac,
-			  received_msg.cloud_request.cell_data->current_cell.tac);
+			  received_msg.cloud_request.current_cell.tac);
 	TEST_ASSERT_EQUAL(expected_cells->current_cell.earfcn,
-			  received_msg.cloud_request.cell_data->current_cell.earfcn);
-	TEST_ASSERT_EQUAL(expected_cells->current_cell.phys_cell_id,
-			  received_msg.cloud_request.cell_data->current_cell.phys_cell_id);
+			  received_msg.cloud_request.current_cell.earfcn);
 	TEST_ASSERT_EQUAL(expected_cells->current_cell.rsrp,
-			  received_msg.cloud_request.cell_data->current_cell.rsrp);
+			  received_msg.cloud_request.current_cell.rsrp);
 	TEST_ASSERT_EQUAL(expected_cells->current_cell.rsrq,
-			  received_msg.cloud_request.cell_data->current_cell.rsrq);
+			  received_msg.cloud_request.current_cell.rsrq);
 	TEST_ASSERT_EQUAL(expected_cells->ncells_count,
-			  received_msg.cloud_request.cell_data->ncells_count);
+			  received_msg.cloud_request.ncells_count);
 	TEST_ASSERT_EQUAL(expected_cells->gci_cells_count,
-			  received_msg.cloud_request.cell_data->gci_cells_count);
+			  received_msg.cloud_request.gci_cells_count);
 
 	/* Verify neighbor cells if present */
 	for (int i = 0; i < expected_cells->ncells_count; i++) {
 		TEST_ASSERT_EQUAL(expected_cells->neighbor_cells[i].earfcn,
-			received_msg.cloud_request.cell_data->neighbor_cells[i].earfcn);
+			received_msg.cloud_request.neighbor_cells[i].earfcn);
 		TEST_ASSERT_EQUAL(expected_cells->neighbor_cells[i].phys_cell_id,
-			received_msg.cloud_request.cell_data->neighbor_cells[i].phys_cell_id);
+			received_msg.cloud_request.neighbor_cells[i].phys_cell_id);
 		TEST_ASSERT_EQUAL(expected_cells->neighbor_cells[i].rsrp,
-			received_msg.cloud_request.cell_data->neighbor_cells[i].rsrp);
+			received_msg.cloud_request.neighbor_cells[i].rsrp);
 		TEST_ASSERT_EQUAL(expected_cells->neighbor_cells[i].rsrq,
-			received_msg.cloud_request.cell_data->neighbor_cells[i].rsrq);
+			received_msg.cloud_request.neighbor_cells[i].rsrq);
+		TEST_ASSERT_EQUAL(expected_cells->neighbor_cells[i].time_diff,
+			received_msg.cloud_request.neighbor_cells[i].time_diff);
 	}
 
 	/* Verify GCI cells if present */
 	for (int i = 0; i < expected_cells->gci_cells_count; i++) {
 		TEST_ASSERT_EQUAL(expected_cells->gci_cells[i].mcc,
-			received_msg.cloud_request.cell_data->gci_cells[i].mcc);
+			received_msg.cloud_request.gci_cells[i].mcc);
 		TEST_ASSERT_EQUAL(expected_cells->gci_cells[i].mnc,
-			received_msg.cloud_request.cell_data->gci_cells[i].mnc);
+			received_msg.cloud_request.gci_cells[i].mnc);
 		TEST_ASSERT_EQUAL(expected_cells->gci_cells[i].id,
-			received_msg.cloud_request.cell_data->gci_cells[i].id);
+			received_msg.cloud_request.gci_cells[i].id);
 		TEST_ASSERT_EQUAL(expected_cells->gci_cells[i].tac,
-			received_msg.cloud_request.cell_data->gci_cells[i].tac);
+			received_msg.cloud_request.gci_cells[i].tac);
 		TEST_ASSERT_EQUAL(expected_cells->gci_cells[i].earfcn,
-			received_msg.cloud_request.cell_data->gci_cells[i].earfcn);
-		TEST_ASSERT_EQUAL(expected_cells->gci_cells[i].phys_cell_id,
-			received_msg.cloud_request.cell_data->gci_cells[i].phys_cell_id);
+			received_msg.cloud_request.gci_cells[i].earfcn);
 		TEST_ASSERT_EQUAL(expected_cells->gci_cells[i].rsrp,
-			received_msg.cloud_request.cell_data->gci_cells[i].rsrp);
+			received_msg.cloud_request.gci_cells[i].rsrp);
 		TEST_ASSERT_EQUAL(expected_cells->gci_cells[i].rsrq,
-			received_msg.cloud_request.cell_data->gci_cells[i].rsrq);
+			received_msg.cloud_request.gci_cells[i].rsrq);
 		TEST_ASSERT_EQUAL(expected_cells->gci_cells[i].timing_advance,
-			received_msg.cloud_request.cell_data->gci_cells[i].timing_advance);
-		TEST_ASSERT_EQUAL(expected_cells->gci_cells[i].measurement_time,
-			received_msg.cloud_request.cell_data->gci_cells[i].measurement_time);
+			received_msg.cloud_request.gci_cells[i].timing_advance);
 	}
 
 	/* Verify that search done message follows */
@@ -181,23 +176,17 @@ static void verify_wifi_cloud_request(const struct wifi_scan_info *expected_wifi
 	wait_for_message(LOCATION_CLOUD_REQUEST, &received_msg);
 
 	/* Verify Wi-Fi data payload */
-	TEST_ASSERT_NOT_NULL(received_msg.cloud_request.wifi_data);
-	TEST_ASSERT_EQUAL(expected_wifi->cnt, received_msg.cloud_request.wifi_data->cnt);
+	TEST_ASSERT_EQUAL(expected_wifi->cnt, received_msg.cloud_request.wifi_cnt);
 
 	/* Verify access points */
 	for (int i = 0; i < expected_wifi->cnt; i++) {
-		TEST_ASSERT_EQUAL(expected_wifi->ap_info[i].ssid_length,
-				  received_msg.cloud_request.wifi_data->ap_info[i].ssid_length);
-		TEST_ASSERT_EQUAL_STRING_LEN(expected_wifi->ap_info[i].ssid,
-					     received_msg.cloud_request.wifi_data->ap_info[i].ssid,
-					     expected_wifi->ap_info[i].ssid_length);
 		TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_wifi->ap_info[i].mac,
-					     received_msg.cloud_request.wifi_data->ap_info[i].mac,
+					     received_msg.cloud_request.wifi_aps[i].mac,
 					     expected_wifi->ap_info[i].mac_length);
-		TEST_ASSERT_EQUAL(expected_wifi->ap_info[i].channel,
-				  received_msg.cloud_request.wifi_data->ap_info[i].channel);
 		TEST_ASSERT_EQUAL(expected_wifi->ap_info[i].rssi,
-				  received_msg.cloud_request.wifi_data->ap_info[i].rssi);
+				  received_msg.cloud_request.wifi_aps[i].rssi);
+		TEST_ASSERT_EQUAL(expected_wifi->ap_info[i].mac_length,
+				  received_msg.cloud_request.wifi_aps[i].mac_length);
 	}
 
 	/* Verify that search done message follows */
@@ -211,23 +200,19 @@ static void verify_combined_cloud_request(const struct lte_lc_cells_info *expect
 	struct location_msg received_msg;
 	wait_for_message(LOCATION_CLOUD_REQUEST, &received_msg);
 
-	/* Verify both cellular and Wi-Fi data are present */
-	TEST_ASSERT_NOT_NULL(received_msg.cloud_request.cell_data);
-	TEST_ASSERT_NOT_NULL(received_msg.cloud_request.wifi_data);
-
-	/* Verify cellular data */
+	/* Verify cellular data is present */
 	TEST_ASSERT_EQUAL(expected_cells->current_cell.mcc,
-			  received_msg.cloud_request.cell_data->current_cell.mcc);
+			  received_msg.cloud_request.current_cell.mcc);
 	TEST_ASSERT_EQUAL(expected_cells->current_cell.id,
-			  received_msg.cloud_request.cell_data->current_cell.id);
+			  received_msg.cloud_request.current_cell.id);
 	TEST_ASSERT_EQUAL(expected_cells->ncells_count,
-			  received_msg.cloud_request.cell_data->ncells_count);
+			  received_msg.cloud_request.ncells_count);
 
-	/* Verify Wi-Fi data */
-	TEST_ASSERT_EQUAL(expected_wifi->cnt, received_msg.cloud_request.wifi_data->cnt);
-	TEST_ASSERT_EQUAL_STRING_LEN(expected_wifi->ap_info[0].ssid,
-				     received_msg.cloud_request.wifi_data->ap_info[0].ssid,
-				     expected_wifi->ap_info[0].ssid_length);
+	/* Verify Wi-Fi data is present */
+	TEST_ASSERT_EQUAL(expected_wifi->cnt, received_msg.cloud_request.wifi_cnt);
+	TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_wifi->ap_info[0].mac,
+				     received_msg.cloud_request.wifi_aps[0].mac,
+				     expected_wifi->ap_info[0].mac_length);
 
 	/* Verify that search done message follows */
 	verify_search_done_follows();
@@ -1008,6 +993,303 @@ void test_location_cancel_then_new_search(void)
 
 	/* Verify second location request was made */
 	TEST_ASSERT_EQUAL(2, location_request_fake.call_count);
+}
+
+/* Test that cellular-only cloud location request data is correctly copied */
+void test_cloud_location_ext_request_cellular_only(void)
+{
+	struct lte_lc_cell mock_cell = {
+		.mcc = 242,
+		.mnc = 1,
+		.id = 0x12345678,
+		.tac = 0x1234,
+		.earfcn = 6200,
+		.timing_advance = 100,
+		.timing_advance_meas_time = 1000,
+		.measurement_time = 2000,
+		.phys_cell_id = 42,
+		.rsrp = -85,
+		.rsrq = -12
+	};
+	struct lte_lc_ncell mock_neighbor_cells[2] = {
+		{
+			.earfcn = 6201,
+			.phys_cell_id = 43,
+			.rsrp = -90,
+			.rsrq = -15,
+			.time_diff = 50
+		},
+		{
+			.earfcn = 6202,
+			.phys_cell_id = 44,
+			.rsrp = -95,
+			.rsrq = -18,
+			.time_diff = 100
+		}
+	};
+	struct lte_lc_cells_info mock_cells_info = {
+		.current_cell = mock_cell,
+		.ncells_count = 2,
+		.neighbor_cells = mock_neighbor_cells,
+		.gci_cells_count = 0
+	};
+	struct location_data_cloud mock_cloud_request = {
+		.cell_data = &mock_cells_info,
+		.wifi_data = NULL
+	};
+	struct location_event_data mock_event = {
+		.id = LOCATION_EVT_CLOUD_LOCATION_EXT_REQUEST,
+		.method = LOCATION_METHOD_CELLULAR,
+		.cloud_location_request = mock_cloud_request
+	};
+
+	wait_for_initialization();
+
+	/* Simulate cloud location external request event with cellular data only */
+	simulate_location_event(&mock_event);
+
+	wait_for_processing();
+
+	/* Verify cloud location request message was published with correct cellular data */
+	struct location_msg received_msg;
+	wait_for_message(LOCATION_CLOUD_REQUEST, &received_msg);
+
+	/* Verify current cell data was correctly copied */
+	TEST_ASSERT_EQUAL(mock_cell.mcc, received_msg.cloud_request.current_cell.mcc);
+	TEST_ASSERT_EQUAL(mock_cell.mnc, received_msg.cloud_request.current_cell.mnc);
+	TEST_ASSERT_EQUAL(mock_cell.id, received_msg.cloud_request.current_cell.id);
+	TEST_ASSERT_EQUAL(mock_cell.tac, received_msg.cloud_request.current_cell.tac);
+	TEST_ASSERT_EQUAL(mock_cell.earfcn, received_msg.cloud_request.current_cell.earfcn);
+	TEST_ASSERT_EQUAL(mock_cell.timing_advance,
+			  received_msg.cloud_request.current_cell.timing_advance);
+	TEST_ASSERT_EQUAL(mock_cell.rsrp, received_msg.cloud_request.current_cell.rsrp);
+	TEST_ASSERT_EQUAL(mock_cell.rsrq, received_msg.cloud_request.current_cell.rsrq);
+
+	/* Verify neighbor cell count */
+	TEST_ASSERT_EQUAL(2, received_msg.cloud_request.ncells_count);
+
+	/* Verify neighbor cells were correctly copied */
+	for (int i = 0; i < 2; i++) {
+		TEST_ASSERT_EQUAL(mock_neighbor_cells[i].earfcn,
+				  received_msg.cloud_request.neighbor_cells[i].earfcn);
+		TEST_ASSERT_EQUAL(mock_neighbor_cells[i].phys_cell_id,
+				  received_msg.cloud_request.neighbor_cells[i].phys_cell_id);
+		TEST_ASSERT_EQUAL(mock_neighbor_cells[i].rsrp,
+				  received_msg.cloud_request.neighbor_cells[i].rsrp);
+		TEST_ASSERT_EQUAL(mock_neighbor_cells[i].rsrq,
+				  received_msg.cloud_request.neighbor_cells[i].rsrq);
+		TEST_ASSERT_EQUAL(mock_neighbor_cells[i].time_diff,
+				  received_msg.cloud_request.neighbor_cells[i].time_diff);
+	}
+
+	/* Verify no Wi-Fi data */
+	TEST_ASSERT_EQUAL(0, received_msg.cloud_request.wifi_cnt);
+	TEST_ASSERT_EQUAL(0, received_msg.cloud_request.gci_cells_count);
+
+	/* Verify that search done message follows */
+	verify_search_done_follows();
+}
+
+/* Test that Wi-Fi-only cloud location request data is correctly copied */
+void test_cloud_location_ext_request_wifi_only(void)
+{
+	struct wifi_scan_result mock_wifi_aps[3] = {
+		{
+			.ssid_length = 8,
+			.ssid = "TestAP_1",
+			.mac = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x11},
+			.mac_length = 6,
+			.band = WIFI_FREQ_BAND_2_4_GHZ,
+			.channel = 1,
+			.security = WIFI_SECURITY_TYPE_PSK,
+			.rssi = -50
+		},
+		{
+			.ssid_length = 8,
+			.ssid = "TestAP_2",
+			.mac = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x22},
+			.mac_length = 6,
+			.band = WIFI_FREQ_BAND_2_4_GHZ,
+			.channel = 6,
+			.security = WIFI_SECURITY_TYPE_SAE,
+			.rssi = -55
+		},
+		{
+			.ssid_length = 8,
+			.ssid = "TestAP_3",
+			.mac = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x33},
+			.mac_length = 6,
+			.band = WIFI_FREQ_BAND_5_GHZ,
+			.channel = 36,
+			.security = WIFI_SECURITY_TYPE_PSK,
+			.rssi = -60
+		}
+	};
+	struct wifi_scan_info mock_wifi_info = {
+		.ap_info = mock_wifi_aps,
+		.cnt = 3
+	};
+	struct location_data_cloud mock_cloud_request = {
+		.cell_data = NULL,
+		.wifi_data = &mock_wifi_info
+	};
+	struct location_event_data mock_event = {
+		.id = LOCATION_EVT_CLOUD_LOCATION_EXT_REQUEST,
+		.method = LOCATION_METHOD_WIFI,
+		.cloud_location_request = mock_cloud_request
+	};
+
+	wait_for_initialization();
+
+	/* Simulate cloud location external request event with Wi-Fi data only */
+	simulate_location_event(&mock_event);
+
+	wait_for_processing();
+
+	/* Verify cloud location request message was published with correct Wi-Fi data */
+	struct location_msg received_msg;
+	wait_for_message(LOCATION_CLOUD_REQUEST, &received_msg);
+
+	/* Verify Wi-Fi AP count */
+	TEST_ASSERT_EQUAL(3, received_msg.cloud_request.wifi_cnt);
+
+	/* Verify all Wi-Fi APs were correctly copied */
+	for (int i = 0; i < 3; i++) {
+		TEST_ASSERT_EQUAL_HEX8_ARRAY(mock_wifi_aps[i].mac,
+					     received_msg.cloud_request.wifi_aps[i].mac,
+					     mock_wifi_aps[i].mac_length);
+		TEST_ASSERT_EQUAL(mock_wifi_aps[i].rssi,
+				  received_msg.cloud_request.wifi_aps[i].rssi);
+		TEST_ASSERT_EQUAL(mock_wifi_aps[i].mac_length,
+				  received_msg.cloud_request.wifi_aps[i].mac_length);
+	}
+
+	/* Verify no cellular data */
+	TEST_ASSERT_EQUAL(0, received_msg.cloud_request.ncells_count);
+	TEST_ASSERT_EQUAL(0, received_msg.cloud_request.gci_cells_count);
+
+	/* Verify that search done message follows */
+	verify_search_done_follows();
+}
+
+/* Test that combined cellular and Wi-Fi cloud location request data is correctly copied */
+void test_cloud_location_ext_request_cellular_and_wifi(void)
+{
+	struct lte_lc_cell mock_cell = {
+		.mcc = 242,
+		.mnc = 2,
+		.id = 0x87654321,
+		.tac = 0x5678,
+		.earfcn = 3400,
+		.timing_advance = 200,
+		.timing_advance_meas_time = 3000,
+		.measurement_time = 4000,
+		.phys_cell_id = 99,
+		.rsrp = -75,
+		.rsrq = -9
+	};
+	struct lte_lc_ncell mock_neighbor_cells[1] = {
+		{
+			.earfcn = 3401,
+			.phys_cell_id = 100,
+			.rsrp = -80,
+			.rsrq = -11,
+			.time_diff = 25
+		}
+	};
+	struct lte_lc_cells_info mock_cells_info = {
+		.current_cell = mock_cell,
+		.ncells_count = 1,
+		.neighbor_cells = mock_neighbor_cells,
+		.gci_cells_count = 0
+	};
+	struct wifi_scan_result mock_wifi_aps[2] = {
+		{
+			.ssid_length = 10,
+			.ssid = "CombinedAP1",
+			.mac = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66},
+			.mac_length = 6,
+			.band = WIFI_FREQ_BAND_2_4_GHZ,
+			.channel = 11,
+			.security = WIFI_SECURITY_TYPE_PSK,
+			.rssi = -45
+		},
+		{
+			.ssid_length = 10,
+			.ssid = "CombinedAP2",
+			.mac = {0x11, 0x22, 0x33, 0x44, 0x55, 0x77},
+			.mac_length = 6,
+			.band = WIFI_FREQ_BAND_5_GHZ,
+			.channel = 48,
+			.security = WIFI_SECURITY_TYPE_SAE,
+			.rssi = -40
+		}
+	};
+	struct wifi_scan_info mock_wifi_info = {
+		.ap_info = mock_wifi_aps,
+		.cnt = 2
+	};
+	struct location_data_cloud mock_cloud_request = {
+		.cell_data = &mock_cells_info,
+		.wifi_data = &mock_wifi_info
+	};
+	struct location_event_data mock_event = {
+		.id = LOCATION_EVT_CLOUD_LOCATION_EXT_REQUEST,
+		.method = LOCATION_METHOD_WIFI_CELLULAR,
+		.cloud_location_request = mock_cloud_request
+	};
+
+	wait_for_initialization();
+
+	/* Simulate cloud location external request event with both cellular and Wi-Fi data */
+	simulate_location_event(&mock_event);
+
+	wait_for_processing();
+
+	/* Verify cloud location request message was published with both data types */
+	struct location_msg received_msg;
+	wait_for_message(LOCATION_CLOUD_REQUEST, &received_msg);
+
+	/* Verify cellular data was correctly copied */
+	TEST_ASSERT_EQUAL(mock_cell.mcc, received_msg.cloud_request.current_cell.mcc);
+	TEST_ASSERT_EQUAL(mock_cell.mnc, received_msg.cloud_request.current_cell.mnc);
+	TEST_ASSERT_EQUAL(mock_cell.id, received_msg.cloud_request.current_cell.id);
+	TEST_ASSERT_EQUAL(mock_cell.tac, received_msg.cloud_request.current_cell.tac);
+	TEST_ASSERT_EQUAL(mock_cell.earfcn, received_msg.cloud_request.current_cell.earfcn);
+	TEST_ASSERT_EQUAL(mock_cell.rsrp, received_msg.cloud_request.current_cell.rsrp);
+	TEST_ASSERT_EQUAL(mock_cell.rsrq, received_msg.cloud_request.current_cell.rsrq);
+	TEST_ASSERT_EQUAL(1, received_msg.cloud_request.ncells_count);
+
+	/* Verify neighbor cell */
+	TEST_ASSERT_EQUAL(mock_neighbor_cells[0].earfcn,
+			  received_msg.cloud_request.neighbor_cells[0].earfcn);
+	TEST_ASSERT_EQUAL(mock_neighbor_cells[0].phys_cell_id,
+			  received_msg.cloud_request.neighbor_cells[0].phys_cell_id);
+	TEST_ASSERT_EQUAL(mock_neighbor_cells[0].rsrp,
+			  received_msg.cloud_request.neighbor_cells[0].rsrp);
+	TEST_ASSERT_EQUAL(mock_neighbor_cells[0].rsrq,
+			  received_msg.cloud_request.neighbor_cells[0].rsrq);
+	TEST_ASSERT_EQUAL(mock_neighbor_cells[0].time_diff,
+			  received_msg.cloud_request.neighbor_cells[0].time_diff);
+
+	/* Verify Wi-Fi data was correctly copied */
+	TEST_ASSERT_EQUAL(2, received_msg.cloud_request.wifi_cnt);
+
+	for (int i = 0; i < 2; i++) {
+		TEST_ASSERT_EQUAL_HEX8_ARRAY(mock_wifi_aps[i].mac,
+					     received_msg.cloud_request.wifi_aps[i].mac,
+					     mock_wifi_aps[i].mac_length);
+		TEST_ASSERT_EQUAL(mock_wifi_aps[i].rssi,
+				  received_msg.cloud_request.wifi_aps[i].rssi);
+		TEST_ASSERT_EQUAL(mock_wifi_aps[i].mac_length,
+				  received_msg.cloud_request.wifi_aps[i].mac_length);
+	}
+
+	/* Verify GCI cells count */
+	TEST_ASSERT_EQUAL(0, received_msg.cloud_request.gci_cells_count);
+
+	/* Verify that search done message follows */
+	verify_search_done_follows();
 }
 
 /* This is required to be added to each test. That is because unity's
