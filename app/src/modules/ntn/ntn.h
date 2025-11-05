@@ -21,12 +21,13 @@ enum ntn_msg_type {
 	NTN_LOCATION_SEARCH_DONE, /* Location search completed - triggers transition to NTN mode */
 	NTN_NETWORK_CONNECTED,    /* Network connectivity established */
 	NTN_SET_IDLE,            /* Set idle state */
-	GNSS_TIMER,          /* GNSS timer expired - get new fix */
-	NTN_TIMER,           /* LTE timer expired - connect to network */
+	GNSS_TRIGGER,          /* GNSS timer expired - get new fix */
+	NTN_TRIGGER,           /* LTE timer expired - connect to network */
 	NTN_SHELL_SET_TIME,  /* Set new time of pass from shell */
 	KEEPALIVE_TIMER,     /* Keepalive timer */
 	NTN_RRC_CONNECTED,   /* RRC connected */
-	RESCHEDULE_NTN_TIMER, /* RESCHEDULE_NTN_TIMER */
+	RESCHEDULE_NTN_TRIGGER, /* RESCHEDULE_NTN_TRIGGER */
+	SET_IDLE_TIMER, /* SET_IDLE_TIMER */
 };
 
 /* NTN module message */

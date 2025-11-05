@@ -69,6 +69,7 @@ struct ntn_state_object {
 	struct k_timer keepalive_timer;
 	struct k_timer gnss_timer;
 	struct k_timer ntn_timer;
+	struct k_timer idle_timer;
 	bool pdn_context_active;
 	bool socket_connected;
 	int connection_retry_counter;
@@ -79,6 +80,7 @@ struct ntn_state_object {
 static struct k_work keepalive_timer_work;
 static struct k_work gnss_timer_work;
 static struct k_work ntn_timer_work;
+static struct k_work idle_timer_work;
 
 static struct k_work gnss_location_work;
 static struct k_work gnss_timeout_work;
@@ -171,13 +173,19 @@ static void keepalive_timer_work_handler(struct k_work *work)
 static void gnss_timer_work_handler(struct k_work *work)
 {
 	/* Time to get new GNSS fix (300s before pass) */
-	ntn_msg_publish(GNSS_TIMER);
+	ntn_msg_publish(GNSS_TRIGGER);
 }
 
 static void ntn_timer_work_handler(struct k_work *work)
 {
 	/* Time to enable NTN and connect (20s before pass) */
-	ntn_msg_publish(NTN_TIMER);
+	ntn_msg_publish(NTN_TRIGGER);
+}
+
+static void idle_timer_work_handler(struct k_work *work)
+{
+	/* Time to enable NTN and connect (20s before pass) */
+	ntn_msg_publish(NTN_SET_IDLE);
 }
 
 /* Timer callback for keepalive */
@@ -199,6 +207,12 @@ static void ntn_timer_handler(struct k_timer *timer)
 	k_work_submit(&ntn_timer_work);
 }
 
+/* Timer callback for setting idle state */
+static void idle_timer_handler(struct k_timer *timer)
+{
+	k_work_submit(&idle_timer_work);
+}
+
 
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 {
@@ -215,7 +229,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			/* cereg 0 */
 			LOG_DBG("LTE_LC_NW_REG_NOT_REGISTERED");
 			LOG_WRN("Not registered, check rejection cause");
-			ntn_msg_publish(NTN_SET_IDLE);
+			ntn_msg_publish(SET_IDLE_TIMER);
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME) {
 			/* cereg 1 */
 			LOG_DBG("LTE_LC_NW_REG_REGISTERED_HOME");
@@ -228,15 +242,17 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTRATION_DENIED) {
 			/* cereg 3 */
 			LOG_DBG("LTE_LC_NW_REG_REGISTRATION_DENIED");
-			ntn_msg_publish(NTN_SET_IDLE);
+			ntn_msg_publish(SET_IDLE_TIMER);
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NO_SUITABLE_CELL) {
 			/* cereg 91 */
 			LOG_DBG("LTE_LC_NW_REG_NO_SUITABLE_CELL");
-			ntn_msg_publish(RESCHEDULE_NTN_TIMER);
+			// ntn_msg_publish(RESCHEDULE_NTN_TRIGGER);
+			ntn_msg_publish(SET_IDLE_TIMER);
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_UNKNOWN) {
 			/* cereg 4 */
 			LOG_DBG("LTE_LC_NW_REG_UNKNOWN");
-			ntn_msg_publish(RESCHEDULE_NTN_TIMER);
+			// ntn_msg_publish(RESCHEDULE_NTN_TRIGGER);
+			ntn_msg_publish(SET_IDLE_TIMER);
 		}
 
 		break;
@@ -443,6 +459,27 @@ static void handle_timeout_work_fn(struct k_work *item)
 
 /* Helper functions */
 
+static void configure_periodic_search(void) {
+	struct lte_lc_periodic_search_cfg search_cfg = { 0 };
+
+	search_cfg.pattern_count = 1;
+	search_cfg.loop = true;
+	search_cfg.return_to_pattern = 0;
+	search_cfg.band_optimization = 0;
+
+	search_cfg.patterns[0].type = LTE_LC_PERIODIC_SEARCH_PATTERN_TABLE;
+	search_cfg.patterns[0].table.val_1 = 2;
+	search_cfg.patterns[0].table.val_2 = -1;
+	search_cfg.patterns[0].table.val_3 = -1;
+	search_cfg.patterns[0].table.val_4 = -1;
+	search_cfg.patterns[0].table.val_5 = -1;
+
+	lte_lc_periodic_search_set(&search_cfg);
+
+	return;
+}
+
+
 static int parse_time_of_pass(const char *time_str, struct tm *out)
 {
     if (sscanf(time_str, "%d-%d-%d-%d:%d:%d",
@@ -613,12 +650,12 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 			return err;
 		}
 
-		err = nrf_modem_at_printf("AT+CFUN=12");
-		if (err) {
-			LOG_ERR("Failed to set AT+CFUN=12, error: %d", err);
+		// err = nrf_modem_at_printf("AT%%XOPCONF=23");
+		// if (err) {
+		// 	LOG_ERR("Failed to set AT%%XOPCONF=23, error: %d", err);
 
-			return err;
-		}
+		// 	return err;
+		// }
 
 #if defined(CONFIG_APP_NTN_CELLULARPRFL_ENABLE)
 		/* Set NTN profile */
@@ -714,6 +751,9 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 
 		LOG_DBG("Pause monitoring incoming CEREG Notifications");
 		at_monitor_pause(&cereg_monitor);
+
+
+		configure_periodic_search();
 
 		err = lte_lc_connect_async(lte_lc_evt_handler);
 		if (err) {
@@ -965,10 +1005,12 @@ static void state_running_entry(void *obj)
 	k_work_init(&keepalive_timer_work, keepalive_timer_work_handler);
 	k_work_init(&gnss_timer_work, gnss_timer_work_handler);
 	k_work_init(&ntn_timer_work, ntn_timer_work_handler);
+	k_work_init(&idle_timer_work, idle_timer_work_handler);
 
 	k_timer_init(&state->keepalive_timer, keepalive_timer_handler, NULL);
 	k_timer_init(&state->gnss_timer, gnss_timer_handler, NULL);
 	k_timer_init(&state->ntn_timer, ntn_timer_handler, NULL);
+	k_timer_init(&state->idle_timer, idle_timer_handler, NULL);
 
 	k_work_init(&gnss_location_work, gnss_location_work_handler);
 	k_work_init(&gnss_timeout_work, handle_timeout_work_fn);
@@ -1014,13 +1056,14 @@ static enum smf_state_result state_running_run(void *obj)
 					K_NO_WAIT);
 
 			break;
-		case GNSS_TIMER:
+		case GNSS_TRIGGER:
+			LOG_DBG("GNSS trigger");
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 
 			break;
-		case NTN_TIMER:
+		case NTN_TRIGGER:
 			LOG_DBG("NTN trigger");
-			if (state->connection_retry_counter < 10) {
+			if (state->connection_retry_counter < 5) {
 				state->connection_retry_counter++;
 				smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
 			} else {
@@ -1032,23 +1075,10 @@ static enum smf_state_result state_running_run(void *obj)
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
 			break;
-		case RESCHEDULE_NTN_TIMER:
-			k_timer_start(&state->ntn_timer,
-				K_SECONDS(5),
-				K_NO_WAIT);
-
-			break;
 		case NTN_SHELL_SET_TIME:
 			reschedule_timers(state, msg->time_of_pass);
 
 			break;
-		case NTN_RRC_CONNECTED:
-			err = nrf_modem_at_printf("AT%%XMONITOR");
-			if (err) {
-				LOG_ERR("Failed to set AT%%XMONITOR, error: %d", err);
-
-				return err;
-			}
 		default:
 			/* Don't care */
 			break;
@@ -1128,54 +1158,88 @@ static enum smf_state_result state_ntn_run(void *obj)
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
-		if (msg->type != NTN_NETWORK_CONNECTED) {
-			return SMF_EVENT_PROPAGATE;
-		}
+		switch (msg->type) {
+		case NTN_RRC_CONNECTED:
+			k_timer_stop(&state->ntn_timer);
 
-		if (!state->pdn_context_active) {
-			state->pdn_context_active = true;
-		}
+			err = nrf_modem_at_printf("AT%%XMONITOR");
+			if (err) {
+				LOG_ERR("Failed to set AT%%XMONITOR, error: %d", err);
 
-		LOG_DBG("Setting up socket");
-
-		/* Network is connected, set up socket */
-		err = sock_open_and_connect(state);
-		if (err) {
-			LOG_ERR("Failed to connect socket, error: %d", err);
-
-			state->socket_connected = false;
-		} else {
-			LOG_DBG("Socket connected successfully");
-
-			state->socket_connected = true;
-
-			/* Send initial GNSS data if available */
-			if (state->last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
-				LOG_DBG("Sending initial GNSS data");
-
-				err = sock_send_gnss_data(state);
-				if (err) {
-					LOG_ERR("Failed to send initial GNSS data, error: %d", err);
-				} else {
-					LOG_DBG("Initial GNSS data sent successfully");
-				}
-			} else {
-				LOG_DBG("No valid GNSS data available to send initially");
+				return err;
 			}
+
+			return SMF_EVENT_HANDLED;
+
+			break;
+		case RESCHEDULE_NTN_TRIGGER:
+			k_timer_start(&state->ntn_timer,
+				K_SECONDS(15),
+				K_NO_WAIT);
+
+			return SMF_EVENT_HANDLED;
+
+			break;
+		case SET_IDLE_TIMER:
+			k_timer_start(&state->idle_timer,
+				K_SECONDS(180),
+				K_NO_WAIT);
+
+
+			return SMF_EVENT_HANDLED;
+
+			break;
+		case NTN_NETWORK_CONNECTED:
+			if (!state->pdn_context_active) {
+				state->pdn_context_active = true;
+			}
+
+			LOG_DBG("Setting up socket");
+
+			/* Network is connected, set up socket */
+			err = sock_open_and_connect(state);
+			if (err) {
+				LOG_ERR("Failed to connect socket, error: %d", err);
+
+				state->socket_connected = false;
+			} else {
+				LOG_DBG("Socket connected successfully");
+
+				state->socket_connected = true;
+
+				/* Send initial GNSS data if available */
+				if (state->last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
+					LOG_DBG("Sending initial GNSS data");
+
+					err = sock_send_gnss_data(state);
+					if (err) {
+						LOG_ERR("Failed to send initial GNSS data, error: %d", err);
+					} else {
+						LOG_DBG("Initial GNSS data sent successfully");
+					}
+				} else {
+					LOG_DBG("No valid GNSS data available to send initially");
+				}
+			}
+
+			/*
+			* In future, we should wait until we get ACK for data being transmitted,
+			* and send CFUN=45 only after data were sent successfully.
+			*
+			* It may take 10s to send data in NTN.
+			* k_sleep is added as intermediate solution
+			*/
+			k_sleep(K_MSEC(20000));
+
+			ntn_msg_publish(NTN_SET_IDLE);
+
+			return SMF_EVENT_HANDLED;
+
+			break;
+		default:
+			/* Don't care */
+			break;
 		}
-
-		/*
-		 * In future, we should wait until we get ACK for data being transmitted,
-		 * and send CFUN=45 only after data were sent successfully.
-		 *
-		 * It may take 10s to send data in NTN.
-		 * k_sleep is added as intermediate solution
-		 */
-		k_sleep(K_MSEC(20000));
-
-		ntn_msg_publish(NTN_SET_IDLE);
-
-		return SMF_EVENT_HANDLED;
 	}
 
 	return SMF_EVENT_PROPAGATE;
@@ -1192,6 +1256,8 @@ static void state_ntn_exit(void *obj)
 		state->sock_fd = -1;
 		state->socket_connected = false;
 	}
+
+	k_timer_stop(&state->ntn_timer);
 
 	err = set_ntn_offline_mode();
 	if (err) {
