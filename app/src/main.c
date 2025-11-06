@@ -1516,6 +1516,10 @@ static enum smf_state_result fota_run(void *o)
 				state_object->running_history = STATE_BUFFER_CONNECTED;
 
 				break;
+			case STATE_PASSTHROUGH_DISCONNECTED:
+				state_object->running_history = STATE_PASSTHROUGH_CONNECTED_SAMPLING;
+
+				break;
 			case STATE_PASSTHROUGH_CONNECTED_SAMPLING:
 				__fallthrough;
 			case STATE_BUFFER_CONNECTED:
