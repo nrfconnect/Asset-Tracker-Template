@@ -16,6 +16,7 @@
 #include <zephyr/net/coap.h>
 #include <zephyr/net/coap_client.h>
 #include <net/nrf_provisioning.h>
+#include <net/nrf_cloud_rest.h>
 #include <modem/modem_attest_token.h>
 #include <zephyr/zbus/zbus.h>
 
@@ -253,6 +254,7 @@ void setUp(void)
 	RESET_FAKE(nrf_provisioning_trigger_manually);
 	RESET_FAKE(storage_batch_read);
 	RESET_FAKE(nrf_cloud_coap_sensor_send);
+	RESET_FAKE(nrf_cloud_coap_location_get);
 
 	nrf_cloud_client_id_get_fake.custom_fake = nrf_cloud_client_id_get_custom_fake;
 	nrf_provisioning_init_fake.custom_fake = nrf_provisioning_init_custom_fake;
@@ -281,7 +283,7 @@ void tearDown(void)
 		.type = NETWORK_DISCONNECTED
 	};
 
-	zbus_chan_pub(&NETWORK_CHAN, &msg, K_NO_WAIT);
+	zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
 
 	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 }
@@ -851,9 +853,6 @@ void test_location_cloud_request_cellular_data(void)
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 
-	/* Reset call count */
-	RESET_FAKE(nrf_cloud_coap_location_get);
-
 	/* Send location cloud request via storage data channel */
 	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
 	TEST_ASSERT_EQUAL(0, err);
@@ -926,9 +925,6 @@ void test_location_cloud_request_wifi_data(void)
 	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
-
-	/* Reset call count */
-	RESET_FAKE(nrf_cloud_coap_location_get);
 
 	/* Send location cloud request via storage data channel */
 	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
@@ -1016,9 +1012,6 @@ void test_location_cloud_request_combined_data(void)
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 
-	/* Reset call count */
-	RESET_FAKE(nrf_cloud_coap_location_get);
-
 	/* Send location cloud request via storage data channel */
 	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
 	TEST_ASSERT_EQUAL(0, err);
@@ -1030,6 +1023,90 @@ void test_location_cloud_request_combined_data(void)
 	 * reconstruct_cellular_data() and reconstruct_wifi_data() successfully
 	 * processed the data.
 	 */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
+}
+
+static int nrf_cloud_coap_location_get_custom_fake(
+	const struct nrf_cloud_rest_location_request *request,
+	struct nrf_cloud_location_result *const result)
+{
+	ARG_UNUSED(result);
+
+	/* This custom fake allows us to inspect the content of the opaque
+	 * nrf_cloud_rest_location_request struct, which is not possible in the
+	 * test function itself.
+	 */
+	TEST_ASSERT_NOT_NULL(request->wifi_info);
+	TEST_ASSERT_EQUAL(2, request->wifi_info->cnt);
+
+	return 0;
+}
+
+/* Test that cloud module correctly handles LOCATION_CLOUD_REQUEST with Wi-Fi data,
+ * specifically when the number of APs is less than the maximum configured count.
+ * This verifies the fix for the bug where uninitialized data was being sent.
+ */
+void test_location_cloud_request_wifi_data_partial_ap_list(void)
+{
+	int err;
+	struct network_msg network_msg = {
+		.type = NETWORK_CONNECTED
+	};
+	struct storage_msg passthrough_msg = {
+		.type = STORAGE_MODE_PASSTHROUGH
+	};
+
+	/* Prepare location cloud request with 2 Wi-Fi APs, which is less than
+	 * CONFIG_LOCATION_METHOD_WIFI_SCANNING_RESULTS_MAX_CNT.
+	 */
+	struct storage_msg storage_data_msg = {
+		.type = STORAGE_DATA,
+		.data_type = STORAGE_TYPE_LOCATION,
+		.data_len = sizeof(struct location_msg)
+	};
+
+	struct location_msg *location_msg = (struct location_msg *)storage_data_msg.buffer;
+	location_msg->type = LOCATION_CLOUD_REQUEST;
+	location_msg->cloud_request.current_cell.id = LTE_LC_CELL_EUTRAN_ID_INVALID;
+	location_msg->cloud_request.ncells_count = 0;
+	location_msg->cloud_request.gci_cells_count = 0;
+	location_msg->cloud_request.wifi_cnt = 2;
+	location_msg->cloud_request.wifi_aps[0].rssi = -65;
+	location_msg->cloud_request.wifi_aps[0].mac[0] = 0xDE;
+	location_msg->cloud_request.wifi_aps[0].mac[1] = 0xAD;
+	location_msg->cloud_request.wifi_aps[0].mac[2] = 0xBE;
+	location_msg->cloud_request.wifi_aps[0].mac[3] = 0xEF;
+	location_msg->cloud_request.wifi_aps[0].mac[4] = 0x00;
+	location_msg->cloud_request.wifi_aps[0].mac[5] = 0x01;
+	location_msg->cloud_request.wifi_aps[0].mac_length = 6;
+	location_msg->cloud_request.wifi_aps[1].rssi = -70;
+	location_msg->cloud_request.wifi_aps[1].mac[0] = 0xDE;
+	location_msg->cloud_request.wifi_aps[1].mac[1] = 0xAD;
+	location_msg->cloud_request.wifi_aps[1].mac[2] = 0xBE;
+	location_msg->cloud_request.wifi_aps[1].mac[3] = 0xEF;
+	location_msg->cloud_request.wifi_aps[1].mac[4] = 0x00;
+	location_msg->cloud_request.wifi_aps[1].mac[5] = 0x02;
+	location_msg->cloud_request.wifi_aps[1].mac_length = 6;
+
+	/* Connect to cloud */
+	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
+	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Enable passthrough mode */
+	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+
+	/* Set custom fake to verify data within the call */
+	nrf_cloud_coap_location_get_fake.custom_fake = nrf_cloud_coap_location_get_custom_fake;
+
+	/* Send location cloud request via storage data channel */
+	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+
+	/* Verify that nrf_cloud_coap_location_get was called. */
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
 }
 
