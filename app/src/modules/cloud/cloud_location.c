@@ -111,7 +111,7 @@ static int wifi_ap_data_construct(struct wifi_scan_info *dest,
 	}
 
 	/* Copy WiFi AP data */
-	for (uint16_t i = 0; i < ap_info_count; i++) {
+	for (uint16_t i = 0; i < src->wifi_cnt; i++) {
 		ap_info[i].rssi = src->wifi_aps[i].rssi;
 		memcpy(ap_info[i].mac,
 		       src->wifi_aps[i].mac,
@@ -120,7 +120,7 @@ static int wifi_ap_data_construct(struct wifi_scan_info *dest,
 	}
 
 	dest->ap_info = ap_info;
-	dest->cnt = ap_info_count;
+	dest->cnt = src->wifi_cnt;
 
 	return 0;
 }
