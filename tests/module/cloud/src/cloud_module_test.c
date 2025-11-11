@@ -215,6 +215,27 @@ static void connect_cloud(void)
 	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 }
 
+static void setup_cloud_and_passthrough(void)
+{
+	int err;
+	struct network_msg network_msg = {
+		.type = NETWORK_CONNECTED
+	};
+	struct storage_msg passthrough_msg = {
+		.type = STORAGE_MODE_PASSTHROUGH
+	};
+
+	/* Connect to cloud */
+	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
+	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Enable passthrough mode */
+	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+}
+
 static void dummy_cb(const struct zbus_channel *chan)
 {
 	ARG_UNUSED(chan);
@@ -791,12 +812,6 @@ void test_provisioning_failed_with_network_disconnected_should_go_to_disconnecte
 void test_location_cloud_request_cellular_data(void)
 {
 	int err;
-	struct network_msg network_msg = {
-		.type = NETWORK_CONNECTED
-	};
-	struct storage_msg passthrough_msg = {
-		.type = STORAGE_MODE_PASSTHROUGH
-	};
 
 	/* Prepare location cloud request with cellular data */
 	struct location_msg location_msg = {
@@ -843,26 +858,14 @@ void test_location_cloud_request_cellular_data(void)
 	/* Copy location message into storage message buffer */
 	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
 
-	/* Connect to cloud */
-	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
-	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
-
-	/* Enable passthrough mode */
-	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	setup_cloud_and_passthrough();
 
 	/* Send location cloud request via storage data channel */
 	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 
-	/* Verify that nrf_cloud_coap_location_get was called with the cellular data.
-	 * We cannot verify the actual data content since nrf_cloud_rest_location_request
-	 * is an opaque type, but the fact that the function was called proves the
-	 * reconstruct_cellular_data() function successfully processed the data.
-	 */
+	/* Verify that nrf_cloud_coap_location_get was called with the cellular data. */
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
 }
 
@@ -870,12 +873,6 @@ void test_location_cloud_request_cellular_data(void)
 void test_location_cloud_request_wifi_data(void)
 {
 	int err;
-	struct network_msg network_msg = {
-		.type = NETWORK_CONNECTED
-	};
-	struct storage_msg passthrough_msg = {
-		.type = STORAGE_MODE_PASSTHROUGH
-	};
 
 	/* Prepare location cloud request with Wi-Fi data */
 	struct location_msg location_msg = {
@@ -916,26 +913,14 @@ void test_location_cloud_request_wifi_data(void)
 	/* Copy location message into storage message buffer */
 	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
 
-	/* Connect to cloud */
-	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
-	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
-
-	/* Enable passthrough mode */
-	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	setup_cloud_and_passthrough();
 
 	/* Send location cloud request via storage data channel */
 	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 
-	/* Verify that nrf_cloud_coap_location_get was called with the Wi-Fi data.
-	 * We cannot verify the actual data content since nrf_cloud_rest_location_request
-	 * is an opaque type, but the fact that the function was called proves the
-	 * reconstruct_wifi_data() function successfully processed the data.
-	 */
+	/* Verify that nrf_cloud_coap_location_get was called with the Wi-Fi data. */
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
 }
 
@@ -945,12 +930,6 @@ void test_location_cloud_request_wifi_data(void)
 void test_location_cloud_request_combined_data(void)
 {
 	int err;
-	struct network_msg network_msg = {
-		.type = NETWORK_CONNECTED
-	};
-	struct storage_msg passthrough_msg = {
-		.type = STORAGE_MODE_PASSTHROUGH
-	};
 
 	/* Prepare location cloud request with both cellular and Wi-Fi data */
 	struct location_msg location_msg = {
@@ -1002,27 +981,14 @@ void test_location_cloud_request_combined_data(void)
 	/* Copy location message into storage message buffer */
 	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
 
-	/* Connect to cloud */
-	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
-	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
-
-	/* Enable passthrough mode */
-	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	setup_cloud_and_passthrough();
 
 	/* Send location cloud request via storage data channel */
 	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 
-	/* Verify that nrf_cloud_coap_location_get was called with both data types.
-	 * We cannot verify the actual data content since nrf_cloud_rest_location_request
-	 * is an opaque type, but the fact that the function was called proves both
-	 * reconstruct_cellular_data() and reconstruct_wifi_data() successfully
-	 * processed the data.
-	 */
+	/* Verify that nrf_cloud_coap_location_get was called with both data types. */
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
 }
 
@@ -1049,12 +1015,6 @@ static int nrf_cloud_coap_location_get_custom_fake(
 void test_location_cloud_request_wifi_data_partial_ap_list(void)
 {
 	int err;
-	struct network_msg network_msg = {
-		.type = NETWORK_CONNECTED
-	};
-	struct storage_msg passthrough_msg = {
-		.type = STORAGE_MODE_PASSTHROUGH
-	};
 
 	/* Prepare location cloud request with 2 Wi-Fi APs, which is less than
 	 * CONFIG_LOCATION_METHOD_WIFI_SCANNING_RESULTS_MAX_CNT.
@@ -1088,15 +1048,7 @@ void test_location_cloud_request_wifi_data_partial_ap_list(void)
 	location_msg->cloud_request.wifi_aps[1].mac[5] = 0x02;
 	location_msg->cloud_request.wifi_aps[1].mac_length = 6;
 
-	/* Connect to cloud */
-	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
-	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
-
-	/* Enable passthrough mode */
-	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	setup_cloud_and_passthrough();
 
 	/* Set custom fake to verify data within the call */
 	nrf_cloud_coap_location_get_fake.custom_fake = nrf_cloud_coap_location_get_custom_fake;
@@ -1108,6 +1060,61 @@ void test_location_cloud_request_wifi_data_partial_ap_list(void)
 
 	/* Verify that nrf_cloud_coap_location_get was called. */
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
+}
+
+/* Test that wifi_ap_data_construct validation catches excessive wifi_cnt.
+ * This test verifies that when wifi_cnt exceeds the configured maximum
+ * (CONFIG_LOCATION_METHOD_WIFI_SCANNING_RESULTS_MAX_CNT), the request
+ * is not sent.
+ */
+void test_location_cloud_request_wifi_data_excessive_ap_count(void)
+{
+	int err;
+
+	/* Prepare location cloud request with wifi_cnt that exceeds the maximum */
+	struct location_msg location_msg = {
+		.type = LOCATION_CLOUD_REQUEST,
+		.cloud_request = {
+			.current_cell = {
+				.id = LTE_LC_CELL_EUTRAN_ID_INVALID
+			},
+			.ncells_count = 0,
+			.gci_cells_count = 0,
+			/* Set wifi_cnt to exceed
+			 * CONFIG_LOCATION_METHOD_WIFI_SCANNING_RESULTS_MAX_CNT
+			 */
+			.wifi_cnt = CONFIG_LOCATION_METHOD_WIFI_SCANNING_RESULTS_MAX_CNT + 1,
+		}
+	};
+
+	/* Initialize at least one AP to avoid other validation errors */
+	location_msg.cloud_request.wifi_aps[0].rssi = -50;
+	location_msg.cloud_request.wifi_aps[0].mac[0] = 0xAA;
+	location_msg.cloud_request.wifi_aps[0].mac[1] = 0xBB;
+	location_msg.cloud_request.wifi_aps[0].mac[2] = 0xCC;
+	location_msg.cloud_request.wifi_aps[0].mac[3] = 0xDD;
+	location_msg.cloud_request.wifi_aps[0].mac[4] = 0xEE;
+	location_msg.cloud_request.wifi_aps[0].mac[5] = 0xFF;
+	location_msg.cloud_request.wifi_aps[0].mac_length = 6;
+
+	struct storage_msg storage_data_msg = {
+		.type = STORAGE_DATA,
+		.data_type = STORAGE_TYPE_LOCATION,
+		.data_len = sizeof(location_msg)
+	};
+
+	/* Copy location message into storage message buffer */
+	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
+
+	setup_cloud_and_passthrough();
+
+	/* Send location cloud request via storage data channel */
+	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+
+	/* Verify that nrf_cloud_coap_location_get was NOT called due to validation failure. */
+	TEST_ASSERT_EQUAL(0, nrf_cloud_coap_location_get_fake.call_count);
 }
 
 /* This is required to be added to each test. That is because unity's

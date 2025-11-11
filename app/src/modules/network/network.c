@@ -150,7 +150,7 @@ static void network_status_notify(enum network_msg_type status)
 	}
 }
 
-static void network_msg_send(struct network_msg *msg)
+static void network_msg_send(const struct network_msg *msg)
 {
 	int err;
 
