@@ -99,14 +99,14 @@ static int wifi_ap_data_construct(struct wifi_scan_info *dest,
 		return -EINVAL;
 	}
 
-	if ((ap_info_count < src->wifi_cnt)) {
+	if (ap_info_count < src->wifi_cnt) {
 		LOG_ERR("Insufficient ap_info_count: %zu, required: %d",
 			ap_info_count, src->wifi_cnt);
 		return -ENOMEM;
 	}
 
-	if (sizeof(ap_info->mac) < sizeof(src->wifi_aps->mac)) {
-		LOG_ERR("Insufficient mac length in wifi_scan_result");
+	if (sizeof(ap_info[0].mac) < sizeof(src->wifi_aps[0].mac)) {
+		LOG_ERR("Insufficient MAC array size in wifi_scan_result");
 		return -EINVAL;
 	}
 
