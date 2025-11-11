@@ -1,0 +1,19 @@
+---
+alwaysApply: true
+---
+
+This file contains instructions for an AI agent in how to build Nordic DevAcademy course on Asset Tracker Template (ATT).
+
+ATT course should fit with DevAcademy style and architecture. It should be very close to Cellular Dev Academy course.
+A sort of integration of the Cellular Course. But it makes sense to have a separate course for ATT given its scope.
+
+
+The agent reading this should heavily rely on nordic-db-mpc, an MPC that has access to Dev Academy documentation and sources.
+
+The agent should populate the devacademy folder with the course content.
+
+The agent should keep iterating until completion of the task.
+
+Focus on simplicity and little verbosity.
+
+It should be user frendly and rewarding for user.
