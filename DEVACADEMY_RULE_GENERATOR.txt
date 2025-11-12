@@ -1,0 +1,24 @@
+## Context
+
+I need to create a comprehensive Nordic Developer Academy course on the Asset Tracker Template (ATT). 
+I have drafted initial course creation instructions in @DEVACADEMY.txt that will guide an AI agent 
+in building this course content.
+
+## Request
+
+Please help me refine and enhance the DEVACADEMY.txt rules 
+to ensure the AI agent can produce high-quality DevAcademy-style content.
+
+## Analysis Approach
+
+Please:
+1. Read and analyze the current DEVACADEMY.txt rules thoroughly
+2. Use nordic-db-mcp to research authentic DevAcademy course characteristics
+3. Cross-reference with ATT documentation and codebase structure
+4. Identify gaps, ambiguities, or areas needing improvement
+5. Provide specific, actionable recommendations for enhancement
+
+## Desired Outcome
+
+An improved DEVACADEMY.txt that serves as a guide for an AI agent 
+to create professional-quality Nordic Developer Academy course.
