@@ -11,11 +11,37 @@ menuconfig APP_CLOUD_MQTT
 
 if APP_CLOUD_MQTT
 
+config APP_CLOUD_MQTT_PROVISION_CREDENTIALS
+	bool "Provision TLS credentials"
+	default y
+	depends on MODEM_KEY_MGMT
+	help
+	  Enable automatic provisioning of TLS credentials to the modem at
+	  boot time using the Modem Key Management API. The credentials are
+	  stored in the modem's secure storage and used to authenticate the
+	  MQTT broker during the TLS handshake. The credentials are stored
+	  using the security tag set by CONFIG_APP_CLOUD_MQTT_SEC_TAG.
+	  If disabled, credentials must be provisioned to the security tag
+	  manually before connecting to the broker.
+
 config APP_CLOUD_MQTT_HOSTNAME
 	string "MQTT broker hostname"
 	default "mqtt.nordicsemi.academy"
 	help
 	  Hostname of the MQTT broker to connect to.
+
+config APP_CLOUD_MQTT_CLIENT_ID
+	string "Static MQTT client ID"
+	help
+	  Static MQTT client ID to use for the connection. If empty (default),
+	  the client ID will be generated dynamically using hw_id_get().
+	  If set, this value will be used as the client ID instead.
+
+config APP_CLOUD_MQTT_CLIENT_ID_BUFFER_SIZE
+	int "MQTT client ID buffer size"
+	default 50
+	help
+	  Size of the buffer used to store the MQTT client ID.
 
 config APP_CLOUD_MQTT_TOPIC_SIZE_MAX
 	int "MQTT topic size"
