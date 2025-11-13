@@ -605,7 +605,10 @@ Configurations for the MQTT stack can be set in the `overlay-mqtt.conf` file and
 The following are some of the available options for controlling the MQTT module:
 
 - `CONFIG_APP_CLOUD_MQTT`
+- `CONFIG_APP_CLOUD_MQTT_PROVISION_CREDENTIALS`
 - `CONFIG_APP_CLOUD_MQTT_HOSTNAME`
+- `CONFIG_APP_CLOUD_MQTT_CLIENT_ID`
+- `CONFIG_APP_CLOUD_MQTT_CLIENT_ID_BUFFER_SIZE`
 - `CONFIG_APP_CLOUD_MQTT_TOPIC_SIZE_MAX`
 - `CONFIG_APP_CLOUD_MQTT_PUB_TOPIC`
 - `CONFIG_APP_CLOUD_MQTT_SUB_TOPIC`

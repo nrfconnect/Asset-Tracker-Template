@@ -38,10 +38,10 @@ BUILD_ASSERT(CONFIG_APP_CLOUD_MQTT_WATCHDOG_TIMEOUT_SECONDS >
 	     CONFIG_APP_CLOUD_MQTT_MSG_PROCESSING_TIMEOUT_SECONDS,
 	     "Watchdog timeout must be greater than maximum message processing time");
 
-static const unsigned char ca_certificate[] = {
-	#include ATT_MQTT_CA_CERT
-	(0x00)
-};
+BUILD_ASSERT(sizeof(CONFIG_APP_CLOUD_MQTT_CLIENT_ID) <= CONFIG_APP_CLOUD_MQTT_CLIENT_ID_BUFFER_SIZE,
+	     "CONFIG_APP_CLOUD_MQTT_CLIENT_ID is too long. "
+	     "Must be less than CONFIG_APP_CLOUD_MQTT_CLIENT_ID_BUFFER_SIZE bytes "
+	     "including null terminator");
 
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
@@ -69,6 +69,12 @@ ZBUS_CHAN_DEFINE(CLOUD_CHAN,
 		 ZBUS_MSG_INIT(.type = CLOUD_DISCONNECTED)
 );
 
+#if defined(CONFIG_APP_CLOUD_MQTT_PROVISION_CREDENTIALS)
+static const unsigned char ca_certificate[] = {
+	#include ATT_MQTT_CA_CERT
+	(0x00)
+};
+
 static void on_modem_init(int ret, void *ctx)
 {
 	ARG_UNUSED(ctx);
@@ -89,6 +95,7 @@ static void on_modem_init(int ret, void *ctx)
 }
 
 NRF_MODEM_LIB_ON_INIT(att_cloud_mqtt_hook, on_modem_init, NULL);
+#endif /* CONFIG_APP_CLOUD_MQTT_PROVISION_CREDENTIALS */
 
 /* Enumerator to be used in privat cloud channel */
 enum priv_cloud_msg {
@@ -207,7 +214,7 @@ struct cloud_state {
 	char sub_topic[CONFIG_APP_CLOUD_MQTT_TOPIC_SIZE_MAX];
 
 	/* MQTT client ID */
-	char client_id[HW_ID_LEN];
+	char client_id[CONFIG_APP_CLOUD_MQTT_CLIENT_ID_BUFFER_SIZE];
 
 	/* Connection backoff time */
 	uint32_t backoff_time;
@@ -259,11 +266,25 @@ static void connect_to_cloud(const struct cloud_state *state_object)
 		.device_id.size = strlen(object->client_id),
 	};
 
-	err = hw_id_get(object->client_id, sizeof(object->client_id));
-	if (err) {
-		LOG_ERR("hw_id_get, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
+	/* Use static client ID if configured, otherwise get it dynamically */
+	if (sizeof(CONFIG_APP_CLOUD_MQTT_CLIENT_ID) > 1) {
+		(void)strncpy(object->client_id,
+			      CONFIG_APP_CLOUD_MQTT_CLIENT_ID,
+			      sizeof(object->client_id) - 1);
+		object->client_id[sizeof(object->client_id) - 1] = '\0';
+
+		LOG_DBG("Using static client ID: %s", object->client_id);
+	} else {
+		err = hw_id_get(object->client_id, sizeof(object->client_id));
+		if (err) {
+			LOG_ERR("hw_id_get, error: %d", err);
+			SEND_FATAL_ERROR();
+			return;
+		}
+
+		object->client_id[HW_ID_LEN - 1] = '\0';
+
+		LOG_DBG("Using hardware ID as client ID: %s", object->client_id);
 	}
 
 	/* Prefix topics with the client ID so that the topics are unique per device.
