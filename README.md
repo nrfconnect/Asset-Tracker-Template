@@ -14,21 +14,31 @@ CONFIG_APP_NTN_SERVER_ADDR=""
 CONFIG_APP_NTN_SERVER_PORT=
 ```
 
-## NTN Skylo (Deutsche Telekom) - nRF9151 DK
+## NTN Skylo (Monogoto SIM) - nRF9151 DK
 
 ```shell
+cd app
+west build -b nrf9151dk/nrf9151/ns -- -DEXTRA_CONF_FILE=overlay-ntn-skylo-monogoto.conf
+```
+
+## NTN Skylo (Deutsche Telekom SIM) - nRF9151 DK
+
+```shell
+cd app
 west build -b nrf9151dk/nrf9151/ns -- -DEXTRA_CONF_FILE=overlay-ntn-skylo-dt.conf
 ```
 
-## NTN Skylo (Soracom) - nRF9151 DK
+## NTN Skylo (Soracom SIM) - nRF9151 DK
 
 ```shell
+cd app
 west build -b nrf9151dk/nrf9151/ns -- -DEXTRA_CONF_FILE=overlay-ntn-skylo-soracom.conf
 ```
 
 ## NTN Amarisoft Callbox - nRF9151 DK
 
 ```shell
+cd app
 west build -b nrf9151dk/nrf9151/ns -- -DEXTRA_CONF_FILE=overlay-ntn-amari.conf
 ```
 
