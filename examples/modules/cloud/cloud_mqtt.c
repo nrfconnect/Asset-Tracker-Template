@@ -84,7 +84,7 @@ static void on_modem_init(int ret, void *ctx)
 		return;
 	}
 
-	int err = modem_key_mgmt_write(CONFIG_APP_CLOUD_MQTT_SEC_TAG,
+	int err = modem_key_mgmt_write(CONFIG_MQTT_HELPER_SEC_TAG,
 				       MODEM_KEY_MGMT_CRED_TYPE_CA_CHAIN,
 				       ca_certificate,
 				       sizeof(ca_certificate));

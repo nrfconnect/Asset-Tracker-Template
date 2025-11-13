@@ -20,7 +20,7 @@ config APP_CLOUD_MQTT_PROVISION_CREDENTIALS
 	  boot time using the Modem Key Management API. The credentials are
 	  stored in the modem's secure storage and used to authenticate the
 	  MQTT broker during the TLS handshake. The credentials are stored
-	  using the security tag set by CONFIG_APP_CLOUD_MQTT_SEC_TAG.
+	  using the security tag set by CONFIG_MQTT_HELPER_SEC_TAG.
 	  If disabled, credentials must be provisioned to the security tag
 	  manually before connecting to the broker.
 
@@ -60,12 +60,6 @@ config APP_CLOUD_MQTT_SUB_TOPIC
 	default "att-sub-topic"
 	help
 	  Topic used for subscribing to messages from the MQTT broker.
-
-config APP_CLOUD_MQTT_SEC_TAG
-	int "MQTT security tag"
-	default 888
-	help
-	  Security tag used to store the MQTT credentials in the modem using Modem Key Management API
 
 config APP_CLOUD_MQTT_SHELL
 	bool "Enable cloud shell"
