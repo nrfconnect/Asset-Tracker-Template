@@ -209,6 +209,10 @@ static void pdn_event_handler(uint8_t cid, enum pdn_event event, int reason)
 		LOG_DBG("PDN_EVENT_CTX_DESTROYED");
 
 		break;
+	case PDN_EVENT_CELLULAR_PROFILE_ACTIVE:
+		LOG_DBG("PDN_EVENT_CELLULAR_PROFILE_ACTIVE, CID: %d", cid);
+
+		break;
 	default:
 		LOG_ERR("Unexpected PDN event: %d", event);
 
@@ -569,6 +573,16 @@ static void state_running_entry(void *obj)
 {
 	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+	struct pdn_cellular_profile ntn_profile = {
+		.id = 0,
+		.act = PDN_ACT_NTN,
+		.sim_slot = PDN_SIM_SLOT_1,
+	};
+	struct pdn_cellular_profile tn_profile = {
+		.id = 1,
+		.act = PDN_ACT_LTE_M_NB_IOT,
+		.sim_slot = PDN_SIM_SLOT_1,
+	};
 
 	LOG_DBG("%s", __func__);
 
@@ -599,29 +613,17 @@ static void state_running_entry(void *obj)
 		return;
 	}
 
-	/* Set NTN SIM profile.
-	 * 2: Configure cellular profile
-	 * 0: Cellular profile index
-	 * 4: Access technology: Satellite E-UTRAN (NB-S1 mode)
-	 * 0: SIM slot, physical SIM
-	 */
-	err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,1,4,0");
+	err = pdn_cellular_profile_configure(&ntn_profile);
 	if (err) {
-		LOG_ERR("Failed to set modem NTN profile, error: %d", err);
+		LOG_ERR("Failed to configure NTN profile, error: %d", err);
 		SEND_FATAL_ERROR();
 
 		return;
 	}
 
-	/* Set TN SIM profile for LTE-M
-		* 2: Configure cellular profile
-		* 1: Cellular profile index
-		* 1: Access technology: LE-UTRAN (WB-S1 mode), LTE-M
-		* 0: SIM slot, physical SIM
-	*/
-	err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,0,1,0");
+	err = pdn_cellular_profile_configure(&tn_profile);
 	if (err) {
-		LOG_ERR("Failed to set modem TN profile, error: %d", err);
+		LOG_ERR("Failed to configure TN profile, error: %d", err);
 		SEND_FATAL_ERROR();
 
 		return;
