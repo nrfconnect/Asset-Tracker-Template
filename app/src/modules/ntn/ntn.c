@@ -882,7 +882,7 @@ static int sock_open_and_connect(struct ntn_state_object *state)
 static int sock_send_gnss_data(struct ntn_state_object *state)
 {
 	int err;
-	char message[256];
+	char message[CONFIG_APP_NTN_SEND_1200_BYTES ? 1200 : 256];
 
 	const struct nrf_modem_gnss_pvt_data_frame *gnss_data = &state->last_pvt;
 
@@ -966,16 +966,46 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 				"99.99",temp,"999.99","99.99");
 #else
 	// /* Custom UDP endpoint */
+#if CONFIG_APP_NTN_SEND_1200_BYTES
+	// Fill the message with repeating pattern to create 1200 bytes
+	char base_msg[100];
+	err = snprintk(base_msg, sizeof(base_msg),
+		"GNSS: lat=%.2f, lon=%.2f, alt=%.2f, time=%04d-%02d-%02d %02d:%02d:%02d",
+		(double)gnss_data->latitude, (double)gnss_data->longitude, (double)gnss_data->altitude,
+		gnss_data->datetime.year, gnss_data->datetime.month, gnss_data->datetime.day,
+		gnss_data->datetime.hour, gnss_data->datetime.minute, gnss_data->datetime.seconds);
+	
+	if (err < 0 || err >= sizeof(base_msg)) {
+		LOG_ERR("Failed to format base GNSS string, error: %d", err);
+		return -EINVAL;
+	}
+
+	// Fill the 1200 byte buffer with repeating base message
+	int pos = 0;
+	int base_len = strlen(base_msg);
+	// Fill complete base_msg copies
+	while (pos + base_len <= sizeof(message) - 2) {  // Leave room for \0
+		memcpy(message + pos, base_msg, base_len);
+		pos += base_len;
+	}
+	// Fill any remaining space with partial base_msg
+	if (pos < sizeof(message) - 1) {
+		int remaining = sizeof(message) - pos - 1;
+		memcpy(message + pos, base_msg, remaining);
+		pos += remaining;
+	}
+	message[pos] = '\0';
+#else
 	err = snprintk(message, sizeof(message),
 		"GNSS: lat=%.2f, lon=%.2f, alt=%.2f, time=%04d-%02d-%02d %02d:%02d:%02d",
 		(double)gnss_data->latitude, (double)gnss_data->longitude, (double)gnss_data->altitude,
 		gnss_data->datetime.year, gnss_data->datetime.month, gnss_data->datetime.day,
 		gnss_data->datetime.hour, gnss_data->datetime.minute, gnss_data->datetime.seconds);
 	if (err < 0 || err >= sizeof(message)) {
-			LOG_ERR("Failed to format GNSS string, error: %d", err);
-
-			return -EINVAL;
-		}
+		LOG_ERR("Failed to format GNSS string, error: %d", err);
+		return -EINVAL;
+	}
+#endif
 #endif
 
 	LOG_DBG("Sending data");
