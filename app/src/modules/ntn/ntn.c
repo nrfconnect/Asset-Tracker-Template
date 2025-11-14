@@ -567,9 +567,9 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 		"Device: *%s, temp: %s, lat=%.2f, lon=%.2f, alt=%.2f, "
 		"time=%04d-%02d-%02d %02d:%02d:%02d",
 		imei_suffix, temp,
-		(double)gnss_data->latitude, (double)gnss_data->longitude, (double)gnss_data->altitude,
-		gnss_data->datetime.year, gnss_data->datetime.month, gnss_data->datetime.day,
-		gnss_data->datetime.hour, gnss_data->datetime.minute, gnss_data->datetime.seconds);
+		(double)state->last_pvt.latitude, (double)state->last_pvt.longitude, (double)state->last_pvt.altitude,
+		state->last_pvt.datetime.year, state->last_pvt.datetime.month, state->last_pvt.datetime.day,
+		state->last_pvt.datetime.hour, state->last_pvt.datetime.minute, state->last_pvt.datetime.seconds);
 	if (err < 0 || err >= sizeof(message)) {
 		LOG_ERR("Failed to format GNSS data, error: %d", err);
 
