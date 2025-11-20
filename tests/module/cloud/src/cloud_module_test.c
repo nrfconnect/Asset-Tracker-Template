@@ -129,16 +129,20 @@ ZBUS_SUBSCRIBER_DEFINE(environmental, 1);
 ZBUS_SUBSCRIBER_DEFINE(fota, 1);
 ZBUS_SUBSCRIBER_DEFINE(led, 1);
 ZBUS_SUBSCRIBER_DEFINE(location, 1);
+ZBUS_SUBSCRIBER_DEFINE(cloud_test_sub, 16);
 ZBUS_LISTENER_DEFINE(trigger, dummy_cb);
 ZBUS_LISTENER_DEFINE(cloud_test_listener, cloud_chan_cb);
 
 /* Attach a simple listener to storage channels to ensure observers exist */
 ZBUS_CHAN_ADD_OBS(STORAGE_CHAN, cloud_test_listener, 0);
 ZBUS_CHAN_ADD_OBS(STORAGE_DATA_CHAN, cloud_test_listener, 0);
+ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, cloud_test_sub, 0);
 
 static K_SEM_DEFINE(cloud_disconnected, 0, 1);
 static K_SEM_DEFINE(cloud_connected, 0, 1);
 static K_SEM_DEFINE(data_sent, 0, 1);
+static K_SEM_DEFINE(cloud_module_response_recv_sem, 0, 1);
+static struct cloud_msg last_shadow_response;
 
 static nrf_provisioning_event_cb_t handler;
 
@@ -251,8 +255,103 @@ static void cloud_chan_cb(const struct zbus_channel *chan)
 			k_sem_give(&cloud_disconnected);
 		} else if (status == CLOUD_CONNECTED) {
 			k_sem_give(&cloud_connected);
+		} else if (status == CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED ||
+			   status == CLOUD_SHADOW_RESPONSE_EMPTY_DELTA ||
+			   status == CLOUD_SHADOW_RESPONSE_DESIRED ||
+			   status == CLOUD_SHADOW_GET_DESIRED ||
+			   status == CLOUD_SHADOW_GET_DELTA ||
+			   status == CLOUD_SHADOW_RESPONSE_DELTA) {
+			memcpy(&last_shadow_response, cloud_msg, sizeof(struct cloud_msg));
+			k_sem_give(&cloud_module_response_recv_sem);
+
+			printk("cloud_chan_cb: received cloud message of type %d\n", status);
 		}
 	}
+}
+
+static int nrf_cloud_coap_shadow_get_empty_fake(char *buffer, size_t *buffer_data_len,
+						 bool delta, enum coap_content_format format)
+{
+	ARG_UNUSED(buffer);
+	ARG_UNUSED(delta);
+	ARG_UNUSED(format);
+
+	/* Simulate empty desired section by setting buffer_data_len to 0 */
+	*buffer_data_len = 0;
+	return 0;
+}
+
+static int nrf_cloud_coap_shadow_get_response_fake(char *buffer, size_t *buffer_data_len,
+							bool delta, enum coap_content_format format)
+{
+	ARG_UNUSED(delta);
+	ARG_UNUSED(format);
+
+	static const uint8_t test_payload[] = { 0xDE, 0xAD, 0xBE, 0xEF };
+
+	TEST_ASSERT(buffer != NULL);
+	TEST_ASSERT(buffer_data_len != NULL);
+	TEST_ASSERT(*buffer_data_len >= sizeof(test_payload));
+
+	memcpy(buffer, test_payload, sizeof(test_payload));
+	*buffer_data_len = sizeof(test_payload);
+
+	return 0;
+}
+
+/* Common timing helpers */
+static void wait_for_processing(void)
+{
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+}
+
+/* Helper for publishing messages to a channel */
+static void publish_and_assert(const struct zbus_channel *chan, const void *msg)
+{
+	int err;
+
+	err = zbus_chan_pub(chan, msg, K_NO_WAIT);
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+/* Helper for consuming a message from subscriber queue */
+static void consume_message_and_assert_channel(const struct zbus_channel **chan,
+					       k_timeout_t timeout)
+{
+	int err;
+
+	err = zbus_sub_wait(&cloud_test_sub, chan, timeout);
+	TEST_ASSERT_EQUAL(0, err);
+	TEST_ASSERT_EQUAL_PTR(&CLOUD_CHAN, *chan);
+}
+
+/* Helper to wait for and verify a specific cloud message type */
+static void wait_for_cloud_message(enum cloud_msg_type expected_type, k_timeout_t timeout)
+{
+	const struct zbus_channel *chan;
+	const struct cloud_msg *msg;
+
+	consume_message_and_assert_channel(&chan, timeout);
+	msg = zbus_chan_const_msg(chan);
+	TEST_ASSERT_EQUAL(expected_type, msg->type);
+}
+
+/* Helper to wait for cloud connected semaphore */
+static void wait_for_cloud_connected(k_timeout_t timeout)
+{
+	int err;
+
+	err = k_sem_take(&cloud_connected, timeout);
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+/* Helper to wait for cloud disconnected semaphore */
+static void wait_for_cloud_disconnected(k_timeout_t timeout)
+{
+	int err;
+
+	err = k_sem_take(&cloud_disconnected, timeout);
+	TEST_ASSERT_EQUAL(0, err);
 }
 
 void setUp(void)
@@ -283,6 +382,7 @@ void setUp(void)
 	k_sem_reset(&cloud_disconnected);
 	k_sem_reset(&cloud_connected);
 	k_sem_reset(&data_sent);
+	k_sem_reset(&cloud_module_response_recv_sem);
 
 	/* Set default return values */
 	nrf_cloud_coap_location_send_fake.return_val = 0;
@@ -295,16 +395,22 @@ void setUp(void)
 	zbus_sub_wait(&led, &chan, K_NO_WAIT);
 	zbus_sub_wait(&battery, &chan, K_NO_WAIT);
 
+	/* Drain cloud_test_sub queue from any messages from previous tests */
+	while (zbus_sub_wait(&cloud_test_sub, &chan, K_NO_WAIT) == 0) {
+	}
+
 	zbus_chan_add_obs(&CLOUD_CHAN, &cloud_test_listener, K_NO_WAIT);
 }
 
 void tearDown(void)
 {
+	int err;
 	struct network_msg msg = {
 		.type = NETWORK_DISCONNECTED
 	};
 
-	zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
 
 	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 }
@@ -319,7 +425,6 @@ void test_should_initially_transition_to_disconnected(void)
 
 void test_should_handle_provisioning_when_device_not_claimed(void)
 {
-	int err;
 	struct network_msg network_msg = {
 		.type = NETWORK_CONNECTED
 	};
@@ -337,9 +442,8 @@ void test_should_handle_provisioning_when_device_not_claimed(void)
 
 	nrf_cloud_coap_connect_fake.return_val = -EACCES;
 
-	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
-
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	wait_for_processing();
 
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_connect_fake.call_count);
 	TEST_ASSERT_EQUAL(1, nrf_provisioning_trigger_manually_fake.call_count);
@@ -364,14 +468,12 @@ void test_should_handle_provisioning_when_device_not_claimed(void)
 
 	handler(&event);
 
-	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
 }
 
 /* Test provisioning flow when no commands are received from the server */
 void test_should_handle_provisioning_when_no_commands_received(void)
 {
-	int err;
 	struct network_msg network_msg = {
 		.type = NETWORK_CONNECTED
 	};
@@ -382,52 +484,40 @@ void test_should_handle_provisioning_when_no_commands_received(void)
 		.type = NRF_PROVISIONING_EVENT_NO_COMMANDS
 	};
 
-	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
+	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	wait_for_processing();
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
 
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&CLOUD_CHAN, &cloud_msg);
+	wait_for_processing();
+	wait_for_cloud_disconnected(K_SECONDS(WAIT_TIMEOUT));
 
-	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
-
-	zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_NO_WAIT);
-
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
-
-	err = k_sem_take(&cloud_disconnected, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
-
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	wait_for_processing();
 
 	TEST_ASSERT_EQUAL(1, nrf_provisioning_trigger_manually_fake.call_count);
 
 	handler(&event);
 
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	wait_for_processing();
 
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_connect_fake.call_count);
 
-	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
 }
 
 void test_should_transition_from_disconnected_to_connected_ready(void)
 {
-	int err;
 	struct network_msg msg = {
 		.type = NETWORK_CONNECTED
 	};
 
-	zbus_chan_pub(&NETWORK_CHAN, &msg, K_NO_WAIT);
-
-	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
-
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&NETWORK_CHAN, &msg);
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
+	wait_for_processing();
 }
 
 void test_should_handle_provisioning_request_from_connected_state(void)
 {
-	int err;
 	struct cloud_msg provisioning_msg = {
 		.type = CLOUD_PROVISIONING_REQUEST
 	};
@@ -437,20 +527,16 @@ void test_should_handle_provisioning_request_from_connected_state(void)
 
 	test_should_transition_from_disconnected_to_connected_ready();
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &provisioning_msg, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
-
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&CLOUD_CHAN, &provisioning_msg);
+	wait_for_processing();
 
 	TEST_ASSERT_EQUAL(1, nrf_provisioning_trigger_manually_fake.call_count);
 
-	err = k_sem_take(&cloud_disconnected, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
+	wait_for_cloud_disconnected(K_SECONDS(WAIT_TIMEOUT));
 
 	handler(&event);
 
-	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
 }
 
 void test_should_backoff_on_connection_failure(void)
@@ -477,7 +563,6 @@ void test_should_backoff_on_connection_failure(void)
 
 void test_should_send_json_payload_to_cloud(void)
 {
-	int err;
 	struct cloud_msg msg = {
 		.type = CLOUD_PAYLOAD_JSON,
 		.payload.buffer = "{\"test\": 1}",
@@ -486,10 +571,8 @@ void test_should_send_json_payload_to_cloud(void)
 
 	test_should_transition_from_disconnected_to_connected_ready();
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
-
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&CLOUD_CHAN, &msg);
+	wait_for_processing();
 
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_json_message_send_fake.call_count);
 	TEST_ASSERT_EQUAL(0, strncmp(nrf_cloud_coap_json_message_send_fake.arg0_val,
@@ -500,29 +583,21 @@ void test_should_send_json_payload_to_cloud(void)
 
 void test_connected_to_disconnected(void)
 {
-	int err;
 	struct network_msg msg = {
 		.type = NETWORK_CONNECTED
 	};
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-
-	err = k_sem_take(&cloud_connected, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
+	publish_and_assert(&NETWORK_CHAN, &msg);
+	wait_for_cloud_connected(K_SECONDS(1));
 
 	msg.type = NETWORK_DISCONNECTED;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-
-	err = k_sem_take(&cloud_disconnected, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
+	publish_and_assert(&NETWORK_CHAN, &msg);
+	wait_for_cloud_disconnected(K_SECONDS(1));
 }
 
 void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 {
-	int err;
 	struct network_msg network_msg = {
 		.type = NETWORK_CONNECTED
 	};
@@ -535,20 +610,12 @@ void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 	/* Reset call count */
 	nrf_cloud_coap_bytes_send_fake.call_count = 0;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
+	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	wait_for_processing();
+	wait_for_cloud_connected(K_SECONDS(1));
 
-	/* Transport module needs CPU to run state machine */
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
-
-	err = k_sem_take(&cloud_connected, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-
-	/* Transport module needs CPU to run state machine */
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&CLOUD_CHAN, &msg);
+	wait_for_processing();
 
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_json_message_send_fake.call_count);
 	TEST_ASSERT_EQUAL(0, strncmp(nrf_cloud_coap_json_message_send_fake.arg0_val,
@@ -558,20 +625,14 @@ void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 
 	network_msg.type = NETWORK_DISCONNECTED;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-
-	/* Transport module needs CPU to run state machine */
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
-
-	err = k_sem_take(&cloud_disconnected, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
+	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	wait_for_processing();
+	wait_for_cloud_disconnected(K_SECONDS(1));
 }
 
 /* Test GNSS location data handling via storage module in passthrough mode */
 void test_gnss_location_data_handling(void)
 {
-	int err;
 	struct network_msg network_msg = {
 		.type = NETWORK_CONNECTED
 	};
@@ -605,22 +666,16 @@ void test_gnss_location_data_handling(void)
 	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
 
 	/* Connect to cloud */
-	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
-
-	err = k_sem_take(&cloud_connected, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
+	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	wait_for_cloud_connected(K_SECONDS(1));
+	publish_and_assert(&STORAGE_CHAN, &passthrough_msg);
 
 	/* Give the module time to process mode change */
 	k_sleep(K_MSEC(10));
 
 	/* Send GNSS location data via storage data channel (passthrough mode) */
-	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-
-	/* Give the module time to process */
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	wait_for_processing();
 
 	/* Verify that GNSS location data was sent to nRF Cloud */
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_send_fake.call_count);
@@ -633,7 +688,6 @@ void test_gnss_location_data_handling(void)
 
 void test_storage_data_battery_sent_to_cloud(void)
 {
-	int err;
 	struct storage_msg batch_available = {
 		.type = STORAGE_BATCH_AVAILABLE,
 		.data_len = 1,
@@ -648,11 +702,8 @@ void test_storage_data_battery_sent_to_cloud(void)
 	fake_read_calls = 0;
 	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &batch_available, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	/* Allow processing */
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&STORAGE_CHAN, &batch_available);
+	wait_for_processing();
 
 	/* One successful read + one -EAGAIN drain */
 	TEST_ASSERT_EQUAL(2, storage_batch_read_fake.call_count);
@@ -661,7 +712,6 @@ void test_storage_data_battery_sent_to_cloud(void)
 
 void test_storage_data_environmental_sent_to_cloud(void)
 {
-	int err;
 	struct storage_msg batch_available = {
 		.type = STORAGE_BATCH_AVAILABLE,
 		.data_len = 1,
@@ -676,11 +726,8 @@ void test_storage_data_environmental_sent_to_cloud(void)
 	fake_read_calls = 0;
 	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &batch_available, K_SECONDS(1));
-	ARG_UNUSED(err);
-
-	/* Allow processing */
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&STORAGE_CHAN, &batch_available);
+	wait_for_processing();
 
 	/* One successful read + one -EAGAIN drain */
 	TEST_ASSERT_EQUAL(2, storage_batch_read_fake.call_count);
@@ -689,7 +736,6 @@ void test_storage_data_environmental_sent_to_cloud(void)
 
 void test_storage_data_network_conn_eval_sent_to_cloud(void)
 {
-	int err;
 	struct storage_msg batch_available = {
 		.type = STORAGE_BATCH_AVAILABLE,
 		.data_len = 1,
@@ -704,11 +750,8 @@ void test_storage_data_network_conn_eval_sent_to_cloud(void)
 	fake_read_calls = 0;
 	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &batch_available, K_SECONDS(1));
-	ARG_UNUSED(err);
-
-	/* Allow processing */
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&STORAGE_CHAN, &batch_available);
+	wait_for_processing();
 
 	/* One successful read + one -EAGAIN drain */
 	TEST_ASSERT_EQUAL(2, storage_batch_read_fake.call_count);
@@ -718,7 +761,6 @@ void test_storage_data_network_conn_eval_sent_to_cloud(void)
 
 void test_provisioning_failed_with_network_connected_should_go_to_backoff(void)
 {
-	int err;
 	struct network_msg network_msg = {
 		.type = NETWORK_CONNECTED
 	};
@@ -730,20 +772,14 @@ void test_provisioning_failed_with_network_connected_should_go_to_backoff(void)
 	};
 
 	/* Start with a connected network state */
-	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
-
-	/* Should now be connected */
-	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
+	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	wait_for_processing();
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
 
 	/* Trigger provisioning request */
-	zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_NO_WAIT);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
-
-	/* Should now be disconnected (entering provisioning state) */
-	err = k_sem_take(&cloud_disconnected, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
+	publish_and_assert(&CLOUD_CHAN, &cloud_msg);
+	wait_for_processing();
+	wait_for_cloud_disconnected(K_SECONDS(WAIT_TIMEOUT));
 
 	TEST_ASSERT_EQUAL(1, nrf_provisioning_trigger_manually_fake.call_count);
 
@@ -764,7 +800,6 @@ void test_provisioning_failed_with_network_connected_should_go_to_backoff(void)
 
 void test_provisioning_failed_with_network_disconnected_should_go_to_disconnected(void)
 {
-	int err;
 	struct network_msg network_msg = {
 		.type = NETWORK_CONNECTED
 	};
@@ -776,27 +811,21 @@ void test_provisioning_failed_with_network_disconnected_should_go_to_disconnecte
 	};
 
 	/* Start with a connected network state */
-	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
-
-	/* Should now be connected */
-	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
+	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	wait_for_processing();
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
 
 	/* Trigger provisioning request */
-	zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_NO_WAIT);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
-
-	/* Should now be disconnected (entering provisioning state) */
-	err = k_sem_take(&cloud_disconnected, K_SECONDS(WAIT_TIMEOUT));
-	TEST_ASSERT_EQUAL(0, err);
+	publish_and_assert(&CLOUD_CHAN, &cloud_msg);
+	wait_for_processing();
+	wait_for_cloud_disconnected(K_SECONDS(WAIT_TIMEOUT));
 
 	TEST_ASSERT_EQUAL(1, nrf_provisioning_trigger_manually_fake.call_count);
 
 	/* Simulate network disconnect while in provisioning state */
 	network_msg.type = NETWORK_DISCONNECTED;
-	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	wait_for_processing();
 
 	/* Simulate provisioning failure while network is disconnected */
 	handler(&event);
@@ -808,11 +837,158 @@ void test_provisioning_failed_with_network_disconnected_should_go_to_disconnecte
 	TEST_ASSERT_EQUAL(1, nrf_provisioning_trigger_manually_fake.call_count);
 }
 
+void test_shadow_get_desired_should_return_empty(void)
+{
+	struct cloud_msg request_msg = {
+		.type = CLOUD_SHADOW_GET_DESIRED
+	};
+
+	/* Configure fake to simulate empty desired section */
+	nrf_cloud_coap_shadow_get_fake.custom_fake = nrf_cloud_coap_shadow_get_empty_fake;
+
+	/* Connect to cloud */
+	test_should_transition_from_disconnected_to_connected_ready();
+
+	/* Send shadow get desired request */
+	publish_and_assert(&CLOUD_CHAN, &request_msg);
+
+	/* Consume the request message (echo from our own publish) */
+	wait_for_cloud_message(CLOUD_SHADOW_GET_DESIRED, K_MSEC(100));
+
+	/* Give cloud module time to process the request */
+	wait_for_processing();
+
+	/* Wait for and verify the response message */
+	wait_for_cloud_message(CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED, K_SECONDS(5));
+
+	/* Verify that nrf_cloud_coap_shadow_get was called */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_get_fake.call_count);
+}
+
+void test_shadow_get_delta_should_return_empty(void)
+{
+	struct cloud_msg request_msg = {
+		.type = CLOUD_SHADOW_GET_DELTA
+	};
+
+	/* Configure fake to simulate empty desired section */
+	nrf_cloud_coap_shadow_get_fake.custom_fake = nrf_cloud_coap_shadow_get_empty_fake;
+
+	/* Connect to cloud */
+	test_should_transition_from_disconnected_to_connected_ready();
+
+	/* Send shadow get desired request */
+	publish_and_assert(&CLOUD_CHAN, &request_msg);
+
+	/* Consume the request message (echo from our own publish) */
+	wait_for_cloud_message(CLOUD_SHADOW_GET_DELTA, K_MSEC(100));
+
+	/* Give cloud module time to process the request */
+	wait_for_processing();
+
+	/* Wait for and verify the response message */
+	wait_for_cloud_message(CLOUD_SHADOW_RESPONSE_EMPTY_DELTA, K_SECONDS(5));
+
+	/* Verify that nrf_cloud_coap_shadow_get was called */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_get_fake.call_count);
+}
+
+void test_shadow_get_desired_should_return_response(void)
+{
+	struct cloud_msg request_msg = {
+		.type = CLOUD_SHADOW_GET_DESIRED
+	};
+
+	/* Configure fake to simulate empty desired section */
+	nrf_cloud_coap_shadow_get_fake.custom_fake = nrf_cloud_coap_shadow_get_response_fake;
+
+	/* Connect to cloud */
+	test_should_transition_from_disconnected_to_connected_ready();
+
+	/* Send shadow get desired request */
+	publish_and_assert(&CLOUD_CHAN, &request_msg);
+
+	/* Consume the request message (echo from our own publish) */
+	wait_for_cloud_message(CLOUD_SHADOW_GET_DESIRED, K_MSEC(100));
+
+	/* Give cloud module time to process the request */
+	wait_for_processing();
+
+	/* Wait for and verify the response message */
+	wait_for_cloud_message(CLOUD_SHADOW_RESPONSE_DESIRED, K_SECONDS(5));
+
+	/* Verify that nrf_cloud_coap_shadow_get was called */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_get_fake.call_count);
+}
+
+void test_shadow_get_delta_should_return_response(void)
+{
+	struct cloud_msg request_msg = {
+		.type = CLOUD_SHADOW_GET_DELTA
+	};
+
+	/* Configure fake to simulate empty desired section */
+	nrf_cloud_coap_shadow_get_fake.custom_fake = nrf_cloud_coap_shadow_get_response_fake;
+
+	/* Connect to cloud */
+	test_should_transition_from_disconnected_to_connected_ready();
+
+	/* Send shadow get desired request */
+	publish_and_assert(&CLOUD_CHAN, &request_msg);
+
+	/* Consume the request message (echo from our own publish) */
+	wait_for_cloud_message(CLOUD_SHADOW_GET_DELTA, K_MSEC(100));
+
+	/* Give cloud module time to process the request */
+	wait_for_processing();
+
+	/* Wait for and verify the response message */
+	wait_for_cloud_message(CLOUD_SHADOW_RESPONSE_DELTA, K_SECONDS(5));
+
+	/* Verify that nrf_cloud_coap_shadow_get was called */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_get_fake.call_count);
+}
+
+void test_shadow_update_reported_should_call_patch(void)
+{
+	const uint8_t test_cbor_payload[] = {0xa3, 0x01, 0x02, 0x03, 0x04};
+	struct cloud_msg update_msg = {
+		.type = CLOUD_SHADOW_UPDATE_REPORTED,
+		.payload = {
+			.buffer_data_len = sizeof(test_cbor_payload)
+		}
+	};
+
+	/* Copy test payload into message buffer */
+	memcpy(update_msg.payload.buffer, test_cbor_payload, sizeof(test_cbor_payload));
+
+	/* Connect to cloud */
+	test_should_transition_from_disconnected_to_connected_ready();
+
+	/* Send shadow update reported request */
+	publish_and_assert(&CLOUD_CHAN, &update_msg);
+
+	/* Give cloud module time to process the request */
+	wait_for_processing();
+
+	/* Verify that nrf_cloud_coap_patch was called */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_patch_fake.call_count);
+
+	/* Verify the patch was called with correct parameters */
+	TEST_ASSERT_EQUAL_STRING("state/reported", nrf_cloud_coap_patch_fake.arg0_val);
+	TEST_ASSERT_NULL(nrf_cloud_coap_patch_fake.arg1_val); /* app_id is NULL */
+	TEST_ASSERT_EQUAL(sizeof(test_cbor_payload), nrf_cloud_coap_patch_fake.arg3_val);
+	TEST_ASSERT_EQUAL(COAP_CONTENT_FORMAT_APP_CBOR, nrf_cloud_coap_patch_fake.arg4_val);
+	TEST_ASSERT_TRUE(nrf_cloud_coap_patch_fake.arg5_val); /* confirmable = true */
+
+	/* Verify buffer contents match (not pointer, since message is copied) */
+	TEST_ASSERT_EQUAL_UINT8_ARRAY(test_cbor_payload, nrf_cloud_coap_patch_fake.arg2_val,
+				      sizeof(test_cbor_payload));
+}
+
 /* Test that cloud module correctly handles LOCATION_CLOUD_REQUEST with cellular data */
 void test_location_cloud_request_cellular_data(void)
 {
-	int err;
-
 	/* Prepare location cloud request with cellular data */
 	struct location_msg location_msg = {
 		.type = LOCATION_CLOUD_REQUEST,
@@ -861,9 +1037,8 @@ void test_location_cloud_request_cellular_data(void)
 	setup_cloud_and_passthrough();
 
 	/* Send location cloud request via storage data channel */
-	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	wait_for_processing();
 
 	/* Verify that nrf_cloud_coap_location_get was called with the cellular data. */
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
@@ -872,8 +1047,6 @@ void test_location_cloud_request_cellular_data(void)
 /* Test that cloud module correctly handles LOCATION_CLOUD_REQUEST with Wi-Fi data */
 void test_location_cloud_request_wifi_data(void)
 {
-	int err;
-
 	/* Prepare location cloud request with Wi-Fi data */
 	struct location_msg location_msg = {
 		.type = LOCATION_CLOUD_REQUEST,
@@ -916,9 +1089,8 @@ void test_location_cloud_request_wifi_data(void)
 	setup_cloud_and_passthrough();
 
 	/* Send location cloud request via storage data channel */
-	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	wait_for_processing();
 
 	/* Verify that nrf_cloud_coap_location_get was called with the Wi-Fi data. */
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
@@ -929,8 +1101,6 @@ void test_location_cloud_request_wifi_data(void)
  */
 void test_location_cloud_request_combined_data(void)
 {
-	int err;
-
 	/* Prepare location cloud request with both cellular and Wi-Fi data */
 	struct location_msg location_msg = {
 		.type = LOCATION_CLOUD_REQUEST,
@@ -984,9 +1154,8 @@ void test_location_cloud_request_combined_data(void)
 	setup_cloud_and_passthrough();
 
 	/* Send location cloud request via storage data channel */
-	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	wait_for_processing();
 
 	/* Verify that nrf_cloud_coap_location_get was called with both data types. */
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
@@ -1014,8 +1183,6 @@ static int nrf_cloud_coap_location_get_custom_fake(
  */
 void test_location_cloud_request_wifi_data_partial_ap_list(void)
 {
-	int err;
-
 	/* Prepare location cloud request with 2 Wi-Fi APs, which is less than
 	 * CONFIG_LOCATION_METHOD_WIFI_SCANNING_RESULTS_MAX_CNT.
 	 */
@@ -1054,9 +1221,8 @@ void test_location_cloud_request_wifi_data_partial_ap_list(void)
 	nrf_cloud_coap_location_get_fake.custom_fake = nrf_cloud_coap_location_get_custom_fake;
 
 	/* Send location cloud request via storage data channel */
-	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	wait_for_processing();
 
 	/* Verify that nrf_cloud_coap_location_get was called. */
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
@@ -1069,8 +1235,6 @@ void test_location_cloud_request_wifi_data_partial_ap_list(void)
  */
 void test_location_cloud_request_wifi_data_excessive_ap_count(void)
 {
-	int err;
-
 	/* Prepare location cloud request with wifi_cnt that exceeds the maximum */
 	struct location_msg location_msg = {
 		.type = LOCATION_CLOUD_REQUEST,
@@ -1109,9 +1273,8 @@ void test_location_cloud_request_wifi_data_excessive_ap_count(void)
 	setup_cloud_and_passthrough();
 
 	/* Send location cloud request via storage data channel */
-	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &storage_data_msg, K_NO_WAIT);
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	wait_for_processing();
 
 	/* Verify that nrf_cloud_coap_location_get was NOT called due to validation failure. */
 	TEST_ASSERT_EQUAL(0, nrf_cloud_coap_location_get_fake.call_count);
