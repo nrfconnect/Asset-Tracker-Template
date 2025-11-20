@@ -47,7 +47,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
 enum timer_msg_type {
 	/* Timer for sampling data has expired.
 	 * This timer is used to trigger the sampling of data from the sensors.
-	 * The timer is set to expire every CONFIG_APP_SENSOR_SAMPLING_INTERVAL_SECONDS seconds,
+	 * The timer is set to expire every CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS,
 	 * and can be overridden from the cloud.
 	 * If the storage module is in passthrough mode, expiry of this timer will also trigger
 	 * polling of the cloud shadow and FOTA status.
@@ -693,74 +693,134 @@ static void timer_send_data_stop(void)
 	}
 }
 
-/**
- * @brief Handle cloud shadow response
- *
- * Processes shadow updates to adjust sampling intervals based on
- * cloud configuration.
- */
+static void report_config_to_cloud(const struct main_state *state_object)
+{
+	int err;
+	struct cloud_msg cloud_msg = {
+		.type = CLOUD_REPORT_CONFIG,
+	};
+	size_t encoded_len;
+
+	err = encode_config_reported_to_cbor(state_object->data_send_interval_sec,
+					     state_object->sample_interval_sec,
+					     cloud_msg.payload.buffer,
+					     sizeof(cloud_msg.payload.buffer),
+					     &encoded_len);
+	if (err) {
+		LOG_ERR("encode_config_reported_to_cbor, error: %d", err);
+		return;
+	}
+
+	cloud_msg.payload.buffer_data_len = encoded_len;
+
+	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to publish config report, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+
+	LOG_DBG("Config reported: update_interval=%d, sample_interval=%d",
+		state_object->data_send_interval_sec, state_object->sample_interval_sec);
+}
+
+static void handle_intervals_update(struct main_state *state_object,
+				    uint32_t sample_interval,
+				    uint32_t update_interval)
+{
+	int err;
+        struct storage_msg storage_msg = {
+		.type = STORAGE_MODE_PASSTHROUGH_REQUEST,
+	};
+
+	if (sample_interval != UINT32_MAX) {
+		LOG_DBG("Updating sample interval to %d seconds", sample_interval);
+		state_object->sample_interval_sec = sample_interval;
+	}
+
+	if (update_interval != UINT32_MAX) {
+		LOG_DBG("Updating data send interval to %d seconds", update_interval);
+		state_object->data_send_interval_sec = update_interval;
+	}
+
+	/* If both update and sample intervals are valid, we toggle buffer mode.
+	 * If not, passthrough mode is used.
+	 */
+	if ((update_interval != UINT32_MAX) && (sample_interval != UINT32_MAX)) {
+		storage_msg.type = STORAGE_MODE_BUFFER_REQUEST;
+
+	}
+
+        err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+        if (err) {
+                LOG_ERR("Failed to publish storage mode change request, error: %d", err);
+                SEND_FATAL_ERROR();
+
+                return;
+        }
+}
+
+static void handle_command_type_update(struct main_state *state_object,
+				       uint32_t command_type)
+{
+	if (command_type == CLOUD_COMMAND_TYPE_PROVISION) {
+		LOG_DBG("Received provisioning command from cloud, requesting reprovisioning...");
+		struct cloud_msg cloud_msg = {
+			.type = CLOUD_PROVISIONING_REQUEST,
+		};
+		int err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+
+		if (err) {
+			LOG_ERR("zbus_chan_pub, error: %d", err);
+			SEND_FATAL_ERROR();
+
+			return;
+		}
+	} else if (command_type == CLOUD_COMMAND_TYPE_REBOOT) {
+		LOG_DBG("Received reboot command from cloud, rebooting device...");
+		LOG_PANIC();
+		k_sleep(K_SECONDS(2));
+		sys_reboot(SYS_REBOOT_COLD);
+	}
+}
+
 static void handle_cloud_shadow_response(struct main_state *state_object,
 					 const struct cloud_msg *msg)
 {
 	int err;
+
+	/* Set device parameters as invalid to check validate if they have been updated */
 	uint32_t command_type = UINT32_MAX;
-	uint32_t interval_sec = UINT32_MAX;
+	uint32_t update_interval = UINT32_MAX;
+	uint32_t sample_interval = UINT32_MAX;
 
-	err = get_parameters_from_cbor_response(
-		msg->response.buffer,
-		msg->response.buffer_data_len,
-		&interval_sec,
-		&command_type);
+	err = get_parameters_from_cbor_response(msg->response.buffer,
+						msg->response.buffer_data_len,
+						&update_interval,
+						&sample_interval,
+						&command_type);
 	if (err) {
-		LOG_ERR("Failed to parse shadow response interval, error: %d", err);
+		LOG_ERR("Failed to parse shadow response, error: %d", err);
 
 		return;
 	}
 
-	/* Set new interval if valid */
-	if (interval_sec != UINT32_MAX) {
-		state_object->sample_interval_sec = interval_sec;
-
-		LOG_DBG("Received new interval: %d seconds", state_object->sample_interval_sec);
-
-		timer_sample_start(state_object->sample_interval_sec);
+	if ((update_interval != UINT32_MAX) || ((sample_interval != UINT32_MAX) )) {
+		handle_intervals_update(state_object,
+					sample_interval,
+					update_interval);
 	}
 
-	/* For commands, only process delta responses. This avoids executing commands that may still
-	 * persist in the shadow's desired section. Delta responses only include new
-	 * commands, since the device clears received commands by reporting them in
-	 * the reported section of the shadow.
+	/* Only process commands from delta responses, not from desired responses.
+	 * This prevents re-executing commands that may still exist in the shadow's
+	 * desired section. Delta responses only contain new/unprocessed commands
+	 * because the device reports executed commands back to the cloud, which
+	 * removes them from future deltas.
 	 */
-	if ((msg->type != CLOUD_SHADOW_RESPONSE_DELTA) && (command_type != UINT32_MAX)) {
-		return;
-	}
-
-	LOG_DBG("Received command ID: %d, translated to %s", command_type,
-		(command_type == CLOUD_COMMAND_TYPE_PROVISION) ?
-		"CLOUD_COMMAND_TYPE_PROVISION" :
-		(command_type == CLOUD_COMMAND_TYPE_REBOOT) ?
-		"CLOUD_COMMAND_TYPE_REBOOT" : "UNKNOWN");
-
-	/* Check for known commands */
-	if (command_type == CLOUD_COMMAND_TYPE_PROVISION) {
-
-		struct cloud_msg cloud_msg = {
-			.type = CLOUD_PROVISIONING_REQUEST,
-		};
-
-		err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
-		if (err) {
-			LOG_ERR("zbus_chan_pub, error: %d", err);
-			SEND_FATAL_ERROR();
-			return;
-		}
-	} else if (command_type == CLOUD_COMMAND_TYPE_REBOOT) {
-		LOG_WRN("Received command ID: %d", command_type);
-
-		/* Flush the log buffer and wait a few seconds before rebooting */
-		LOG_PANIC();
-		k_sleep(K_SECONDS(2));
-		sys_reboot(SYS_REBOOT_COLD);
+	if ((msg->type == CLOUD_SHADOW_RESPONSE_DELTA) && (command_type != UINT32_MAX)) {
+		handle_command_type_update(state_object,
+					   command_type);
 	}
 }
 
@@ -907,6 +967,8 @@ static void buffer_connected_entry(void *o)
 	LOG_DBG("%s", __func__);
 
 	state_object->running_history = STATE_BUFFER_CONNECTED;
+
+	report_config_to_cloud(state_object);
 }
 
 static enum smf_state_result buffer_connected_run(void *o)
@@ -1279,9 +1341,11 @@ static enum smf_state_result passthrough_disconnected_run(void *o)
 
 static void passthrough_connected_entry(void *o)
 {
-	ARG_UNUSED(o);
+	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
+
+	report_config_to_cloud(state_object);
 }
 
 static enum smf_state_result passthrough_connected_run(void *o)
@@ -1740,7 +1804,7 @@ int main(void)
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	struct main_state main_state = { 0 };
 
-	main_state.sample_interval_sec = CONFIG_APP_SENSOR_SAMPLING_INTERVAL_SECONDS;
+	main_state.sample_interval_sec = CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS;
 	main_state.data_send_interval_sec = CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS;
 
 	LOG_DBG("Main has started");

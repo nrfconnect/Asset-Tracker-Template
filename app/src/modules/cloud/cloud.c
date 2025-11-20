@@ -668,6 +668,20 @@ static void handle_cloud_channel_message(struct cloud_state_object const *state_
 		 */
 		shadow_poll(SHADOW_POLL_DELTA);
 		break;
+	case CLOUD_REPORT_CONFIG:
+		LOG_DBG("Config report trigger received");
+		err = nrf_cloud_coap_patch("state/reported", NULL,
+					   msg->payload.buffer,
+					   msg->payload.buffer_data_len,
+					   COAP_CONTENT_FORMAT_APP_CBOR,
+					   true,
+					   NULL,
+					   NULL);
+		if (err) {
+			LOG_ERR("nrf_cloud_coap_patch (config report), error: %d", err);
+			send_request_failed();
+		}
+		break;
 	case CLOUD_PROVISIONING_REQUEST:
 		LOG_DBG("Provisioning request received");
 		smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONING]);

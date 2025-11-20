@@ -51,6 +51,12 @@ enum cloud_msg_type {
 	 * the old ones expire or when rotating credentials is required.
 	 */
 	CLOUD_PROVISIONING_REQUEST,
+
+	/* Report current device configuration to shadow. The payload contains CBOR-encoded
+	 * configuration parameters (update_interval, sample_interval) that will be sent to
+	 * the shadow's reported section.
+	 */
+	CLOUD_REPORT_CONFIG,
 };
 
 struct cloud_msg {
