@@ -1,0 +1,22 @@
+name: Trigger NTN build
+on:
+  push:
+    branches: [ ntn-usecase ]
+  workflow_dispatch:
+    inputs:
+      att_ref:
+        description: The ref to build
+        required: true
+        default: ntn-usecase
+
+jobs:
+  ntn-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository Dispatch
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.ATT_NTN_BRANCH_TEST }}
+          repository: cia-test/test-att-ntn
+          event-type: trigger-ntn-build
+          client-payload: '{"att_ref": "${{ inputs.att_ref }}"}'
