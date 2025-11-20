@@ -51,32 +51,36 @@ Run `help` to list all available commands:
 ```bash
 uart:~$ help
 Available commands:
-  at                 : Execute an AT command
-  att_button_press   : Asset Tracker Template Button CMDs
-  att_cloud_provision  : Asset Tracker Template Provisioning CMDs
-  att_cloud_publish  : Asset Tracker Template Cloud CMDs
-  att_network        : Asset Tracker Template Network CMDs
-  clear              : Clear screen.
-  date               : Date commands
-  device             : Device commands
-  devmem             : Read/write physical memory
-                       Usage:
-                       Read memory at address with optional width:
-                       devmem <address> [<width>]
-                       Write memory at address with mandatory width and value:
-                       devmem <address> <width> <value>
-  help               : Prints the help message.
-  history            : Command history.
-  kernel             : Kernel commands
-  mflt               : Memfault Test Commands
-  mflt_nrf           : Memfault nRF Connect SDK Test Commands
-  pm                 : PM commands
-  rem                : Ignore lines beginning with 'rem '
-  resize             : Console gets terminal screen size or assumes default in
-                       case the readout fails. It must be executed after each
-                       terminal width change to ensure correct text display.
-  retval             : Print return value of most recent command
-  shell              : Useful, not Unix-like shell commands.
+  app                          : Application version information commands
+  at                           : Execute an AT command
+  att_button_press             : Asset Tracker Template Button CMDs
+  att_cloud_poll_shadow_delta  : Poll the device shadow delta from the cloud
+  att_cloud_provision          : Asset Tracker Template Provisioning CMDs
+  att_cloud_publish            : Asset Tracker Template Cloud CMDs
+  att_network                  : Asset Tracker Template Network CMDs
+  att_power                    : Asset Tracker Template Power CMDs
+  att_storage                  : Storage module commands
+  clear                        : Clear screen.
+  date                         : Date commands
+  device                       : Device commands
+  devmem                       : Read/write physical memory
+                                 Usage:
+                                 Read memory at address with optional width:
+                                 devmem <address> [<width>]
+                                 Write memory at address with mandatory width
+                                 and value:
+                                 devmem <address> <width> <value>
+  help                         : Prints the help message.
+  history                      : Command history.
+  kernel                       : Kernel commands
+  pm                           : PM commands
+  rem                          : Ignore lines beginning with 'rem '
+  resize                       : Console gets terminal screen size or assumes
+                                 default in case the readout fails. It must be
+                                 executed after each terminal width change to
+                                 ensure correct text display.
+  retval                       : Print return value of most recent command
+  shell                        : Useful, not Unix-like shell commands.
 ```
 
 ### Shell Command Examples

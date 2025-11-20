@@ -34,7 +34,7 @@ Device provisioning establishes credentials for secure communication with nRF Cl
     <img src="../images/claim.png" alt="Claim Device" width="300" />
     </details>
 
-1. Once connected, the device must be available under the **Devices** section in the **Device Management** navigation pane on the left.
+1. Once connected, the device will be available under the **Devices** section in the **Device Management** navigation pane on the left.
 
 ### REST API Alternative
 

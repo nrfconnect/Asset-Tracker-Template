@@ -58,11 +58,11 @@ eDRX is used to periodically sleep during the PSM active timer. With the default
 The following Kconfig options that are set in the `prj.conf` file control sampling and transmission frequency:
 
 ```config
-CONFIG_APP_SENSOR_SAMPLING_INTERVAL_SECONDS=600  # Default: 10 minutes
-CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS=3600      # Default: 1 hour
+CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS=150    # Default: 2.5 minutes
+CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS=600            # Default: 10 minutes
 ```
 
-In buffer mode, sensors and location are sampled and stored at every interval set in the `CONFIG_APP_SENSOR_SAMPLING_INTERVAL_SECONDS` Kconfig option and sent to the cloud at every interval as set in the `CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS` Kconfig option.
+In buffer mode, sensors and location are sampled and stored at every interval set in the `CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS` Kconfig option and sent to the cloud at every interval as set in the `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig option.
 
 You can adjust these Kconfig options at runtime using the nRF Cloud device shadow. See [Configuration guide](configuration.md#set-sampling-interval-and-logic-from-cloud) for details.
 
