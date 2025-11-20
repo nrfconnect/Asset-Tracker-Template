@@ -7,7 +7,7 @@ on:
       att_ref:
         description: The ref to build
         required: true
-        default: ntn-usecase
+        default: ntn_usecase
 
 jobs:
   ntn-build:
