@@ -52,7 +52,7 @@ target_compile_definitions(app PRIVATE
 	-DCONFIG_APP_WATCHDOG_TIMEOUT_SECONDS=180
 	-DCONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE=100
 	-DCONFIG_APP_CLOUD_SHADOW_RESPONSE_BUFFER_MAX_SIZE=512
-	-DCONFIG_APP_SENSOR_SAMPLING_INTERVAL_SECONDS=600
+	-DCONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS=600
 	-DCONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS=3600
 	-DCONFIG_APP_CLOUD_LOG_LEVEL=0
 	-DCONFIG_APP_CLOUD_THREAD_STACK_SIZE=2048
@@ -83,14 +83,15 @@ target_compile_definitions(app PRIVATE
 
 # CONSIDER: REUSING THE CODEC GENERATION LOGIC FROM THE MAIN APP
 
-# generate encoder code using zcbor
+# Generate encoder and decoder code using zcbor
 set(zcbor_command
         zcbor code # Invoke code generation
-	--cddl ${APPLICATION_SOURCE_DIR}/../../../app/src/cbor/device_shadow.cddl
-	--decode # Generate decoding functions
-	--short-names # Attempt to make generated symbol names shorter (at the risk of collision)
-	-t desired-object # Create a public API for decoding the "desired-object" type from the cddl file
-	--output-cmake device_shadow.cmake # The generated cmake file will be placed here
+        --cddl ${APPLICATION_SOURCE_DIR}/../../../app/src/cbor/device_shadow.cddl
+        --decode # Generate decoding functions
+        --encode # Generate encoding functions
+        --short-names # Attempt to make generated symbol names shorter (at the risk of collision)
+        -t shadow-object # Create a public API for encoding and decoding the "shadow-object" type from the cddl file
+        --output-cmake device_shadow.cmake # The generated cmake file will be placed here
 )
 
 execute_process(COMMAND ${zcbor_command}

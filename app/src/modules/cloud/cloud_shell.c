@@ -63,6 +63,25 @@ static int cmd_publish(const struct shell *sh, size_t argc, char **argv)
 	return 0;
 }
 
+static int cmd_poll_shadow(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	int err;
+	struct cloud_msg msg = {
+		.type = CLOUD_SHADOW_GET_DELTA,
+	};
+
+	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
+		return 1;
+	}
+
+	return 0;
+}
+
 static int cmd_provisioning(const struct shell *sh, size_t argc, char **argv)
 {
 	ARG_UNUSED(argc);
@@ -94,3 +113,5 @@ SHELL_CMD_REGISTER(att_cloud_publish, NULL, "Asset Tracker Template Cloud CMDs",
 		   cmd_publish);
 SHELL_CMD_REGISTER(att_cloud_provision, &prov_sub_cmds, "Asset Tracker Template Provisioning CMDs",
 		   NULL);
+SHELL_CMD_REGISTER(att_cloud_poll_shadow_delta, NULL, "Poll the device shadow delta from the cloud",
+		   cmd_poll_shadow);

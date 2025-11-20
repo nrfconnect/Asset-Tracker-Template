@@ -18,6 +18,7 @@ target_sources(app
   ../../../app/src/modules/cloud/cloud_provisioning.c
   ../../../app/src/modules/cloud/cloud_location.c
   ../../../app/src/modules/cloud/cloud_environmental.c
+  ../../../app/src/modules/cloud/cloud_configuration.c
 )
 
 zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)

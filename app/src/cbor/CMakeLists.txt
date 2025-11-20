@@ -7,13 +7,14 @@
 target_sources(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cbor_helper.c)
 target_include_directories(app PRIVATE .)
 
-# generate encoder code using zcbor
+# Generate encoder and decoder code using zcbor
 set(zcbor_command
         zcbor code # Invoke code generation
 	--cddl ${CMAKE_CURRENT_SOURCE_DIR}/device_shadow.cddl
 	--decode # Generate decoding functions
+	--encode # Generate encoding functions
 	--short-names # Attempt to make generated symbol names shorter (at the risk of collision)
-	-t desired-object # Create a public API for decoding the "desired-object" type from the cddl file
+	-t shadow-object # Create a public API for encoding and decoding the "shadow-object" type from the cddl file
 	--output-cmake device_shadow.cmake # The generated cmake file will be placed here
 )
 execute_process(COMMAND ${zcbor_command}
