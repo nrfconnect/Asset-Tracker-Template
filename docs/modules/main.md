@@ -30,13 +30,12 @@ The Main module can be configured using the following Kconfig options:
 * **CONFIG_APP_LOG_LEVEL:**
   Controls logging level for the main module.
 
-* **CONFIG_APP_SENSOR_SAMPLING_INTERVAL_SECONDS:**
-  Default sensor data sampling interval. Triggers sensor sampling and location search.
-  In passthrough mode, it also triggers cloud shadow and FOTA status polling and data sending.
+* **CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS:**
+  Default sensor data sampling interval in buffer mode. Triggers sensor sampling and location search.
 
 * **CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS:**
   Interval for cloud synchronization activities, including polling and data sending. Triggers cloud shadow and FOTA status polling.
-  Data sending only applies when the storage module is in buffer mode.
+  In passthrough mode, this option also controls how often data is sampled and sent to cloud.
 
 * **CONFIG_APP_REQUEST_NETWORK_QUALITY:**
   When enabled, requests network quality metrics during regular sampling.

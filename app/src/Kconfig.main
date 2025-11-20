@@ -5,22 +5,27 @@
 #
 menu "App"
 
-config APP_SENSOR_SAMPLING_INTERVAL_SECONDS
-	int "Sensor sampling interval"
-	default 600
+config APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS
+	int "Sampling interval in buffer mode"
+	default 150
 	help
-	  Interval for triggering sensor data sampling and location search.
-	  In passthrough mode, this timer also triggers cloud shadow and FOTA status polling and data sending.
-	  This is the primary sampling interval for the application.
+	  Interval in seconds that determines how often sensor and location data is
+	  collected in buffer mode.
 
 config APP_CLOUD_SYNC_INTERVAL_SECONDS
 	int "Cloud synchronization interval"
-	default 3600
+	default 600
 	help
-	  Interval for cloud synchronization activities including polling and data sending.
-	  This timer triggers cloud shadow and FOTA status polling, and data sending from storage.
-	  The data sending only applies if the storage module is in buffer mode.
-	  This interval is typically longer than the sensor sampling interval.
+	  Interval in seconds that controls how frequently the application
+	  synchronizes with cloud, performing cloud-related tasks such as:
+		* Polling the device shadow
+		* Checking for FOTA updates
+		* Transmitting buffered data to the cloud
+	  In buffer mode, this option is typically set to a longer interval
+	  than CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS to reduce
+	  power consumption while allowing data aggregation.
+	  In passthrough mode, this option controls both data sampling and
+	  cloud synchronization frequency.
 
 config APP_REQUEST_NETWORK_QUALITY
 	bool "Request network quality"

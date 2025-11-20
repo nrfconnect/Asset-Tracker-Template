@@ -273,6 +273,46 @@ static void expect_no_fota_events(void)
 	TEST_FAIL();
 }
 
+static void expect_no_storage_events(void)
+{
+	int err;
+	const struct zbus_channel *chan;
+	struct storage_msg storage_msg;
+
+	err = zbus_sub_wait_msg(&storage_subscriber, &chan, &storage_msg, K_MSEC(10000));
+	if (err == -ENOMSG) {
+		return;
+	} else if (err) {
+		LOG_ERR("zbus_sub_wait, error: %d", err);
+		TEST_FAIL();
+
+		return;
+	}
+
+	LOG_ERR("Received unexpected storage event: %d", storage_msg.type);
+	TEST_FAIL();
+}
+
+static void expect_no_cloud_events(void)
+{
+	int err;
+	const struct zbus_channel *chan;
+	struct cloud_msg cloud_msg;
+
+	err = zbus_sub_wait_msg(&cloud_subscriber, &chan, &cloud_msg, K_MSEC(10000));
+	if (err == -ENOMSG) {
+		return;
+	} else if (err) {
+		LOG_ERR("zbus_sub_wait, error: %d", err);
+		TEST_FAIL();
+
+		return;
+	}
+
+	LOG_ERR("Received unexpected cloud event: %d", cloud_msg.type);
+	TEST_FAIL();
+}
+
 void expect_no_events(uint32_t timeout_sec)
 {
 	k_sleep(K_SECONDS(timeout_sec));
@@ -281,6 +321,8 @@ void expect_no_events(uint32_t timeout_sec)
 	expect_no_network_events();
 	expect_no_power_events();
 	expect_no_fota_events();
+	expect_no_cloud_events();
+	expect_no_storage_events();
 }
 
 void purge_location_events(void)

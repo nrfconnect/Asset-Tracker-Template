@@ -25,6 +25,7 @@
 
 #include "cloud.h"
 #include "cloud_internal.h"
+#include "cloud_configuration.h"
 #include "cloud_provisioning.h"
 #include "cloud_location.h"
 #ifdef CONFIG_APP_ENVIRONMENTAL
@@ -133,12 +134,6 @@ enum cloud_module_state {
 			STATE_CONNECTED_READY,
 			/* Connected to cloud, but not network connection */
 			STATE_CONNECTED_PAUSED,
-};
-
-/* Types of sections of the shadow document to poll for. */
-enum shadow_poll_type {
-	SHADOW_POLL_DELTA,
-	SHADOW_POLL_DESIRED,
 };
 
 /* State object.
@@ -584,67 +579,6 @@ static void handle_storage_data(const struct storage_msg *msg)
 	}
 }
 
-static void shadow_poll(enum shadow_poll_type type)
-{
-	int err;
-	struct cloud_msg msg = {
-		.type = (type == SHADOW_POLL_DELTA) ? CLOUD_SHADOW_RESPONSE_DELTA :
-						      CLOUD_SHADOW_RESPONSE_DESIRED,
-		.response = {
-			.buffer_data_len = sizeof(msg.response.buffer),
-		},
-	};
-
-	LOG_DBG("Requesting device shadow from the device");
-
-	err = nrf_cloud_coap_shadow_get(msg.response.buffer,
-					&msg.response.buffer_data_len,
-					(type == SHADOW_POLL_DELTA) ? true : false,
-					COAP_CONTENT_FORMAT_APP_CBOR);
-	if (err) {
-		LOG_ERR("nrf_cloud_coap_shadow_get, error: %d", err);
-
-		send_request_failed();
-		return;
-	}
-
-	if (msg.response.buffer_data_len == 0) {
-		LOG_DBG("Shadow %s section not present",
-			(type == SHADOW_POLL_DELTA) ? "delta" : "desired");
-		return;
-	}
-
-	/* Workaround: Sometimes nrf_cloud_coap_shadow_get() returns 0 even though obtaining
-	 * the shadow failed. Ignore the payload if the first 10 bytes are zero.
-	 */
-	if (!memcmp(msg.response.buffer, "\0\0\0\0\0\0\0\0\0\0", 10)) {
-		LOG_WRN("Returned buffer is empty, ignore");
-		return;
-	}
-
-	/* Clear the shadow delta by reporting the same data back to the shadow reported state  */
-	err = nrf_cloud_coap_patch("state/reported", NULL,
-				   msg.response.buffer,
-				   msg.response.buffer_data_len,
-				   COAP_CONTENT_FORMAT_APP_CBOR,
-				   true,
-				   NULL,
-				   NULL);
-	if (err) {
-		LOG_ERR("nrf_cloud_coap_patch, error: %d", err);
-
-		send_request_failed();
-		return;
-	}
-
-	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
-}
-
 static void handle_cloud_channel_message(struct cloud_state_object const *state_object)
 {
 	int err;
@@ -660,13 +594,29 @@ static void handle_cloud_channel_message(struct cloud_state_object const *state_
 			send_request_failed();
 		}
 		break;
-	case CLOUD_POLL_SHADOW:
-		LOG_DBG("Poll shadow trigger received");
-		/* On shadow poll requests, we only poll for delta changes. This is because
-		 * we have gotten our entire desired section when polling the shadow
-		 * on an established connection.
-		 */
-		shadow_poll(SHADOW_POLL_DELTA);
+	case CLOUD_SHADOW_GET_DELTA:
+		LOG_DBG("Poll shadow delta trigger received");
+		err = cloud_configuration_poll(SHADOW_POLL_DELTA);
+		if (err) {
+			LOG_ERR("cloud_configuration_poll, error: %d", err);
+			send_request_failed();
+		}
+		break;
+	case CLOUD_SHADOW_GET_DESIRED:
+		LOG_DBG("Poll shadow desired trigger received");
+		err = cloud_configuration_poll(SHADOW_POLL_DESIRED);
+		if (err) {
+			LOG_ERR("cloud_configuration_poll, error: %d", err);
+			send_request_failed();
+		}
+		break;
+	case CLOUD_SHADOW_UPDATE_REPORTED:
+		err = cloud_configuration_reported_update(msg->payload.buffer,
+							  msg->payload.buffer_data_len);
+		if (err) {
+			LOG_ERR("cloud_configuration_reported_update, error: %d", err);
+			send_request_failed();
+		}
 		break;
 	case CLOUD_PROVISIONING_REQUEST:
 		LOG_DBG("Provisioning request received");
@@ -1043,7 +993,6 @@ static void state_connected_exit(void *obj)
 static void state_connected_ready_entry(void *obj)
 {
 	int err;
-	static bool first = true;
 	struct cloud_msg cloud_msg = {
 		.type = CLOUD_CONNECTED,
 	};
@@ -1059,18 +1008,6 @@ static void state_connected_ready_entry(void *obj)
 
 		return;
 	}
-
-	/* After an established connection, we poll the entire desired section to get our latest
-	 * configuration. Do this only for the initial connection, not on every
-	 * reconnection.
-	 */
-	if (!first) {
-		return;
-	}
-
-	shadow_poll(SHADOW_POLL_DESIRED);
-
-	first = false;
 }
 
 static enum smf_state_result state_connected_ready_run(void *obj)

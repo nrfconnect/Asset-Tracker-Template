@@ -1,15 +1,61 @@
 # Configuration
 
-The following sections explain different configuration needed for the Asset tracker template:
+The following section explains how the template can be configured compile and run-time to change its behavior.
 
-## Set sampling interval and logic from cloud
+## Remote configuration from cloud
 
-The Asset Tracker can be configured remotely through nRF Cloud's device shadow mechanism. This allows dynamic adjustment of device behavior without requiring firmware updates.
+The Asset Tracker can be configured remotely through nRF Cloud's device shadow mechanism, enabling dynamic adjustment of device behavior without firmware updates.
+
+> [!NOTE]
+> The complete device shadow structure is defined in the CDDL schema at `Asset-Tracker-Template/app/src/cbor/device_shadow.cddl`. This schema specifies all supported configuration parameters, commands, and their valid value ranges.
+
+### Configuration parameters
+
+The device uses two interval parameters that determine both operation mode and timing:
+
+| Parameter | Description | Unit | Valid Range |
+|-----------|-------------|------|-------------|
+| **`update_interval`** | **Passthrough mode**: Sampling and cloud send interval. **Buffer mode**: Cloud synchronization interval (polls shadow, checks FOTA, sends buffered data). | Seconds | 1 to 4294967294 |
+| **`sample_interval`** | **Buffer mode only**: Sensor sampling interval. Ignored in passthrough mode. | Seconds | 1 to 4294967294 |
+| **`buffer_mode`** | Storage mode control. Set to `true` for buffer mode or `false` for passthrough mode. | Boolean | true or false |
+
+> [!WARNING]
+> While very low intervals are supported, they can cause network congestion and connectivity issues, especially in poor network conditions. Choose intervals appropriate for your network quality, use case and device mode.
+> Location searches can take prolonged time to complete, especially with GNSS. Actual intervals may be longer than configured values when location acquisition is slow.
+
+### Operation modes
+
+The device operates in one of two modes based on which parameters are configured:
+
+#### Passthrough mode (default)
+**Activated when**: `buffer_mode` is set to `false` (or not configured)
+
+**Configuration**: Uses `update_interval` parameter only (ignores `sample_interval`)
+
+**Behavior**:
+- Samples sensors and location at `update_interval`
+- Sends data immediately to cloud
+- Polls shadow and checks FOTA at `update_interval`
+
+**Use case**: Real-time data transmission, lower latency
+
+#### Buffer mode
+**Activated when**: `buffer_mode` is set to `true`
+
+**Configuration**: Uses both `sample_interval` and `update_interval` parameters
+
+**Behavior**:
+- Samples sensors and location at `sample_interval`
+- Buffers data locally
+- Sends buffered data at `update_interval`
+- Polls shadow and checks FOTA at `update_interval`
+
+**Use case**: Reduced power consumption, batch data transmission
 
 ### Configuration through nRF Cloud UI
 
-> [!NOTE]
-> For new devices, the **View Config** section in the nRF Cloud UI will not be visible. It will become visible once the shadow is patched using the REST call documented below.
+> [!WARNING]
+> The order of the configuration JSON structure matters.
 
 1. Log in to [nRF Cloud](https://nrfcloud.com/).
 1. Navigate to **Devices** and select your device.
@@ -17,22 +63,50 @@ The Asset Tracker can be configured remotely through nRF Cloud's device shadow m
 1. Select **Edit Configuration**.
 1. Enter the desired configuration:
 
+    **Example 1: Buffer mode with 5-minute sampling and 15-minute cloud updates**
+
     ```json
     {
-    "update_interval": 60
+    "update_interval": 900,
+    "sample_interval": 300,
+    "buffer_mode": true
     }
     ```
 
+    **Example 2: Passthrough mode with 60-second interval**
+
+    ```json
+    {
+    "update_interval": 60,
+    "buffer_mode": false
+    }
+    ```
+
+> [!WARNING]
+> To remove a configuration entry you need to explicitly `null` the parameter.
+
 1. Click **Commit** to apply the changes.
 
-The device receives the new configuration through its shadow and adjust its update interval accordingly.
+The device receives the new configuration through its shadow and adjusts its intervals and storage mode accordingly.
 
 ### Configuration through REST API
 
-You can update the interval using [nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState).
+You can update the intervals using [nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState).
 
+**Buffer mode example:**
+```bash
+curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "desired": { "config": { "update_interval": 900, "sample_interval": 300, "buffer_mode": true } } }'
 ```
-curl -X PATCH   "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state"   -H "Authorization: Bearer $API_KEY"   -H "Content-Type: application/json"   -d '{ "desired": { "config": { "update_interval": <your_value> } } }'
+
+**Passthrough mode example:**
+```bash
+curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "desired": { "config": { "update_interval": 60, "buffer_mode": false } } }'
 ```
 
 ### Sending commands through REST API
@@ -48,8 +122,10 @@ curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
 
 **Command format**: `"command": [type, id]`
 
-- **type**: Command type (0=Reboot, 1=Provision)
+- **type**: Command type (1=Provision)
+  - **Valid range**: 1 to 1
 - **id**: Unique identifier (increment for successive commands)
+  - **Valid range**: 1 to 4294967294 (excludes 0 and UINT32_MAX)
 
 *For shadow structure details, see `Asset-Tracker-Template/app/src/cbor/device_shadow.cddl`*
 
@@ -57,22 +133,118 @@ curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
 
 * **Initial setup**
 
-    - The device starts with default interval from `CONFIG_APP_MODULE_TRIGGER_TIMEOUT_SECONDS`.
+    - The device starts with default intervals from `CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS` (sample_interval) and `CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS` (update_interval).
     - Upon cloud connection, the device automatically requests shadow configuration.
 
 * **Runtime configuration**
 
     - Cloud module receives and processes shadow updates.
+    - Device switches storage mode based on the `buffer_mode` parameter.
     - Device maintains last known configuration during offline periods.
 
 * **Impact on device behavior**
 
-    The `update_interval` configuration controls the frequency of:
+    **Passthrough mode** (`buffer_mode` = `false`):
 
-    - Location updates
-    - Sensor sampling (environmental, battery, network quality)
-    - FOTA update checks
-    - Shadow update polling
+    - **`update_interval`** controls: Sampling frequency, immediate data transmission, FOTA checks, shadow polling
+    - **`sample_interval`** is ignored
+
+    **Buffer mode** (`buffer_mode` = `true`):
+    - **`sample_interval`** controls: Location updates, sensor sampling (environmental, battery, network quality)
+    - **`update_interval`** controls: Buffered data transmission, FOTA checks, shadow polling
+
+The following diagrams illustrate different shadow configuration scenarios:
+
+<details open>
+<summary><b>Shadow Desired Section Poll Flow</b></summary>
+
+```mermaid
+sequenceDiagram
+    participant main
+    participant cloud
+    participant nrfcloud as nRF Cloud
+
+    Note over main: Connected to cloud
+    main->>cloud: CLOUD_SHADOW_GET_DESIRED
+    cloud->>nrfcloud: Request shadow GET (state/desired)
+
+    alt desired EMPTY
+        nrfcloud-->>cloud: Shadow desired section response (EMPTY)
+        cloud->>main: CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED
+        main->>cloud: CLOUD_SHADOW_UPDATE_REPORTED
+        cloud->>nrfcloud: Report device configurations PATCH (state/reported)
+        nrfcloud-->>cloud: 2.01 OK
+    else desired present
+        nrfcloud-->>cloud: Shadow desired section response
+        cloud->>main: CLOUD_SHADOW_RESPONSE_DESIRED
+        Note over main: Decode and apply config
+        main->>cloud: CLOUD_SHADOW_UPDATE_REPORTED
+        cloud->>nrfcloud: Report device configurations PATCH (state/reported)
+        nrfcloud-->>cloud: 2.01 OK
+    end
+```
+
+</details>
+
+<details>
+<summary><b>Shadow Delta Section Poll Flow</b></summary>
+
+```mermaid
+sequenceDiagram
+    participant main
+    participant cloud
+    participant nrfcloud as nRF Cloud
+
+    Note over main: TIMER_EXPIRED_CLOUD received
+    main->>cloud: CLOUD_SHADOW_GET_DELTA
+    cloud->>nrfcloud: Request shadow GET (state/delta)
+
+    alt delta EMPTY
+        nrfcloud-->>cloud: Shadow delta section response (EMPTY)
+        cloud->>main: CLOUD_SHADOW_RESPONSE_EMPTY_DELTA
+    else delta present
+        nrfcloud-->>cloud: Shadow delta section response
+        cloud->>main: CLOUD_SHADOW_RESPONSE_DELTA
+        Note over main: Decode and apply config
+        main->>cloud: CLOUD_SHADOW_UPDATE_REPORTED
+        cloud->>nrfcloud: Report device configurations PATCH (state/reported)
+        nrfcloud-->>cloud: 2.01 OK
+    end
+```
+
+</details>
+
+<details>
+<summary><b>Command Execution Flow</b></summary>
+
+```mermaid
+sequenceDiagram
+    participant main
+    participant cloud
+    participant nrfcloud as nRF Cloud
+    participant User as User/Cloud Service
+
+    User->>nrfcloud: Send command via REST API PATCH (state/desired)
+    nrfcloud-->>User: 2.01 OK
+
+    Note over main: TIMER_EXPIRED_CLOUD received
+    main->>cloud: CLOUD_SHADOW_GET_DELTA
+    cloud->>nrfcloud: Request shadow GET (state/delta)
+    nrfcloud-->>cloud: Shadow delta section response (with command)
+    cloud->>main: CLOUD_SHADOW_RESPONSE_DELTA
+    Note over main: Decode shadow delta
+
+    Note over main: Execute provisioning command
+    main->>cloud: CLOUD_PROVISIONING_REQUEST
+    Note over cloud: Start provisioning flow
+
+    main->>cloud: CLOUD_SHADOW_UPDATE_REPORTED (with command)
+    cloud->>nrfcloud: Report command execution PATCH (state/reported)
+    nrfcloud-->>cloud: 2.01 OK
+    Note over nrfcloud: Delta cleared (reported=desired)
+```
+
+</details>
 
 ## Set location method priorities
 
@@ -166,7 +338,7 @@ The following network modes are available (`LTE_NETWORK_MODE`):
 - **NB-IoT**: NB-IoT only.
 - **NB-IoT and GPS**: NB-IoT with GPS enabled.
 - **LTE-M and NB-IoT**: Both LTE-M and NB-IoT enabled.
-- **LTE-M, NB-IoT and GPS**: Both LTE modes with GPS .
+- **LTE-M, NB-IoT and GPS**: Both LTE modes with GPS.
 
 #### Network mode preference
 
@@ -214,7 +386,7 @@ PSM allows the device to enter deep sleep while maintaining network registration
         CONFIG_LTE_PSM_REQ_RAT_SECONDS=60  # 1 minute
         ```
 
-The following are the Key aspects:
+Key aspects:
 
 - Device negotiates PSM parameters with the network.
 - Helps achieve longer battery life.

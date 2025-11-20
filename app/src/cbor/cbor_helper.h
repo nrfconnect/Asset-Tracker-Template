@@ -7,22 +7,59 @@
 #include <zephyr/types.h>
 
 #define CLOUD_COMMAND_TYPE_PROVISION 1
-#define CLOUD_COMMAND_TYPE_REBOOT 2
+
+/** Device configuration parameters. */
+struct config_params {
+	/** Update interval in seconds. */
+	uint32_t update_interval;
+
+	/** Sample interval in seconds. */
+	uint32_t sample_interval;
+
+	/** Buffer mode flag */
+	bool buffer_mode;
+
+	/** Buffer mode validity flag */
+	bool buffer_mode_valid;
+};
 
 /**
- * @brief Get the device shadow parameters from a CBOR buffer.
+ * @brief Decode shadow parameters from CBOR buffer.
  *
- * @param[in]  cbor         The CBOR buffer.
- * @param[in]  len          The length of the CBOR buffer.
- * @param[out] interval_sec Update interval in seconds.
- * @param[out] command_type Cloud command type.
+ * @param[in]  cbor         CBOR buffer.
+ * @param[in]  len          CBOR buffer length.
+ * @param[out] config       Decoded configuration parameters.
+ * @param[out] command_type Decoded command type.
+ * @param[out] command_id   Decoded command ID.
  *
- * @returns 0 If the operation was successful.
- *	    Otherwise, a (negative) error code is returned.
- * @retval -EFAULT if the CBOR buffer is invalid.
- *
+ * @retval 0 Success.
+ * @retval -EINVAL Invalid parameters.
+ * @retval -EFAULT Invalid CBOR data.
  */
-int get_parameters_from_cbor_response(const uint8_t *cbor,
-				      size_t len,
-				      uint32_t *interval_sec,
-				      uint32_t *command_type);
+int decode_shadow_parameters_from_cbor(const uint8_t *cbor,
+				       size_t len,
+				       struct config_params *config,
+				       uint32_t *command_type,
+				       uint32_t *command_id);
+
+/**
+ * @brief Encode shadow parameters to CBOR buffer.
+ *
+ * @param[in]  config       Configuration parameters.
+ * @param[in]  command_type Command type.
+ * @param[in]  command_id   Command ID.
+ * @param[out] buffer       Output buffer for encoded CBOR.
+ * @param[in]  buffer_size  Output buffer size.
+ * @param[out] encoded_len  Length of encoded data.
+ *
+ * @retval 0 Success.
+ * @retval -EINVAL Invalid parameters.
+ * @retval -ENOMEM Buffer too small.
+ * @retval -EFAULT Encoding error.
+ */
+int encode_shadow_parameters_to_cbor(const struct config_params *config,
+				     uint32_t command_type,
+				     uint32_t command_id,
+				     uint8_t *buffer,
+				     size_t buffer_size,
+				     size_t *encoded_len);
