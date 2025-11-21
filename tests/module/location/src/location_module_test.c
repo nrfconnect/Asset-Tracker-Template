@@ -42,6 +42,15 @@ FAKE_VALUE_FUNC(int, lte_lc_func_mode_set, enum lte_lc_func_mode);
 /* Store the registered event handler */
 static location_event_handler_t registered_handler;
 
+/* NRF_MODEM_LIB_ON_INIT creates a structure with the callback.
+ * We can access it to invoke the modem init callback in tests.
+ */
+struct nrf_modem_lib_init_cb {
+	void (*callback)(int ret, void *ctx);
+	void *context;
+};
+extern struct nrf_modem_lib_init_cb nrf_modem_hook_location_modem_init_hook;
+
 /* Custom fake for location_init to store the handler */
 static int custom_location_init(location_event_handler_t handler)
 {
@@ -320,6 +329,12 @@ void setUp(void)
 	while (zbus_sub_wait_msg(&test_subscriber, &chan, &received_msg, K_NO_WAIT) == 0) {
 		/* Purge all messages from the channel */
 	}
+
+	/* Initialize the location module by calling the modem init callback
+	 * via the hook structure
+	 */
+	nrf_modem_hook_location_modem_init_hook.callback(0,
+		nrf_modem_hook_location_modem_init_hook.context);
 
 	wait_for_initialization();
 }

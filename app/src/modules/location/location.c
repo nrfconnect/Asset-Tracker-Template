@@ -35,6 +35,9 @@ BUILD_ASSERT(CONFIG_APP_LOCATION_WIFI_APS_MAX >=
 	     CONFIG_LOCATION_METHOD_WIFI_SCANNING_RESULTS_MAX_CNT);
 #endif /* CONFIG_LOCATION_METHOD_WIFI */
 
+/* Register subscriber */
+ZBUS_MSG_SUBSCRIBER_DEFINE(location);
+
 /* Define channels provided by this module */
 ZBUS_CHAN_DEFINE(LOCATION_CHAN,
 		 struct location_msg,
@@ -44,22 +47,73 @@ ZBUS_CHAN_DEFINE(LOCATION_CHAN,
 		 ZBUS_MSG_INIT(0)
 );
 
-#define MAX_MSG_SIZE sizeof(struct location_msg)
+/* Private channel message types for internal state management. */
+enum priv_location_msg {
+	/* Modem has completed initialization. */
+	LOCATION_PRIV_MODEM_INITIALIZED,
+};
 
-/* Define listener for this module */
-ZBUS_MSG_SUBSCRIBER_DEFINE(location);
+/* Create private location channel for internal messaging that is not intended for external use. */
+ZBUS_CHAN_DEFINE(PRIV_LOCATION_CHAN,
+		 enum priv_location_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS(location),
+		 ZBUS_MSG_INIT(0)
+);
 
-/* Observe channels */
-ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, location, 0);
+/* Define the channels that the module subscribes to, their associated message types
+ * and the subscriber that will receive the messages on the channel.
+ */
+#define CHANNEL_LIST(X)								\
+	X(LOCATION_CHAN,	struct location_msg)			\
+	X(PRIV_LOCATION_CHAN,	enum priv_location_msg)			\
+
+/* Calculate the maximum message size from the list of channels */
+#define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
+
+/* Add the location subscriber as observer to all the channels in the list. */
+#define ADD_OBSERVERS(_chan, _type)	ZBUS_CHAN_ADD_OBS(_chan, location, 0);
+
+/*
+ * Expand to a call to ZBUS_CHAN_ADD_OBS for each channel in the list.
+ * Example: ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, location, 0);
+ */
+CHANNEL_LIST(ADD_OBSERVERS)
 
 /* Forward declarations */
 static void location_event_handler(const struct location_event_data *event_data);
+static void on_modem_init(int ret, void *ctx);
+
+NRF_MODEM_LIB_ON_INIT(location_modem_init_hook, on_modem_init, NULL);
+
+static void on_modem_init(int ret, void *ctx)
+{
+	int err;
+	enum priv_location_msg msg = LOCATION_PRIV_MODEM_INITIALIZED;
+
+	ARG_UNUSED(ctx);
+
+	if (ret) {
+		LOG_ERR("Modem init failed: %d, location module cannot initialize", ret);
+		return;
+	}
+
+	err = zbus_chan_pub(&PRIV_LOCATION_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+}
 
 /* State machine */
 
-/* Location module states.
- */
+/* Location module states */
 enum location_module_state {
+	/* Waiting for modem initialization */
+	STATE_WAITING_FOR_MODEM_INIT,
 	/* The module is running */
 	STATE_RUNNING,
 		/* Location search is inactive. */
@@ -83,6 +137,7 @@ struct location_state_object {
 };
 
 /* Forward declarations of state handlers */
+static enum smf_state_result state_waiting_for_modem_init_run(void *obj);
 static void state_running_entry(void *obj);
 static void state_location_search_inactive_entry(void *obj);
 static enum smf_state_result state_location_search_inactive_run(void *obj);
@@ -90,9 +145,14 @@ static void state_location_search_active_entry(void *obj);
 static enum smf_state_result state_location_search_active_run(void *obj);
 static void state_location_search_active_exit(void *obj);
 
-/* State machine definition */
-/* States are defined in the state object */
+/* Construct state table */
 static const struct smf_state states[] = {
+	[STATE_WAITING_FOR_MODEM_INIT] =
+		SMF_CREATE_STATE(NULL,
+				 state_waiting_for_modem_init_run,
+				 NULL,
+				 NULL,
+				 NULL),
 	[STATE_RUNNING] =
 		SMF_CREATE_STATE(state_running_entry,
 				 NULL,
@@ -221,6 +281,24 @@ static void gnss_disable(void)
 
 
 /* State handlers */
+
+static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
+{
+	struct location_state_object *state_object = obj;
+
+	if (state_object->chan == &PRIV_LOCATION_CHAN) {
+		enum priv_location_msg msg = *(const enum priv_location_msg *)state_object->msg_buf;
+
+		if (msg == LOCATION_PRIV_MODEM_INITIALIZED) {
+			LOG_DBG("Modem initialized, transitioning to running state");
+			smf_set_state(SMF_CTX(state_object), &states[STATE_RUNNING]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
 
 static void state_running_entry(void *obj)
 {
@@ -489,7 +567,7 @@ static void location_module_thread(void)
 	}
 
 	/* Initialize the state machine */
-	smf_set_initial(SMF_CTX(&location_state), &states[STATE_RUNNING]);
+	smf_set_initial(SMF_CTX(&location_state), &states[STATE_WAITING_FOR_MODEM_INIT]);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
