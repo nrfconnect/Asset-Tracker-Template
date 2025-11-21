@@ -15,7 +15,12 @@
 #include <hw_id.h>
 
 #include "cloud.h"
+#include "cloud_mqtt_location.h"
+#if defined(CONFIG_APP_ENVIRONMENTAL)
+#include "cloud_mqtt_environmental.h"
+#endif /* CONFIG_APP_ENVIRONMENTAL */
 #include "network.h"
+#include "storage.h"
 #include "app_common.h"
 
 /* Define FOTA and Location channels to avoid build warning due to the module being patched out
@@ -46,9 +51,11 @@ BUILD_ASSERT(sizeof(CONFIG_APP_CLOUD_MQTT_CLIENT_ID) <= CONFIG_APP_CLOUD_MQTT_CL
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
 
-#define CHANNEL_LIST(X)						\
-		X(NETWORK_CHAN,	struct network_msg)		\
-		X(CLOUD_CHAN, struct cloud_msg)
+/* Define the channels that the module subscribes to and their associated message types. */
+#define CHANNEL_LIST(X)									\
+		X(NETWORK_CHAN,		struct network_msg)				\
+		X(CLOUD_CHAN,		struct cloud_msg)				\
+		X(STORAGE_DATA_CHAN,	struct storage_msg)
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
@@ -442,6 +449,53 @@ static void on_mqtt_puback(uint16_t message_id, int result)
 	}
 }
 
+static void handle_storage_data_message(const struct cloud_state *state_object)
+{
+	int err;
+	const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+
+	if (msg->type != STORAGE_DATA) {
+		return;
+	}
+
+	LOG_DBG("Storage data received, type: %d, size: %d", msg->data_type, msg->data_len);
+
+#if defined(CONFIG_APP_ENVIRONMENTAL)
+	if (msg->data_type == STORAGE_TYPE_ENVIRONMENTAL) {
+		struct environmental_msg env;
+
+		if (msg->data_len > sizeof(env)) {
+			LOG_ERR("Environmental data too large: %d bytes", msg->data_len);
+			return;
+		}
+
+		memcpy(&env, msg->buffer, msg->data_len);
+
+		err = cloud_mqtt_environmental_send(&env);
+		if (err) {
+			LOG_ERR("Failed to send environmental data, error: %d", err);
+		}
+		return;
+	}
+#endif /* CONFIG_APP_ENVIRONMENTAL */
+
+	if (msg->data_type == STORAGE_TYPE_LOCATION) {
+		struct location_msg loc;
+
+		if (msg->data_len > sizeof(loc)) {
+			LOG_ERR("Location data too large: %d bytes", msg->data_len);
+			return;
+		}
+
+		memcpy(&loc, msg->buffer, msg->data_len);
+
+		cloud_mqtt_location_handle_message(&loc);
+		return;
+	}
+
+	LOG_DBG("Unhandled storage data type: %d", msg->data_type);
+}
+
 /* Zephyr State Machine Framework handlers */
 
 /* Handler for STATE_RUNNING */
@@ -679,6 +733,12 @@ static enum smf_state_result state_connected_run(void *o)
 
 			return SMF_EVENT_HANDLED;
 		}
+	}
+
+	if (state_object->chan == &STORAGE_DATA_CHAN) {
+		handle_storage_data_message(state_object);
+
+		return SMF_EVENT_HANDLED;
 	}
 
 	return SMF_EVENT_PROPAGATE;
