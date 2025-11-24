@@ -309,21 +309,24 @@ static int charger_read_sensors(float *voltage, float *current, float *temp, int
 		return err;
 	}
 
-	*voltage = (float)value.val1 + ((float)value.val2 / 1000000);
+	*voltage = sensor_value_to_float(&value);
 
 	err = sensor_channel_get(charger, SENSOR_CHAN_GAUGE_TEMP, &value);
 	if (err) {
 		return err;
 	}
 
-	*temp = (float)value.val1 + ((float)value.val2 / 1000000);
+	*temp = sensor_value_to_float(&value);
 
 	err = sensor_channel_get(charger, SENSOR_CHAN_GAUGE_AVG_CURRENT, &value);
 	if (err) {
 		return err;
 	}
 
-	*current = (float)value.val1 + ((float)value.val2 / 1000000);
+	/* Zephyr sensor API returns current as negative for discharging, positive for charging
+	 * but nRF fuel gauge library expects opposite. Flip here for uniformity
+	 */
+	*current = -sensor_value_to_float(&value);
 
 	err = sensor_channel_get(charger, (enum sensor_channel)SENSOR_CHAN_NPM13XX_CHARGER_STATUS,
 			   &value);
@@ -365,6 +368,8 @@ static void sample(int64_t *ref_time)
 	LOG_DBG("State of charge: %f", (double)roundf(state_of_charge));
 	LOG_DBG("The battery is %s", charging ? "charging" : "not charging");
 	LOG_DBG("Battery voltage: %f V", (double)voltage);
+	LOG_DBG("Battery current: %f A", (double)current);
+	LOG_DBG("Battery temperature: %f C", (double)temp);
 
 	struct power_msg msg = {
 		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE,
