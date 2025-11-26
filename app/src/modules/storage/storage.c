@@ -51,10 +51,10 @@ BUILD_ASSERT(CONFIG_APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS >
  */
 
 /* Calculate maximum size needed for any message type */
-#define STORAGE_MSG_SIZE_OF_TYPE(_name, _chan, _msg_type, ...)	sizeof(_msg_type),
+#define STORAGE_MSG_UNION_MEMBER(_name, _chan, _msg_type, ...) _msg_type _name##_msg_member;
 
-#define STORAGE_MAX_MSG_SIZE_FROM_LIST(_DATA_SOURCE_LIST_LIST)	\
-	MAX_N(_DATA_SOURCE_LIST_LIST(STORAGE_MSG_SIZE_OF_TYPE) 0)
+#define STORAGE_MAX_MSG_SIZE_FROM_LIST(_DATA_SOURCE_LIST_LIST) \
+	sizeof(union {_DATA_SOURCE_LIST_LIST(STORAGE_MSG_UNION_MEMBER)})
 
 /* Use the larger of: largest message type or storage_msg struct */
 #define MAX_MSG_SIZE	MAX(STORAGE_MAX_MSG_SIZE_FROM_LIST(DATA_SOURCE_LIST), \
