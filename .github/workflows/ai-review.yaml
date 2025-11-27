@@ -9,7 +9,7 @@ permissions: write-all
 jobs:
   code_review:
     runs-on: ubuntu-latest
-    if: github.event.label.name == 'ai-review'
+    if: github.event.label.name == 'ai-review' && github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v3
