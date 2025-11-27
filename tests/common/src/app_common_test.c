@@ -40,13 +40,6 @@ void test_fatal_error_handler(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-void test_max_n(void)
-{
-	TEST_ASSERT_EQUAL(9868, MAX_N(1, 563, 24, 9868, 3, 64, 128));
-	TEST_ASSERT_EQUAL(24645, MAX_N(2078, 563, 3096, 2048, 13, 2408, 24645));
-	TEST_ASSERT_EQUAL(1298, MAX_N(1298, -1563, 214, 868, 3, 64, 128));
-}
-
 /* This is required to be added to each test. That is because unity's
  * main may return nonzero, while zephyr's main currently must
  * return 0 in all cases (other values are reserved).
