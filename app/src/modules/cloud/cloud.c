@@ -26,7 +26,6 @@
 #include "cloud.h"
 #include "cloud_internal.h"
 #include "cloud_provisioning.h"
-#include "cloud_location.h"
 #ifdef CONFIG_APP_ENVIRONMENTAL
 #include "cloud_environmental.h"
 #endif /* CONFIG_APP_ENVIRONMENTAL */
@@ -64,7 +63,6 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
 					 X(NETWORK_CHAN,	struct network_msg)		\
 					 X(CLOUD_CHAN,		struct cloud_msg)		\
 					 X(STORAGE_CHAN,	struct storage_msg)		\
-					 X(LOCATION_CHAN,	struct location_msg)		\
 					 X(STORAGE_DATA_CHAN,	struct storage_msg)
 
 /* Calculate the maximum message size from the list of channels */
@@ -416,16 +414,6 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 		return cloud_environmental_send(env, timestamp_ms, confirmable);
 	}
 #endif /* CONFIG_APP_ENVIRONMENTAL */
-
-#if defined(CONFIG_APP_LOCATION)
-	if (item->type == STORAGE_TYPE_LOCATION) {
-		const struct location_msg *loc = &item->data.LOCATION;
-
-		cloud_location_handle_message(loc);
-
-		return 0;
-	}
-#endif /* CONFIG_APP_LOCATION && CONFIG_LOCATION_METHOD_GNSS */
 
 	if (item->type == STORAGE_TYPE_NETWORK) {
 		const struct network_msg *net = &item->data.NETWORK;
@@ -875,22 +863,8 @@ static void state_connecting_provisioning_entry(void *obj)
 {
 	int err;
 	struct cloud_state_object *state_object = obj;
-	struct location_msg location_msg = {
-		.type = LOCATION_SEARCH_CANCEL,
-	};
 
 	LOG_DBG("%s", __func__);
-
-	/* Cancel any ongoing location search during provisioning to allow writing credentials,
-	 * which requires offline LTE functional mode.
-	 */
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-
-		SEND_FATAL_ERROR();
-		return;
-	}
 
 	state_object->provisioning_ongoing = true;
 
@@ -1116,20 +1090,6 @@ static enum smf_state_result state_connected_ready_run(void *obj)
 
 		return SMF_EVENT_HANDLED;
 	}
-
-#if defined(CONFIG_APP_LOCATION)
-	if (state_object->chan == &LOCATION_CHAN) {
-		const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
-
-		if (msg->type == LOCATION_AGNSS_REQUEST) {
-			LOG_DBG("A-GNSS data request received");
-
-			cloud_location_handle_message(msg);
-		}
-
-		return SMF_EVENT_HANDLED;
-	}
-#endif /* CONFIG_APP_LOCATION */
 
 	return SMF_EVENT_PROPAGATE;
 }

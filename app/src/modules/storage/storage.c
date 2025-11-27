@@ -24,9 +24,6 @@
 #ifdef CONFIG_APP_ENVIRONMENTAL
 #include "environmental.h"
 #endif
-#ifdef CONFIG_APP_LOCATION
-#include "location.h"
-#endif
 
 /* Register log module */
 LOG_MODULE_REGISTER(storage, CONFIG_APP_STORAGE_LOG_LEVEL);

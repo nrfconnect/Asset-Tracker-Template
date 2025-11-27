@@ -19,10 +19,6 @@
 #include "environmental.h"
 #endif
 
-#ifdef CONFIG_APP_LOCATION
-#include "location.h"
-#endif
-
 /**
  * @brief Register all enabled data types with the storage module
  *
@@ -56,28 +52,6 @@ void battery_extract(const struct power_msg *msg, double *data)
 	*data = msg->percentage;
 }
 #endif /* CONFIG_APP_POWER */
-
-/* Location module storage */
-#ifdef CONFIG_APP_LOCATION
-
-/* Provide functions used by storage module to check and extract data */
-bool location_check(const struct location_msg *msg)
-{
-	switch (msg->type) {
-	case LOCATION_GNSS_DATA:
-		__fallthrough;
-	case LOCATION_CLOUD_REQUEST:
-		return true;
-	default:
-		return false;
-	}
-}
-
-void location_extract(const struct location_msg *msg, struct location_msg *data)
-{
-	*data = *msg;
-}
-#endif /* CONFIG_APP_LOCATION */
 
 /* Environmental module storage */
 #ifdef CONFIG_APP_ENVIRONMENTAL

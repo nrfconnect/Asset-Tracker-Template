@@ -18,6 +18,20 @@ The Asset Tracker Template is a modular framework for developing IoT application
 It is built on the [nRF Connect SDK](https://www.nordicsemi.com/Products/Development-software/nRF-Connect-SDK) and [Zephyr RTOS](https://docs.zephyrproject.org/latest/), and provides a modular, event-driven architecture suitable for battery-powered IoT use cases.
 The framework supports features such as cloud connectivity, location tracking, and sensor data collection.
 
+> [!IMPORTANT]
+> **Stationary Use Case Branch**
+>
+> This branch is a **non-location version** of the Asset Tracker Template, optimized for stationary deployments such as metering and remote sensors. The location module has been completely removed to reduce memory footprint, simplify the application, and eliminate GPS hardware dependencies. This makes it ideal for use cases where geographic location tracking is not required.
+>
+> **Key differences from the main branch:**
+> - Location module removed (no GNSS, cellular, or Wi-Fi positioning)
+> - Faster sampling cycles (no 60-120s GNSS timeout)
+> - Reduced memory usage (~275+ bytes saved in storage buffer)
+> - LTE mode changed to `LTE_M_NBIOT` (GPS hardware disabled)
+> - Simplified state machine (immediate sensor sampling, no location waits)
+>
+> For the full-featured version with location tracking capabilities, see the main branch.
+
 The system is organized into modules, each responsible for a specific functionality, such as managing network connectivity, handling cloud communication, or collecting environmental data.
 Modules communicate through [zbus](https://docs.zephyrproject.org/latest/services/zbus/index.html) channels, ensuring loose coupling and maintainability.
 

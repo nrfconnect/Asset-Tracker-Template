@@ -19,7 +19,6 @@
 #include "network.h"
 #include "cloud.h"
 #include "fota.h"
-#include "location.h"
 #include "storage.h"
 #include "cbor_helper.h"
 
@@ -84,7 +83,6 @@ ZBUS_CHAN_DEFINE(TIMER_CHAN,
 	X(BUTTON_CHAN,		struct button_msg)		\
 	X(FOTA_CHAN,		enum fota_msg_type)		\
 	X(NETWORK_CHAN,		struct network_msg)		\
-	X(LOCATION_CHAN,	struct location_msg)		\
 	X(STORAGE_CHAN,		struct storage_msg)		\
 	X(TIMER_CHAN,		enum timer_msg_type)
 
@@ -107,6 +105,7 @@ static void timer_sample_start(uint32_t delay_sec);
 static void timer_send_data_start(uint32_t delay_sec);
 static void timer_sample_stop(void);
 static void timer_send_data_stop(void);
+static void sensor_triggers_send(void);
 
 /* Delayable work used to schedule triggers */
 static K_WORK_DELAYABLE_DEFINE(timer_send_data_work, timer_send_data_work_fn);
@@ -443,13 +442,10 @@ static void poll_triggers_send(void)
 
 static void sampling_begin_common(struct main_state *state_object)
 {
-	int err;
-	struct location_msg location_msg = {
-		.type = LOCATION_SEARCH_TRIGGER,
-	};
 	uint32_t current_time = k_uptime_seconds();
 	uint32_t time_elapsed = current_time - state_object->sample_start_time;
 
+	/* Enforce sampling interval (except for button press) */
 	if ((state_object->sample_start_time > 0) &&
 	    (time_elapsed < state_object->sample_interval_sec) &&
 	    (state_object->chan != &BUTTON_CHAN)) {
@@ -460,6 +456,7 @@ static void sampling_begin_common(struct main_state *state_object)
 	}
 
 #if defined(CONFIG_APP_LED)
+	int err;
 	struct led_msg led_msg = {
 		.type = LED_RGB_SET,
 		.red = 0,
@@ -481,14 +478,8 @@ static void sampling_begin_common(struct main_state *state_object)
 
 	state_object->sample_start_time = k_uptime_seconds();
 
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg,
-			    K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
-	if (err) {
-		LOG_ERR("Failed to publish location search trigger, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
+	/* Trigger sensor sampling directly - no location search needed for stationary use */
+	sensor_triggers_send();
 }
 
 static void waiting_entry_common(const struct main_state *state_object)
@@ -980,17 +971,10 @@ static enum smf_state_result buffer_disconnected_sampling_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
-	if (state_object->chan == &LOCATION_CHAN &&
-	    MSG_TO_LOCATION_TYPE(state_object->msg_buf) == LOCATION_SEARCH_DONE) {
+	/* Sensors already triggered in entry function - transition immediately to waiting */
+	smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_DISCONNECTED_WAITING]);
 
-		/* In buffer mode when disconnected, just queue sensor sampling */
-		sensor_triggers_send();
-		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_DISCONNECTED_WAITING]);
-
-		return SMF_EVENT_HANDLED;
-	}
-
-	/* Ignore other triggers while sampling */
+	/* Ignore button presses while sampling */
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
 		return SMF_EVENT_HANDLED;
@@ -1063,23 +1047,16 @@ static enum smf_state_result buffer_connected_sampling_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
-	if (state_object->chan == &LOCATION_CHAN &&
-	    MSG_TO_LOCATION_TYPE(state_object->msg_buf) == LOCATION_SEARCH_DONE) {
+	/* Sensors already triggered in entry function - transition immediately to waiting */
+	smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_CONNECTED_WAITING]);
 
-		/* In buffer mode when connected, sample all sensors */
-		sensor_triggers_send();
-		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_CONNECTED_WAITING]);
-
-		return SMF_EVENT_HANDLED;
-	}
-
-	/* Ignore other triggers while sampling */
+	/* Ignore button presses while sampling */
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
 		return SMF_EVENT_HANDLED;
 	}
 
-	/* Handle cloud timer */
+	/* Handle cloud timer during sampling */
 	if (state_object->chan == &TIMER_CHAN &&
 	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_CLOUD) {
 		timer_send_data_start(state_object->data_send_interval_sec);
@@ -1307,19 +1284,16 @@ static enum smf_state_result passthrough_connected_run(void *o)
 
 static void passthrough_connected_sampling_entry(void *o)
 {
-	int err;
-	struct location_msg location_msg = {
-		.type = LOCATION_SEARCH_TRIGGER,
-	};
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
 
-	/* Record history and the start time of sampling */
+	/* Record history and start time */
 	state_object->running_history = STATE_PASSTHROUGH_CONNECTED_SAMPLING;
 	state_object->sample_start_time = k_uptime_seconds();
 
 #if defined(CONFIG_APP_LED)
+	int err;
 	struct led_msg led_msg = {
 		.type = LED_RGB_SET,
 		.red = 0,
@@ -1339,37 +1313,25 @@ static void passthrough_connected_sampling_entry(void *o)
 	}
 #endif /* CONFIG_APP_LED */
 
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
-	if (err) {
-		LOG_ERR("Failed to publish location search trigger, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
+	/* Trigger sensor sampling directly - no location search needed */
+	sensor_triggers_send();
 }
 
 static enum smf_state_result passthrough_connected_sampling_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
-	if (state_object->chan == &LOCATION_CHAN &&
-	    MSG_TO_LOCATION_TYPE(state_object->msg_buf) == LOCATION_SEARCH_DONE) {
+	/* Sensors already triggered in entry function - transition immediately to waiting */
+	poll_triggers_send();
+	smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH_CONNECTED_WAITING]);
 
-		/* In passthrough mode, send data immediately after sampling */
-		sensor_triggers_send();
-		poll_triggers_send();
-		smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH_CONNECTED_WAITING]);
-
-		return SMF_EVENT_HANDLED;
-	}
-
-	/* Ignore other triggers while sampling */
+	/* Ignore button presses while sampling */
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
 		return SMF_EVENT_HANDLED;
 	}
 
-	return SMF_EVENT_PROPAGATE;
+	return SMF_EVENT_HANDLED;
 }
 
 /* STATE_PASSTHROUGH_CONNECTED_WAITING */
