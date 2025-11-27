@@ -110,14 +110,14 @@
 			<text x="31.88" y="424.54" class="st11" v:langID="1044"><v:paragraph v:horizAlign="1" v:bulletSize="0.166667"/><v:tabList/><v:newlineChar/>STATE_DISCONNECTED_SEARCHING<v:newlineChar/><v:newlineChar/></text>		</g>
 		<g id="shape12-23" v:mID="12" v:groupContext="shape" transform="translate(70.9384,-252.346)">
 			<title>Ellipse.1151</title>
-			<desc>STATE_DISCONNECTED_IDEAL NETWORK_SYSTEM_MODE_SET_* / set_sys_...</desc>
+			<desc>STATE_DISCONNECTED_IDLE NETWORK_SYSTEM_MODE_SET_* / set_sys_...</desc>
 			<v:userDefs>
 				<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
 			</v:userDefs>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:verticalAlign="0"/>
 			<v:textRect cx="100.561" cy="435.343" width="175.99" height="63.2084"/>
 			<path d="M0 435.34 A100.561 36.1191 0 0 1 201.12 435.34 A100.561 36.1191 0 1 1 0 435.34 Z" class="st10"/>
-			<text x="39.66" y="424.54" class="st11" v:langID="1035"><v:paragraph v:horizAlign="1" v:bulletSize="0.166667"/><v:tabList/><v:newlineChar/>STATE_DISCONNECTED_IDEAL<v:newlineChar/><v:newlineChar/><tspan
+			<text x="39.66" y="424.54" class="st11" v:langID="1035"><v:paragraph v:horizAlign="1" v:bulletSize="0.166667"/><v:tabList/><v:newlineChar/>STATE_DISCONNECTED_IDLE<v:newlineChar/><v:newlineChar/><tspan
 						x="31.21" dy="2.4em" class="st12">NETWORK_SYSTEM_MODE_SET_* / </tspan><tspan x="72.11" dy="1.2em"
 						class="st12">set_sys_mode()</tspan></text>		</g>
 		<g id="shape13-28" v:mID="13" v:groupContext="shape" transform="translate(233.931,-413.061)">
