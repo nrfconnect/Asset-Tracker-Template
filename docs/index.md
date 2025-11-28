@@ -29,7 +29,7 @@ If you are not familiar with the nRF91 Series SiPs and cellular in general, it i
 
 For detailed setup instructions using the [nRF Connect for VS Code extension](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) and advanced configuration options, see the [Getting Started Guide](docs/common/getting_started.md).
 
-For pre-built binaries, refer to the latest tag and release artifacts documentation; [release artifacts](docs/common/release.md).
+For pre-built binaries, refer to the latest tag and the [release artifacts](common/release.md) documentation.
 
 > [!TIP]
 > Download and run the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in the [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop) for a guided setup and provisioning process.
