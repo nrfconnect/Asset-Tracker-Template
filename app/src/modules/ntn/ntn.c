@@ -73,6 +73,7 @@ struct ntn_state_object {
 	bool gnss_initialized;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
 	int sock_fd;
+	uint64_t location_validity_end_time;
 };
 
 static struct k_work timer_work;
@@ -256,6 +257,15 @@ static int set_ntn_dormant_mode(void)
 static int set_ntn_active_mode(struct ntn_state_object *state)
 {
 	int err;
+	uint32_t location_validity_time;
+	uint64_t current_time = k_uptime_get();
+
+	if (state->location_validity_end_time > current_time) {
+		location_validity_time =
+			(uint32_t)(state->location_validity_end_time - current_time) / MSEC_PER_SEC;
+	} else {
+		location_validity_time = 1;
+	}
 
 	if (state->ntn_initialized) {
 		/* Configure NTN system mode */
@@ -272,6 +282,16 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
 		if (err) {
 			LOG_ERR("lte_lc_func_mode_set, error: %d", err);
+
+			return err;
+		}
+
+		err = ntn_location_set((double)state->last_pvt.latitude,
+				       (double)state->last_pvt.longitude,
+				       (float)state->last_pvt.altitude,
+				       location_validity_time);
+		if (err) {
+			LOG_ERR("Failed to set location, error: %d", err);
 
 			return err;
 		}
@@ -319,7 +339,8 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 
 		err = ntn_location_set((double)state->last_pvt.latitude,
 				       (double)state->last_pvt.longitude,
-				       (float)state->last_pvt.altitude, 0);
+				       (float)state->last_pvt.altitude,
+				       location_validity_time);
 		if (err) {
 			LOG_ERR("Failed to set location, error: %d", err);
 
@@ -654,7 +675,16 @@ static enum smf_state_result state_running_run(void *obj)
 		}
 
 		if (msg->type == NTN_LOCATION_REQUEST) {
-			LOG_DBG("NTN location requested");
+			uint64_t current_time = k_uptime_get();
+
+			if (current_time < state->location_validity_end_time) {
+				LOG_DBG("NTN location is still valid, skipping location request");
+
+				return SMF_EVENT_HANDLED;
+			}
+
+			LOG_DBG("NTN location requested, location is invalid, going to GNSS mode");
+
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 
 			return SMF_EVENT_HANDLED;
@@ -705,6 +735,10 @@ static enum smf_state_result state_gnss_run(void *obj)
 		case NTN_LOCATION_SEARCH_DONE:
 			/* Location search completed, transition to NTN mode */
 			memcpy(&state->last_pvt, &msg->pvt, sizeof(state->last_pvt));
+
+			state->location_validity_end_time =
+				k_uptime_get() +
+				CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS * MSEC_PER_SEC;
 
 			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
 
