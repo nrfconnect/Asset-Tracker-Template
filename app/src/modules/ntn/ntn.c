@@ -355,7 +355,7 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 
 		k_sleep(K_MSEC(5000));
 
-		LOG_DBG("NTN not initialized, using lte_lc_connect_async to connect to network");
+		LOG_DBG("NTN now initialized, using lte_lc_connect_async to connect to network");
 
 		err = lte_lc_connect_async(lte_lc_evt_handler);
 		if (err) {
@@ -648,13 +648,24 @@ static enum smf_state_result state_running_run(void *obj)
 			k_timer_start(&state->ntn_timer,
 				      K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES),
 				      K_NO_WAIT);
+			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
+
+			return SMF_EVENT_HANDLED;
+		}
+
+		if (msg->type == NTN_LOCATION_REQUEST) {
+			LOG_DBG("NTN location requested");
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
+
+			return SMF_EVENT_HANDLED;
 		}
 	} else if (state->chan == &BUTTON_CHAN) {
 		k_timer_start(&state->ntn_timer,
 			      K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES),
 			      K_NO_WAIT);
-		smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
+		smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
+
+		return SMF_EVENT_HANDLED;
 	}
 
 	return SMF_EVENT_PROPAGATE;
@@ -690,17 +701,29 @@ static enum smf_state_result state_gnss_run(void *obj)
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
-		if (msg->type == NTN_LOCATION_SEARCH_DONE) {
+		switch (msg->type) {
+		case NTN_LOCATION_SEARCH_DONE:
 			/* Location search completed, transition to NTN mode */
 			memcpy(&state->last_pvt, &msg->pvt, sizeof(state->last_pvt));
 
 			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
-		} else if (msg->type == GNSS_SEARCH_FAILED) {
+
+			return SMF_EVENT_HANDLED;
+
+		case GNSS_SEARCH_FAILED:
 			LOG_ERR("GNSS search failed, going to idle state");
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+			return SMF_EVENT_HANDLED;
+
+		case NTN_LOCATION_REQUEST:
+			LOG_DBG("NTN location requested, already in GNSS mode");
+
+			return SMF_EVENT_HANDLED;
+		default:
+			break;
 		}
 	}
-
 	return SMF_EVENT_PROPAGATE;
 }
 
@@ -820,20 +843,9 @@ static void state_idle_entry(void *obj)
 
 static enum smf_state_result state_idle_run(void *obj)
 {
-	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
-
-	if (state->chan == &NTN_CHAN) {
-		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
-
-		if (msg->type == NTN_LOCATION_REQUEST) {
-			LOG_DBG("NTN location requested");
-			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
-		}
-
-		return SMF_EVENT_HANDLED;
-	}
 
 	return SMF_EVENT_PROPAGATE;
 }
