@@ -302,6 +302,12 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 			.uicc = LTE_LC_UICC_PHYSICAL,
 		};
 
+		struct lte_lc_cellular_profile tn_profile = {
+			.id = 1,
+			.act = LTE_LC_ACT_LTEM || LTE_LC_ACT_NBIOT,
+			.uicc = LTE_LC_UICC_PHYSICAL,
+		};
+
 		/* Power off modem */
 		err = lte_lc_power_off();
 		if (err) {
@@ -314,6 +320,14 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 		err = lte_lc_cellular_profile_configure(&ntn_profile);
 		if (err) {
 			LOG_ERR("Failed to set NTN profile, error: %d", err);
+
+			return err;
+		}
+
+		/* Set TN profile */
+		err = lte_lc_cellular_profile_configure(&tn_profile);
+		if (err) {
+			LOG_ERR("Failed to set TN profile, error: %d", err);
 
 			return err;
 		}
