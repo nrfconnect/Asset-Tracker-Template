@@ -17,11 +17,18 @@ extern "C" {
 
 /* NTN module message types */
 enum ntn_msg_type {
-	/* Events that trigger state transitions */
-	NTN_LOCATION_SEARCH_DONE, /* Location search completed - triggers transition to NTN mode */
-	NTN_TIMEOUT,              /* NTN mode timeout occurred - triggers transition to GNSS mode */
-	NTN_NETWORK_CONNECTED,    /* Network connectivity established */
-	GNSS_SEARCH_FAILED,       /* GNSS search failed */
+	/* NTN location request received */
+	NTN_LOCATION_REQUEST,
+	/* NTN location search completed */
+	NTN_LOCATION_SEARCH_DONE,
+	/* NTN mode timeout occurred */
+	NTN_TIMEOUT,
+	/* Network connectivity established */
+	NTN_NETWORK_CONNECTED,
+	/* Network connectivity lost */
+	NTN_NETWORK_DISCONNECTED,
+	/* GNSS search failed */
+	GNSS_SEARCH_FAILED,
 };
 
 /* NTN module message */
