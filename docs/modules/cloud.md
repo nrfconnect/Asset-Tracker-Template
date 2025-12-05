@@ -22,7 +22,7 @@ The cloud module subscribes to the `STORAGE_CHAN` and `STORAGE_DATA_CHAN` channe
 
 - **Passthrough/flush flow**: The cloud module receives `STORAGE_DATA` on `STORAGE_DATA_CHAN` and forwards the contained data to nRF Cloud.
 
-The periodic request interval for buffered data can be configured with the `CONFIG_APP_STORAGE_DATA_SEND_INTERVAL_SECONDS` Kconfig option in the `Kconfig.main` file.
+The periodic request interval for buffered data can be configured with the `CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS` Kconfig option in the `Kconfig.main` file.
 
 ## Messages
 

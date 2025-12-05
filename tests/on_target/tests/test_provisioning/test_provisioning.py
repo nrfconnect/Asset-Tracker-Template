@@ -145,6 +145,43 @@ def _wait_for_provisioning_completion_and_cloud_connection(
     logger.info("Device provisioned and connected to nRF Cloud.")
 
 
+def _verify_device_config_reported_to_cloud(dut_cloud, timeout: int = 180):
+    """
+    Verifies that the device has reported its configuration to the cloud shadow.
+    Checks for update_interval, sample_interval, and buffer_mode in the reported section.
+    """
+    logger.info("Verifying device configuration is reported to cloud shadow...")
+
+    start = time.time()
+    while time.time() - start < timeout:
+        time.sleep(5)
+        try:
+            device = dut_cloud.cloud.get_device(dut_cloud.device_id)
+            device_state = device["state"]
+            update_interval = device_state["reported"]["config"]["update_interval"]
+            sample_interval = device_state["reported"]["config"]["sample_interval"]
+            buffer_mode = device_state["reported"]["config"]["buffer_mode"]
+
+            logger.info(
+                f"Device configuration reported to cloud: "
+                f"update_interval={update_interval}, "
+                f"sample_interval={sample_interval}, "
+                f"buffer_mode={buffer_mode}"
+            )
+            return
+
+        except (KeyError, TypeError) as e:
+            logger.debug(
+                f"Configuration not fully reported yet. Waiting... ({e})"
+            )
+        except Exception as e:
+            logger.warning(f"Error retrieving device state from cloud: {e}")
+
+    raise RuntimeError(
+        f"Device configuration was not reported to cloud shadow within {timeout} seconds"
+    )
+
+
 def _trigger_device_reprovisioning_with_new_credentials(dut_cloud, sec_tag: int):
     """
     Initiates the reprovisioning process on the device by:
@@ -223,6 +260,7 @@ def _run_initial_provisioning(dut_cloud, hex_file):
     _connect_to_network_and_wait_for_claiming_prompt(dut_cloud)
     _claim_device_on_nrf_cloud(dut_cloud, attestation_token)
     _wait_for_provisioning_completion_and_cloud_connection(dut_cloud)
+    _verify_device_config_reported_to_cloud(dut_cloud)
 
     logger.info("--- Phase 1: Initial Device Provisioning Completed Successfully ---")
 
@@ -235,6 +273,7 @@ def _run_reprovisioning(dut_cloud):
     _trigger_device_reprovisioning_with_new_credentials(dut_cloud, SEC_TAG)
     # Wait for the device to process the command, reprovision, and reconnect
     _wait_for_provisioning_completion_and_cloud_connection(dut_cloud, timeout=300)
+    _verify_device_config_reported_to_cloud(dut_cloud)
 
     logger.info(
         "--- Phase 2: Reprovisioning with New Credentials Completed Successfully ---"

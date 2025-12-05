@@ -47,7 +47,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
 enum timer_msg_type {
 	/* Timer for sampling data has expired.
 	 * This timer is used to trigger the sampling of data from the sensors.
-	 * The timer is set to expire every CONFIG_APP_SENSOR_SAMPLING_INTERVAL_SECONDS seconds,
+	 * The timer is set to expire every CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS,
 	 * and can be overridden from the cloud.
 	 * If the storage module is in passthrough mode, expiry of this timer will also trigger
 	 * polling of the cloud shadow and FOTA status.
@@ -60,6 +60,12 @@ enum timer_msg_type {
 	 * and can be overridden from the cloud.
 	 */
 	TIMER_EXPIRED_CLOUD,
+
+	/* Configuration has changed, timers need to be restarted with new intervals.
+	 * This internal event is used to signal that interval configuration has been updated
+	 * and any active timers should be restarted to apply the new values.
+	 */
+	TIMER_CONFIG_CHANGED,
 };
 
 ZBUS_CHAN_DEFINE(TIMER_CHAN,
@@ -234,8 +240,8 @@ struct main_state {
 	/* Trigger interval */
 	uint32_t sample_interval_sec;
 
-	/* Data sending interval */
-	uint32_t data_send_interval_sec;
+	/* Update interval, how often the device synchronizes with the cloud */
+	uint32_t update_interval_sec;
 
 	/* Start time of the most recent sampling. This is used to calculate the correct
 	 * time when scheduling the next sampling trigger.
@@ -249,6 +255,9 @@ struct main_state {
 	 * Needed to transition to the correct state when coming back from FOTA.
 	 */
 	enum state running_history;
+
+	/* Flag to track if shadow has been polled on initial connection */
+	bool shadow_polled_on_connect;
 };
 
 #if defined(CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH)
@@ -414,13 +423,18 @@ static void task_wdt_callback(int channel_id, void *user_data)
 
 /* Helper functions shared across state handlers */
 
-static void poll_triggers_send(void)
+static void poll_shadow_send(enum cloud_msg_type type)
 {
 	int err;
 	struct cloud_msg cloud_msg = {
-		.type = CLOUD_POLL_SHADOW
+		.type = type
 	};
-	enum fota_msg_type fota_msg = FOTA_POLL_REQUEST;
+
+	if ((type != CLOUD_SHADOW_GET_DESIRED) &&
+	    (type != CLOUD_SHADOW_GET_DELTA)) {
+		LOG_ERR("Invalid event: %d", type);
+		return;
+	}
 
 	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 	if (err) {
@@ -429,6 +443,12 @@ static void poll_triggers_send(void)
 
 		return;
 	}
+}
+
+static void poll_triggers_send(void)
+{
+	int err;
+	enum fota_msg_type fota_msg = FOTA_POLL_REQUEST;
 
 	err = zbus_chan_pub(&FOTA_CHAN, &fota_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 	if (err) {
@@ -437,6 +457,9 @@ static void poll_triggers_send(void)
 
 		return;
 	}
+
+	/* Get the latest device configuration by polling the desired section of the shadow */
+	poll_shadow_send(CLOUD_SHADOW_GET_DELTA);
 }
 
 /* Common helpers for buffer-mode substates */
@@ -611,7 +634,7 @@ static void cloud_send_now(struct main_state *state_object)
 {
 	storage_send_data(state_object);
 	poll_triggers_send();
-	timer_send_data_start(state_object->data_send_interval_sec);
+	timer_send_data_start(state_object->update_interval_sec);
 }
 
 /* Delayable work used to send messages on the TIMER_CHAN */
@@ -693,74 +716,177 @@ static void timer_send_data_stop(void)
 	}
 }
 
-/**
- * @brief Handle cloud shadow response
- *
- * Processes shadow updates to adjust sampling intervals based on
- * cloud configuration.
- */
-static void handle_cloud_shadow_response(struct main_state *state_object,
-					 const struct cloud_msg *msg)
+static void update_shadow_reported_section(const struct config_params *config,
+					   uint32_t command_type,
+					   uint32_t command_id)
 {
 	int err;
-	uint32_t command_type = UINT32_MAX;
-	uint32_t interval_sec = UINT32_MAX;
+	struct cloud_msg cloud_msg = {
+		.type = CLOUD_SHADOW_UPDATE_REPORTED,
+	};
+	size_t encoded_len;
 
-	err = get_parameters_from_cbor_response(
-		msg->response.buffer,
-		msg->response.buffer_data_len,
-		&interval_sec,
-		&command_type);
+	err = encode_shadow_parameters_to_cbor(config,
+					       command_type,
+					       command_id,
+					       cloud_msg.payload.buffer,
+					       sizeof(cloud_msg.payload.buffer),
+					       &encoded_len);
 	if (err) {
-		LOG_ERR("Failed to parse shadow response interval, error: %d", err);
+		LOG_ERR("encode_shadow_parameters_to_cbor, error: %d", err);
+		return;
+	}
+
+	cloud_msg.payload.buffer_data_len = encoded_len;
+
+	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to publish config report, error: %d", err);
+		SEND_FATAL_ERROR();
 
 		return;
 	}
 
-	/* Set new interval if valid */
-	if (interval_sec != UINT32_MAX) {
-		state_object->sample_interval_sec = interval_sec;
+	LOG_DBG("Configuration reported: update_interval=%d, sample_interval=%d, mode=%s",
+		config->update_interval, config->sample_interval,
+		config->buffer_mode ? "buffer" : "passthrough");
+}
 
-		LOG_DBG("Received new interval: %d seconds", state_object->sample_interval_sec);
+static void config_apply(struct main_state *state_object, const struct config_params *config)
+{
+	int err;
+	struct storage_msg storage_msg = {
+		.type = STORAGE_MODE_PASSTHROUGH_REQUEST,
+	};
+	bool interval_changed = false;
 
-		timer_sample_start(state_object->sample_interval_sec);
-	}
-
-	/* For commands, only process delta responses. This avoids executing commands that may still
-	 * persist in the shadow's desired section. Delta responses only include new
-	 * commands, since the device clears received commands by reporting them in
-	 * the reported section of the shadow.
-	 */
-	if ((msg->type != CLOUD_SHADOW_RESPONSE_DELTA) && (command_type != UINT32_MAX)) {
+	if (!config->sample_interval &&
+	    !config->update_interval &&
+	    !config->buffer_mode_valid) {
+		LOG_DBG("No configuration parameters to update");
 		return;
 	}
 
-	LOG_DBG("Received command ID: %d, translated to %s", command_type,
-		(command_type == CLOUD_COMMAND_TYPE_PROVISION) ?
-		"CLOUD_COMMAND_TYPE_PROVISION" :
-		(command_type == CLOUD_COMMAND_TYPE_REBOOT) ?
-		"CLOUD_COMMAND_TYPE_REBOOT" : "UNKNOWN");
+	if (config->sample_interval &&
+	    config->sample_interval != state_object->sample_interval_sec) {
+		LOG_DBG("Updating sample interval to %d seconds", config->sample_interval);
+		state_object->sample_interval_sec = config->sample_interval;
+		interval_changed = true;
+	}
 
-	/* Check for known commands */
-	if (command_type == CLOUD_COMMAND_TYPE_PROVISION) {
+	if (config->update_interval &&
+	    config->update_interval != state_object->update_interval_sec) {
+		LOG_DBG("Updating update interval to %d seconds", config->update_interval);
+		state_object->update_interval_sec = config->update_interval;
+		interval_changed = true;
+	}
 
+	if (config->buffer_mode && config->buffer_mode_valid) {
+		LOG_DBG("Switching to buffer mode");
+		storage_msg.type = STORAGE_MODE_BUFFER_REQUEST;
+	}
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to publish storage mode change request, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+
+	/* Notify waiting states that configuration has changed and timers need restart */
+	if (interval_changed) {
+		enum timer_msg_type timer_msg = TIMER_CONFIG_CHANGED;
+
+		/* Reset sample start time so re-entering waiting state uses full new interval */
+		state_object->sample_start_time = k_uptime_seconds();
+
+		err = zbus_chan_pub(&TIMER_CHAN, &timer_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+		if (err) {
+			LOG_ERR("Failed to publish timer config changed event, error: %d", err);
+			SEND_FATAL_ERROR();
+
+			return;
+		}
+	}
+}
+
+static void command_execute(struct main_state *state_object, uint32_t command_type)
+{
+	switch (command_type) {
+	case CLOUD_COMMAND_TYPE_PROVISION:
+		LOG_DBG("Received provisioning command from cloud, requesting reprovisioning...");
 		struct cloud_msg cloud_msg = {
 			.type = CLOUD_PROVISIONING_REQUEST,
 		};
+		int err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
 
-		err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
 		if (err) {
 			LOG_ERR("zbus_chan_pub, error: %d", err);
 			SEND_FATAL_ERROR();
+
 			return;
 		}
-	} else if (command_type == CLOUD_COMMAND_TYPE_REBOOT) {
-		LOG_WRN("Received command ID: %d", command_type);
+		break;
+	default:
+		LOG_DBG("No valid command to process");
+		return;
+	}
+}
 
-		/* Flush the log buffer and wait a few seconds before rebooting */
-		LOG_PANIC();
-		k_sleep(K_SECONDS(2));
-		sys_reboot(SYS_REBOOT_COLD);
+static void handle_cloud_shadow_response(struct main_state *state_object,
+					 const struct cloud_msg *msg,
+					 bool buffer_mode)
+{
+	int err;
+	struct config_params config = { 0 };
+	uint32_t command_type = 0;
+	uint32_t command_id = 0;
+
+	err = decode_shadow_parameters_from_cbor(msg->response.buffer,
+						 msg->response.buffer_data_len,
+						 &config,
+						 &command_type,
+						 &command_id);
+	if (err) {
+		LOG_ERR("Failed to parse shadow response, error: %d", err);
+		/* Don't treat shadow configuration errors as fatal as they can occur if the
+		 * format of the shadow changes.
+		 */
+		return;
+	}
+
+	config_apply(state_object, &config);
+
+	/* Only report the configuration values that were actually applied by the application.
+	 * Some parameters may be ignored or partially updated, so only the effective values
+	 * should be reported back to the cloud.
+	 */
+	config.sample_interval = state_object->sample_interval_sec;
+	config.update_interval = state_object->update_interval_sec;
+
+	/* Only process commands from delta responses, not from desired responses.
+	 * This prevents re-executing commands that may still exist in the shadow's
+	 * desired section. Delta responses only contain new/unprocessed commands
+	 * because the device reports executed commands back to the cloud, which
+	 * removes them from future deltas.
+	 *
+	 * Report the command back to the cloud before executing it. The cloud module
+	 * processes messages sequentially and nrf_cloud_coap_patch() blocks until
+	 * acknowledged, ensuring the shadow update completes before the provisioning
+	 * request is processed. The delay below gives the nRF Cloud backend additional
+	 * time to propagate the shadow update internally before the device reconnects
+	 * after provisioning.
+	 */
+	if (msg->type == CLOUD_SHADOW_RESPONSE_DELTA) {
+		update_shadow_reported_section(&config, command_type, command_id);
+		k_sleep(K_SECONDS(1));
+		command_execute(state_object, command_type);
+	} else {
+		/* For desired responses (initial shadow poll), only report config without
+		 * commands since we haven't executed any new commands.
+		 */
+		update_shadow_reported_section(&config, 0, 0);
 	}
 }
 
@@ -800,7 +926,7 @@ static void buffer_mode_entry(void *o)
 	/* Reset sample start time to allow immediate sampling when changing operation mode */
 	state_object->sample_start_time = 0;
 
-	timer_send_data_start(state_object->data_send_interval_sec);
+	timer_send_data_start(state_object->update_interval_sec);
 }
 
 static enum smf_state_result buffer_mode_run(void *o)
@@ -879,7 +1005,7 @@ static enum smf_state_result buffer_disconnected_run(void *o)
 	/* Restart cloud send timer while disconnected */
 	if (state_object->chan == &TIMER_CHAN &&
 	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_CLOUD) {
-		timer_send_data_start(state_object->data_send_interval_sec);
+		timer_send_data_start(state_object->update_interval_sec);
 
 		return SMF_EVENT_HANDLED;
 	}
@@ -907,6 +1033,12 @@ static void buffer_connected_entry(void *o)
 	LOG_DBG("%s", __func__);
 
 	state_object->running_history = STATE_BUFFER_CONNECTED;
+
+	/* Get the latest device configuration by polling the desired section of the shadow. */
+	if (!state_object->shadow_polled_on_connect) {
+		poll_shadow_send(CLOUD_SHADOW_GET_DESIRED);
+		state_object->shadow_polled_on_connect = true;
+	}
 }
 
 static enum smf_state_result buffer_connected_run(void *o)
@@ -925,9 +1057,22 @@ static enum smf_state_result buffer_connected_run(void *o)
 		case CLOUD_SHADOW_RESPONSE_DESIRED:
 			__fallthrough;
 		case CLOUD_SHADOW_RESPONSE_DELTA:
-			handle_cloud_shadow_response(state_object, msg);
+			handle_cloud_shadow_response(state_object, msg, true);
 
 			break;
+		case CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED:
+			LOG_DBG("Received empty shadow response from cloud");
+
+			struct config_params config = {
+				.update_interval = state_object->update_interval_sec,
+				.sample_interval = state_object->sample_interval_sec,
+				.buffer_mode = true,
+				.buffer_mode_valid = true,
+			};
+
+			update_shadow_reported_section(&config, 0, 0);
+
+			return SMF_EVENT_HANDLED;
 		default:
 			break;
 		}
@@ -1016,16 +1161,29 @@ static enum smf_state_result buffer_disconnected_waiting_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
-	if (state_object->chan == &TIMER_CHAN &&
-	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_SAMPLE_DATA) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_DISCONNECTED_SAMPLING]);
+	if (state_object->chan == &TIMER_CHAN) {
+		enum timer_msg_type timer_type = MSG_TO_TIMER_TYPE(state_object->msg_buf);
 
-		return SMF_EVENT_HANDLED;
+		if (timer_type == TIMER_EXPIRED_SAMPLE_DATA) {
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_BUFFER_DISCONNECTED_SAMPLING]);
+
+			return SMF_EVENT_HANDLED;
+		}
+
+		if (timer_type == TIMER_CONFIG_CHANGED) {
+			/* Re-enter state to restart timer with new interval */
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_BUFFER_DISCONNECTED_WAITING]);
+
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_DISCONNECTED_SAMPLING]);
+		smf_set_state(SMF_CTX(state_object),
+			      &states[STATE_BUFFER_DISCONNECTED_SAMPLING]);
 
 		return SMF_EVENT_HANDLED;
 	}
@@ -1082,7 +1240,7 @@ static enum smf_state_result buffer_connected_sampling_run(void *o)
 	/* Handle cloud timer */
 	if (state_object->chan == &TIMER_CHAN &&
 	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_CLOUD) {
-		timer_send_data_start(state_object->data_send_interval_sec);
+		timer_send_data_start(state_object->update_interval_sec);
 		storage_send_data(state_object);
 		poll_triggers_send();
 
@@ -1119,7 +1277,15 @@ static enum smf_state_result buffer_connected_waiting_run(void *o)
 		if (timer_type == TIMER_EXPIRED_CLOUD) {
 			storage_send_data(state_object);
 			poll_triggers_send();
-			timer_send_data_start(state_object->data_send_interval_sec);
+			timer_send_data_start(state_object->update_interval_sec);
+
+			return SMF_EVENT_HANDLED;
+		}
+
+		if (timer_type == TIMER_CONFIG_CHANGED) {
+			/* Re-enter state to restart timer with new interval */
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_BUFFER_CONNECTED_WAITING]);
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -1187,12 +1353,6 @@ static enum smf_state_result passthrough_mode_run(void *o)
 		case CLOUD_CONNECTED:
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]);
-
-			return SMF_EVENT_HANDLED;
-		case CLOUD_SHADOW_RESPONSE_DESIRED:
-			__fallthrough;
-		case CLOUD_SHADOW_RESPONSE_DELTA:
-			handle_cloud_shadow_response(state_object, msg);
 
 			return SMF_EVENT_HANDLED;
 		default:
@@ -1279,14 +1439,51 @@ static enum smf_state_result passthrough_disconnected_run(void *o)
 
 static void passthrough_connected_entry(void *o)
 {
-	ARG_UNUSED(o);
+	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
+
+	state_object->running_history = STATE_PASSTHROUGH_CONNECTED;
+
+	/* Get the latest device configuration by polling the desired section of the shadow. */
+	if (!state_object->shadow_polled_on_connect) {
+		poll_shadow_send(CLOUD_SHADOW_GET_DESIRED);
+		state_object->shadow_polled_on_connect = true;
+	}
 }
 
 static enum smf_state_result passthrough_connected_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
+
+	/* Handle cloud shadow responses */
+	if (state_object->chan == &CLOUD_CHAN) {
+		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
+
+		switch (msg->type) {
+		case CLOUD_SHADOW_RESPONSE_DESIRED:
+			__fallthrough;
+		case CLOUD_SHADOW_RESPONSE_DELTA:
+			handle_cloud_shadow_response(state_object, msg, false);
+
+			return SMF_EVENT_HANDLED;
+		case CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED:
+			LOG_DBG("Received empty shadow response from cloud");
+
+			struct config_params config = {
+				.update_interval = state_object->update_interval_sec,
+				.sample_interval = state_object->sample_interval_sec,
+				.buffer_mode = false,
+				.buffer_mode_valid = true,
+			};
+
+			update_shadow_reported_section(&config, 0, 0);
+
+			return SMF_EVENT_HANDLED;
+		default:
+			break;
+		}
+	}
 
 	if (state_object->chan == &STORAGE_CHAN) {
 		const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
@@ -1382,10 +1579,11 @@ static void passthrough_connected_waiting_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	if (time_elapsed > state_object->sample_interval_sec) {
+	/* In passthrough mode, use update_interval (update_interval_sec) for sampling */
+	if (time_elapsed > state_object->update_interval_sec) {
 		time_remaining = 0;
 	} else {
-		time_remaining = state_object->sample_interval_sec - time_elapsed;
+		time_remaining = state_object->update_interval_sec - time_elapsed;
 	}
 
 	LOG_DBG("Passthrough mode: next trigger in %d seconds", time_remaining);
@@ -1417,16 +1615,29 @@ static enum smf_state_result passthrough_connected_waiting_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
-	if (state_object->chan == &TIMER_CHAN &&
-	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_SAMPLE_DATA) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]);
+	if (state_object->chan == &TIMER_CHAN) {
+		enum timer_msg_type timer_type = MSG_TO_TIMER_TYPE(state_object->msg_buf);
 
-		return SMF_EVENT_HANDLED;
+		if (timer_type == TIMER_EXPIRED_SAMPLE_DATA) {
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]);
+
+			return SMF_EVENT_HANDLED;
+		}
+
+		if (timer_type == TIMER_CONFIG_CHANGED) {
+			/* Re-enter state to restart timer with new interval */
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_PASSTHROUGH_CONNECTED_WAITING]);
+
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]);
+		smf_set_state(SMF_CTX(state_object),
+			      &states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]);
 
 		return SMF_EVENT_HANDLED;
 	}
@@ -1740,8 +1951,8 @@ int main(void)
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	struct main_state main_state = { 0 };
 
-	main_state.sample_interval_sec = CONFIG_APP_SENSOR_SAMPLING_INTERVAL_SECONDS;
-	main_state.data_send_interval_sec = CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS;
+	main_state.sample_interval_sec = CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS;
+	main_state.update_interval_sec = CONFIG_APP_CLOUD_SYNC_INTERVAL_SECONDS;
 
 	LOG_DBG("Main has started");
 
