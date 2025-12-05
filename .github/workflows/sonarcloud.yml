@@ -63,8 +63,8 @@ jobs:
         run: |
           west twister -T tests/ --enable-coverage --coverage-platform=native_sim -v --inline-logs --integration --enable-asan --enable-lsan --enable-ubsan
 
-      - name: Install sonar-scanner and build-wrapper
-        uses: SonarSource/sonarcloud-github-c-cpp@v3
+      - name: Install Build Wrapper
+        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v6.0.0
 
       - name: Build and test
         working-directory: asset-tracker-template
@@ -76,23 +76,26 @@ jobs:
         run: |
           gcovr twister-out -v --merge-mode-functions=separate --exclude='twister-out|drivers' --sonarqube coverage.xml
 
-      - name: Run sonar-scanner on main
-        working-directory: asset-tracker-template
+      - name: SonarQube Scan on main
         if: github.event_name != 'pull_request'
+        uses: SonarSource/sonarqube-scan-action@v6.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          sonar-scanner \
-            --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}" \
-            --define project.settings=sonar-project.properties \
-            --define sonar.coverageReportPaths=coverage.xml \
-            --define sonar.inclusions=**/*.c,**/*.h \
+        with:
+          args: |
+            --define sonar.cfamily.build-wrapper-output=asset-tracker-template/${{ env.BUILD_WRAPPER_OUT_DIR }}
+            --define sonar.projectKey=nrfconnect_Asset-Tracker-Template
+            --define sonar.organization=nrfconnect
+            --define sonar.host.url=https://sonarcloud.io
+            --define sonar.coverageReportPaths=coverage.xml
+            --define sonar.inclusions=**/*.c,**/*.h
             --define sonar.exclusions=tests/,drivers/sensor/*_dummy/
+          projectBaseDir: asset-tracker-template
 
-      - name: Run sonar-scanner on PR
-        working-directory: asset-tracker-template
+      - name: SonarQube Scan on PR
         if: github.event_name == 'pull_request'
+        uses: SonarSource/sonarqube-scan-action@v6.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -100,14 +103,17 @@ jobs:
           PR_BRANCH: ${{ github.event.pull_request.head.ref }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          sonar-scanner \
-            --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}" \
-            --define project.settings=sonar-project.properties \
-            --define sonar.coverageReportPaths=coverage.xml \
-            --define sonar.inclusions=**/*.c,**/*.h \
-            --define sonar.exclusions=tests/,drivers/sensor/*_dummy/ \
-            --define sonar.scm.revision=${{ env.HEAD_SHA }} \
-            --define sonar.pullrequest.key=${{ env.PR_NUMBER }} \
-            --define sonar.pullrequest.branch=${{ env.PR_BRANCH }} \
+        with:
+          args: |
+            --define sonar.cfamily.build-wrapper-output=asset-tracker-template/${{ env.BUILD_WRAPPER_OUT_DIR }}
+            --define sonar.projectKey=nrfconnect_Asset-Tracker-Template
+            --define sonar.organization=nrfconnect
+            --define sonar.host.url=https://sonarcloud.io
+            --define sonar.coverageReportPaths=coverage.xml
+            --define sonar.inclusions=**/*.c,**/*.h
+            --define sonar.exclusions=tests/,drivers/sensor/*_dummy/
+            --define sonar.scm.revision=${{ env.HEAD_SHA }}
+            --define sonar.pullrequest.key=${{ env.PR_NUMBER }}
+            --define sonar.pullrequest.branch=${{ env.PR_BRANCH }}
             --define sonar.pullrequest.base=${{ env.BASE_REF }}
+          projectBaseDir: asset-tracker-template
