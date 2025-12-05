@@ -68,8 +68,8 @@ jobs:
 
       - name: Install Build Wrapper
         uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v6.0.0
-        with:
-          path: asset-tracker-template
+        # with:
+        #   path: asset-tracker-template
 
       - name: Build and test
         working-directory: asset-tracker-template
@@ -96,7 +96,7 @@ jobs:
             --define sonar.coverageReportPaths=coverage.xml \
             --define sonar.inclusions=**/*.c,**/*.h \
             --define sonar.exclusions=tests/,drivers/sensor/*_dummy/
-          path: asset-tracker-template
+          projectBaseDir: asset-tracker-template
 
       - name: SonarQube Scan on PR
         if: github.event_name == 'pull_request'
@@ -121,4 +121,4 @@ jobs:
             --define sonar.pullrequest.key=${{ env.PR_NUMBER }} \
             --define sonar.pullrequest.branch=${{ env.PR_BRANCH }} \
             --define sonar.pullrequest.base=${{ env.BASE_REF }}
-          path: asset-tracker-template
+          projectBaseDir: asset-tracker-template
