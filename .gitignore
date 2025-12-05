@@ -20,3 +20,4 @@ venv
 sanity-out*
 twister-out*
 tests/on_target/artifacts/
+_codeql_detected_source_root
