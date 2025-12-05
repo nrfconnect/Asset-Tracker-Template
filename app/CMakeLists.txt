@@ -10,7 +10,7 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project("Asset Tracker Template")
 
 # Include files that are common for all modules
-target_include_directories(app PRIVATE src/common)
+zephyr_include_directories(src/common)
 
 zephyr_include_directories(config)
 
