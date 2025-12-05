@@ -18,6 +18,7 @@ int cloud_environmental_send(const struct environmental_msg *env,
 {
 	int err;
 
+	LOG_ERR("This is a pippo comment");
 	err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_TEMP,
 					 env->temperature,
 					 timestamp_ms,
