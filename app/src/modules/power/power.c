@@ -339,6 +339,10 @@ static int charger_read_sensors(float *voltage, float *current, float *temp, int
 	return 0;
 }
 
+#if defined(CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX)
+#include "memfault/metrics/platform/battery.h"
+#endif /* CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
+
 static void sample(int64_t *ref_time)
 {
 	int err;
@@ -349,6 +353,9 @@ static void sample(int64_t *ref_time)
 	float temp;
 	float state_of_charge;
 	float delta;
+#if defined(CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX)
+	sMfltPlatformBatterySoc soc;
+#endif /* CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
 
 	err = charger_read_sensors(&voltage, &current, &temp, &chg_status);
 	if (err) {
@@ -357,6 +364,22 @@ static void sample(int64_t *ref_time)
 		return;
 	}
 
+#if defined(CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX)
+
+	err = memfault_platform_get_stateofcharge(&soc);
+	if (err) {
+		LOG_ERR("memfault_platform_get_stateofcharge, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	state_of_charge = (float)soc.soc / (float)CONFIG_MEMFAULT_METRICS_BATTERY_SOC_PCT_SCALE_VALUE;
+	charging = soc.discharging;
+
+	(void)delta;
+
+#else /* CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
+
 	delta = (float)k_uptime_delta(ref_time) / 1000.f;
 
 	charging = (chg_status & (NPM13XX_CHG_STATUS_TC_MASK |
@@ -364,6 +387,7 @@ static void sample(int64_t *ref_time)
 				  NPM13XX_CHG_STATUS_CV_MASK)) != 0;
 
 	state_of_charge = nrf_fuel_gauge_process(voltage, current, temp, delta, NULL);
+#endif /* CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
 
 	LOG_DBG("State of charge: %f", (double)roundf(state_of_charge));
 	LOG_DBG("The battery is %s", charging ? "charging" : "not charging");
