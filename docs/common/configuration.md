@@ -44,6 +44,8 @@ Cloud updates include sending data, checking for FOTA jobs, and retrieving confi
 | **`sample_interval`** | <ul><li>**In passthrough mode**: Not valid.</li><li>**In buffer mode**: Sample interval.</li></ul> | Seconds | 1 to 4294967295 | `CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS` (default: 150)
 | **`buffer_mode`** | Storage mode control. Set to `true` for buffer mode or `false` for passthrough mode. | Boolean | true or false | `CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH` (default) / `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER`
 
+Runtime configurations can be set through the cloud device shadow and will override the compile-time Kconfig defaults shown in the Static Configuration column.
+
 The complete device shadow structure is defined in the [CDDL](https://datatracker.ietf.org/doc/html/rfc8610) schema at `Asset-Tracker-Template/app/src/cbor/device_shadow.cddl`. This schema specifies all supported configuration parameters, commands, and their valid value ranges.
 
 ### Operation Modes
@@ -78,6 +80,9 @@ The device operates in one of two modes based on which parameters are configured
 - Polls shadow and checks FOTA at `update_interval`
 
 **Use case**: Reduced power consumption, batch data transmission
+
+> [!WARNING]
+> While low intervals are supported, they can cause network congestion and connectivity issues, especially in poor network conditions. Choose intervals appropriate for your network quality, use case and device mode.
 
 ## Remote configuration from cloud
 
