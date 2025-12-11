@@ -868,12 +868,6 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 	if (msg->type == CLOUD_SHADOW_RESPONSE_DELTA) {
 		/* Clear the shadow delta by reporting back the command to the cloud. */
 		update_shadow_reported_section(&config, command_type, command_id);
-		/* Workaround: Add a 5-second delay to ensure that nRF Cloud clears the
-		 * delta internally before executing the command. If the command is a
-		 * provisioning request, the device will disconnect from the cloud. If this
-		 * happens too quickly, nRF Cloud may not clear the delta properly.
-		 */
-		k_sleep(K_SECONDS(5));
 		command_execute(command_type);
 	} else {
 		/* For desired responses (initial shadow poll), only report config without

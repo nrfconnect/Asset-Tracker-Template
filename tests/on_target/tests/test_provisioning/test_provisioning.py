@@ -144,6 +144,21 @@ def _wait_for_provisioning_completion_and_cloud_connection(
 
     logger.info("Device provisioned and connected to nRF Cloud.")
 
+def _verify_no_shadow_delta(dut_cloud, timeout: int = 120):
+    """
+    Verifies that there is no shadow delta for the device.
+    The device checks for shadow delta after connecting and logs if it's not present.
+    """
+    logger.info("Verifying that there is no shadow delta for the device...")
+
+    log_pattern_no_delta = "Shadow delta section not present"
+    dut_cloud.uart.wait_for_str(
+        log_pattern_no_delta,
+        timeout=timeout,
+        start_pos=dut_cloud.uart.get_size(),
+    )
+
+    logger.info("No shadow delta found for the device.")
 
 def _verify_device_config_reported_to_cloud(dut_cloud, timeout: int = 180):
     """
@@ -274,6 +289,10 @@ def _run_reprovisioning(dut_cloud):
     # Wait for the device to process the command, reprovision, and reconnect
     _wait_for_provisioning_completion_and_cloud_connection(dut_cloud, timeout=300)
     _verify_device_config_reported_to_cloud(dut_cloud)
+    # Ensure no shadow delta remains after reprovisioning. This means that the device has receieved
+    # and processed the reprovisioning command successfully. AND reported back the command
+    # to the shadow reported section, clearing the delta.
+    _verify_no_shadow_delta(dut_cloud)
 
     logger.info(
         "--- Phase 2: Reprovisioning with New Credentials Completed Successfully ---"
