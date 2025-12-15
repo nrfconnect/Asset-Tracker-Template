@@ -292,16 +292,6 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 			return err;
 		}
 
-#if defined(CONFIG_APP_NTN_DISABLE_EPCO)
-		/* Set XEPCO off */
-		err = nrf_modem_at_printf("AT%%XEPCO=0");
-		if (err) {
-			LOG_ERR("Failed to set XEPCO off, error: %d", err);
-
-			return err;
-		}
-#endif
-
 		/* Configure NTN system mode */
 		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT,
 					     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
