@@ -12,6 +12,7 @@
 #include <modem/pdn.h>
 #include <date_time.h>
 #include <modem/nrf_modem_lib.h>
+#include <modem/ntn.h>
 #include <nrf_modem_at.h>
 #include <modem/at_monitor.h>
 #include <nrf_modem_gnss.h>
@@ -29,7 +30,7 @@
 #include "ntn.h"
 #include "button.h"
 
-LOG_MODULE_REGISTER(ntn, CONFIG_APP_NTN_LOG_LEVEL);
+LOG_MODULE_REGISTER(ntn_module, CONFIG_APP_NTN_LOG_LEVEL);
 
 /* AT monitor for network notifications.
  * The monitor is needed to receive notification when in the case where the modem has been
@@ -99,7 +100,6 @@ static struct k_work gnss_location_work;
 
 static void gnss_event_handler(int event);
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt);
-static void pdn_event_handler(uint8_t cid, enum pdn_event event, int reason);
 static void ntn_msg_publish(enum ntn_msg_type type);
 
 static void state_running_entry(void *obj);
@@ -161,6 +161,27 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		}
 
 		break;
+	case LTE_LC_EVT_PDN:
+		switch (evt->pdn.type) {
+		case LTE_LC_EVT_PDN_ACTIVATED:
+			LOG_DBG("PDN connection activated");
+			ntn_msg_publish(NETWORK_CONNECTED);
+
+			break;
+		case LTE_LC_EVT_PDN_DEACTIVATED:
+			LOG_DBG("PDN connection deactivated");
+			ntn_msg_publish(NETWORK_DISCONNECTED);
+
+			break;
+		case LTE_LC_EVT_PDN_NETWORK_DETACH:
+			LOG_DBG("PDN connection network detached");
+			ntn_msg_publish(NETWORK_DISCONNECTED);
+
+			break;
+		default:
+			break;
+		}
+		break;
 	case LTE_LC_EVT_MODEM_EVENT:
 		if (evt->modem_evt.type == LTE_LC_MODEM_EVT_RESET_LOOP) {
 			LOG_WRN("The modem has detected a reset loop!");
@@ -183,38 +204,6 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 	}
 }
 
-static void pdn_event_handler(uint8_t cid, enum pdn_event event, int reason)
-{
-	switch (event) {
-#if CONFIG_PDN_ESM_STRERROR
-	case PDN_EVENT_CNEC_ESM:
-		LOG_DBG("Event: PDP context %d, %s", cid, pdn_esm_strerror(reason));
-
-		break;
-#endif
-	case PDN_EVENT_ACTIVATED:
-		LOG_DBG("PDN_EVENT_ACTIVATED");
-		ntn_msg_publish(NETWORK_CONNECTED);
-
-		break;
-	case PDN_EVENT_NETWORK_DETACH:
-		LOG_DBG("PDN_EVENT_NETWORK_DETACH");
-
-		break;
-	case PDN_EVENT_DEACTIVATED:
-		LOG_DBG("PDN_EVENT_DEACTIVATED");
-
-		break;
-	case PDN_EVENT_CTX_DESTROYED:
-		LOG_DBG("PDN_EVENT_CTX_DESTROYED");
-
-		break;
-	default:
-		LOG_ERR("Unexpected PDN event: %d", event);
-
-		break;
-	}
-}
 
 static void gnss_event_handler(int event)
 {
@@ -225,6 +214,22 @@ static void gnss_event_handler(int event)
 
 		break;
 	/* TODO: add handling for GNSS_SEARCH_FAILED, see mosh gnss.c */
+	default:
+		break;
+	}
+}
+
+static void ntn_event_handler(const struct ntn_evt *evt)
+{
+	switch (evt->type) {
+	case NTN_EVT_LOCATION_REQUEST:
+		LOG_DBG("NTN location requested: %s, accuracy: %d m",
+			evt->location_request.requested ? "true" : "false",
+			evt->location_request.accuracy);
+
+		ntn_msg_publish(NTN_LOCATION_REQUEST);
+
+		break;
 	default:
 		break;
 	}
@@ -398,13 +403,11 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 		return err;
 	}
 
-	/* Configure location using latest GNSS data */
-	err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"%f\",0,0",
-				(double)state->last_pvt.latitude,
+	err = ntn_location_set((double)state->last_pvt.latitude,
 				(double)state->last_pvt.longitude,
-				(double)state->last_pvt.altitude);
+				(float)state->last_pvt.altitude, 0);
 	if (err) {
-		LOG_ERR("Failed to set AT%%LOCATION, error: %d", err);
+		LOG_ERR("Failed to set location, error: %d", err);
 
 		return err;
 	}
@@ -591,41 +594,62 @@ static void state_running_entry(void *obj)
 	lte_lc_register_handler(lte_lc_evt_handler);
 
 	/* Register handler for default PDP context 0. */
-	err = pdn_default_ctx_cb_reg(pdn_event_handler);
+	err = lte_lc_pdn_default_ctx_events_enable();
 	if (err) {
-		LOG_ERR("pdn_default_ctx_cb_reg, error: %d", err);
-		SEND_FATAL_ERROR();
+		LOG_ERR("lte_lc_pdn_default_ctx_events_enable, error: %d", err);
 
 		return;
 	}
+
+	ntn_register_handler(ntn_event_handler);
+
+	/* Power off modem */
+	err = lte_lc_power_off();
+		if (err) {
+			LOG_ERR("lte_lc_power_off, error: %d", err);
+
+			return err;
+		}
 
 	/* Set NTN SIM profile.
 	 * 2: Configure cellular profile
-	 * 0: Cellular profile index
+	 * 1: Cellular profile index
 	 * 4: Access technology: Satellite E-UTRAN (NB-S1 mode)
 	 * 0: SIM slot, physical SIM
 	 */
-	err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,1,4,0");
-	if (err) {
-		LOG_ERR("Failed to set modem NTN profile, error: %d", err);
-		SEND_FATAL_ERROR();
+	struct lte_lc_cellular_profile ntn_profile = {
+			.id = 1,
+			.act = LTE_LC_ACT_NTN,
+			.uicc = LTE_LC_UICC_PHYSICAL,
+		};
 
-		return;
-	}
+	/* Set NTN profile */
+	err = lte_lc_cellular_profile_configure(&ntn_profile);
+		if (err) {
+			LOG_ERR("Failed to set NTN profile, error: %d", err);
+
+			return err;
+		}
 
 	/* Set TN SIM profile for LTE-M
 		* 2: Configure cellular profile
-		* 1: Cellular profile index
+		* 0: Cellular profile index
 		* 1: Access technology: LE-UTRAN (WB-S1 mode), LTE-M
 		* 0: SIM slot, physical SIM
 	*/
-	err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,0,1,0");
-	if (err) {
-		LOG_ERR("Failed to set modem TN profile, error: %d", err);
-		SEND_FATAL_ERROR();
+	struct lte_lc_cellular_profile tn_profile = {
+			.id = 0,
+			.act = LTE_LC_ACT_LTEM || LTE_LC_ACT_NBIOT,
+			.uicc = LTE_LC_UICC_PHYSICAL,
+		};
 
-		return;
-	}
+	/* Set TN profile */
+	err = lte_lc_cellular_profile_configure(&tn_profile);
+		if (err) {
+			LOG_ERR("Failed to set TN profile, error: %d", err);
+
+			return err;
+		}
 
 #if defined(CONFIG_APP_NTN_DISABLE_EPCO)
 	/* Disable ePCO */
@@ -692,7 +716,7 @@ static void state_tn_entry(void *obj)
 	case LTE_LC_FUNC_MODE_POWER_OFF:
 		break;
 	default:
-		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
+		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_POWER_OFF);
 		if (err) {
 			LOG_ERR("lte_lc_func_mode_set, error: %d", err);
 
@@ -711,7 +735,8 @@ static void state_tn_entry(void *obj)
 	}
 #endif
 
-	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM_NBIOT, LTE_LC_SYSTEM_MODE_PREFER_LTEM);
+	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM_NBIOT,
+				     LTE_LC_SYSTEM_MODE_PREFER_LTEM);
 	if (err) {
 		LOG_ERR("lte_lc_system_mode_set, error: %d", err);
 
@@ -836,7 +861,12 @@ static enum smf_state_result state_idle_run(void *obj)
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 
 			return SMF_EVENT_HANDLED;
+		} else if (msg->type == NTN_LOCATION_REQUEST) {
+			LOG_DBG("NTN location requested");
+			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 		}
+
+		return SMF_EVENT_HANDLED;
 	}
 
 	return SMF_EVENT_PROPAGATE;
