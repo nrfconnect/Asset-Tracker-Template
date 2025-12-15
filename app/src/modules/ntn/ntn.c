@@ -13,7 +13,6 @@
 #include <modem/nrf_modem_lib.h>
 #include <modem/ntn.h>
 #include <nrf_modem_at.h>
-#include <modem/at_monitor.h>
 #include <nrf_modem_gnss.h>
 #include <modem/modem_info.h>
 #include <zephyr/task_wdt/task_wdt.h>
@@ -25,16 +24,6 @@
 #include "button.h"
 
 LOG_MODULE_REGISTER(ntn_module, CONFIG_APP_NTN_LOG_LEVEL);
-
-/* AT monitor for network notifications.
- * The monitor is needed to receive notification when in the case where the modem has been
- * put into offline mode while keeping registration context.
- * In this case, the modem will send a +CEREG notification with status 1 or 5 when NTN is
- * re-enabled. The LTE link controller does not forward this because it is equal to the previous
- * registration status. To work around this, we monitor the +CEREG notification and forward it
- * to the NTN module when offline-while-keeping-registration mode is enabled.
- */
-AT_MONITOR(cereg_monitor, "CEREG", cereg_mon, PAUSED);
 
 /* Define channels provided by this module */
 ZBUS_CHAN_DEFINE(NTN_CHAN,
@@ -210,24 +199,6 @@ static void gnss_location_work_handler(struct k_work *work)
 
 /* Helper functions */
 
-static void cereg_mon(const char *notif)
-{
-	enum lte_lc_nw_reg_status status = atoi(notif + strlen("+CEREG: "));
-
-	if (status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
-		LOG_DBG("Network registration status: ROAMING");
-		ntn_msg_publish(NTN_NETWORK_CONNECTED);
-		LOG_DBG("Stop monitoring incoming CEREG Notifications");
-		at_monitor_pause(&cereg_monitor);
-	} else if (status == LTE_LC_NW_REG_REGISTERED_HOME) {
-		/* Amari Callbox */
-		LOG_DBG("Network registration status: HOME");
-		ntn_msg_publish(NTN_NETWORK_CONNECTED);
-		LOG_DBG("Stop monitoring incoming CEREG Notifications");
-		at_monitor_pause(&cereg_monitor);
-	}
-}
-
 static int set_ntn_dormant_mode(void)
 {
 	int err;
@@ -239,17 +210,6 @@ static int set_ntn_dormant_mode(void)
 
 		return err;
 	}
-
-	err = nrf_modem_at_printf("AT+CEREG=1");
-	if (err) {
-		LOG_ERR("AT+CEREG failed, error: %d", err);
-
-		return err;
-	}
-
-	/* Start monitoring incoming CEREG Notifications */
-	LOG_DBG("Start monitoring incoming CEREG Notifications");
-	at_monitor_resume(&cereg_monitor);
 
 	return 0;
 }
@@ -931,6 +891,15 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			ntn_msg_publish(NTN_NETWORK_DISCONNECTED);
 
 			break;
+		case LTE_LC_EVT_PDN_SUSPENDED:
+			LOG_DBG("PDN connection suspended");
+			ntn_msg_publish(NTN_NETWORK_DISCONNECTED);
+
+			break;
+		case LTE_LC_EVT_PDN_RESUMED:
+			LOG_DBG("PDN connection resumed");
+			ntn_msg_publish(NTN_NETWORK_CONNECTED);
+
 		default:
 			break;
 		}
