@@ -17,6 +17,9 @@ extern "C" {
 
 /* NTN module message types */
 enum ntn_msg_type {
+	/* NTN location request received */
+	NTN_LOCATION_REQUEST,
+
 	/* Location search completed and GNSS location data is available */
 	NTN_LOCATION_SEARCH_DONE,
 
@@ -25,6 +28,9 @@ enum ntn_msg_type {
 
 	/* Network connectivity established */
 	NETWORK_CONNECTED,
+
+	/* Network connectivity lost */
+	NETWORK_DISCONNECTED,
 
 	/* Network no suitable cell found */
 	NETWORK_NO_SUITABLE_CELL,
