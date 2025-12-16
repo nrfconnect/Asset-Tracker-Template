@@ -73,11 +73,6 @@ config APP_NTN_APN
 
 endif # APP_NTN_APN_ENABLE
 
-config APP_NTN_DISABLE_EPCO
-	bool "Disable ePCO"
-	help
-	  Disable ePCO.
-
 config APP_NTN_SERVER_ADDR
 	string "NTN server address"
 	default ""

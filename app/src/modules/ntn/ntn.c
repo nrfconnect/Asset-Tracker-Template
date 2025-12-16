@@ -637,17 +637,6 @@ static void state_running_entry(void *obj)
 			return err;
 		}
 
-#if defined(CONFIG_APP_NTN_DISABLE_EPCO)
-	/* Disable ePCO */
-	err = nrf_modem_at_printf("AT%%XEPCO=0");
-	if (err) {
-		LOG_ERR("Failed to set XEPCO off, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-#endif
-
 	/* Init nrfcloud coap */
 	err = nrf_cloud_coap_init();
 	if (err) {
