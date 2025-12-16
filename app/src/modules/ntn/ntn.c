@@ -170,12 +170,12 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			break;
 		case LTE_LC_EVT_PDN_SUSPENDED:
 			LOG_DBG("PDN connection suspended");
-			ntn_msg_publish(NTN_NETWORK_DISCONNECTED);
+			ntn_msg_publish(NETWORK_DISCONNECTED);
 
 			break;
 		case LTE_LC_EVT_PDN_RESUMED:
 			LOG_DBG("PDN connection resumed");
-			ntn_msg_publish(NTN_NETWORK_CONNECTED);
+			ntn_msg_publish(NETWORK_CONNECTED);
 
 			break;
 		default:
@@ -594,7 +594,7 @@ static void state_running_entry(void *obj)
 		if (err) {
 			LOG_ERR("lte_lc_power_off, error: %d", err);
 
-			return err;
+			return;
 		}
 
 	/* Set NTN SIM profile.
@@ -614,7 +614,7 @@ static void state_running_entry(void *obj)
 		if (err) {
 			LOG_ERR("Failed to set NTN profile, error: %d", err);
 
-			return err;
+			return;
 		}
 
 	/* Set TN SIM profile for LTE-M
@@ -634,7 +634,7 @@ static void state_running_entry(void *obj)
 		if (err) {
 			LOG_ERR("Failed to set TN profile, error: %d", err);
 
-			return err;
+			return;
 		}
 
 	/* Init nrfcloud coap */
