@@ -907,6 +907,10 @@ static enum smf_state_result state_gnss_run(void *obj)
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
 			return SMF_EVENT_HANDLED;
+		case NTN_LOCATION_REQUEST:
+			LOG_DBG("NTN location requested, already in GNSS mode");
+
+			return SMF_EVENT_HANDLED;
 		default:
 			break;
 		}
