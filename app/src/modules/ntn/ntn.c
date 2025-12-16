@@ -710,7 +710,7 @@ static void state_tn_entry(void *obj)
 	}
 #endif
 
-	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM_NBIOT,
+	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM,
 				     LTE_LC_SYSTEM_MODE_PREFER_LTEM);
 	if (err) {
 		LOG_ERR("lte_lc_system_mode_set, error: %d", err);
