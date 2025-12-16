@@ -107,7 +107,7 @@ west flash --erase
 
 4. Wait for the device to provision credentials and connect to nRF Cloud over CoAP. Once connected, the device should be available under **Device Management** → **Devices**.
 
-See [Provisioning](docs/common/provisioning.md) for more details.
+See [Provisioning to nRF Cloud](docs/common/provisioning.md) for more details.
 </details>
 
 ## System Architecture
@@ -139,6 +139,7 @@ The architecture is detailed in the [Architecture documentation](docs/common/arc
 ## Table of Content
 
 * [Getting Started](docs/common/getting_started.md)
+* [Provisioning to nRF Cloud](docs/common/provisioning.md)
 * [Architecture](docs/common/architecture.md)
   * [System Overview](docs/common/architecture.md#system-overview)
   * [Zbus](docs/common/architecture.md#zbus)
