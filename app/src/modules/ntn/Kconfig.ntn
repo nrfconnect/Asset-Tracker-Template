@@ -18,6 +18,15 @@ config APP_NTN_TIMER_TIMEOUT_MINUTES
 	help
 	  Timer timeout for NTN mode before switching back to GNSS mode.
 
+config APP_NTN_LOCATION_VALIDITY_TIME_SECONDS
+	int "NTN location validity time"
+	default 1800
+	help
+	  Location validity in seconds for NTN mode. The value depends on the use-case and what NTN constellation is used.
+	  For example, if the device is stationary and using GEO, the value can be longer.
+	  If the device is moving and using LEO, the value should be shorter.
+	  The distance the device is expected to travel must also be considered.
+
 config APP_NTN_BANDLOCK_ENABLE
 	bool "Enable NTN band lock"
 	help
