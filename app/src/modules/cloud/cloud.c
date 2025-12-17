@@ -949,19 +949,6 @@ static void state_connected_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 	LOG_INF("Connected to Cloud");
-
-#if defined(CONFIG_MEMFAULT)
-	if (memfault_coredump_has_valid_coredump(NULL)) {
-		/* Initial update to Memfault is handled internally in the
-		 * Memfault LTE coredump layer.
-		 */
-		return;
-	}
-
-	/* No coredump available, trigger an initial update to Memfault. */
-	(void)memfault_metrics_heartbeat_debug_trigger();
-	(void)memfault_zephyr_port_post_data();
-#endif /* CONFIG_MEMFAULT */
 }
 
 static void state_connected_exit(void *obj)
