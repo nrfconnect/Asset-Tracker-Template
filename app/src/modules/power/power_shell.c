@@ -59,9 +59,13 @@ static int cmd_power_sample(const struct shell *shell, size_t argc, char **argv)
 
 SHELL_STATIC_SUBCMD_SET_CREATE(
 	sub_cmds,
-	SHELL_CMD(sample, NULL,
+	SHELL_CMD(sample,
+		  NULL,
 		  "Request a battery sample (state of charge, voltage, charging state)",
 		  cmd_power_sample),
 	SHELL_SUBCMD_SET_END);
 
-SHELL_CMD_REGISTER(att_power, &sub_cmds, "Asset Tracker Template Power CMDs", NULL);
+SHELL_CMD_REGISTER(att_power,
+		   &sub_cmds,
+		   "Asset Tracker Template Power module commands",
+		   NULL);

@@ -47,7 +47,7 @@ LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
  * The cloud state machine does not support out of order provisioning via nRF Provisioning shell.
  */
 BUILD_ASSERT(!IS_ENABLED(CONFIG_NRF_PROVISIONING_SHELL),
-	     "nRF Provisioning Shell not supported, use att_cloud_provision shell command instead");
+	"nRF Provisioning Shell not supported, use 'att_cloud provision' shell command instead");
 
 BUILD_ASSERT(CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS >
 	     CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS,
