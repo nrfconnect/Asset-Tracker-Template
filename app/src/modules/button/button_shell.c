@@ -23,7 +23,7 @@ static int cmd_button_press(const struct shell *sh, size_t argc, char **argv)
 
 	if (argc != 2) {
 		(void)shell_print(sh, "Invalid number of arguments (%d)", argc);
-		(void)shell_print(sh, "Usage: att_button_press <button_number>");
+		(void)shell_print(sh, "Usage: att_button press <button_number>");
 		return 1;
 	}
 
@@ -45,4 +45,15 @@ static int cmd_button_press(const struct shell *sh, size_t argc, char **argv)
 	return 0;
 }
 
-SHELL_CMD_REGISTER(att_button_press, NULL, "Asset Tracker Template Button CMDs", cmd_button_press);
+SHELL_STATIC_SUBCMD_SET_CREATE(sub_cmds,
+			       SHELL_CMD(press,
+					 NULL,
+					 "Simulate a button press. Usage: press <button_number>",
+					 cmd_button_press),
+			       SHELL_SUBCMD_SET_END
+);
+
+SHELL_CMD_REGISTER(att_button,
+		   &sub_cmds,
+		   "Asset Tracker Template Button module commands",
+		   NULL);

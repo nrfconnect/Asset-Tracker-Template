@@ -31,7 +31,7 @@ static int cmd_publish(const struct shell *sh, size_t argc, char **argv)
 
 	if (argc != 3) {
 		(void)shell_print(sh, "Invalid number of arguments (%d)", argc);
-		(void)shell_print(sh, "Usage: att_cloud_publish <appid> <data>");
+		(void)shell_print(sh, "Usage: att_cloud publish <appid> <data>");
 		return 1;
 	}
 
@@ -101,17 +101,26 @@ static int cmd_provisioning(const struct shell *sh, size_t argc, char **argv)
 	return 0;
 }
 
-SHELL_STATIC_SUBCMD_SET_CREATE(prov_sub_cmds,
-			       SHELL_CMD(now,
+SHELL_STATIC_SUBCMD_SET_CREATE(sub_cmds,
+			       SHELL_CMD(publish,
 					 NULL,
-					 "Perform provisioning now",
+					 "Publish custom data message to cloud. "
+					 "Usage: publish <appid> <data>",
+					 cmd_publish),
+			       SHELL_CMD(provision,
+					 NULL,
+					 "Perform provisioning. The application will connect to the "
+					 "nRF Cloud provisioning service and check for pending commands",
 					 cmd_provisioning),
+			       SHELL_CMD(poll_shadow_delta,
+					 NULL,
+					 "Poll the device shadow delta to receive pending "
+					 "configuration updates",
+					 cmd_poll_shadow),
 			       SHELL_SUBCMD_SET_END
 );
 
-SHELL_CMD_REGISTER(att_cloud_publish, NULL, "Asset Tracker Template Cloud CMDs",
-		   cmd_publish);
-SHELL_CMD_REGISTER(att_cloud_provision, &prov_sub_cmds, "Asset Tracker Template Provisioning CMDs",
+SHELL_CMD_REGISTER(att_cloud,
+		   &sub_cmds,
+		   "Asset Tracker Template Cloud module commands",
 		   NULL);
-SHELL_CMD_REGISTER(att_cloud_poll_shadow_delta, NULL, "Poll the device shadow delta from the cloud",
-		   cmd_poll_shadow);

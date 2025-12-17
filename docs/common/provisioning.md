@@ -107,7 +107,7 @@ To update device credentials:
 1. Select **Cloud Access Key Generation** and click **Create Command**.
 1. Trigger on device:
 
-   - **Shell**: `att_cloud_provision now`
+   - **Shell**: `att_cloud provision`
    - **Cloud**: Update device shadow with `{"desired": {"command": [1, 1]}}`.
 
 For detailed information on sending commands to devices through REST API, including command structure and available command types, see [Sending commands through REST API](configuration.md#sending-commands-through-rest-api) in the configuration documentation.

@@ -53,13 +53,11 @@ uart:~$ help
 Available commands:
   app                          : Application version information commands
   at                           : Execute an AT command
-  att_button_press             : Asset Tracker Template Button CMDs
-  att_cloud_poll_shadow_delta  : Poll the device shadow delta from the cloud
-  att_cloud_provision          : Asset Tracker Template Provisioning CMDs
-  att_cloud_publish            : Asset Tracker Template Cloud CMDs
-  att_network                  : Asset Tracker Template Network CMDs
-  att_power                    : Asset Tracker Template Power CMDs
-  att_storage                  : Storage module commands
+  att_button                   : Asset Tracker Template Button module commands
+  att_cloud                    : Asset Tracker Template Cloud module commands
+  att_network                  : Asset Tracker Template Network module commands
+  att_power                    : Asset Tracker Template Power module commands
+  att_storage                  : Asset Tracker Template Storage module commands
   clear                        : Clear screen.
   date                         : Date commands
   device                       : Device commands
@@ -88,14 +86,14 @@ Available commands:
 #### Cloud Publishing
 
 ```bash
-uart:~$ att_cloud_publish TEMP "24"
+uart:~$ att_cloud publish TEMP "24"
 Sending on payload channel: {"messageType":"DATA","appId":"TEMP","data":"24","ts":1744359144653} (68 bytes)
 ```
 
 #### Perform cloud provisioning
 
 ```bash
-uart:~$ att_cloud_provision now
+uart:~$ att_cloud provision
 [00:00:42.258,361] <dbg> cloud: state_connected_ready_run: Provisioning request received
 [00:00:42.258,453] <dbg> cloud: state_connected_exit: state_connected_exit
 ...

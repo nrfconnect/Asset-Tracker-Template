@@ -219,7 +219,7 @@ def _trigger_device_reprovisioning_with_new_credentials(dut_cloud, sec_tag: int)
     # Simulate a button press to make the device check for new commands
     logger.info("Simulating button press to trigger command processing on device.")
 
-    dut_cloud.uart.write("att_button_press 1\r\n")
+    dut_cloud.uart.write("att_button press 1\r\n")
 
 
 def _trigger_device_reprovisioning_expecting_no_commands(dut_cloud):
@@ -243,7 +243,7 @@ def _trigger_device_reprovisioning_expecting_no_commands(dut_cloud):
     # Simulate a button press to make the device check for commands
     logger.info("Simulating button press to trigger command processing on device.")
 
-    dut_cloud.uart.write("att_button_press 1\r\n")
+    dut_cloud.uart.write("att_button press 1\r\n")
 
 
 # --- Test Phases ---

@@ -45,12 +45,12 @@ def test_shell(dut_cloud, hex_file):
 
     # Button press
     dut_cloud.uart.flush()
-    dut_cloud.uart.write("att_button_press 1\r\n")
+    dut_cloud.uart.write("att_button press 1\r\n")
     dut_cloud.uart.wait_for_str(patterns_button_press, timeout=20)
 
     # Cloud publish
     dut_cloud.uart.flush()
-    dut_cloud.uart.write("att_cloud_publish donald duck\r\n")
+    dut_cloud.uart.write("att_cloud publish donald duck\r\n")
     dut_cloud.uart.wait_for_str(patterns_cloud_publish, timeout=20)
 
     messages = dut_cloud.cloud.get_messages(dut_cloud.device_id, appname="donald", max_records=20, max_age_hrs=0.25)

@@ -63,4 +63,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sub_cmds,
 			       SHELL_SUBCMD_SET_END
 );
 
-SHELL_CMD_REGISTER(att_network, &sub_cmds, "Asset Tracker Template Network CMDs", NULL);
+SHELL_CMD_REGISTER(att_network,
+		   &sub_cmds,
+		   "Asset Tracker Template Network module commands",
+		   NULL);
