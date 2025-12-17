@@ -11,12 +11,12 @@ The Asset Tracker Template uses the <a href="https://docs.nordicsemi.com/bundle/
 <li><strong>Secure Connection</strong>: The library establishes a secure DTLS connection to the nRF Cloud CoAP Provisioning Service. The device verifies the server's identity using the root CA certificate.</li>
 <li><strong>Device Authentication</strong>: The device authenticates itself using a JSON Web Token (JWT) signed with the modem's factory-provisioned Device Identity private key. This key is securely stored in the modem hardware and cannot be extracted.</li>
 <li><strong>Command Retrieval</strong>: After successful authentication, the device requests provisioning commands from the server. These commands typically include cloud access credentials and configuration settings.</li>
-<li><strong>Modem Configuration</strong>: To write the received credentials and settings, the library performs the following:</li>
+<li><strong>Modem Configuration</strong>: To write the received credentials and settings, the library performs the following:<br>
 
-    - Suspends the DTLS session (to maintain the connection state).<br>
-    - Temporarily sets the modem offline for credential writing.<br>
-    - Writes the credentials to the modem's secure storage.<br>
-
+   - Suspends the DTLS session (to maintain the connection state).<br>
+   - Temporarily sets the modem offline.<br>
+   - Writes the credentials to the modem's secure storage.<br>
+</li>
 <li><strong>Result Reporting</strong>: After executing the commands, the library resumes or re-establishes the DTLS connection (if needed), authenticates again with JWT, and reports the results back to the server. Successfully executed commands are removed from the server-side queue.</li>
 <li><strong>Validation</strong>: The device uses the newly provisioned credentials to connect to nRF Cloud CoAP services.</li>
 </ol>
