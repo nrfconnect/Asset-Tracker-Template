@@ -95,11 +95,11 @@ For pre-built binaries, refer to the latest tag and the [release artifacts](comm
     ```
 
 Token is printed automatically on first boot of unprovisioned devices.</li>
-<li>Select **Security Services** in the left sidebar.</li>
-<li>Select **Claimed Devices**.</li>
-<li>Click **Claim Device**.</li>
-<li>Copy and paste the attestation token into the **Claim token** text box.</li>
-<li>Set rule to nRF Cloud Onboarding and click **Claim Device**.</li>
+<li>Select <strong>Security Services</strong> in the left sidebar.</li>
+<li>Select <strong>Claimed Devices</strong>.</li>
+<li>Click <strong>Claim Device</strong>.</li>
+<li>Copy and paste the attestation token into the <strong>Claim token</strong> text box.</li>
+<li>Set rule to nRF Cloud Onboarding and click <strong>Claim Device</strong>.</li>
 
 <details>
 <summary><strong>If "nRF Cloud Onboarding" rule is not showing:</strong></summary>
@@ -109,10 +109,11 @@ Create a new rule using the following configuration:<br>
 <img src="images/claim.png" alt="Claim Device" width="300" />
 </details>
 
-<li>Wait for the device to provision credentials and connect to nRF Cloud over CoAP. Once connected, the device must be available under the **Devices** section in the **Device Management** navigation pane on the left.</li>
-
-See [Provisioning](docs/common/provisioning.md) for more details.
+<li>Wait for the device to provision credentials and connect to nRF Cloud over CoAP. Once connected, the device must be available under the <strong>Devices</strong> section in the <strong>Device Management</strong> navigation pane on the left.</li>
 </ol>
+
+  See <a href="https://docs.nordicsemi.com/bundle/asset-tracker-template-latest/page/common/provisioning.html">provisioning</a> for more details.
+
 </details>
 
 ## Key Technical Features
