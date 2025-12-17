@@ -3,32 +3,30 @@
 Device provisioning establishes credentials for secure communication with nRF Cloud CoAP.
 
 <details>
-<summary><strong>What happens during provisioning?</strong></summary>
+<summary><strong>What happens during provisioning</strong></summary>
 
-The Asset Tracker Template uses the `nrf_provisioning` library to handle device provisioning automatically. The library provisions the root CA certificate for the provisioning service to the modem during boot if it's not already present. During provisioning, the following steps occur:
+The Asset Tracker Template uses the <a href="https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/networking/nrf_provisioning.html">nRF Device provisioning</a> library to handle device provisioning automatically. The library provisions the root CA certificate for the provisioning service to the modem during boot if it is not already present. During provisioning, the following steps occur:
 
-1. **Secure Connection**: The library establishes a secure DTLS connection to the nRF Cloud CoAP Provisioning Service. The device verifies the server's identity using the root CA certificate.
+<ol>
+<li><strong>Secure Connection</strong>: The library establishes a secure DTLS connection to the nRF Cloud CoAP Provisioning Service. The device verifies the server's identity using the root CA certificate.</li>
+<li><strong>Device Authentication</strong>: The device authenticates itself using a JSON Web Token (JWT) signed with the modem's factory-provisioned Device Identity private key. This key is securely stored in the modem hardware and cannot be extracted.</li>
+<li><strong>Command Retrieval</strong>: After successful authentication, the device requests provisioning commands from the server. These commands typically include cloud access credentials and configuration settings.</li>
+<li><strong>Modem Configuration</strong>: To write the received credentials and settings, the library performs the following:</li>
 
-2. **Device Authentication**: The device authenticates itself using a JWT (JSON Web Token) signed with the modem's factory-provisioned Device Identity private key. This key is securely stored in the modem hardware and cannot be extracted.
+    - Suspends the DTLS session (to maintain the connection state).<br>
+    - Temporarily sets the modem offline for credential writing.<br>
+    - Writes the credentials to the modem's secure storage.<br>
 
-3. **Command Retrieval**: After successful authentication, the device requests provisioning commands from the server. These commands typically include cloud access credentials and configuration settings.
+<li><strong>Result Reporting</strong>: After executing the commands, the library resumes or re-establishes the DTLS connection (if needed), authenticates again with JWT, and reports the results back to the server. Successfully executed commands are removed from the server-side queue.</li>
+<li><strong>Validation</strong>: The device uses the newly provisioned credentials to connect to nRF Cloud CoAP services.</li>
+</ol>
 
-4. **Modem Configuration**: To write the received credentials and settings, the library:
-   - Suspends the DTLS session (to maintain the connection state)
-   - Temporarily sets the modem offline
-   - Writes the credentials to the modem's secure storage
+<p>The modem must be offline during credential writing because the modem cannot be connected to the network while data is being written to its storage area (credential writing).
+Therefore it is normal that LTE is disconnected or connected multiple times during provisioning.</p>
 
-5. **Result Reporting**: After executing the commands, the library resumes or re-establishes the DTLS connection (if needed), authenticates again with JWT, and reports the results back to the server. Successfully executed commands are removed from the server-side queue.
+<p>The attestation token is different from the JWT - it is used during the initial device claiming process to prove device authenticity to nRF Cloud, not during the provisioning protocol itself.</p>
 
-6. **Validation**: The device uses the newly provisioned credentials to connect to nRF Cloud CoAP services.
-
-> [!NOTE]
-> The modem must be offline during credential writing because the modem cannot be connected to the network while data is being written to its storage area (credential writing).
-> Therefore its normal that LTE is disconnected/connected multiple times during provisioning.
->
-> The attestation token is different from the JWT - it's used during the initial device claiming process to prove device authenticity to nRF Cloud, not during the provisioning protocol itself.
-
-For more details on the provisioning library, see the [nRF Cloud device provisioning documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/networking/nrf_provisioning.html).
+<p>For more details on the provisioning library, see the <a href="https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/networking/nrf_provisioning.html">nRF Cloud device provisioning documentation</a>.</p>
 
 </details>
 
@@ -67,15 +65,13 @@ For more details on the provisioning library, see the [nRF Cloud device provisio
 1. Once connected, the device will be available under the **Devices** section in the **Device Management** navigation pane on the left.
 
     <details>
-    <summary><strong>What can I do after provisioning?</strong></summary>
+    <summary><strong>What can you do after provisioning</strong></summary>
 
-    After your device is provisioned and connected, you can:
+    After your device is provisioned and connected, you can perform the following:
 
     - **Monitor device data**: View real-time data from your device including location, temperature, battery percentage, and other sensor readings in the nRF Cloud portal.
-
     - **Retrieve data programmatically**: Use the [Message Routing Service](https://docs.nordicsemi.com/bundle/nrf-cloud/page/Devices/MessagesAndAlerts/MessageRoutingService/ReceivingMessages.html) to automatically forward device messages to your own cloud infrastructure or application endpoints.
-
-    - **Perform firmware updates**: Deploy over-the-air firmware updates to your device. See [Firmware Updates (FOTA)](fota.md) for detailed instructions on preparing and deploying firmware updates via nRF Cloud.
+    - **Perform firmware updates**: Deploy over-the-air firmware updates to your device. See [Firmware Updates (FOTA)](fota.md) for detailed instructions on preparing and deploying firmware updates through nRF Cloud.
 
     </details>
 
