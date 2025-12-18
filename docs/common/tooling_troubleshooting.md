@@ -424,9 +424,9 @@ Screen capture from a coredump received in Memfault:
 Trigger test faults using shell commands:
 
 ```bash
-uart:~$ mflt_nrf test hardfault
-uart:~$ mflt_nrf test assert
-uart:~$ mflt_nrf test usagefault
+uart:~$ mflt test hardfault
+uart:~$ mflt test assert
+uart:~$ mflt test usagefault
 ```
 
 ## Modem Tracing
