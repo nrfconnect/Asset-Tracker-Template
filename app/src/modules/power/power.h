@@ -41,14 +41,17 @@ struct power_msg {
 	/** Contains the current charge of the battery in percentage. */
 	double percentage;
 
-	/** Timestamp of the sample in milliseconds since epoch. */
-	int64_t timestamp;
-
 	/** True if the battery is charging, false otherwise. */
 	bool charging;
 
 	/** Voltage in volts. */
 	double voltage;
+
+	/** Uptime when the sample was taken in milliseconds.
+	 *  Use date_time_uptime_to_unix_time_ms() to convert to unix time before sending to cloud.
+	 *  Only valid for POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE events.
+	 */
+	int64_t uptime;
 };
 
 #define MSG_TO_POWER_MSG(_msg)	(*(const struct power_msg *)_msg)

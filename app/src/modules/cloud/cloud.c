@@ -341,15 +341,23 @@ static void handle_network_data_message(const struct network_msg *msg)
 {
 	int err;
 	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
+	int64_t timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
 
 	if (msg->type != NETWORK_QUALITY_SAMPLE_RESPONSE) {
 		return;
 	}
 
+	/* Convert uptime to unix time */
+	timestamp_ms = msg->uptime;
+	err = date_time_uptime_to_unix_time_ms(&timestamp_ms);
+	if (err) {
+		LOG_ERR("date_time_uptime_to_unix_time_ms, error: %d", err);
+	}
+
 	err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_CONEVAL,
-					msg->conn_eval_params.energy_estimate,
-					NRF_CLOUD_NO_TIMESTAMP,
-					confirmable);
+				msg->conn_eval_params.energy_estimate,
+				timestamp_ms,
+				confirmable);
 	if (err) {
 		LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 		send_request_failed();
@@ -358,9 +366,9 @@ static void handle_network_data_message(const struct network_msg *msg)
 	}
 
 	err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_RSRP,
-					msg->conn_eval_params.rsrp,
-					NRF_CLOUD_NO_TIMESTAMP,
-					confirmable);
+				msg->conn_eval_params.rsrp,
+				timestamp_ms,
+				confirmable);
 	if (err) {
 		LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
 		send_request_failed();
@@ -375,19 +383,19 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 	int64_t timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
 	const bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
 
-	/* Get current timestamp */
-	err = date_time_now(&timestamp_ms);
-	if (err) {
-		LOG_WRN("Failed to get current time, using no timestamp");
-		timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
-	}
-
 #if defined(CONFIG_APP_POWER)
 	if (item->type == STORAGE_TYPE_BATTERY) {
-		double battery_percentage = item->data.BATTERY;
+		const struct power_msg *power = &item->data.BATTERY;
+
+		/* Convert uptime to unix time */
+		timestamp_ms = power->uptime;
+		err = date_time_uptime_to_unix_time_ms(&timestamp_ms);
+		if (err) {
+			LOG_ERR("date_time_uptime_to_unix_time_ms, error: %d", err);
+		}
 
 		err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_BATTERY,
-						 battery_percentage,
+						 power->percentage,
 						 timestamp_ms,
 						 confirmable);
 		if (err) {
@@ -395,7 +403,7 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 			return err;
 		}
 
-		LOG_DBG("Battery data sent to cloud: %.1f%%", battery_percentage);
+		LOG_DBG("Battery data sent to cloud: %.1f%%", power->percentage);
 
 		/* Unused variable if no other sources compiled in */
 		(void)confirmable;
@@ -407,6 +415,13 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 #if defined(CONFIG_APP_ENVIRONMENTAL)
 	if (item->type == STORAGE_TYPE_ENVIRONMENTAL) {
 		const struct environmental_msg *env = &item->data.ENVIRONMENTAL;
+
+		/* Convert uptime to unix time */
+		timestamp_ms = env->uptime;
+		err = date_time_uptime_to_unix_time_ms(&timestamp_ms);
+		if (err) {
+			LOG_ERR("date_time_uptime_to_unix_time_ms, error: %d", err);
+		}
 
 		return cloud_environmental_send(env, timestamp_ms, confirmable);
 	}
@@ -432,8 +447,9 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 
 	LOG_WRN("Unknown storage data type: %d", item->type);
 
-	/* Unused variable if no data sources are enabled */
+	/* Unused variables if no data sources are enabled */
 	(void)confirmable;
+	(void)timestamp_ms;
 
 	return -ENOTSUP;
 }

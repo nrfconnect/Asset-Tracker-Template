@@ -52,15 +52,6 @@ config APP_POWER_MSG_PROCESSING_TIMEOUT_SECONDS
 	  Maximum time allowed for processing a single message in the module's state machine.
 	  The value must be smaller than CONFIG_APP_POWER_WATCHDOG_TIMEOUT_SECONDS.
 
-config APP_POWER_TIMESTAMP
-	bool "Include timestamp in power message"
-	depends on DATE_TIME
-	default y
-	help
-	  Include a timestamp in the power message of POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE
-	  type.
-	  The timestamp is the current time in milliseconds since epoch.
-
 module = APP_POWER
 module-str = Power
 source "subsys/logging/Kconfig.template.log_config"

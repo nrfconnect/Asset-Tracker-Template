@@ -258,6 +258,7 @@ static void sample_network_quality(void)
 	int ret;
 	struct network_msg msg = {
 		.type = NETWORK_QUALITY_SAMPLE_RESPONSE,
+		.uptime = k_uptime_get()
 	};
 
 	ret = lte_lc_conn_eval_params_get(&msg.conn_eval_params);

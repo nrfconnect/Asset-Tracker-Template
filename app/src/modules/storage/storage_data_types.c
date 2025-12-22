@@ -51,9 +51,9 @@ bool battery_check(const struct power_msg *msg)
 	return msg->type == POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE;
 }
 
-void battery_extract(const struct power_msg *msg, double *data)
+void battery_extract(const struct power_msg *msg, struct power_msg *data)
 {
-	*data = msg->percentage;
+	*data = *msg;
 }
 #endif /* CONFIG_APP_POWER */
 

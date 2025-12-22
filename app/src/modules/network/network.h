@@ -141,6 +141,12 @@ struct network_msg {
 		IF_ENABLED(CONFIG_LTE_LC_CONN_EVAL_MODULE,
 			   (struct lte_lc_conn_eval_params conn_eval_params));
 	};
+
+	/** Uptime when the sample was taken in milliseconds.
+	 *  Use date_time_uptime_to_unix_time_ms() to convert to unix time before sending to cloud.
+	 *  Only valid for NETWORK_QUALITY_SAMPLE_RESPONSE events.
+	 */
+	int64_t uptime;
 };
 
 #define MSG_TO_NETWORK_MSG(_msg)	(*(const struct network_msg *)_msg)
