@@ -111,6 +111,7 @@ FAKE_VALUE_FUNC(int, nrf_cloud_coap_agnss_data_get,
 		struct nrf_cloud_rest_agnss_result *);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_location_send, const struct nrf_cloud_gnss_data *, bool);
 FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
+FAKE_VALUE_FUNC(int, date_time_uptime_to_unix_time_ms, int64_t *);
 FAKE_VOID_FUNC(location_cloud_location_ext_result_set, enum location_ext_result,
 	       struct location_data *);
 FAKE_VALUE_FUNC(int, location_agnss_data_process, const char *, size_t);
@@ -146,6 +147,20 @@ static struct cloud_msg last_shadow_response;
 
 static nrf_provisioning_event_cb_t handler;
 
+/* Known conversion offset for testing: uptime + offset = unix time */
+#define TEST_UPTIME_TO_UNIX_OFFSET_MS 1000000LL
+#define TEST_BATTERY_UPTIME_MS 5000LL
+#define TEST_ENVIRONMENTAL_UPTIME_MS 10000LL
+#define TEST_NETWORK_UPTIME_MS 15000LL
+#define TEST_LOCATION_UPTIME_MS 20000LL
+
+static int date_time_uptime_to_unix_time_ms_custom_fake(int64_t *unix_time_ms)
+{
+	/* Convert uptime to a known unix timestamp for verification */
+	*unix_time_ms = *unix_time_ms + TEST_UPTIME_TO_UNIX_OFFSET_MS;
+	return 0;
+}
+
 /* Custom fake for storage_batch_read to drive batch processing in cloud module */
 enum fake_batch_mode {
 	FAKE_BATCH_NONE = 0,
@@ -169,19 +184,22 @@ static int storage_batch_read_custom(struct storage_data_item *out_item, k_timeo
 		switch (fake_mode) {
 		case FAKE_BATCH_BATTERY:
 			out_item->type = STORAGE_TYPE_BATTERY;
-			out_item->data.BATTERY = 87.5;
+			out_item->data.BATTERY.percentage = 87.5;
+			out_item->data.BATTERY.uptime = TEST_BATTERY_UPTIME_MS;
 			break;
 		case FAKE_BATCH_ENV:
 			out_item->type = STORAGE_TYPE_ENVIRONMENTAL;
 			out_item->data.ENVIRONMENTAL.temperature = 21.5;
 			out_item->data.ENVIRONMENTAL.humidity = 40.0;
 			out_item->data.ENVIRONMENTAL.pressure = 1002.3;
+			out_item->data.ENVIRONMENTAL.uptime = TEST_ENVIRONMENTAL_UPTIME_MS;
 			break;
 		case FAKE_BATCH_NET:
 			out_item->type = STORAGE_TYPE_NETWORK;
 			out_item->data.NETWORK.type = NETWORK_QUALITY_SAMPLE_RESPONSE;
 			out_item->data.NETWORK.conn_eval_params.energy_estimate = 5;
 			out_item->data.NETWORK.conn_eval_params.rsrp = -96;
+			out_item->data.NETWORK.uptime = TEST_NETWORK_UPTIME_MS;
 			break;
 		default:
 			return -EAGAIN;
@@ -370,6 +388,7 @@ void setUp(void)
 	RESET_FAKE(nrf_cloud_coap_shadow_get);
 	RESET_FAKE(nrf_cloud_coap_patch);
 	RESET_FAKE(date_time_now);
+	RESET_FAKE(date_time_uptime_to_unix_time_ms);
 	RESET_FAKE(nrf_provisioning_init);
 	RESET_FAKE(nrf_provisioning_trigger_manually);
 	RESET_FAKE(storage_batch_read);
@@ -378,6 +397,8 @@ void setUp(void)
 
 	nrf_cloud_client_id_get_fake.custom_fake = nrf_cloud_client_id_get_custom_fake;
 	nrf_provisioning_init_fake.custom_fake = nrf_provisioning_init_custom_fake;
+	date_time_uptime_to_unix_time_ms_fake.custom_fake =
+		date_time_uptime_to_unix_time_ms_custom_fake;
 
 	k_sem_reset(&cloud_disconnected);
 	k_sem_reset(&cloud_connected);
@@ -654,7 +675,8 @@ void test_gnss_location_data_handling(void)
 	};
 	struct location_msg location_msg = {
 		.type = LOCATION_GNSS_DATA,
-		.gnss_data = mock_location
+		.gnss_data = mock_location,
+		.uptime = TEST_LOCATION_UPTIME_MS
 	};
 	struct storage_msg storage_data_msg = {
 		.type = STORAGE_DATA,
@@ -680,9 +702,13 @@ void test_gnss_location_data_handling(void)
 	/* Verify that GNSS location data was sent to nRF Cloud */
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_send_fake.call_count);
 
-	/* Basic verification that the function was called with valid arguments */
+	/* Verify the function was called with valid arguments and correct timestamp */
 	if (nrf_cloud_coap_location_send_fake.call_count > 0) {
-		TEST_ASSERT_NOT_NULL(nrf_cloud_coap_location_send_fake.arg0_val);
+		const struct nrf_cloud_gnss_data *gnss_data =
+			nrf_cloud_coap_location_send_fake.arg0_val;
+		TEST_ASSERT_NOT_NULL(gnss_data);
+		TEST_ASSERT_EQUAL(TEST_LOCATION_UPTIME_MS + TEST_UPTIME_TO_UNIX_OFFSET_MS,
+				  gnss_data->ts_ms);
 	}
 }
 
@@ -708,6 +734,10 @@ void test_storage_data_battery_sent_to_cloud(void)
 	/* One successful read + one -EAGAIN drain */
 	TEST_ASSERT_EQUAL(2, storage_batch_read_fake.call_count);
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_sensor_send_fake.call_count);
+
+	/* Verify the timestamp was converted correctly */
+	TEST_ASSERT_EQUAL(TEST_BATTERY_UPTIME_MS + TEST_UPTIME_TO_UNIX_OFFSET_MS,
+			  nrf_cloud_coap_sensor_send_fake.arg2_val);
 }
 
 void test_storage_data_environmental_sent_to_cloud(void)
@@ -732,6 +762,14 @@ void test_storage_data_environmental_sent_to_cloud(void)
 	/* One successful read + one -EAGAIN drain */
 	TEST_ASSERT_EQUAL(2, storage_batch_read_fake.call_count);
 	TEST_ASSERT_EQUAL(3, nrf_cloud_coap_sensor_send_fake.call_count);
+
+	/* Verify timestamps were converted correctly for all three calls */
+	TEST_ASSERT_EQUAL(TEST_ENVIRONMENTAL_UPTIME_MS + TEST_UPTIME_TO_UNIX_OFFSET_MS,
+			  nrf_cloud_coap_sensor_send_fake.arg2_history[0]);
+	TEST_ASSERT_EQUAL(TEST_ENVIRONMENTAL_UPTIME_MS + TEST_UPTIME_TO_UNIX_OFFSET_MS,
+			  nrf_cloud_coap_sensor_send_fake.arg2_history[1]);
+	TEST_ASSERT_EQUAL(TEST_ENVIRONMENTAL_UPTIME_MS + TEST_UPTIME_TO_UNIX_OFFSET_MS,
+			  nrf_cloud_coap_sensor_send_fake.arg2_history[2]);
 }
 
 void test_storage_data_network_conn_eval_sent_to_cloud(void)
@@ -757,6 +795,12 @@ void test_storage_data_network_conn_eval_sent_to_cloud(void)
 	TEST_ASSERT_EQUAL(2, storage_batch_read_fake.call_count);
 	/* Expect two sensor publishes: CONEVAL and RSRP */
 	TEST_ASSERT_EQUAL(2, nrf_cloud_coap_sensor_send_fake.call_count);
+
+	/* Verify timestamps were converted correctly for both calls */
+	TEST_ASSERT_EQUAL(TEST_NETWORK_UPTIME_MS + TEST_UPTIME_TO_UNIX_OFFSET_MS,
+			  nrf_cloud_coap_sensor_send_fake.arg2_history[0]);
+	TEST_ASSERT_EQUAL(TEST_NETWORK_UPTIME_MS + TEST_UPTIME_TO_UNIX_OFFSET_MS,
+			  nrf_cloud_coap_sensor_send_fake.arg2_history[1]);
 }
 
 void test_provisioning_failed_with_network_connected_should_go_to_backoff(void)

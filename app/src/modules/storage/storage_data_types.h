@@ -62,7 +62,7 @@
  */
 #define DATA_SOURCE_LIST(X)									\
 	IF_ENABLED(CONFIG_APP_POWER,								\
-		   (X(BATTERY, POWER_CHAN, struct power_msg, double,				\
+		   (X(BATTERY, POWER_CHAN, struct power_msg, struct power_msg,			\
 		      battery_check, battery_extract)))						\
 	IF_ENABLED(CONFIG_APP_ENVIRONMENTAL,							\
 		   (X(ENVIRONMENTAL, ENVIRONMENTAL_CHAN,					\

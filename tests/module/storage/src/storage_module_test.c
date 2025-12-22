@@ -169,7 +169,7 @@ static void storage_chan_cb(const struct zbus_channel *chan)
 		switch (msg->data_type) {
 		case STORAGE_TYPE_BATTERY:
 			received_battery_samples[received_battery_samples_count++] =
-				*(const double *)msg->buffer;
+				((const struct power_msg *)msg->buffer)->percentage;
 			break;
 		case STORAGE_TYPE_ENVIRONMENTAL:
 			received_env_samples[received_env_samples_count++] =
@@ -218,7 +218,7 @@ static size_t read_batch_data(size_t expected_item_count)
 		case STORAGE_TYPE_BATTERY:
 			if (received_battery_samples_count < ARRAY_SIZE(received_battery_samples)) {
 				received_battery_samples[received_battery_samples_count++] =
-					tmp.data.BATTERY;
+					tmp.data.BATTERY.percentage;
 			}
 			break;
 		case STORAGE_TYPE_ENVIRONMENTAL:
@@ -844,7 +844,8 @@ void test_storage_passthrough_data(void)
 		/* Verify that the received message is of type STORAGE_DATA */
 		TEST_ASSERT_EQUAL(STORAGE_DATA, received_msg.type);
 		TEST_ASSERT_EQUAL(STORAGE_TYPE_BATTERY, received_msg.data_type);
-		TEST_ASSERT_EQUAL_DOUBLE(power_msg.percentage, *(double *)received_msg.buffer);
+		TEST_ASSERT_EQUAL_DOUBLE(power_msg.percentage,
+					 ((struct power_msg *)received_msg.buffer)->percentage);
 
 		env_msg = env_samples[i];
 		env_msg.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE;

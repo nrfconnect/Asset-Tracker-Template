@@ -11,10 +11,6 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
 
-#if defined(CONFIG_APP_ENVIRONMENTAL_TIMESTAMP)
-#include <date_time.h>
-#endif
-
 #include "app_common.h"
 #include "environmental.h"
 
@@ -122,14 +118,8 @@ static void sample_sensors(const struct device *const bme680)
 		.temperature = sensor_value_to_double(&temp),
 		.pressure = sensor_value_to_double(&press),
 		.humidity = sensor_value_to_double(&humidity),
+		.uptime = k_uptime_get(),
 	};
-
-#if defined(CONFIG_APP_ENVIRONMENTAL_TIMESTAMP)
-	err = date_time_now(&msg.timestamp);
-	if (err) {
-		LOG_ERR("date_time_now() failed, error: %d, using 0", err);
-	}
-#endif /* CONFIG_APP_ENVIRONMENTAL_TIMESTAMP */
 
 	/* Log the environmental values and limit to 2 decimals */
 	LOG_DBG("Temperature: %.2f C, Pressure: %.2f Pa, Humidity: %.2f %%",

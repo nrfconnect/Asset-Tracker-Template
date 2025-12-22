@@ -287,3 +287,11 @@ smf_set_state(SMF_CTX(state_object), &states[NEW_STATE]);
 
 A transition to another state has to be the last thing happening in a state handler. This is to ensure correct order of execution of parent state handlers.
 SMF automatically handles the execution of exit and entry functions for all states along the path to the new state.
+
+## Timestamp Pattern for Sampled Data
+
+Modules that sample data (environmental, power, location, network) follow a consistent timestamp pattern to ensure accurate time information for cloud transmission:
+
+- **At sampling time**: Modules capture the system uptime using `k_uptime_get()` and store it in an `int64_t uptime` field within the message structure. This represents the relative time in milliseconds when the sample was taken.
+
+- **Before cloud transmission**: The cloud module converts the uptime to Unix timestamp using `date_time_uptime_to_unix_time_ms()` immediately before sending data to the cloud. This ensures that the timestamp reflects the actual sampling time, not the transmission time.

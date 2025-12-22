@@ -14,7 +14,6 @@
 #include <zephyr/drivers/mfd/npm13xx.h>
 #include <zephyr/sys/util.h>
 #include <nrf_fuel_gauge.h>
-#include <date_time.h>
 #include <math.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
@@ -400,14 +399,8 @@ static void sample(int64_t *ref_time)
 		.percentage = (double)roundf(state_of_charge),
 		.charging = charging,
 		.voltage = (double)voltage,
+		.uptime = k_uptime_get()
 	};
-
-#if defined(CONFIG_APP_POWER_TIMESTAMP)
-	err = date_time_now(&msg.timestamp);
-	if (err) {
-		LOG_ERR("date_time_now() failed, error: %d, using 0", err);
-	}
-#endif /* CONFIG_APP_POWER_TIMESTAMP */
 
 	err = zbus_chan_pub(&POWER_CHAN, &msg, K_NO_WAIT);
 	if (err) {

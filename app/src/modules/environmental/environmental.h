@@ -48,8 +48,11 @@ struct environmental_msg {
 	/** Contains the current pressure in Pa. */
 	double pressure;
 
-	/** Timestamp of the sample in milliseconds since epoch. */
-	int64_t timestamp;
+	/** Uptime when the sample was taken in milliseconds.
+	 *  Use date_time_uptime_to_unix_time_ms() to convert to unix time before sending to cloud.
+	 *  Only valid for ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE events.
+	 */
+	int64_t uptime;
 };
 
 #define MSG_TO_ENVIRONMENTAL_MSG(_msg)	(*(const struct environmental_msg *)_msg)

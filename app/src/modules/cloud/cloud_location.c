@@ -255,11 +255,20 @@ static void handle_agnss_request(const struct nrf_modem_gnss_agnss_data_frame *r
 
 #if defined(CONFIG_LOCATION_METHOD_GNSS)
 /* Handle GNSS location data from the location module */
-static void handle_gnss_location_data(const struct location_data *location_data)
+static void handle_gnss_location_data(const struct location_msg *location_msg)
 {
 	int err;
 	int64_t timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
 	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
+	const struct location_data *location_data = &location_msg->gnss_data;
+
+	/* Convert uptime to unix time */
+	timestamp_ms = location_msg->uptime;
+	err = date_time_uptime_to_unix_time_ms(&timestamp_ms);
+	if (err) {
+		LOG_ERR("date_time_uptime_to_unix_time_ms, error: %d", err);
+	}
+
 	struct nrf_cloud_gnss_data gnss_data = {
 		.type = NRF_CLOUD_GNSS_TYPE_PVT,
 		.ts_ms = timestamp_ms,
@@ -274,16 +283,6 @@ static void handle_gnss_location_data(const struct location_data *location_data)
 		(double)location_data->latitude,
 		(double)location_data->longitude,
 		(double)location_data->accuracy);
-
-	/* Get current timestamp */
-	err = date_time_now(&timestamp_ms);
-	if (err) {
-		LOG_WRN("Failed to get current time");
-
-		timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
-	}
-
-	gnss_data.ts_ms = timestamp_ms;
 
 #if defined(CONFIG_LOCATION_DATA_DETAILS)
 #define CLOUD_GNSS_HEADING_ACC_LIMIT (float)60.0
@@ -333,7 +332,7 @@ void cloud_location_handle_message(const struct location_msg *msg)
 #if defined(CONFIG_LOCATION_METHOD_GNSS)
 	case LOCATION_GNSS_DATA:
 		LOG_DBG("GNSS location data received");
-		handle_gnss_location_data(&msg->gnss_data);
+		handle_gnss_location_data(msg);
 		break;
 #endif /* CONFIG_LOCATION_METHOD_GNSS */
 
