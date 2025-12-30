@@ -164,6 +164,7 @@ The architecture is detailed in the [Architecture documentation](docs/common/arc
   * [Memfault Remote Debugging](docs/common/tooling_troubleshooting.md#memfault-remote-debugging)
   * [Modem Tracing](docs/common/tooling_troubleshooting.md#modem-tracing)
   * [Common Issues and Solutions](docs/common/tooling_troubleshooting.md#common-issues-and-solutions)
+* [Known Issues](docs/common/known_issues.md)
 * [Release artifacts](docs/common/release.md)
 
 ### Module Documentation
