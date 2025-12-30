@@ -62,6 +62,7 @@ nav:
   - Firmware Updates (FOTA): common/fota.md
   - Testing and CI setup: common/test_and_ci_setup.md
   - Tooling and Troubleshooting: common/tooling_troubleshooting.md
+  - Known Issues: common/known_issues.md
   - Application modules:
     - Main module: modules/main.md
     - Button module: modules/button.md

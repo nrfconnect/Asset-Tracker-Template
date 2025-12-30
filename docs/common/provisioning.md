@@ -69,8 +69,20 @@ Therefore it is normal that LTE is disconnected or connected multiple times duri
 
     After your device is provisioned and connected, you can perform the following:
 
-    - **Monitor device data**: View real-time data from your device including location, temperature, battery percentage, and other sensor readings in the nRF Cloud portal.
-    - **Retrieve data programmatically**: Use the [Message Routing Service](https://docs.nordicsemi.com/bundle/nrf-cloud/page/Devices/MessagesAndAlerts/MessageRoutingService/ReceivingMessages.html) to automatically forward device messages to your own cloud infrastructure or application endpoints.
+    - **Monitor device data**: View real-time data from your device including location, temperature, battery percentage, and other sensor readings in the [nRF Cloud](https://nrfcloud.com/#/) portal.
+    - **Retrieve data programmatically**:
+        - Use the [Message Routing Service](https://docs.nordicsemi.com/bundle/nrf-cloud/page/Devices/MessagesAndAlerts/MessageRoutingService/ReceivingMessages.html) to automatically forward device messages to your own cloud infrastructure or application endpoints.
+        - Query historical device messages using the REST API. For complete endpoint details, see the [REST API documentation](https://api.nrfcloud.com/) and [OpenAPI specification](https://api.nrfcloud.com/v1/openapi.json).
+
+            <details>
+            <summary><strong>Retrieve historical messages</strong></summary>
+
+            ```bash
+            curl -X GET "https://api.nrfcloud.com/v1/messages?device_id=${DEVICE_ID}&pageLimit=10" \
+              -H "Authorization: Bearer ${API_KEY}" \
+              -H "Accept: application/json"
+            ```
+            </details>
     - **Perform firmware updates**: Deploy over-the-air firmware updates to your device. See [Firmware Updates (FOTA)](fota.md) for detailed instructions on preparing and deploying firmware updates through nRF Cloud.
 
     </details>
