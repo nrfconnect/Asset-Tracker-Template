@@ -44,6 +44,11 @@ enum fota_msg_type {
 	/* Event notified when the FOTA download has been canceled. */
 	FOTA_DOWNLOAD_CANCELED,
 
+	/* Event notified when the FOTA update has been rejected by the device,
+	 * for example wrong image signature or incompatible image.
+	 */
+	FOTA_DOWNLOAD_REJECTED,
+
 	/* Input message types */
 
 	/* Request to poll cloud for any available firmware updates. */

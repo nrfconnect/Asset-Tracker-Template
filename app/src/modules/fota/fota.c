@@ -192,6 +192,11 @@ static void fota_status(enum nrf_cloud_fota_status status, const char *const sta
 
 		evt = FOTA_DOWNLOAD_CANCELED;
 		break;
+	case NRF_CLOUD_FOTA_REJECTED:
+		LOG_WRN("Firmware update rejected");
+
+		evt = FOTA_DOWNLOAD_REJECTED;
+		break;
 	case NRF_CLOUD_FOTA_TIMED_OUT:
 		LOG_WRN("Firmware download timed out");
 
@@ -385,6 +390,8 @@ static enum smf_state_result state_downloading_update_run(void *obj)
 
 			return SMF_EVENT_HANDLED;
 		case FOTA_DOWNLOAD_CANCELED:
+			__fallthrough;
+		case FOTA_DOWNLOAD_REJECTED:
 			__fallthrough;
 		case FOTA_DOWNLOAD_TIMED_OUT:
 			__fallthrough;

@@ -15,7 +15,7 @@ jobs:
     steps:
       - name: Installation
         run: |
-          apt-get update && apt-get install --no-install-recommends -y libmagic1 git
+          apt-get update && apt-get install --no-install-recommends -y libmagic1 git gcc build-essential
           pip install west gitlint
 
       - name: Checkout the code
