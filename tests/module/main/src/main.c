@@ -797,6 +797,51 @@ void test_timer_cancellation_during_fota(void)
 	send_cloud_disconnected();
 }
 
+void test_timer_rejection_during_fota_rejected(void)
+{
+	int err;
+	struct storage_msg storage_msg = {
+		.type = STORAGE_MODE_BUFFER,
+	};
+
+	/* Switch to buffer mode first */
+	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	expect_storage_event(STORAGE_MODE_BUFFER);
+
+	/* Start normal operation */
+	send_cloud_connected();
+
+	/* We would have received cloud and location events, but they should be ignored in this
+	 * test.
+	 */
+	purge_cloud_events();
+	purge_location_events();
+
+	/* Trigger FOTA */
+	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
+	expect_fota_event(FOTA_DOWNLOADING_UPDATE);
+
+	/* During FOTA, no timer-based events should occur - verify by waiting multiple
+	 * intervals.
+	 */
+	expect_no_events(CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS * 5);
+
+	/* Reject FOTA and return to normal operation */
+	send_fota_msg(FOTA_DOWNLOAD_REJECTED);
+	expect_fota_event(FOTA_DOWNLOAD_REJECTED);
+
+	/* Should resume normal timer-based operation */
+	k_sleep(K_SECONDS(CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS));
+	expect_storage_event(STORAGE_BATCH_REQUEST);
+	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
+	expect_fota_event(FOTA_POLL_REQUEST);
+
+	/* Cleanup */
+	send_cloud_disconnected();
+}
+
 void test_multiple_cloud_data_send_intervals(void)
 {
 	/* Connect and complete initial sampling */

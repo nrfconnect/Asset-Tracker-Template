@@ -222,6 +222,102 @@ void test_fota_module_should_fail_on_cancellation(void)
 	event_expect(FOTA_DOWNLOAD_CANCELED);
 }
 
+void test_fota_module_should_fail_on_rejection(void)
+{
+	/* Given */
+	nrf_cloud_fota_poll_process_fake.return_val = 0;
+
+	/* 1. Poll for update */
+	event_send(FOTA_POLL_REQUEST);
+	event_expect(FOTA_POLL_REQUEST);
+
+	/* 2. Downloading update */
+	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_DOWNLOADING);
+	event_expect(FOTA_DOWNLOADING_UPDATE);
+
+	/* 3. Download rejected */
+	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_REJECTED);
+	event_expect(FOTA_DOWNLOAD_REJECTED);
+}
+
+void test_fota_module_should_restart_after_cancellation(void)
+{
+	/* Given */
+	nrf_cloud_fota_poll_process_fake.return_val = 0;
+	nrf_cloud_fota_poll_update_apply_fake.return_val = 0;
+
+	/* 1. Poll for first update */
+	event_send(FOTA_POLL_REQUEST);
+	event_expect(FOTA_POLL_REQUEST);
+
+	/* 2. Downloading update */
+	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_DOWNLOADING);
+	event_expect(FOTA_DOWNLOADING_UPDATE);
+
+	/* 3. Download canceled */
+	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_CANCELED);
+	event_expect(FOTA_DOWNLOAD_CANCELED);
+
+	/* 4. Poll for second update - should work after cancellation */
+	event_send(FOTA_POLL_REQUEST);
+	event_expect(FOTA_POLL_REQUEST);
+
+	/* 5. Downloading second update */
+	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_DOWNLOADING);
+	event_expect(FOTA_DOWNLOADING_UPDATE);
+
+	/* 6. Download succeeded, validation needed */
+	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_FMFU_VALIDATION_NEEDED);
+	event_expect(FOTA_IMAGE_APPLY_NEEDED);
+
+	/* 7. Apply image */
+	event_send(FOTA_IMAGE_APPLY);
+	event_expect(FOTA_IMAGE_APPLY);
+
+	/* 8. Reboot needed */
+	invoke_nrf_cloud_fota_callback_stub_reboot(FOTA_REBOOT_SUCCESS);
+	event_expect(FOTA_SUCCESS_REBOOT_NEEDED);
+}
+
+void test_fota_module_should_restart_after_rejection(void)
+{
+	/* Given */
+	nrf_cloud_fota_poll_process_fake.return_val = 0;
+	nrf_cloud_fota_poll_update_apply_fake.return_val = 0;
+
+	/* 1. Poll for first update */
+	event_send(FOTA_POLL_REQUEST);
+	event_expect(FOTA_POLL_REQUEST);
+
+	/* 2. Downloading update */
+	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_DOWNLOADING);
+	event_expect(FOTA_DOWNLOADING_UPDATE);
+
+	/* 3. Download rejected */
+	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_REJECTED);
+	event_expect(FOTA_DOWNLOAD_REJECTED);
+
+	/* 4. Poll for second update - should work after rejection */
+	event_send(FOTA_POLL_REQUEST);
+	event_expect(FOTA_POLL_REQUEST);
+
+	/* 5. Downloading second update */
+	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_DOWNLOADING);
+	event_expect(FOTA_DOWNLOADING_UPDATE);
+
+	/* 6. Download succeeded, validation needed */
+	invoke_nrf_cloud_fota_callback_stub_status(NRF_CLOUD_FOTA_FMFU_VALIDATION_NEEDED);
+	event_expect(FOTA_IMAGE_APPLY_NEEDED);
+
+	/* 7. Apply image */
+	event_send(FOTA_IMAGE_APPLY);
+	event_expect(FOTA_IMAGE_APPLY);
+
+	/* 8. Reboot needed */
+	invoke_nrf_cloud_fota_callback_stub_reboot(FOTA_REBOOT_SUCCESS);
+	event_expect(FOTA_SUCCESS_REBOOT_NEEDED);
+}
+
 /* This is required to be added to each test. That is because unity's
  * main may return nonzero, while zephyr's main currently must
  * return 0 in all cases (other values are reserved).

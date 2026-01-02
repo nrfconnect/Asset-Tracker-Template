@@ -1683,6 +1683,8 @@ static enum smf_state_result fota_run(void *o)
 		switch (msg) {
 		case FOTA_DOWNLOAD_CANCELED:
 			__fallthrough;
+		case FOTA_DOWNLOAD_REJECTED:
+			__fallthrough;
 		case FOTA_DOWNLOAD_TIMED_OUT:
 			__fallthrough;
 		case FOTA_DOWNLOAD_FAILED:
