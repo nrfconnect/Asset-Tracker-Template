@@ -66,6 +66,8 @@ static const struct device *const uart1_dev = DEVICE_DT_GET(DT_NODELABEL(uart1))
 static int subscribe_to_vsbus_events(const struct device *pmic, struct gpio_callback *event_cb);
 static int charger_read_sensors(float *voltage, float *current, float *temp, int32_t *chg_status);
 static void sample(int64_t *ref_time);
+static int vbus_is_present(void);
+static int sync_uart_to_vbus_status(void);
 
 /* State machine */
 
@@ -125,6 +127,13 @@ static void state_running_entry(void *obj)
 	err = subscribe_to_vsbus_events(pmic, &event_cb);
 	if (err) {
 		LOG_ERR("subscribe_to_vsbus_events, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	err = sync_uart_to_vbus_status();
+	if (err) {
+		LOG_ERR("sync_uart_to_vbus_status, error: %d", err);
 		SEND_FATAL_ERROR();
 		return;
 	}
@@ -291,6 +300,39 @@ static int subscribe_to_vsbus_events(const struct device *device, struct gpio_ca
 	}
 
 	return 0;
+}
+
+static int vbus_is_present(void)
+{
+	int err;
+	struct sensor_value value;
+
+	err = sensor_attr_get(charger,
+			      (enum sensor_channel)SENSOR_CHAN_NPM13XX_CHARGER_VBUS_STATUS,
+			      (enum sensor_attribute)SENSOR_ATTR_NPM13XX_CHARGER_VBUS_PRESENT,
+			      &value);
+	if (err) {
+		LOG_ERR("sensor_attr_get, error: %d", err);
+		return err;
+	}
+
+	return value.val1 != 0;
+}
+
+static int sync_uart_to_vbus_status(void)
+{
+	int present;
+
+	if (!IS_ENABLED(CONFIG_APP_POWER_DISABLE_UART_ON_VBUS_REMOVED)) {
+		return 0;
+	}
+
+	present = vbus_is_present();
+	if (present < 0) {
+		return present;
+	}
+
+	return present ? uart_enable() : uart_disable();
 }
 
 static int charger_read_sensors(float *voltage, float *current, float *temp, int32_t *chg_status)
