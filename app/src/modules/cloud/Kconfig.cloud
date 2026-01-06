@@ -111,7 +111,7 @@ endchoice
 
 config APP_CLOUD_THREAD_STACK_SIZE
 	int "Thread stack size"
-	default 5632
+	default 6352
 
 config APP_CLOUD_MESSAGE_QUEUE_SIZE
 	int "Message queue size"

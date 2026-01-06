@@ -28,7 +28,7 @@ void setUp(void)
 	/* reset fakes */
 	RESET_FAKE(task_wdt_feed);
 	RESET_FAKE(task_wdt_add);
-        RESET_FAKE(date_time_now);
+	RESET_FAKE(date_time_now);
 }
 
 void check_environmental_event(enum environmental_msg_type expected_environmental_type)

@@ -207,12 +207,18 @@ The following includes the key configuration categories:
 
 ### Storage Backend
 
-- **`CONFIG_APP_STORAGE_BACKEND_RAM`** (default and only backend currently provided): Uses RAM for storage.
+- **`CONFIG_APP_STORAGE_BACKEND_RAM`** (default): Uses RAM for storage.
   Data is lost on power cycle but provides fast access.
+
+- **`CONFIG_APP_STORAGE_BACKEND_LITTLEFS`** : Uses the LittleFS filesystem for flash storage.
+  Data is persistent across power cycles, but provides slower access.
+
+> [!NOTE]
+> Regardless of the backend used, stored data is automatically cleared when FOTA updates are applied to ensure a clean state after firmware updates. See the [FOTA module documentation](fota_module.md#storage-clearing-on-reboot) for details.
 
 ### Memory Configuration
 
-- **`CONFIG_APP_STORAGE_MAX_TYPES`** (default: 3): Maximum number of different data types that can be registered.
+- **`CONFIG_APP_STORAGE_MAX_TYPES`** (default: 4): Maximum number of different data types that can be registered.
   Affects RAM usage.
 
 - **`CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE`** (default: 8): Maximum records stored per data type.

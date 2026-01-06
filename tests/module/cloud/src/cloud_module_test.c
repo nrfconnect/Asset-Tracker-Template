@@ -419,7 +419,7 @@ void setUp(void)
 	/* Set default return values */
 	nrf_cloud_coap_location_send_fake.return_val = 0;
 	storage_batch_read_fake.return_val = -EAGAIN;
-        date_time_is_valid_fake.return_val = true;
+	date_time_is_valid_fake.return_val = true;
 
 	/* Clear all channels */
 	zbus_sub_wait(&location, &chan, K_NO_WAIT);
