@@ -19,15 +19,15 @@ extern "C" {
 enum ntn_msg_type {
 	/* Events that trigger state transitions */
 	NTN_LOCATION_SEARCH_DONE, /* Location search completed - triggers transition to NTN mode */
-	NTN_NETWORK_CONNECTED,    /* Network connectivity established */
-	NTN_SET_IDLE,            /* Set idle state */
+	NETWORK_CONNECTED,    /* Network connectivity established */
+	NTN_NETWORK_DISCONNECTED, /* Network disconnected */
+	NTN_LOCATION_REQUEST, /*  */
 	GNSS_TRIGGER,          /* GNSS timer expired - get new fix */
 	NTN_TRIGGER,           /* LTE timer expired - connect to network */
 	NTN_SHELL_SET_TIME,  /* Set new time of pass from shell */
 	KEEPALIVE_TIMER,     /* Keepalive timer */
-	NTN_RRC_CONNECTED,   /* RRC connected */
-	RESCHEDULE_NTN_TRIGGER, /* RESCHEDULE_NTN_TRIGGER */
-	SET_IDLE_TIMER, /* SET_IDLE_TIMER */
+	NETWORK_CONNECTION_FAILED, /*  */
+	GNSS_TIMEOUT, /* */
 };
 
 /* NTN module message */

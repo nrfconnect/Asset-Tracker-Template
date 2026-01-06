@@ -9,12 +9,11 @@
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/smf.h>
 #include <modem/lte_lc.h>
-#include <modem/pdn.h>
 #include <date_time.h>
 #include <modem/nrf_modem_lib.h>
+#include <modem/ntn.h>
 #include <modem/modem_info.h>
 #include <nrf_modem_at.h>
-#include <modem/at_monitor.h>
 #include <nrf_modem_gnss.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/net/socket.h>
@@ -23,18 +22,10 @@
 
 #include "app_common.h"
 #include "ntn.h"
+#include "celestrak_client.h"
+#include "sat_prediction.h"
 
-LOG_MODULE_REGISTER(ntn, CONFIG_APP_NTN_LOG_LEVEL);
-
-/* AT monitor for network notifications.
- * The monitor is needed to receive notification when in the case where the modem has been
- * put into offline mode while keeping registration context.
- * In this case, the modem will send a +CEREG notification with status 1 or 5 when NTN is
- * re-enabled. The LTE link controller does not forward this because it is equal to the previous
- * registration status. To work around this, we monitor the +CEREG notification and forward it
- * to the NTN module when offline-while-keeping-registration mode is enabled.
- */
-AT_MONITOR(cereg_monitor, "CEREG", cereg_mon, PAUSED);
+LOG_MODULE_REGISTER(ntn_module, CONFIG_APP_NTN_LOG_LEVEL);
 
 /* Define channels provided by this module */
 ZBUS_CHAN_DEFINE(NTN_CHAN,
@@ -56,6 +47,7 @@ ZBUS_CHAN_ADD_OBS(NTN_CHAN, ntn_subscriber, 0);
 /* State machine states */
 enum ntn_module_state {
 	STATE_RUNNING,
+	STATE_TN,
 	STATE_GNSS,
 	STATE_NTN,
 	STATE_IDLE,
@@ -69,10 +61,6 @@ struct ntn_state_object {
 	struct k_timer keepalive_timer;
 	struct k_timer gnss_timer;
 	struct k_timer ntn_timer;
-	struct k_timer idle_timer;
-	bool pdn_context_active;
-	bool socket_connected;
-	int connection_retry_counter;
 	int sock_fd;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
 };
@@ -80,7 +68,6 @@ struct ntn_state_object {
 static struct k_work keepalive_timer_work;
 static struct k_work gnss_timer_work;
 static struct k_work ntn_timer_work;
-static struct k_work idle_timer_work;
 
 static struct k_work gnss_location_work;
 static struct k_work gnss_timeout_work;
@@ -89,11 +76,13 @@ static struct k_work gnss_timeout_work;
 
 static void gnss_event_handler(int event);
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt);
-static void pdn_event_handler(uint8_t cid, enum pdn_event event, int reason);
 static void ntn_msg_publish(enum ntn_msg_type type);
 
 static void state_running_entry(void *obj);
 static enum smf_state_result state_running_run(void *obj);
+static void state_tn_entry(void *obj);
+static enum smf_state_result state_tn_run(void *obj);
+static void state_tn_exit(void *obj);
 static void state_gnss_entry(void *obj);
 static enum smf_state_result state_gnss_run(void *obj);
 static void state_gnss_exit(void *obj);
@@ -107,6 +96,8 @@ static enum smf_state_result state_idle_run(void *obj);
 static const struct smf_state states[] = {
 	[STATE_RUNNING] = SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
 				NULL, &states[STATE_GNSS]),
+	[STATE_TN] = SMF_CREATE_STATE(state_tn_entry, state_tn_run, state_tn_exit,
+				&states[STATE_RUNNING], NULL),
 	[STATE_GNSS] = SMF_CREATE_STATE(state_gnss_entry, state_gnss_run, state_gnss_exit,
 				&states[STATE_RUNNING], NULL),
 	[STATE_NTN] = SMF_CREATE_STATE(state_ntn_entry, state_ntn_run, state_ntn_exit,
@@ -115,48 +106,12 @@ static const struct smf_state states[] = {
 				&states[STATE_RUNNING], NULL),
 };
 
-// static void log_stack_usage(const char *location)
-// {
-// #ifdef CONFIG_THREAD_STACK_INFO
-// 	size_t unused;
-// 	k_tid_t current = k_current_get();
-// 	const char *thread_name = k_thread_name_get(current);
-	
-// 	if (k_thread_stack_space_get(current, &unused) == 0) {
-// 		// Try to get stack size - this is architecture dependent
-// 		size_t used = 0;
-// 		size_t total = 0;
-		
-// 		struct k_thread *thread = (struct k_thread *)current;
-// 		if (thread->stack_info.size > 0) {
-// 			total = thread->stack_info.size;
-// 			used = total - unused;
-// 		}
-		
-// 		if (total > 0) {
-// 			LOG_WRN("[%s] Thread: '%s' (ID:%p), Stack: %zu/%zu used, %zu free",
-// 				location,
-// 				thread_name ? thread_name : "unnamed",
-// 				(void *)current,
-// 				used, total, unused);
-// 		} else {
-// 			LOG_WRN("[%s] Thread: '%s' (ID:%p), Stack: %zu bytes free",
-// 				location,
-// 				thread_name ? thread_name : "unnamed",
-// 				(void *)current,
-// 				unused);
-// 		}
-// 	}
-// #endif
-// }
 
 /* Event handlers */
 
-static void keepalive_timer_work_handler(struct k_work *work)
+static void keepalive_timer_work_fn(struct k_work *work)
 {
 	int err;
-
-	// log_stack_usage("keepalive_before_publish");
 
 	ntn_msg_publish(KEEPALIVE_TIMER);
 
@@ -169,23 +124,22 @@ static void keepalive_timer_work_handler(struct k_work *work)
 	}
 }
 
-
-static void gnss_timer_work_handler(struct k_work *work)
+static void gnss_timer_work_fn(struct k_work *work)
 {
-	/* Time to get new GNSS fix (300s before pass) */
+	/* Time to get new GNSS fix */
 	ntn_msg_publish(GNSS_TRIGGER);
 }
 
-static void ntn_timer_work_handler(struct k_work *work)
+static void ntn_timer_work_fn(struct k_work *work)
 {
-	/* Time to enable NTN and connect (20s before pass) */
+	/* Time to enable NTN and connect */
 	ntn_msg_publish(NTN_TRIGGER);
 }
 
-static void idle_timer_work_handler(struct k_work *work)
+static void handle_gnss_timeout_work_fn(struct k_work *work)
 {
-	/* Time to enable NTN and connect (20s before pass) */
-	ntn_msg_publish(NTN_SET_IDLE);
+	/* GNSS timeout */
+	ntn_msg_publish(GNSS_TIMEOUT);
 }
 
 /* Timer callback for keepalive */
@@ -193,7 +147,6 @@ static void keepalive_timer_handler(struct k_timer *timer)
 {
 	k_work_submit(&keepalive_timer_work);
 }
-
 
 /* Timer callback for GNSS update */
 static void gnss_timer_handler(struct k_timer *timer)
@@ -206,13 +159,6 @@ static void ntn_timer_handler(struct k_timer *timer)
 {
 	k_work_submit(&ntn_timer_work);
 }
-
-/* Timer callback for setting idle state */
-static void idle_timer_handler(struct k_timer *timer)
-{
-	k_work_submit(&idle_timer_work);
-}
-
 
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 {
@@ -229,7 +175,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			/* cereg 0 */
 			LOG_DBG("LTE_LC_NW_REG_NOT_REGISTERED");
 			LOG_WRN("Not registered, check rejection cause");
-			ntn_msg_publish(SET_IDLE_TIMER);
+			ntn_msg_publish(NETWORK_CONNECTION_FAILED);
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME) {
 			/* cereg 1 */
 			LOG_DBG("LTE_LC_NW_REG_REGISTERED_HOME");
@@ -242,17 +188,46 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTRATION_DENIED) {
 			/* cereg 3 */
 			LOG_DBG("LTE_LC_NW_REG_REGISTRATION_DENIED");
-			ntn_msg_publish(SET_IDLE_TIMER);
+			ntn_msg_publish(NETWORK_CONNECTION_FAILED);
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NO_SUITABLE_CELL) {
 			/* cereg 91 */
 			LOG_DBG("LTE_LC_NW_REG_NO_SUITABLE_CELL");
-			// ntn_msg_publish(RESCHEDULE_NTN_TRIGGER);
-			ntn_msg_publish(SET_IDLE_TIMER);
+			ntn_msg_publish(NETWORK_CONNECTION_FAILED);
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_UNKNOWN) {
 			/* cereg 4 */
 			LOG_DBG("LTE_LC_NW_REG_UNKNOWN");
-			// ntn_msg_publish(RESCHEDULE_NTN_TRIGGER);
-			ntn_msg_publish(SET_IDLE_TIMER);
+		}
+
+		break;
+	case LTE_LC_EVT_PDN:
+		switch (evt->pdn.type) {
+		case LTE_LC_EVT_PDN_ACTIVATED:
+			LOG_DBG("PDN connection activated");
+			ntn_msg_publish(NETWORK_CONNECTED);
+
+			break;
+		case LTE_LC_EVT_PDN_DEACTIVATED:
+			LOG_DBG("PDN connection deactivated");
+			ntn_msg_publish(NTN_NETWORK_DISCONNECTED);
+
+			break;
+		case LTE_LC_EVT_PDN_NETWORK_DETACH:
+			LOG_DBG("PDN connection network detached");
+			ntn_msg_publish(NTN_NETWORK_DISCONNECTED);
+
+			break;
+		case LTE_LC_EVT_PDN_SUSPENDED:
+			LOG_DBG("PDN connection suspended");
+			ntn_msg_publish(NTN_NETWORK_DISCONNECTED);
+
+			break;
+		case LTE_LC_EVT_PDN_RESUMED:
+			LOG_DBG("PDN connection resumed");
+			ntn_msg_publish(NETWORK_CONNECTED);
+
+			break;
+		default:
+			break;
 		}
 
 		break;
@@ -267,7 +242,6 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 	case LTE_LC_EVT_RRC_UPDATE:
 		if (evt->rrc_mode == LTE_LC_RRC_MODE_CONNECTED) {
 			LOG_DBG("LTE_LC_RRC_MODE_CONNECTED");
-			ntn_msg_publish(NTN_RRC_CONNECTED);
 		}
 		else if (evt->rrc_mode == LTE_LC_RRC_MODE_IDLE) {
 			LOG_DBG("LTE_LC_RRC_MODE_IDLE");
@@ -285,35 +259,19 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 	}
 }
 
-/* Event handlers */
-static void pdn_event_handler(uint8_t cid, enum pdn_event event, int reason)
+
+static void ntn_event_handler(const struct ntn_evt *evt)
 {
-	switch (event) {
-#if CONFIG_PDN_ESM_STRERROR
-	case PDN_EVENT_CNEC_ESM:
-		LOG_DBG("Event: PDP context %d, %s", cid, pdn_esm_strerror(reason));
+	switch (evt->type) {
+	case NTN_EVT_LOCATION_REQUEST:
+		LOG_DBG("NTN location requested: %s, accuracy: %d m",
+			evt->location_request.requested ? "true" : "false",
+			evt->location_request.accuracy);
 
-		break;
-#endif
-	case PDN_EVENT_ACTIVATED:
-		LOG_DBG("PDN_EVENT_ACTIVATED");
-		ntn_msg_publish(NTN_NETWORK_CONNECTED);
-
-		break;
-	case PDN_EVENT_NETWORK_DETACH:
-		LOG_DBG("PDN_EVENT_NETWORK_DETACH");
-
-		break;
-	case PDN_EVENT_DEACTIVATED:
-
-		LOG_DBG("PDN_EVENT_DEACTIVATED");
-		break;
-	case PDN_EVENT_CTX_DESTROYED:
-		LOG_DBG("PDN_EVENT_CTX_DESTROYED");
+		ntn_msg_publish(NTN_LOCATION_REQUEST);
 
 		break;
 	default:
-		LOG_ERR("Unexpected PDN event: %d", event);
 
 		break;
 	}
@@ -450,13 +408,6 @@ static void gnss_location_work_handler(struct k_work *work)
 	}
 }
 
-static void handle_timeout_work_fn(struct k_work *item)
-{
-	ARG_UNUSED(item);
-
-	ntn_msg_publish(NTN_SET_IDLE);
-}
-
 /* Helper functions */
 
 static void configure_periodic_search(void) {
@@ -548,21 +499,6 @@ static int reschedule_timers(struct ntn_state_object *state, const char * const 
 	return 0;
 }
 
-static void cereg_mon(const char *notif)
-{
-	enum lte_lc_nw_reg_status status = atoi(notif + (sizeof("+CEREG: ") - 1));
-
-	if ((status == LTE_LC_NW_REG_REGISTERED_ROAMING) ||
-	    (status == LTE_LC_NW_REG_REGISTERED_HOME)) {
-		LOG_DBG("Network registration status: %s",
-			status == LTE_LC_NW_REG_REGISTERED_ROAMING ? "ROAMING" : "HOME");
-		ntn_msg_publish(NTN_NETWORK_CONNECTED);
-		LOG_DBG("Stop monitoring incoming CEREG Notifications");
-		at_monitor_pause(&cereg_monitor);
-	}
-}
-
-
 static int set_ntn_offline_mode(void)
 {
 	int err;
@@ -582,7 +518,6 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 {
 	int err;
 	enum lte_lc_func_mode mode;
-	bool ntn_initialized = false;
 
 	err = lte_lc_func_mode_get(&mode);
 	if (err) {
@@ -593,174 +528,74 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 
 	/* If needed, go offline to be able to set NTN system mode */
 	switch (mode) {
-	case LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG:;
-		ntn_initialized = true;
-
-		break;
+	case LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG: __fallthrough;
 	case LTE_LC_FUNC_MODE_OFFLINE: __fallthrough;
 	case LTE_LC_FUNC_MODE_POWER_OFF:
 		break;
 	default:
-
-		break;
-	}
-
-	if (ntn_initialized) {
-		/* Configure NTN system mode */
-		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
-		if (err) {
-			LOG_ERR("Failed to set NTN system mode, error: %d", err);
-
-			return err;
-		}
-
-		/* Configure location using latest GNSS data */
-		err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"%f\",0,0",
-					(double)state->last_pvt.latitude,
-					(double)state->last_pvt.longitude,
-					(double)state->last_pvt.altitude);
-		if (err) {
-			LOG_ERR("Failed to set AT%%LOCATION, error: %d", err);
-
-			return err;
-		}
-
-		/* Check if we are in offline-while-keeping-registration mode. If so, the modem has already
-		 * been able to register to an NTN network, which means that the LTE link controller will
-		 * ignore +CEREG notifications with status 1 or 5. To work around this, we monitor the
-		 * +CEREG notifications in the application.
-		 */
-		if (state->pdn_context_active) {
-			LOG_DBG("Start monitoring incoming CEREG Notifications");
-			at_monitor_resume(&cereg_monitor);
-		}
-
-		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
+		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE);
 		if (err) {
 			LOG_ERR("lte_lc_func_mode_set, error: %d", err);
 
 			return err;
 		}
-	} else {
-		/* Power off modem */
-		err = lte_lc_power_off();
-		if (err) {
-			LOG_ERR("lte_lc_power_off, error: %d", err);
 
-			return err;
-		}
+		break;
+	}
 
-		// err = nrf_modem_at_printf("AT%%XOPCONF=23");
-		// if (err) {
-		// 	LOG_ERR("Failed to set AT%%XOPCONF=23, error: %d", err);
+	/* Configure NTN system mode */
+	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+	if (err) {
+		LOG_ERR("Failed to set NTN system mode, error: %d", err);
 
-		// 	return err;
-		// }
+		return err;
+	}
 
-#if defined(CONFIG_APP_NTN_CELLULARPRFL_ENABLE)
-		/* Set NTN profile */
-		err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,0,4,0");
-		if (err) {
-			LOG_ERR("Failed to set modem NTN profile, error: %d", err);
+	/* Configure location using latest GNSS data */
+	err = ntn_location_set((double)state->last_pvt.latitude,
+				(double)state->last_pvt.longitude,
+				(float)state->last_pvt.altitude, 0);
+	if (err) {
+		LOG_ERR("Failed to set location, error: %d", err);
 
-			return err;
-		}
-
-		/* Set TN profile */
-		err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,1,1,0");
-		if (err) {
-			LOG_ERR("Failed to set modem TN profile, error: %d", err);
-
-			return err;
-		}
-#endif
-
-		/* Configure NTN system mode */
-		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
-		if (err) {
-			LOG_ERR("Failed to set NTN system mode, error: %d", err);
-
-			return err;
-		}
+		return err;
+	}
 
 #if defined(CONFIG_APP_NTN_COPS_ENABLE)
-		err = nrf_modem_at_printf("AT+COPS=1,2,\"%s\"", CONFIG_APP_NTN_COPS);
-		if (err) {
-			LOG_ERR("Failed to set AT+COPS=1,2,\"90197\", error: %d", err);
+	err = nrf_modem_at_printf("AT+COPS=1,2,\"%s\"", CONFIG_APP_NTN_COPS);
+	if (err) {
+		LOG_ERR("Failed to set AT+COPS=1,2,\"90197\", error: %d", err);
 
-			return err;
-		}
+		return err;
+	}
 #endif
 
-		err = nrf_modem_at_printf("AT+CEREG=5");
-		if (err) {
-			LOG_ERR("Failed to set AT+CEREG=5, error: %d", err);
-
-			return err;
-		}
-
-#if defined(CONFIG_APP_NTN_APN)
-		err = nrf_modem_at_printf("AT+CGDCONT=0,\"ip\",\"%s\"", CONFIG_APP_NTN_APN);
-		if (err) {
-			LOG_ERR("Failed to set NTN APN, error: %d", err);
-
-			return err;
-		}
-#endif
-
-		/* Configure location using latest GNSS data */
-		err = nrf_modem_at_printf("AT%%LOCATION=2,\"%f\",\"%f\",\"%f\",0,0",
-					(double)state->last_pvt.latitude,
-					(double)state->last_pvt.longitude,
-					(double)state->last_pvt.altitude);
-		if (err) {
-			LOG_ERR("Failed to set AT%%LOCATION, error: %d", err);
-
-			return err;
-		}
 
 #if defined(CONFIG_APP_NTN_BANDLOCK_ENABLE)
-		err = nrf_modem_at_printf("AT%%XBANDLOCK=1,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
-		if (err) {
-			LOG_ERR("Failed to set NTN band lock, error: %d", err);
+	err = nrf_modem_at_printf("AT%%XBANDLOCK=1,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
+	if (err) {
+		LOG_ERR("Failed to set NTN band lock, error: %d", err);
 
-			return err;
-		}
+		return err;
+	}
 #endif
 
 #if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
-		err = nrf_modem_at_printf("AT%%CHSELECT=2,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
-		if (err) {
-			LOG_ERR("Failed to set NTN channel, error: %d", err);
+	err = nrf_modem_at_printf("AT%%CHSELECT=2,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
+	if (err) {
+		LOG_ERR("Failed to set NTN channel, error: %d", err);
 
-			return err;
-		}
+		return err;
+	}
 #endif
 
-		/*
-		Modem is activating AT+CPSMS via CONFIG_LTE_LC_PSM_MODULE=y.
-		Cast AT+CPSMS=0 to deactivate legacy PSM.
-		CFUN=45 + legacy PSM is not supported, has bugs.
-		*/
-		err = nrf_modem_at_printf("AT+CPSMS=0");
-		if (err) {
-			LOG_ERR("Failed to set AT+CPSMS=0, error: %d", err);
+	configure_periodic_search();
 
-			return err;
-		}
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
+	if (err) {
+		LOG_ERR("lte_lc_func_mode_set, error: %d\n", err);
 
-		LOG_DBG("Pause monitoring incoming CEREG Notifications");
-		at_monitor_pause(&cereg_monitor);
-
-
-		configure_periodic_search();
-
-		err = lte_lc_connect_async(lte_lc_evt_handler);
-		if (err) {
-			LOG_ERR("lte_lc_connect_async, error: %d\n", err);
-
-			return err;
-		}
+		return err;
 	}
 
 	return 0;
@@ -781,9 +616,9 @@ static int set_gnss_active_mode(struct ntn_state_object *state)
 
 	if ((mode != LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG)) {
 		/* Go offline to be able to set GNSS system mode */
-		err = lte_lc_power_off();
+		err = lte_lc_offline();
 		if (err) {
-			LOG_ERR("lte_lc_power_off, error: %d", err);
+			LOG_ERR("lte_lc_offline, error: %d", err);
 
 			return err;
 		}
@@ -1011,23 +846,31 @@ static void state_running_entry(void *obj)
 	
 	LOG_DBG("%s", __func__);
 
-	k_work_init(&keepalive_timer_work, keepalive_timer_work_handler);
-	k_work_init(&gnss_timer_work, gnss_timer_work_handler);
-	k_work_init(&ntn_timer_work, ntn_timer_work_handler);
-	k_work_init(&idle_timer_work, idle_timer_work_handler);
+	k_work_init(&keepalive_timer_work, keepalive_timer_work_fn);
+	k_work_init(&gnss_timer_work, gnss_timer_work_fn);
+	k_work_init(&ntn_timer_work, ntn_timer_work_fn);
 
 	k_timer_init(&state->keepalive_timer, keepalive_timer_handler, NULL);
 	k_timer_init(&state->gnss_timer, gnss_timer_handler, NULL);
 	k_timer_init(&state->ntn_timer, ntn_timer_handler, NULL);
-	k_timer_init(&state->idle_timer, idle_timer_handler, NULL);
 
 	k_work_init(&gnss_location_work, gnss_location_work_handler);
-	k_work_init(&gnss_timeout_work, handle_timeout_work_fn);
+	k_work_init(&gnss_timeout_work, handle_gnss_timeout_work_fn);
 
 	err = nrf_modem_lib_init();
 	if (err) {
 		LOG_ERR("Failed to initialize the modem library, error: %d", err);
 
+		return;
+	}
+
+	/* Initialize satellite prediction module */
+	sat_prediction_init();
+
+	/* Initialize Celestrak client */
+	err = celestrak_client_init();
+	if (err) {
+		LOG_ERR("Failed to initialize Celestrak client, error: %d", err);
 		return;
 	}
 
@@ -1037,20 +880,69 @@ static void state_running_entry(void *obj)
 	/* Register LTE event handler */
 	lte_lc_register_handler(lte_lc_evt_handler);
 
-	/* Register handler for default PDP context 0. */
-	err = pdn_default_ctx_cb_reg(pdn_event_handler);
+	/* Register handler for default PDP context. */
+	err = lte_lc_pdn_default_ctx_events_enable();
 	if (err) {
-		LOG_ERR("pdn_default_ctx_cb_reg, error: %d", err);
+		LOG_ERR("lte_lc_pdn_default_ctx_events_enable, error: %d", err);
 
 		return;
 	}
 
+	ntn_register_handler(ntn_event_handler);
+
 	k_work_submit(&keepalive_timer_work);
+
+	err = lte_lc_power_off();
+		if (err) {
+			LOG_ERR("lte_lc_power_off, error: %d", err);
+
+			return;
+		}
+
+	/* Set NTN SIM profile.
+	 * 2: Configure cellular profile
+	 * 1: Cellular profile index
+	 * 4: Access technology: Satellite E-UTRAN (NB-S1 mode)
+	 * 0: SIM slot, physical SIM
+	 */
+	struct lte_lc_cellular_profile ntn_profile = {
+			.id = 1,
+			.act = LTE_LC_ACT_NTN,
+			.uicc = LTE_LC_UICC_PHYSICAL,
+		};
+
+	/* Set NTN profile */
+	err = lte_lc_cellular_profile_configure(&ntn_profile);
+		if (err) {
+			LOG_ERR("Failed to set NTN profile, error: %d", err);
+
+			return;
+		}
+
+
+	/* Set TN SIM profile for LTE-M
+		* 2: Configure cellular profile
+		* 0: Cellular profile index
+		* 1: Access technology: LE-UTRAN (WB-S1 mode), LTE-M
+		* 0: SIM slot, physical SIM
+	*/
+	struct lte_lc_cellular_profile tn_profile = {
+			.id = 0,
+			.act = LTE_LC_ACT_LTEM || LTE_LC_ACT_NBIOT,
+			.uicc = LTE_LC_UICC_PHYSICAL,
+		};
+
+	/* Set TN profile */
+	err = lte_lc_cellular_profile_configure(&tn_profile);
+		if (err) {
+			LOG_ERR("Failed to set TN profile, error: %d", err);
+
+			return;
+		}
 }
 
 static enum smf_state_result state_running_run(void *obj)
 {
-	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
 
@@ -1071,16 +963,10 @@ static enum smf_state_result state_running_run(void *obj)
 
 			break;
 		case NTN_TRIGGER:
-			LOG_DBG("NTN trigger");
-			if (state->connection_retry_counter < 5) {
-				state->connection_retry_counter++;
-				smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
-			} else {
-				smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-			}
+			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
 
 			break;
-		case NTN_SET_IDLE:
+		case GNSS_TIMEOUT:
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
 			break;
@@ -1097,6 +983,198 @@ static enum smf_state_result state_running_run(void *obj)
 	return SMF_EVENT_PROPAGATE;
 }
 
+static void state_tn_entry(void *obj)
+{
+	int err;
+	enum lte_lc_func_mode mode;
+
+	ARG_UNUSED(obj);
+
+	LOG_DBG("%s", __func__);
+
+	err = lte_lc_func_mode_get(&mode);
+	if (err) {
+		LOG_ERR("Failed to get LTE function mode, error: %d", err);
+
+		return;
+	}
+
+	/* If needed, go offline to be able to set TN system mode */
+	switch (mode) {
+	case LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG: __fallthrough;
+	case LTE_LC_FUNC_MODE_OFFLINE: __fallthrough;
+	case LTE_LC_FUNC_MODE_POWER_OFF:
+		break;
+	default:
+		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
+		if (err) {
+			LOG_ERR("lte_lc_func_mode_set, error: %d", err);
+
+			return;
+		}
+
+		break;
+	}
+
+	err = nrf_modem_at_printf("AT+COPS=0");
+	if (err) {
+		LOG_ERR("Failed to set AT+COPS=0, error: %d", err);
+
+		return err;
+	}
+
+	err = nrf_modem_at_printf("AT%%XBANDLOCK=0");
+	if (err) {
+		LOG_ERR("Failed to set remove NTN band lock, error: %d", err);
+
+		return;
+	}
+
+	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM,
+				     LTE_LC_SYSTEM_MODE_PREFER_LTEM);
+	if (err) {
+		LOG_ERR("lte_lc_system_mode_set, error: %d", err);
+
+		return;
+	}
+
+	/* Connect to network */
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
+	if (err) {
+		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
+
+		return;
+	}
+}
+
+
+static enum smf_state_result state_tn_run(void *obj)
+{
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+
+	if (state->chan == &NTN_CHAN) {
+		int err;
+		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
+
+		if (msg->type == NETWORK_CONNECTION_FAILED) {
+			LOG_INF("Out of LTE coverage, going to idle state");
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+			return SMF_EVENT_HANDLED;
+		} else if (msg->type == NETWORK_CONNECTED) {
+
+			/* Fetch TLE for SIOT1 with proper error handling */
+			char tle_buffer[1024] = {0};
+			size_t bytes_written = 0;
+			const char* siot1_catnr = "60550";  // SATELIOT_1
+
+			LOG_INF("Starting TLE fetch for SIOT1");
+
+			err = celestrak_fetch_tle(siot1_catnr, tle_buffer, sizeof(tle_buffer), &bytes_written);
+				
+			if (err != 0 || bytes_written == 0) {
+				LOG_ERR("Failed to fetch TLEs after all retries");
+				return SMF_EVENT_HANDLED;
+			}
+
+			LOG_INF("TLE for SIOT1:\n%s", tle_buffer);
+
+			/* Parse the TLE data - it comes in 3 lines format */
+			char *saveptr;
+			char *line = strtok_r(tle_buffer, "\n", &saveptr);
+			if (!line) {
+				LOG_ERR("Failed to parse satellite name");
+				return SMF_EVENT_HANDLED;
+			}
+			char *name = line;
+
+			line = strtok_r(NULL, "\n", &saveptr);
+			if (!line) {
+				LOG_ERR("Failed to parse TLE line 1");
+				return SMF_EVENT_HANDLED;
+			}
+			char *line1 = line;
+
+			line = strtok_r(NULL, "\n", &saveptr);
+			if (!line) {
+				LOG_ERR("Failed to parse TLE line 2");
+				return SMF_EVENT_HANDLED;
+			}
+			char *line2 = line;
+
+			sat_prediction_pass_t next_pass;
+			err = sat_prediction_get_next_pass_with_tle(
+				(double)state->last_pvt.latitude,
+				(double)state->last_pvt.longitude,
+				(double)state->last_pvt.altitude,
+				name,
+				line1,
+				line2,
+				&next_pass
+			);
+
+			if (err) {
+				LOG_ERR("Failed to get next satellite pass, error: %d", err);
+				return SMF_EVENT_HANDLED;
+			}
+
+			/* Convert timestamps to UTC time strings */
+			time_t start_time = next_pass.start_time_ms / 1000;
+			time_t end_time = next_pass.end_time_ms / 1000;
+			struct tm start_tm, end_tm;
+			char start_time_str[32], end_time_str[32];
+
+			gmtime_r(&start_time, &start_tm);
+			strftime(start_time_str, sizeof(start_time_str), "%Y-%m-%d %H:%M:%S UTC", &start_tm);
+			gmtime_r(&end_time, &end_tm);
+			strftime(end_time_str, sizeof(end_time_str), "%Y-%m-%d %H:%M:%S UTC", &end_tm);
+
+			LOG_INF("Next pass: %s", next_pass.sat_name);
+			LOG_INF("Start: %s", start_time_str);
+			LOG_INF("End: %s", end_time_str);
+            		LOG_INF("Max elevation: %.2f", next_pass.max_elevation);
+
+			/* Format time for reschedule_timers in YYYY-MM-DD-HH:mm:ss format */
+			char time_str[32];
+			snprintk(time_str, sizeof(time_str), "%04d-%02d-%02d-%02d:%02d:%02d",
+				start_tm.tm_year + 1900,
+				start_tm.tm_mon + 1,
+				start_tm.tm_mday,
+				start_tm.tm_hour,
+				start_tm.tm_min,
+				start_tm.tm_sec);
+
+			/* Reschedule timers based on next pass */
+			err = reschedule_timers(state, time_str);
+			if (err) {
+				LOG_ERR("Failed to reschedule timers, error: %d", err);
+			}
+
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
+
+static void state_tn_exit(void *obj)
+{
+	int err;
+
+	ARG_UNUSED(obj);
+
+	LOG_DBG("%s", __func__);
+
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
+	if (err) {
+		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
+
+		return;
+	}
+}
+
 static void state_gnss_entry(void *obj)
 {
 	int err;
@@ -1109,9 +1187,7 @@ static void state_gnss_entry(void *obj)
 		close(state->sock_fd);
 
 		state->sock_fd = -1;
-		state->socket_connected = false;
 	}
-
 
 	err = set_gnss_active_mode(state);
 	if (err) {
@@ -1125,6 +1201,8 @@ static enum smf_state_result state_gnss_run(void *obj)
 {
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
+	LOG_DBG("%s", __func__);
+
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
@@ -1132,7 +1210,7 @@ static enum smf_state_result state_gnss_run(void *obj)
 			/* Location search completed, transition to NTN mode */
 			memcpy(&state->last_pvt, &msg->pvt, sizeof(state->last_pvt));
 
-			ntn_msg_publish(NTN_SET_IDLE);
+			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
 		}
 	}
 
@@ -1164,45 +1242,19 @@ static enum smf_state_result state_ntn_run(void *obj)
 	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
+	LOG_DBG("%s", __func__);
+
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
 		switch (msg->type) {
-		case NTN_RRC_CONNECTED:
-			k_timer_stop(&state->ntn_timer);
-
-			err = nrf_modem_at_printf("AT%%XMONITOR");
-			if (err) {
-				LOG_ERR("Failed to set AT%%XMONITOR, error: %d", err);
-
-				return err;
-			}
+		case NETWORK_CONNECTION_FAILED:
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
 			return SMF_EVENT_HANDLED;
 
 			break;
-		case RESCHEDULE_NTN_TRIGGER:
-			k_timer_start(&state->ntn_timer,
-				K_SECONDS(15),
-				K_NO_WAIT);
-
-			return SMF_EVENT_HANDLED;
-
-			break;
-		case SET_IDLE_TIMER:
-			k_timer_start(&state->idle_timer,
-				K_SECONDS(180),
-				K_NO_WAIT);
-
-
-			return SMF_EVENT_HANDLED;
-
-			break;
-		case NTN_NETWORK_CONNECTED:
-			if (!state->pdn_context_active) {
-				state->pdn_context_active = true;
-			}
-
+		case NETWORK_CONNECTED:
 			LOG_DBG("Setting up socket");
 
 			/* Network is connected, set up socket */
@@ -1210,11 +1262,8 @@ static enum smf_state_result state_ntn_run(void *obj)
 			if (err) {
 				LOG_ERR("Failed to connect socket, error: %d", err);
 
-				state->socket_connected = false;
 			} else {
 				LOG_DBG("Socket connected successfully");
-
-				state->socket_connected = true;
 
 				/* Send initial GNSS data if available */
 				if (state->last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
@@ -1240,7 +1289,7 @@ static enum smf_state_result state_ntn_run(void *obj)
 			*/
 			k_sleep(K_MSEC(20000));
 
-			ntn_msg_publish(NTN_SET_IDLE);
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
 			return SMF_EVENT_HANDLED;
 
@@ -1259,11 +1308,12 @@ static void state_ntn_exit(void *obj)
 	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
+	LOG_DBG("%s", __func__);
+
 	/* Close socket if it was open */
 	if (state->sock_fd >= 0) {
 		close(state->sock_fd);
 		state->sock_fd = -1;
-		state->socket_connected = false;
 	}
 
 	k_timer_stop(&state->ntn_timer);
@@ -1280,8 +1330,6 @@ static void state_idle_entry(void *obj)
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
 	LOG_DBG("%s", __func__);
-
-	state->connection_retry_counter = 0;
 }
 
 
@@ -1294,8 +1342,6 @@ static enum smf_state_result state_idle_run(void *obj)
 	return SMF_EVENT_PROPAGATE;
 }
 
-
-
 static void ntn_module_thread(void)
 {
 	int err;
@@ -1306,7 +1352,6 @@ static void ntn_module_thread(void)
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	struct ntn_state_object ntn_state = {
 		.sock_fd = -1,
-		.connection_retry_counter = 0,
 	 };
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, ntn_wdt_callback, (void *)k_current_get());
