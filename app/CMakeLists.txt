@@ -15,6 +15,7 @@ zephyr_include_directories(config)
 
 if(CONFIG_APP_NTN_MODE)
 	add_subdirectory(src/modules/ntn)
+	add_subdirectory(src/modules/sgp4)
 else()
 # Add main application source
 target_sources(app PRIVATE src/main.c)

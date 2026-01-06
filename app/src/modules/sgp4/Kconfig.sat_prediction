@@ -1,0 +1,6 @@
+config APP_SAT_PREDICTION
+    bool "Satellite Prediction Module"
+    default y
+    select DATE_TIME
+    help
+      Enable satellite prediction module using SGP4.
