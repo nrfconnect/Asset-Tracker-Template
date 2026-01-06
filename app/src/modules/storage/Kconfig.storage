@@ -51,6 +51,14 @@ config APP_STORAGE_BATCH_BUFFER_SIZE
 	  Must be large enough to hold at least one complete data item
 	  plus its header.
 
+config APP_STORAGE_SESSION_TIMEOUT_SECONDS
+	int "Storage batch session timeout"
+	default 60
+	help
+	  Timeout for an active storage batch session. If no activity
+	  occurs on the session for this duration, it will be automatically
+	  closed to prevent the storage module from getting stuck in a
+	  busy state.
 
 config APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS
 	int "Storage module watchdog timeout in seconds"

@@ -1030,6 +1030,146 @@ void test_storage_cannot_change_to_passthrough_while_batch_active(void)
 	TEST_ASSERT_EQUAL(STORAGE_MODE_PASSTHROUGH, received_msg.type);
 }
 
+void test_storage_batch_timeout_releases_busy_session(void)
+{
+	int err;
+	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
+	struct storage_msg buffer_msg = { .type = STORAGE_MODE_BUFFER_REQUEST };
+	struct storage_msg clear_msg = { .type = STORAGE_CLEAR };
+	struct storage_msg first_request = {
+		.type = STORAGE_BATCH_REQUEST,
+		.session_id = 0xABCDEF01,
+	};
+	struct storage_msg second_request = {
+		.type = STORAGE_BATCH_REQUEST,
+		.session_id = 0xABCDEF02,
+	};
+
+	/* Enable buffer mode */
+	err = zbus_chan_pub(&STORAGE_CHAN, &buffer_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(100));
+
+	/* Clean slate */
+	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(100));
+
+	/* Add some data so session opens successfully */
+	for (size_t i = 0; i < 3; i++) {
+		populate_env_message(i, &env_msg);
+		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+	}
+
+	/* Start the first batch session */
+	err = zbus_chan_pub(&STORAGE_CHAN, &first_request, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(200));
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
+	TEST_ASSERT_EQUAL(first_request.session_id, received_msg.session_id);
+
+	/* Second batch session request while first is active should result in BUSY response */
+	err = zbus_chan_pub(&STORAGE_CHAN, &second_request, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(200));
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_BUSY, received_msg.type);
+	TEST_ASSERT_EQUAL(second_request.session_id, received_msg.session_id);
+
+	/* Wait for session timeout and verify the session closes */
+	k_sleep(K_SECONDS(CONFIG_APP_STORAGE_SESSION_TIMEOUT_SECONDS));
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_CLOSE, received_msg.type);
+	TEST_ASSERT_EQUAL(first_request.session_id, received_msg.session_id);
+
+	/* Add one sample to storage */
+	populate_env_message(0, &env_msg);
+	publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+
+	/* Now a new session request should be successful */
+	err = zbus_chan_pub(&STORAGE_CHAN, &second_request, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_SECONDS(1));
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
+	TEST_ASSERT_EQUAL(second_request.session_id, received_msg.session_id);
+
+	/* Close the session */
+	close_batch_and_assert(second_request.session_id);
+}
+
+void test_storage_stores_samples_while_batch_session_active(void)
+{
+	int err;
+	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
+	struct storage_msg clear_msg = { .type = STORAGE_CLEAR };
+	struct storage_msg first_request = {
+		.type = STORAGE_BATCH_REQUEST,
+		.session_id = 0x12340001,
+	};
+	struct storage_msg second_request = {
+		.type = STORAGE_BATCH_REQUEST,
+		.session_id = 0x12340002,
+	};
+	size_t items_read;
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(100));
+
+	/* Put 1 sample in storage and start a batch session */
+	populate_env_message(0, &env_msg);
+	publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &first_request, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(200));
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
+
+	/* Drain currently batched data (consumed from backend into pipe) */
+	received_env_samples_count = 0;
+
+	memset(&received_env_samples, 0, sizeof(received_env_samples));
+
+	items_read = read_batch_data(received_msg.data_len);
+
+	TEST_ASSERT_EQUAL(1, items_read);
+
+	/* While the batch session is active, publish new samples */
+	for (size_t i = 1; i < 4; i++) {
+		populate_env_message(i, &env_msg);
+		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+	}
+
+	/* Close the session */
+	close_batch_and_assert(first_request.session_id);
+
+	/* Request a new batch and verify it contains the samples published while active */
+	err = zbus_chan_pub(&STORAGE_CHAN, &second_request, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(200));
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
+
+	received_env_samples_count = 0;
+
+	memset(&received_env_samples, 0, sizeof(received_env_samples));
+
+	items_read = read_batch_data(received_msg.data_len);
+
+	TEST_ASSERT_EQUAL(3, items_read);
+
+	for (size_t i = 0; i < items_read; i++) {
+		size_t expected_idx = i + 1;
+
+		TEST_ASSERT_EQUAL_DOUBLE(env_samples[expected_idx].temperature,
+					 received_env_samples[i].temperature);
+		TEST_ASSERT_EQUAL_DOUBLE(env_samples[expected_idx].humidity,
+					 received_env_samples[i].humidity);
+		TEST_ASSERT_EQUAL_DOUBLE(env_samples[expected_idx].pressure,
+					 received_env_samples[i].pressure);
+	}
+
+	/* Clean up: close session B */
+	close_batch_and_assert(received_msg.session_id);
+}
+
 
 extern int unity_main(void);
 

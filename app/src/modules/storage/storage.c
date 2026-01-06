@@ -32,7 +32,10 @@
 LOG_MODULE_REGISTER(storage, CONFIG_APP_STORAGE_LOG_LEVEL);
 
 /* Timeout for pipe operations */
-#define STORAGE_PIPE_TIMEOUT_MS	50
+#define STORAGE_PIPE_TIMEOUT_MS			50
+
+/* Timeout for batch session activity (to prevent stuck sessions) */
+#define STORAGE_SESSION_TIMEOUT_SECONDS		CONFIG_APP_STORAGE_SESSION_TIMEOUT_SECONDS
 
 /* Register zbus subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(storage_subscriber);
@@ -89,6 +92,11 @@ BUILD_ASSERT(CONFIG_APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS >
  */
 #define ADD_OBSERVERS(_n, _chan, _t, _dt, _c, _e) ZBUS_CHAN_ADD_OBS(_chan, storage_subscriber, 0);
 
+/* Private storage channel message types */
+enum priv_storage_msg {
+	STORAGE_BATCH_SESSION_TIMEOUT,
+};
+
 /* Add storage_subscriber as observer to each enabled channel.
  * The data source list is defined in `storage_data_types.h`.
  */
@@ -110,6 +118,15 @@ ZBUS_CHAN_DEFINE(STORAGE_DATA_CHAN,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0)
+);
+
+/* Create private storage channel for internal messaging */
+ZBUS_CHAN_DEFINE(PRIV_STORAGE_CHAN,
+		 enum priv_storage_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS(storage_subscriber),
+		 STORAGE_BATCH_SESSION_TIMEOUT
 );
 
 /* Forward declarations of state handlers */
@@ -155,7 +172,13 @@ struct storage_state {
 
 	/* Current batch session state */
 	struct pipe_session current_session;
+
+	/* Session timeout work */
+	struct k_work_delayable session_timeout_work;
 };
+
+/* Delayable work for session timeout */
+static void session_timeout_work_fn(struct k_work *work);
 
 /* Defining the storage module states */
 enum storage_module_state {
@@ -204,6 +227,31 @@ static void task_wdt_callback(int channel_id, void *user_data)
 		channel_id, k_thread_name_get((k_tid_t)user_data));
 
 	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
+}
+
+static void session_timeout_work_fn(struct k_work *work)
+{
+	int err;
+	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+	struct storage_state *state = CONTAINER_OF(dwork, struct storage_state,
+						   session_timeout_work);
+	enum priv_storage_msg msg = STORAGE_BATCH_SESSION_TIMEOUT;
+
+	if (state->current_session.session_id == 0) {
+		LOG_WRN("Session timeout fired but no active session");
+
+		__ASSERT_NO_MSG(false);
+
+		return;
+	}
+
+	LOG_WRN("Session timeout: closing session 0x%X", state->current_session.session_id);
+
+	err = zbus_chan_pub(&PRIV_STORAGE_CHAN, &msg, K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to publish session timeout message: %d", err);
+		/* If we fail to publish, we can't do much else from work queue context */
+	}
 }
 
 /*
@@ -729,8 +777,7 @@ static void state_running_entry(void *o)
 {
 	int err;
 	const struct storage_backend *backend = storage_backend_get();
-
-	ARG_UNUSED(o);
+	struct storage_state *storage_state = (struct storage_state *)o;
 
 	LOG_DBG("%s", __func__);
 
@@ -741,6 +788,8 @@ static void state_running_entry(void *o)
 
 		return;
 	}
+
+	k_work_init_delayable(&storage_state->session_timeout_work, session_timeout_work_fn);
 }
 
 static enum smf_state_result state_running_run(void *o)
@@ -818,6 +867,15 @@ static enum smf_state_result state_buffer_run(void *o)
 	struct storage_state *state_object = (struct storage_state *)o;
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
+	/* Check if message is from a registered data type */
+	STRUCT_SECTION_FOREACH(storage_data, type) {
+		if (state_object->chan == type->chan) {
+			handle_data_message(type, state_object->msg_buf);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
 	/* Handle common buffer state messages */
 	if (state_object->chan == &STORAGE_CHAN) {
 		if (msg->type == STORAGE_MODE_BUFFER_REQUEST) {
@@ -837,15 +895,6 @@ static enum smf_state_result state_buffer_idle_run(void *o)
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 	LOG_DBG("%s", __func__);
-
-	/* Check if message is from a registered data type */
-	STRUCT_SECTION_FOREACH(storage_data, type) {
-		if (state_object->chan == type->chan) {
-			handle_data_message(type, state_object->msg_buf);
-
-			return SMF_EVENT_HANDLED;
-		}
-	}
 
 	if (state_object->chan == &STORAGE_CHAN) {
 		switch (msg->type) {
@@ -890,6 +939,10 @@ static void state_buffer_pipe_active_entry(void *o)
 
 		return;
 	}
+
+	/* Start session timeout */
+	k_work_schedule(&state_object->session_timeout_work,
+			K_SECONDS(STORAGE_SESSION_TIMEOUT_SECONDS));
 
 	LOG_DBG("Batch session started, session_id: %u", state_object->current_session.session_id);
 }
@@ -936,6 +989,10 @@ static enum smf_state_result state_buffer_pipe_active_run(void *o)
 			start_batch_session(state_object, msg);
 			LOG_DBG("Session started: 0x%X", state_object->current_session.session_id);
 
+			/* Reset session timeout on activity */
+			k_work_reschedule(&state_object->session_timeout_work,
+					  K_SECONDS(STORAGE_SESSION_TIMEOUT_SECONDS));
+
 			return SMF_EVENT_HANDLED;
 
 		case STORAGE_MODE_PASSTHROUGH_REQUEST:
@@ -950,6 +1007,28 @@ static enum smf_state_result state_buffer_pipe_active_run(void *o)
 		}
 	}
 
+	if (state_object->chan == &PRIV_STORAGE_CHAN) {
+		enum priv_storage_msg priv_msg = *(enum priv_storage_msg *)state_object->msg_buf;
+
+		if (priv_msg == STORAGE_BATCH_SESSION_TIMEOUT) {
+			struct storage_msg close_msg = {
+				.type = STORAGE_BATCH_CLOSE,
+				.session_id = state_object->current_session.session_id,
+			};
+
+			LOG_WRN("Session timeout processed, closing session 0x%X",
+				close_msg.session_id);
+
+			/* Notify other modules (like cloud) that the batch is closed */
+			zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
+
+			/* Force transition to idle state */
+			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
 	return SMF_EVENT_PROPAGATE;
 }
 
@@ -958,6 +1037,9 @@ static void state_buffer_pipe_active_exit(void *o)
 	struct storage_state *state_object = (struct storage_state *)o;
 
 	LOG_DBG("%s", __func__);
+
+	/* Cancel session timeout */
+	k_work_cancel_delayable(&state_object->session_timeout_work);
 
 	/* Drain any remaining data from pipe */
 	drain_pipe();
