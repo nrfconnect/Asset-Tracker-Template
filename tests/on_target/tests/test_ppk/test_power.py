@@ -41,7 +41,7 @@ def save_badge_data(average):
     logger.info(f"Minimum average current measured: {average}uA")
     color = "green"
     if average < 0:
-        pytest.skip(f"Current can't be negative, current average: {average}")
+        pytest.fail(f"Current can't be negative, current average: {average}")
     elif average <= GREEN_THRESOLD_CURRENT_UA:
         color = "green"
     elif average <= YELLOW_THRESOLD_CURRENT_UA:
@@ -49,7 +49,7 @@ def save_badge_data(average):
     elif average <= RED_THRESOLD_CURRENT_UA:
         color = "red"
     else:
-        pytest.skip(f"Skipping test due to unreliable PPK reading: {average} uA")
+        pytest.fail(f"Test failed due to unreliable PPK reading: {average} uA")
 
     badge_data = {
         "label": "🔗 PSM current uA",
@@ -121,7 +121,7 @@ def check_ppk_serial_operational(s):
         except Exception:
             continue
     else:
-        pytest.skip("PPK device is not responding, skipping test")
+        pytest.fail("PPK device is not responding")
 
 def get_ppk2_serials():
     '''
@@ -135,9 +135,9 @@ def get_ppk2_serials():
         logger.info(f"Found PPK2 at port: {ppk2_port}, serial: {ppk2_serial}")
         return ppk2_port, ppk2_serial
     elif len(ppk2s_connected) == 0:
-        pytest.skip("No ppk found")
+        pytest.fail("No ppk found")
     else:
-        pytest.skip(f"PPK should list 2 ports, but found {ppk2s_connected}")
+        pytest.fail(f"PPK should list 2 ports, but found {ppk2s_connected}")
 
 @pytest.fixture(scope="module")
 
@@ -161,7 +161,7 @@ def thingy91x_ppk2():
         uptime = shell.wait_for_str_re("Uptime: (.*) ms", timeout=2)
         device_uptime_ms = int(uptime[0])
         if device_uptime_ms > 20000:
-            pytest.skip("PPK device was not rebooted, skipping test")
+            pytest.fail("PPK device was not rebooted")
     except Exception as e:
         logger.error(f"Exception when rebooting PPK device: {e}")
     finally:
@@ -178,7 +178,7 @@ def thingy91x_ppk2():
             logger.error(f"Failed to get modifiers: {e}")
             time.sleep(5)
     else:
-        pytest.skip("Failed to get ppk modifiers after 10 attempts")
+        pytest.fail("Failed to get ppk modifiers after 15 attempts")
 
     ppk2_dev.use_ampere_meter()  # set ampere meter mode
     ppk2_dev.set_source_voltage(3300)
@@ -203,7 +203,7 @@ def thingy91x_ppk2():
             time.sleep(5)
             continue
     else:
-        pytest.skip("NO uart after 10 attempts")
+        pytest.fail("NO uart after 10 attempts")
 
     t91x_uart = Uart(log_uart_string, timeout=UART_TIMEOUT)
 
@@ -215,18 +215,18 @@ def thingy91x_ppk2():
     ppk2_dev.toggle_DUT_power("OFF")
 
 @pytest.mark.slow
-def test_power(thingy91x_ppk2, hex_file):
+def test_power(thingy91x_ppk2, debug_hex_file):
     '''
     Test that the device can reach PSM and measure the current consumption
 
     Current consumption is measured and report generated.
     '''
-    flash_device(os.path.abspath(hex_file), serial=SEGGER)
+    flash_device(os.path.abspath(debug_hex_file), serial=SEGGER)
     reset_device(serial=SEGGER)
     try:
         thingy91x_ppk2.t91x_uart.wait_for_str("Connected to Cloud", timeout=120)
     except AssertionError:
-        pytest.skip("Device unable to connect to cloud, skip ppk test")
+        pytest.fail("Device unable to connect to cloud")
 
     # Disable UART on the device
     thingy91x_ppk2.t91x_uart.write("pm suspend uart@9000\r\n")
@@ -274,7 +274,7 @@ def test_power(thingy91x_ppk2, hex_file):
 
         except Exception as e:
             logger.error(f"Catching exception: {e}")
-            pytest.skip("Something went wrong, unable to perform power measurements")
+            pytest.fail("Something went wrong, unable to perform power measurements")
 
         time.sleep(SAMPLING_INTERVAL)  # lower time between sampling -> less samples read in one sampling period
 
@@ -287,16 +287,12 @@ def test_power(thingy91x_ppk2, hex_file):
     if psm_reached:
         pass  # Test passes if PSM was reached
     elif min_rolling_average > RED_THRESOLD_CURRENT_UA:
-        # Skip test if reading is absurdly high (likely PPK error)
+        # Fail test if reading is absurdly high (likely PPK error)
         # Note: save_badge_data won't create file in this case
-        pytest.skip(f"Skipping test due to unreliable PPK reading: {min_rolling_average} uA")
+        pytest.fail(f"Test failed due to unreliable PPK reading: {min_rolling_average} uA")
     elif min_rolling_average > YELLOW_THRESOLD_CURRENT_UA:
         # Fail if current is in red zone (but still plausible)
         pytest.fail(f"PSM target not reached after {POWER_TIMEOUT / 60} minutes, current too high: {min_rolling_average} uA")
     else:
         # Current is between 0 and YELLOW_THRESHOLD but PSM wasn't reached
         pytest.fail(f"PSM target not reached after {POWER_TIMEOUT / 60} minutes, only reached {min_rolling_average} uA")
-
-def test_dummy_placeholder():
-    ''' Placeholder to suppress exit code 5, see https://github.com/pytest-dev/pytest/issues/2393 '''
-    pass
