@@ -1,5 +1,5 @@
 tests:
-  storage.module:
+  storage.module.ram:
     tags: storage
     platform_allow:
       - native_sim
