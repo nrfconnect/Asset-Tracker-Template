@@ -1,13 +1,16 @@
 name: Trigger NTN build
 on:
   push:
-    branches: [ ntn-usecase ]
+    branches: [ ntn_usecase ]
   workflow_dispatch:
     inputs:
       att_ref:
         description: The ref to build
         required: true
         default: ntn_usecase
+  schedule:
+    - cron: "0 0 * * *"
+
 
 jobs:
   ntn-build:
