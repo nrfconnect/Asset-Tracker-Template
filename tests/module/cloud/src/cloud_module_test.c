@@ -143,7 +143,9 @@ static K_SEM_DEFINE(cloud_disconnected, 0, 1);
 static K_SEM_DEFINE(cloud_connected, 0, 1);
 static K_SEM_DEFINE(data_sent, 0, 1);
 static K_SEM_DEFINE(cloud_module_response_recv_sem, 0, 1);
+static K_SEM_DEFINE(storage_batch_closed, 0, 1);
 static struct cloud_msg last_shadow_response;
+static struct storage_msg last_storage_msg;
 
 static nrf_provisioning_event_cb_t handler;
 
@@ -248,12 +250,13 @@ static void setup_cloud_and_passthrough(void)
 	};
 
 	/* Connect to cloud */
-	zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_NO_WAIT);
+	err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
 	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Enable passthrough mode */
-	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_NO_WAIT);
+	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 }
@@ -281,8 +284,13 @@ static void cloud_chan_cb(const struct zbus_channel *chan)
 			   status == CLOUD_SHADOW_RESPONSE_DELTA) {
 			memcpy(&last_shadow_response, cloud_msg, sizeof(struct cloud_msg));
 			k_sem_give(&cloud_module_response_recv_sem);
+		}
+	} else if (chan == &STORAGE_CHAN) {
+		const struct storage_msg *storage_msg = zbus_chan_const_msg(chan);
 
-			printk("cloud_chan_cb: received cloud message of type %d\n", status);
+		if (storage_msg->type == STORAGE_BATCH_CLOSE) {
+			memcpy(&last_storage_msg, storage_msg, sizeof(struct storage_msg));
+			k_sem_give(&storage_batch_closed);
 		}
 	}
 }
@@ -328,7 +336,7 @@ static void publish_and_assert(const struct zbus_channel *chan, const void *msg)
 {
 	int err;
 
-	err = zbus_chan_pub(chan, msg, K_NO_WAIT);
+	err = zbus_chan_pub(chan, msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 }
 
@@ -404,6 +412,7 @@ void setUp(void)
 	k_sem_reset(&cloud_connected);
 	k_sem_reset(&data_sent);
 	k_sem_reset(&cloud_module_response_recv_sem);
+	k_sem_reset(&storage_batch_closed);
 
 	/* Set default return values */
 	nrf_cloud_coap_location_send_fake.return_val = 0;
@@ -1322,6 +1331,115 @@ void test_location_cloud_request_wifi_data_excessive_ap_count(void)
 
 	/* Verify that nrf_cloud_coap_location_get was NOT called due to validation failure. */
 	TEST_ASSERT_EQUAL(0, nrf_cloud_coap_location_get_fake.call_count);
+
+	/* 10 second sleep is needed to wait for the sleep in SEND_FATAL_ERROR to time out */
+	k_sleep(K_SECONDS(10));
+}
+
+/* Helper to get cloud into paused state (connected but network disconnected) */
+static void setup_cloud_paused(void)
+{
+	struct network_msg network_msg = {
+		.type = NETWORK_CONNECTED
+	};
+
+	/* Connect to cloud */
+	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
+	wait_for_processing();
+
+	/* Disconnect network to enter paused state */
+	network_msg.type = NETWORK_DISCONNECTED;
+
+	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	wait_for_cloud_disconnected(K_SECONDS(WAIT_TIMEOUT));
+	wait_for_processing();
+}
+
+/* Helper to wait for storage batch close message */
+static void wait_for_storage_batch_close(k_timeout_t timeout)
+{
+	int err;
+
+	err = k_sem_take(&storage_batch_closed, timeout);
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+void test_storage_batch_available_when_paused_should_close_session(void)
+{
+	struct storage_msg batch_available = {
+		.type = STORAGE_BATCH_AVAILABLE,
+		.data_len = 5,
+		.session_id = 0x12345678,
+		.more_data = false,
+	};
+
+	setup_cloud_paused();
+
+	publish_and_assert(&STORAGE_CHAN, &batch_available);
+	wait_for_processing();
+
+	wait_for_storage_batch_close(K_SECONDS(WAIT_TIMEOUT));
+
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_CLOSE, last_storage_msg.type);
+	TEST_ASSERT_EQUAL(batch_available.session_id, last_storage_msg.session_id);
+}
+
+void test_storage_batch_empty_when_paused_should_close_session(void)
+{
+	struct storage_msg batch_empty = {
+		.type = STORAGE_BATCH_EMPTY,
+		.session_id = 0x87654321,
+	};
+
+	setup_cloud_paused();
+
+	publish_and_assert(&STORAGE_CHAN, &batch_empty);
+	wait_for_processing();
+
+	wait_for_storage_batch_close(K_SECONDS(WAIT_TIMEOUT));
+
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_CLOSE, last_storage_msg.type);
+	TEST_ASSERT_EQUAL(batch_empty.session_id, last_storage_msg.session_id);
+}
+
+void test_storage_batch_error_when_paused_should_close_session(void)
+{
+	struct storage_msg batch_error = {
+		.type = STORAGE_BATCH_ERROR,
+		.session_id = 0xAABBCCDD,
+	};
+
+	setup_cloud_paused();
+
+	publish_and_assert(&STORAGE_CHAN, &batch_error);
+	wait_for_processing();
+
+	wait_for_storage_batch_close(K_SECONDS(WAIT_TIMEOUT));
+
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_CLOSE, last_storage_msg.type);
+	TEST_ASSERT_EQUAL(batch_error.session_id, last_storage_msg.session_id);
+}
+
+void test_storage_batch_busy_when_paused_should_handle(void)
+{
+	struct storage_msg batch_busy = {
+		.type = STORAGE_BATCH_BUSY,
+		.session_id = 0xDDCCBBAA,
+	};
+
+	setup_cloud_paused();
+
+	publish_and_assert(&STORAGE_CHAN, &batch_busy);
+	wait_for_processing();
+
+	/* BUSY message should be handled but not close the session
+	 * Give some time to ensure no close message is sent.
+	 */
+	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
+
+	/* Verify no close message was sent */
+	TEST_ASSERT_EQUAL(0, k_sem_count_get(&storage_batch_closed));
 }
 
 /* This is required to be added to each test. That is because unity's

@@ -1099,12 +1099,43 @@ static void state_connected_paused_entry(void *obj)
 static enum smf_state_result state_connected_paused_run(void *obj)
 {
 	struct cloud_state_object const *state_object = obj;
-	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_READY]);
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-		return SMF_EVENT_HANDLED;
+		if (msg.type == NETWORK_CONNECTED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_READY]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	if (state_object->chan == &STORAGE_CHAN) {
+		const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+
+		switch (msg->type) {
+		case STORAGE_BATCH_AVAILABLE:
+		case STORAGE_BATCH_EMPTY:
+			LOG_WRN("Storage batch received, cloud is paused, closing session 0x%X",
+				msg->session_id);
+
+			handle_storage_batch_empty(msg);
+
+			return SMF_EVENT_HANDLED;
+		case STORAGE_BATCH_ERROR:
+			LOG_DBG("Storage batch error received while paused, closing session 0x%X",
+				msg->session_id);
+
+			handle_storage_batch_error(msg);
+
+			return SMF_EVENT_HANDLED;
+		case STORAGE_BATCH_BUSY:
+			handle_storage_batch_busy(msg);
+
+			return SMF_EVENT_HANDLED;
+		default:
+			break;
+		}
 	}
 
 	return SMF_EVENT_PROPAGATE;
