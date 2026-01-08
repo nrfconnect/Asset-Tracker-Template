@@ -25,6 +25,7 @@ For more knowledge on debugging and troubleshooting [nRF Connect SDK](https://gi
     - [Configuration](#configuration)
   - [Thread Analysis](#thread-analysis)
   - [Hardfaults](#hardfaults)
+  - [State Inspection Script](#state-inspection-script)
 - [Memfault Remote Debugging](#memfault-remote-debugging)
   - [Recommended Prerequisites](#recommended-prerequisites)
   - [Test shell commands](#test-shell-commands)
@@ -378,6 +379,83 @@ For more information, refer the following documentation:
 > ```
 
 When enabling immediate logging, it might be necessary to increase the stack size of certain threads due to logging being executed in context which increases stack usage.
+
+### State Inspection Script
+
+The `inspect_state.py` script allows you to inspect the current state of the application's state machines and internal data structures on a running device.
+It connects to the device via J-Link, parses the ELF file to find symbol locations and types, and reads the memory to display the current state.
+
+This is particularly useful for debugging when the application is stuck or behaving unexpectedly, and you want to see the exact state of each module without halting the CPU or adding extensive logging.
+
+**Prerequisites:**
+
+*   Python 3 installed.
+*   Required Python packages: `pyelftools` (>=0.30) and `pylink-square`.
+    ```bash
+    pip install "pyelftools>=0.30" pylink-square
+    ```
+*   J-Link debug probe connected to the device.
+*   The `zephyr.elf` file corresponding to the running firmware.
+
+**Usage:**
+
+Run the script from the `scripts` directory (or adjust the path), providing the path to your ELF file and optionally the J-Link device name:
+
+```bash
+python3 Asset-Tracker-Template/scripts/inspect_state.py --elf build/app/zephyr/zephyr.elf
+```
+
+**Example Output:**
+
+The script first shows a summary table of all modules and their current state:
+
+```text
+Connecting to J-Link (Cortex-M33)...
+
+...
+
+Module          | Current State                                                | Details
+----------------------------------------------------------------------------------------------------
+Main            | STATE_PASSTHROUGH_CONNECTED_WAITING                          | Ptr: 0x0008C648
+Cloud           | STATE_CONNECTED_READY                                        | Ptr: 0x0008C8D0
+Location        | STATE_LOCATION_SEARCH_INACTIVE                               | Ptr: 0x0008C808
+Network         | STATE_CONNECTED                                              | Ptr: 0x0008C724
+FOTA            | STATE_WAITING_FOR_POLL_REQUEST                               | Ptr: 0x0008C974
+Env             | STATE_ENVIRONMENTAL_IDLE                                     | Ptr: 0x0008CA68
+Power           | STATE_POWER_IDLE                                             | Ptr: 0x0008CAAC
+Storage         | STATE_PASSTHROUGH                                            | Ptr: 0x0008CA14
+
+Options:
+  q: Quit
+  r: Refresh summary
+  1: Inspect Main
+  2: Inspect Cloud
+  3: Inspect Location
+  4: Inspect Network
+  5: Inspect FOTA
+  6: Inspect Env
+  7: Inspect Power
+  8: Inspect Storage
+
+Select option: 2
+```
+
+Selecting a module (e.g., `2` for Cloud) reveals the detailed structure of its state variable, including all internal members:
+
+```text
+--- Cloud State Details ---
+Address: 0x0008C8C0
+Type: cloud_state
+----------------------------------------
+ctx                 : STATE_CONNECTED_READY
+chan                : 0x0008BE5C
+msg_buf             : Array[584] (too large to display)
+network_connected   : 1 (0x1)
+provisioning_ongoing: 0 (0x0)
+connection_attempts : 2 (0x2)
+backoff_time        : 60 (0x3C)
+----------------------------------------
+```
 
 ## Memfault Remote Debugging
 
