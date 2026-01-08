@@ -149,11 +149,12 @@ struct network_msg {
 			   (struct lte_lc_conn_eval_params conn_eval_params));
 	};
 
-	/** Uptime when the sample was taken in milliseconds.
-	 *  Use date_time_uptime_to_unix_time_ms() to convert to unix time before sending to cloud.
-	 *  Only valid for NETWORK_QUALITY_SAMPLE_RESPONSE events.
+	/** Timestamp when the sample was taken in milliseconds.
+	 *  This is either:
+	 * - Unix time in milliseconds if the system clock was synchronized at sampling time, or
+	 * - Uptime in milliseconds if the system clock was not synchronized at sampling time.
 	 */
-	int64_t uptime;
+	int64_t timestamp;
 };
 
 #define MSG_TO_NETWORK_MSG(_msg)	(*(const struct network_msg *)_msg)

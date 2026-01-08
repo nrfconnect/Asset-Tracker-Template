@@ -16,6 +16,7 @@ DEFINE_FFF_GLOBALS;
 
 FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
+FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(environmental_subscriber);
 ZBUS_CHAN_ADD_OBS(ENVIRONMENTAL_CHAN, environmental_subscriber, 0);
@@ -27,6 +28,7 @@ void setUp(void)
 	/* reset fakes */
 	RESET_FAKE(task_wdt_feed);
 	RESET_FAKE(task_wdt_add);
+	RESET_FAKE(date_time_now);
 }
 
 void check_environmental_event(enum environmental_msg_type expected_environmental_type)
