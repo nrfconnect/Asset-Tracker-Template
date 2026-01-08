@@ -593,7 +593,7 @@ static void network_module_thread(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_NETWORK_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	struct network_state_object network_state;
+	static struct network_state_object network_state;
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, network_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {
