@@ -31,7 +31,6 @@ DEFINE_FFF_GLOBALS;
 FAKE_VALUE_FUNC(int, dk_buttons_init, button_handler_t);
 FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
-FAKE_VOID_FUNC(date_time_register_handler, date_time_evt_handler_t);
 FAKE_VOID_FUNC(sys_reboot, int);
 
 LOG_MODULE_REGISTER(main_module_test, 1);
@@ -121,7 +120,6 @@ void setUp(void)
 	RESET_FAKE(dk_buttons_init);
 	RESET_FAKE(task_wdt_feed);
 	RESET_FAKE(task_wdt_add);
-	RESET_FAKE(date_time_register_handler);
 	RESET_FAKE(sys_reboot);
 
 	ensure_clean_state();
@@ -454,6 +452,9 @@ void test_fota_waiting_for_network_disconnect(void)
 	send_cloud_disconnected();
 	expect_cloud_event(CLOUD_DISCONNECTED);
 
+	/* Verify that the module sends STORAGE_CLEAR before fota reboot */
+	expect_storage_event(STORAGE_CLEAR);
+
 	/* Give the system time to reboot */
 	k_sleep(K_SECONDS(10));
 
@@ -489,6 +490,9 @@ void test_fota_waiting_for_network_disconnect_to_apply_image(void)
 	/* Trigger reboot */
 	send_fota_msg(FOTA_SUCCESS_REBOOT_NEEDED);
 	expect_fota_event(FOTA_SUCCESS_REBOOT_NEEDED);
+
+	/* Verify that the module sends STORAGE_CLEAR before fota reboot */
+	expect_storage_event(STORAGE_CLEAR);
 
 	/* Give the system time to reboot */
 	k_sleep(K_SECONDS(10));

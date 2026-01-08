@@ -184,11 +184,12 @@ struct location_msg {
 		struct location_data gnss_data;
 	};
 
-	/** Uptime when the location was obtained in milliseconds.
-	 *  Use date_time_uptime_to_unix_time_ms() to convert to unix time before sending to cloud.
-	 *  Only valid for LOCATION_GNSS_DATA events.
+	/** Timestamp when the sample was taken in milliseconds.
+	 *  This is either:
+	 * - Unix time in milliseconds if the system clock was synchronized at sampling time, or
+	 * - Uptime in milliseconds if the system clock was not synchronized at sampling time.
 	 */
-	int64_t uptime;
+	int64_t timestamp;
 };
 
 #define MSG_TO_LOCATION_TYPE(_msg)	(((const struct location_msg *)_msg)->type)

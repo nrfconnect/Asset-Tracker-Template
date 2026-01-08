@@ -229,8 +229,15 @@ static void gnss_location_send(const struct location_data *location_data)
 	struct location_msg location_msg = {
 		.type = LOCATION_GNSS_DATA,
 		.gnss_data = *location_data,
-		.uptime = k_uptime_get()
+		.timestamp = k_uptime_get()
 	};
+
+	err = date_time_now(&location_msg.timestamp);
+	if (err != 0 && err != -ENODATA) {
+		LOG_ERR("date_time_now, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 
 	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
 	if (err) {
