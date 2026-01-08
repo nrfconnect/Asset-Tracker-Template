@@ -36,6 +36,7 @@ FAKE_VALUE_FUNC(int, location_pgps_data_process, const char *, size_t);
 FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
 FAKE_VALUE_FUNC(int, date_time_set, const struct tm *);
+FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
 FAKE_VALUE_FUNC(const char *, location_method_str, enum location_method);
 FAKE_VALUE_FUNC(int, lte_lc_func_mode_set, enum lte_lc_func_mode);
 
@@ -307,6 +308,7 @@ void setUp(void)
 	RESET_FAKE(task_wdt_feed);
 	RESET_FAKE(task_wdt_add);
 	RESET_FAKE(date_time_set);
+	RESET_FAKE(date_time_now);
 	RESET_FAKE(location_method_str);
 
 	/* Set up custom fakes */
