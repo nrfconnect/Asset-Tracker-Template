@@ -10,6 +10,7 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
+#include <date_time.h>
 
 #include "app_common.h"
 #include "environmental.h"
@@ -118,8 +119,15 @@ static void sample_sensors(const struct device *const bme680)
 		.temperature = sensor_value_to_double(&temp),
 		.pressure = sensor_value_to_double(&press),
 		.humidity = sensor_value_to_double(&humidity),
-		.uptime = k_uptime_get(),
+		.timestamp = k_uptime_get(),
 	};
+
+	err = date_time_now(&msg.timestamp);
+	if (err != 0 && err != -ENODATA) {
+		LOG_ERR("date_time_now, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 
 	/* Log the environmental values and limit to 2 decimals */
 	LOG_DBG("Temperature: %.2f C, Pressure: %.2f Pa, Humidity: %.2f %%",

@@ -9,6 +9,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
+#include <date_time.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -126,6 +127,46 @@ struct cloud_msg {
 };
 
 #define MSG_TO_CLOUD_MSG_PTR(_msg)	((const struct cloud_msg *)_msg)
+
+#define UNIX_TIME_MS_2026_01_01 1767222000000LL
+/**
+ * @brief Attempt to set the provided uptime (in milliseconds) to unix time.
+ *
+ * Tries to convert the provided timestamp from uptime to unix time in milliseconds, if needed.
+ * If it cant convert it will stay unchanged.
+ *
+ * @param uptime_ms Uptime to convert to unix time.
+ * @return int 0 if conversion was successful,
+ *             -EINVAL if the provided pointer is NULL,
+ *             -EALREADY if the provided time was already in unix time (>= 2026-01-01),
+ *             -ENODATA if date time is not valid,
+ */
+static inline int64_t attempt_timestamp_to_unix_ms(int64_t *uptime_ms)
+{
+	int err;
+
+	if (uptime_ms == NULL) {
+		return -EINVAL;
+	}
+	if (*uptime_ms >= UNIX_TIME_MS_2026_01_01) {
+		/* Already unix time */
+		return -EALREADY;
+	}
+        if (*uptime_ms > k_uptime_get()) {
+            /* Uptime cannot be in the future */
+            return -EINVAL;
+        }
+
+	if (!date_time_is_valid()) {
+		/* Cannot convert without valid time */
+		return -ENODATA;
+	}
+	err = date_time_uptime_to_unix_time_ms(uptime_ms);
+	if (err) {
+		return err;
+	}
+	return 0;
+}
 
 #ifdef __cplusplus
 }

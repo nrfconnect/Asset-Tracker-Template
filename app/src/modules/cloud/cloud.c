@@ -337,6 +337,36 @@ static void send_request_failed(void)
 	}
 }
 
+static int handle_data_timestamp(int64_t *timestamp_ms)
+{
+	int err;
+
+	/* Soft attempt to convert uptime to unix time, keep original value on failure */
+	err = attempt_timestamp_to_unix_ms(timestamp_ms);
+	if (err == 0 || err == -EALREADY) {
+		return 0;
+	}
+
+	if (IS_ENABLED(CONFIG_APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_KEEP)) {
+		LOG_WRN("Keeping original timestamp value");
+		return 0;
+	} else if (IS_ENABLED(CONFIG_APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_NOW)) {
+		*timestamp_ms = k_uptime_get();
+		err = attempt_timestamp_to_unix_ms(timestamp_ms);
+		if (err) {
+			LOG_ERR("Failed to set timestamp to current time, error: %d", err);
+			return err;
+		}
+		LOG_WRN("Setting timestamp to current time");
+		return 0;
+	} else if (IS_ENABLED(CONFIG_APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_NO_TIMESTAMP)) {
+		*timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
+		return 0;
+	} else { /* Default behavior: APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_DROP */
+		return err;
+	}
+}
+
 static void handle_network_data_message(const struct network_msg *msg)
 {
 	int err;
@@ -347,11 +377,11 @@ static void handle_network_data_message(const struct network_msg *msg)
 		return;
 	}
 
-	/* Convert uptime to unix time */
-	timestamp_ms = msg->uptime;
-	err = date_time_uptime_to_unix_time_ms(&timestamp_ms);
+	/* Convert timestamp to unix time */
+	timestamp_ms = msg->timestamp;
+	err = handle_data_timestamp(&timestamp_ms);
 	if (err) {
-		LOG_ERR("date_time_uptime_to_unix_time_ms, error: %d", err);
+		return;
 	}
 
 	err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_CONEVAL,
@@ -387,11 +417,11 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 	if (item->type == STORAGE_TYPE_BATTERY) {
 		const struct power_msg *power = &item->data.BATTERY;
 
-		/* Convert uptime to unix time */
-		timestamp_ms = power->uptime;
-		err = date_time_uptime_to_unix_time_ms(&timestamp_ms);
+		/* Convert timestamp to unix time */
+		timestamp_ms = power->timestamp;
+		err = handle_data_timestamp(&timestamp_ms);
 		if (err) {
-			LOG_ERR("date_time_uptime_to_unix_time_ms, error: %d", err);
+			return err;
 		}
 
 		err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_BATTERY,
@@ -416,11 +446,11 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 	if (item->type == STORAGE_TYPE_ENVIRONMENTAL) {
 		const struct environmental_msg *env = &item->data.ENVIRONMENTAL;
 
-		/* Convert uptime to unix time */
-		timestamp_ms = env->uptime;
-		err = date_time_uptime_to_unix_time_ms(&timestamp_ms);
+		/* Convert timestamp to unix time */
+		timestamp_ms = env->timestamp;
+		err = handle_data_timestamp(&timestamp_ms);
 		if (err) {
-			LOG_ERR("date_time_uptime_to_unix_time_ms, error: %d", err);
+			return err;
 		}
 
 		return cloud_environmental_send(env, timestamp_ms, confirmable);
