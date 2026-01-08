@@ -1149,7 +1149,7 @@ static void cloud_module_thread(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	struct cloud_state_object cloud_state = { 0 };
+	static struct cloud_state_object cloud_state;
 
 	LOG_DBG("Cloud module task started");
 

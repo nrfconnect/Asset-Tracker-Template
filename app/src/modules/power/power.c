@@ -469,7 +469,7 @@ static void power_module_thread(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_POWER_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	struct power_state_object power_state;
+	static struct power_state_object power_state;
 
 	LOG_DBG("Power module task started");
 

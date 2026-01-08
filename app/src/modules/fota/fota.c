@@ -514,7 +514,7 @@ static void fota_module_thread(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	struct fota_state_object fota_state = {
+	static struct fota_state_object fota_state = {
 		.fota_ctx.reboot_fn = fota_reboot,
 		.fota_ctx.status_fn = fota_status,
 	};

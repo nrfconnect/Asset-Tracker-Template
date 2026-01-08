@@ -1056,7 +1056,7 @@ static void storage_thread(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_STORAGE_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	struct storage_state storage_state = {0};
+	static struct storage_state storage_state;
 
 	LOG_DBG("Storage module task started");
 
