@@ -20,6 +20,7 @@ FAKE_VALUE_FUNC(float, nrf_fuel_gauge_process, float, float, float, float, bool,
 FAKE_VALUE_FUNC(int, charger_read_sensors, float *, float *, float *, int32_t *);
 FAKE_VALUE_FUNC(int, nrf_fuel_gauge_init, const struct nrf_fuel_gauge_init_parameters *, void *);
 FAKE_VALUE_FUNC(int, mfd_npm13xx_add_callback, const struct device *, struct gpio_callback *);
+FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(power_subscriber);
 ZBUS_CHAN_ADD_OBS(POWER_CHAN, power_subscriber, 0);
@@ -31,6 +32,7 @@ void setUp(void)
 	/* reset fakes */
 	RESET_FAKE(task_wdt_feed);
 	RESET_FAKE(task_wdt_add);
+	RESET_FAKE(date_time_now);
 }
 
 void check_power_event(enum power_msg_type expected_power_type)

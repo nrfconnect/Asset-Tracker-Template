@@ -249,8 +249,15 @@ static void sample_network_quality(void)
 	int ret;
 	struct network_msg msg = {
 		.type = NETWORK_QUALITY_SAMPLE_RESPONSE,
-		.uptime = k_uptime_get()
+		.timestamp = k_uptime_get()
 	};
+
+	ret = date_time_now(&msg.timestamp);
+	if (ret != 0 && ret != -ENODATA) {
+		LOG_ERR("date_time_now, error: %d", ret);
+		SEND_FATAL_ERROR();
+		return;
+	}
 
 	ret = lte_lc_conn_eval_params_get(&msg.conn_eval_params);
 	if (ret == -EOPNOTSUPP) {

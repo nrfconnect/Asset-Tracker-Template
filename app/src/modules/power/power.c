@@ -18,6 +18,7 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
 #include <modem/nrf_modem_lib_trace.h>
+#include <date_time.h>
 
 #include "lp803448_model.h"
 #include "app_common.h"
@@ -441,8 +442,15 @@ static void sample(int64_t *ref_time)
 		.percentage = (double)roundf(state_of_charge),
 		.charging = charging,
 		.voltage = (double)voltage,
-		.uptime = k_uptime_get()
+		.timestamp = k_uptime_get()
 	};
+
+	err = date_time_now(&msg.timestamp);
+	if (err != 0 && err != -ENODATA) {
+		LOG_ERR("date_time_now, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 
 	err = zbus_chan_pub(&POWER_CHAN, &msg, K_NO_WAIT);
 	if (err) {

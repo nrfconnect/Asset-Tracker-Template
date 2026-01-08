@@ -80,6 +80,35 @@ config APP_CLOUD_BACKOFF_MAX_SECONDS
 	help
 	  Maximum reconnection backoff value in seconds.
 
+choice APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS
+	prompt "Handling of wrong timestamps in data samples"
+	default APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_DROP
+
+config APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_DROP
+	bool "Drop data samples with wrong timestamps"
+	help
+	  Data samples with wrong timestamps will be dropped and not sent to the cloud.
+
+config APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_KEEP
+	bool "Keep data samples with wrong timestamps"
+	help
+	  Data samples with wrong timestamps will be kept and sent to the cloud as is.
+
+config APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_NOW
+	bool "Set timestamp to current time"
+	help
+	  Data samples with wrong timestamps will have their timestamps set to the current time
+	  before being sent to the cloud.
+
+config APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_NO_TIMESTAMP
+	bool "Set timestamp to NO_TIMESTAMP"
+	help
+	  Data samples with wrong timestamps will have their timestamps set to NO_TIMESTAMP
+	  before being sent to the cloud. For nRF Cloud, this means the cloud will set the timestamp
+	  to the time of reception.
+
+endchoice
+
 config APP_CLOUD_THREAD_STACK_SIZE
 	int "Thread stack size"
 	default 5632

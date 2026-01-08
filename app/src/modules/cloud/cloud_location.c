@@ -263,7 +263,7 @@ static void handle_gnss_location_data(const struct location_msg *location_msg)
 	const struct location_data *location_data = &location_msg->gnss_data;
 
 	/* Convert uptime to unix time */
-	timestamp_ms = location_msg->uptime;
+	timestamp_ms = location_msg->timestamp;
 	err = date_time_uptime_to_unix_time_ms(&timestamp_ms);
 	if (err) {
 		LOG_ERR("date_time_uptime_to_unix_time_ms, error: %d", err);

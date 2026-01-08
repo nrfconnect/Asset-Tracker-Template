@@ -9,6 +9,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
+#include <date_time.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -126,6 +127,8 @@ struct cloud_msg {
 };
 
 #define MSG_TO_CLOUD_MSG_PTR(_msg)	((const struct cloud_msg *)_msg)
+
+#define UNIX_TIME_MS_2026_01_01 1767222000000LL
 
 #ifdef __cplusplus
 }
