@@ -222,7 +222,7 @@ The following includes the key configuration categories:
 
 ### Thread Configuration
 
-- **`CONFIG_APP_STORAGE_THREAD_STACK_SIZE`** (default: 1024): Stack size for the storage module's main thread.
+- **`CONFIG_APP_STORAGE_THREAD_STACK_SIZE`** (default: 1536): Stack size for the storage module's main thread.
 
 - **`CONFIG_APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS`** (default: 60): Watchdog timeout for detecting stuck operations.
 

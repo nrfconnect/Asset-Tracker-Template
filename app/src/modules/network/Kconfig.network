@@ -15,7 +15,7 @@ config APP_NETWORK_SHELL
 
 config APP_NETWORK_THREAD_STACK_SIZE
 	int "Thread stack size"
-	default 1024
+	default 1536
 
 config APP_NETWORK_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout"
