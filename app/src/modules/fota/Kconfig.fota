@@ -12,7 +12,7 @@ if APP_FOTA
 
 config APP_FOTA_THREAD_STACK_SIZE
 	int "Thread stack size"
-	default 1536
+	default 2048
 
 config APP_FOTA_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout"
