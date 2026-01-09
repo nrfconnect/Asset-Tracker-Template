@@ -12,7 +12,7 @@ if APP_LOCATION
 
 config APP_LOCATION_THREAD_STACK_SIZE
 	int "Thread stack size"
-	default 4096
+	default 2048
 
 config APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout"
