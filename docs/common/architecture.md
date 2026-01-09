@@ -292,6 +292,10 @@ SMF automatically handles the execution of exit and entry functions for all stat
 
 Modules that sample data (environmental, power, location, network) follow a consistent timestamp pattern to ensure accurate time information for cloud transmission:
 
-- **At sampling time**: Modules capture the system uptime using `k_uptime_get()` and store it in an `int64_t uptime` field within the message structure. This represents the relative time in milliseconds when the sample was taken.
+- **At sampling time**: Modules capture the system uptime using `k_uptime_get()` and attempt to convert it to Unix time. If the Unix time is valid, it is stored in a `int64_t timestamp` field within the message structure. If the Unix time is not valid (e.g., Unix time has not been synchronized yet), the module falls back to storing the timestamp as the system uptime.
 
-- **Before cloud transmission**: The cloud module converts the uptime to Unix timestamp using `date_time_uptime_to_unix_time_ms()` immediately before sending data to the cloud. This ensures that the timestamp reflects the actual sampling time, not the transmission time.
+- **Before cloud transmission**: The cloud module checks the `timestamp` field. If it contains a valid Unix timestamp (a unix time greater than 2026-01-01), it is used as is. If it contains a system uptime, the cloud module attempts to convert it to Unix timestamp using `attempt_timestamp_to_unix_ms()`, before sending data to the cloud. If this conversion also fails, the timestamp is handled according to the `CONFIG_APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS` configuration.
+  - `CONFIG_APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_DROP`: Samples with timestamps that cannot be converted to Unix time are dropped and not sent to the cloud.
+  - `CONFIG_APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_KEEP`: Samples with timestamps that cannot be converted to Unix time are kept and sent to the cloud with timestamp as is.
+  - `CONFIG_APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_NOW`: Samples with timestamps that cannot be converted to Unix time are assigned the current Unix time at transmission before being sent to the cloud.
+  - `CONFIG_APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_NO_TIMESTAMP`: Samples with timestamps that cannot be converted to Unix time are sent to the cloud with `NRF_CLOUD_NO_TIMESTAMP`, which makes nRF Cloud assign the timestamp upon reception.

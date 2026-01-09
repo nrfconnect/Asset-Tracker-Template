@@ -93,6 +93,18 @@ Several Kconfig options in `Kconfig.cloud` control this module’s behavior. The
 - **CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS:**
   Maximum reconnect backoff limit.
 
+- **CONFIG_APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_DROP:**
+  Drops samples with invalid timestamps when sending data to the cloud.
+
+- **CONFIG_APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_KEEP:**
+  Sends samples with invalid timestamps to the cloud without modification.
+
+- **CONFIG_APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_NOW:**
+  Replaces invalid timestamps with the current time before sending to the cloud.
+
+- **CONFIG_APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_NO_TIMESTAMP:**
+  Sends samples with invalid timestamps to the cloud with `NRF_CLOUD_NO_TIMESTAMP`, which makes nRF Cloud assign the timestamp upon reception.
+
 - **CONFIG_APP_CLOUD_THREAD_STACK_SIZE:**
   Stack size for the cloud module’s main thread.
 
