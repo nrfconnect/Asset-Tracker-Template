@@ -82,7 +82,7 @@ config APP_CLOUD_BACKOFF_MAX_SECONDS
 
 config APP_CLOUD_THREAD_STACK_SIZE
 	int "Thread stack size"
-	default 8192
+	default 4096
 
 config APP_CLOUD_MESSAGE_QUEUE_SIZE
 	int "Message queue size"
