@@ -101,6 +101,21 @@ ZBUS_CHAN_DEFINE(STORAGE_CHAN,
 	ZBUS_MSG_INIT(0)
 );
 
+static void ensure_clean_state(void)
+{
+	int err;
+	struct cloud_msg cloud_msg = { .type = CLOUD_DISCONNECTED };
+	struct storage_msg storage_msg = { .type = STORAGE_MODE_PASSTHROUGH };
+
+	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_MSEC(100));
+	TEST_ASSERT_EQUAL(0, err);
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_MSEC(100));
+	TEST_ASSERT_EQUAL(0, err);
+
+	k_sleep(K_MSEC(200));
+}
+
 void setUp(void)
 {
 	RESET_FAKE(dk_buttons_init);
@@ -108,6 +123,8 @@ void setUp(void)
 	RESET_FAKE(task_wdt_add);
 	RESET_FAKE(date_time_register_handler);
 	RESET_FAKE(sys_reboot);
+
+	ensure_clean_state();
 
 	FFF_RESET_HISTORY();
 
@@ -682,9 +699,19 @@ void test_storage_mode_request_handling(void)
 
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
+	/* Complete disconnected sampling before connecting */
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
 	/* Now test normal operation in buffer mode */
 	send_cloud_connected();
 	expect_cloud_event(CLOUD_CONNECTED);
+
+	/* Trigger a new sample manually since timer is far off */
+	send_button_press(BUTTON_PRESS_SHORT);
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
 	/* Complete sampling */
 	send_location_search_done();
@@ -729,10 +756,21 @@ void test_cloud_timer_in_buffer_mode(void)
 	/* Expect a location search trigger when entering buffer mode */
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
-	/* Connect and complete initial sampling */
+	/* Complete disconnected sampling before connecting */
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+	/* Now connect */
 	send_cloud_connected();
 	expect_cloud_event(CLOUD_CONNECTED);
 
+	/* Trigger a new sample manually since timer is far off */
+	send_button_press(BUTTON_PRESS_SHORT);
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Complete sampling */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
 	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
@@ -844,9 +882,30 @@ void test_timer_rejection_during_fota_rejected(void)
 
 void test_multiple_cloud_data_send_intervals(void)
 {
-	/* Connect and complete initial sampling */
+	int err;
+	struct storage_msg storage_msg = {
+		.type = STORAGE_MODE_BUFFER,
+	};
+
+	/* Switch to buffer mode first */
+	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+	expect_storage_event(STORAGE_MODE_BUFFER);
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Complete initial sampling */
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+	/* Connect */
 	send_cloud_connected();
 	expect_cloud_event(CLOUD_CONNECTED);
+
+	/* Trigger a new sample manually since timer is far off */
+	send_button_press(BUTTON_PRESS_SHORT);
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
@@ -882,9 +941,30 @@ void test_multiple_cloud_data_send_intervals(void)
 
 void test_cloud_data_send_with_sampling_interleaved(void)
 {
-	/* Connect and complete initial sampling */
+	int err;
+	struct storage_msg storage_msg = {
+		.type = STORAGE_MODE_BUFFER,
+	};
+
+	/* Switch to buffer mode first */
+	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+	expect_storage_event(STORAGE_MODE_BUFFER);
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	/* Complete initial sampling */
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+	/* Connect */
 	send_cloud_connected();
 	expect_cloud_event(CLOUD_CONNECTED);
+
+	/* Trigger a new sample manually */
+	send_button_press(BUTTON_PRESS_SHORT);
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
@@ -1043,8 +1123,10 @@ void test_config_change_all_parameters_passthrough_to_buffer(void)
 
 	/* Start in passthrough mode (already tested in other tests) */
 	storage_msg.type = STORAGE_MODE_PASSTHROUGH;
+
 	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
+
 	expect_storage_event(STORAGE_MODE_PASSTHROUGH);
 
 	send_cloud_connected();
@@ -1071,8 +1153,10 @@ void test_config_change_all_parameters_passthrough_to_buffer(void)
 
 	/* Confirm the mode change in storage module */
 	storage_msg.type = STORAGE_MODE_BUFFER;
+
 	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
+
 	expect_storage_event(STORAGE_MODE_BUFFER);
 
 	/* Verify immediate sampling after mode switch (sample_start_time reset) */
