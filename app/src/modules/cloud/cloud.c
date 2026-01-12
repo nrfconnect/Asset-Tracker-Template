@@ -450,6 +450,7 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 	/* Unused variables if no data sources are enabled */
 	(void)confirmable;
 	(void)timestamp_ms;
+	(void) err;
 
 	return -ENOTSUP;
 }
