@@ -215,13 +215,13 @@ def thingy91x_ppk2():
     ppk2_dev.toggle_DUT_power("OFF")
 
 @pytest.mark.slow
-def test_power(thingy91x_ppk2, debug_hex_file):
+def test_power(thingy91x_ppk2, hex_file):
     '''
     Test that the device can reach PSM and measure the current consumption
 
     Current consumption is measured and report generated.
     '''
-    flash_device(os.path.abspath(debug_hex_file), serial=SEGGER)
+    flash_device(os.path.abspath(hex_file), serial=SEGGER)
     reset_device(serial=SEGGER)
     try:
         thingy91x_ppk2.t91x_uart.wait_for_str("Connected to Cloud", timeout=120)
