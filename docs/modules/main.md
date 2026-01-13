@@ -47,7 +47,7 @@ The Main module can be configured using the following Kconfig options:
   Defines the watchdog timeout for the main module.
 
 
-## State Diagram
+## State diagram
 
 The Main module implements a hierarchical state machine with the following states:
 

@@ -110,7 +110,7 @@ uart:~$ att_cloud provision
 ```
 
 When the provisioning command is called, the device will connect to the provisioning endpoint and check if there are any pending commands for the device
-and execute them if any. Can be used to reprovision the device for development purposes and when its desired to swap out the certificates used in the CoAP connection.
+and execute them if any. You can use it to reprovision the device for development purposes and when it is desired to swap out the certificates used in the CoAP connection.
 
 #### Network disconnect
 
@@ -440,7 +440,7 @@ Options:
 Select option: 2
 ```
 
-Selecting a module (e.g., `2` for Cloud) reveals the detailed structure of its state variable, including all internal members:
+Selecting a module (for example, `2` for Cloud) reveals the detailed structure of its state variable, including all internal members:
 
 ```text
 --- Cloud State Details ---
@@ -673,4 +673,4 @@ For more information, see [nRF Connect SDK Modem Tracing](https://docs.nordicsem
 
 ## Common Issues and Solutions
 
-If you are not able to resolve the issue with the tools and instructions given in this documentation, it's recommended to create an issue in the [template repository](https://github.com/nrfconnect/Asset-Tracker-Template/issues) or register a support ticket in Nordic's support portal <https://devzone.nordicsemi.com/>.
+If you are not able to resolve the issue with the tools and instructions given in this documentation, it's recommended to create an issue in the [template repository](https://github.com/nrfconnect/Asset-Tracker-Template/issues) or register a support ticket in [Nordic's support portal](https://devzone.nordicsemi.com/).

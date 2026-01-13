@@ -10,7 +10,7 @@ This guide explains modifying the specific aspects of the template.
 ## Add a new zbus event
 
 This section demonstrates how to add a new event to a module and utilize it in another module within the system. In this example, you can add events to the power module to notify the system when VBUS is connected or disconnected on the Thingy:91 X.
-The main module subscribes to these events and request specific LED patterns from the LED module in response.
+The main module subscribes to these events and requests specific LED patterns from the LED module in response.
 
 When VBUS is connected, the LED will toggle white for 10 seconds.
 When VBUS is disconnected, the LED will toggle purple for 10 seconds.
@@ -157,7 +157,7 @@ This applies in general for all sensors that support the Zephyr Sensor API.
 
 Thingy:91 X is used as an example, as it is a supported board in the template with defined board files in the nRF Connect SDK.
 
-1. Enable the sensor in the devicetree by setting its status to "okay". This will perform the following:
+1. Enable the sensor in the devicetree by setting its status to `okay`. This will perform the following:
 
     - Instantiate the devicetree node for the sensor.
     - Initialize the driver during boot.
@@ -564,13 +564,13 @@ To add your own module, complete the following steps:
     target_include_directories(app PRIVATE .)
     ```
 
-1. Add the module to the main application's CMakeLists.txt:
+1. Add the module to the main application's `CMakeLists.txt` file:
 
     ```cmake
     add_subdirectory(src/modules/dummy)
     ```
 
-1. Increase the value of the `CONFIG_TASK_WDT_CHANNELS` Kconfig option in the `prj.conf` file to accommadate for the new module's task watchdog integration.
+1. Increase the value of the `CONFIG_TASK_WDT_CHANNELS` Kconfig option in the `prj.conf` file to accommodate for the new module's task watchdog integration.
 
 The dummy module is now ready to use. It provides the following functionality:
 

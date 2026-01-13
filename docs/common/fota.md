@@ -4,6 +4,8 @@ This guide covers how to perform Firmware Over The Air (FOTA) updates using nRF 
 
 ## Firmware versioning
 
+The following sections cover the principles and practices used to define, manage, and maintain firmware versioning.
+
 ### Version components
 
 Firmware versions are defined in the `app/VERSION` file:
@@ -37,7 +39,7 @@ Complete the following steps for preparing firmware:
     west build -p -b thingy91x/nrf9151/ns # Make sure you build for the appropriate board
     ```
 
-    Or use the nRF Connect for VS Code extension. See the [Getting Started](getting_started.md) guide for details on building with the extension.
+    Or use the nRF Connect for VS Code. See the [Getting Started](getting_started.md) guide for details on building with the extension.
 
 1. Locate update bundles:
 
@@ -71,8 +73,8 @@ This is the recommended method for manual updates and testing.
     1. Click "Add bundle".
     1. Upload your bundle file:
 
-       - For application updates: `dfu_application.zip`
-       - For bootloader updates: `dfu_mcuboot.zip`
+        - For application updates: `dfu_application.zip`
+        - For bootloader updates: `dfu_mcuboot.zip`
 
     1. Set **Update Type** (for example, LTE).
     1. Enter a **Name** for the bundle.

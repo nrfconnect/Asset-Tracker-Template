@@ -27,7 +27,7 @@ For accurate measurements and detailed profiling, use the [PPK2: Power Profiler 
 
 The Asset Tracker Template is configured with power-saving features enabled by default. This section covers the key configuration options specific to the application.
 
-For general configuration of the LTE link, refer to the [LTE Link Control Documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/modem/lte_lc.html).
+For general configuration of the LTE link, refer to the [LTE Link Control documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/modem/lte_lc.html).
 
 ### Power Saving Mode (PSM)
 

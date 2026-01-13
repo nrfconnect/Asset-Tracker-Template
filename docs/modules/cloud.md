@@ -28,7 +28,7 @@ The periodic request interval for buffered data can be configured with the `CONF
 
 The cloud module publishes and receives messages over the zbus channel `CLOUD_CHAN`. All module message types are defined in `cloud.h` and used within `cloud.c`.
 
-### Input Messages
+### Input messages
 
 - **CLOUD_POLL_SHADOW:**
   Instructs the module to poll the device shadow on nRF Cloud. The device shadow may contain configuration updates for the device.
@@ -36,7 +36,7 @@ The cloud module publishes and receives messages over the zbus channel `CLOUD_CH
 - **CLOUD_PAYLOAD_JSON:**
   Sends raw JSON data to nRF Cloud.
 
-### Output Messages
+### Output messages
 
 - **CLOUD_DISCONNECTED:**
   Indicates that the cloud connection is not established (or has been lost).
