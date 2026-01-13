@@ -247,6 +247,7 @@ void setUp(void)
 	RESET_FAKE(conn_mgr_all_if_connect);
 	RESET_FAKE(conn_mgr_all_if_up);
 	RESET_FAKE(net_mgmt_add_event_callback);
+	RESET_FAKE(conn_mgr_all_if_disconnect);
 
 	date_time_now_fake.custom_fake = date_time_now_custom_fake;
 	lte_lc_register_handler_fake.custom_fake = lte_lc_register_handler_custom_fake;
@@ -470,6 +471,67 @@ void test_system_mode_set_nbiot(void)
 void test_system_mode_set_ltem_nbiot(void)
 {
 	system_mode_set_test(NETWORK_SYSTEM_MODE_SET_LTEM_NBIOT, LTE_LC_SYSTEM_MODE_LTEM_NBIOT_GPS);
+}
+
+void test_disconnect_while_searching(void)
+{
+	int err;
+	struct network_msg msg = {
+		.type = NETWORK_DISCONNECT,
+	};
+
+	/* Disable auto-connect for this test so we stay in SEARCHING state */
+	conn_mgr_all_if_connect_fake.custom_fake = NULL;
+
+	/* Ensure we are disconnected and idle */
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	k_sleep(K_MSEC(100));
+
+	/* Start searching */
+	msg.type = NETWORK_CONNECT;
+
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	k_sleep(K_MSEC(100));
+
+	/* Stop searching / Disconnect */
+	msg.type = NETWORK_DISCONNECT;
+
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	k_sleep(K_MSEC(100));
+
+	/* Assert that disconnect was called */
+	TEST_ASSERT_EQUAL(1, conn_mgr_all_if_disconnect_fake.call_count);
+}
+
+void test_connect_from_idle(void)
+{
+	int err;
+	struct network_msg msg = {
+		.type = NETWORK_DISCONNECT,
+	};
+
+	/* Ensure we are disconnected and idle */
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	k_sleep(K_MSEC(100));
+
+	/* Send connect request */
+	msg.type = NETWORK_CONNECT;
+
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	k_sleep(K_MSEC(100));
+
+	/* Verify connect was called */
+	TEST_ASSERT_EQUAL(1, conn_mgr_all_if_connect_fake.call_count);
 }
 
 /* This is required to be added to each test. That is because unity's

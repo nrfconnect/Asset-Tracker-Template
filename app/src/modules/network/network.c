@@ -441,6 +441,7 @@ static void state_disconnected_searching_entry(void *obj)
 
 static enum smf_state_result state_disconnected_searching_run(void *obj)
 {
+	int err;
 	struct network_state_object const *state_object = obj;
 
 	if (&NETWORK_CHAN == state_object->chan) {
@@ -451,6 +452,12 @@ static enum smf_state_result state_disconnected_searching_run(void *obj)
 			return SMF_EVENT_HANDLED;
 		case NETWORK_SEARCH_STOP: __fallthrough;
 		case NETWORK_DISCONNECT:
+			err = network_disconnect();
+			if (err) {
+				LOG_ERR("network_disconnect, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_IDLE]);
 			return SMF_EVENT_HANDLED;
 		default:
