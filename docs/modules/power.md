@@ -10,12 +10,12 @@ The power module manages power-related functionality for devices with nPM1300, l
 
 The Power module defines and communicates on the `POWER_CHAN` channel.
 
-### Input Messages
+### Input messages
 
 - **POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST:**
   Requests a battery percentage sample.
 
-### Output Messages
+### Output messages
 
 - **POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE:**
   Contains the calculated battery percentage.

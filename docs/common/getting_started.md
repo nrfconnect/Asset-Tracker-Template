@@ -1,9 +1,9 @@
 # Getting started
 
-To get started with Asset tracker template, you need to set up the development environment, build the application, and run it on supported hardware.
+To get started with Asset Tracker template, you need to set up the development environment, build the application, and run it on supported hardware.
 You can use any of the following tools, depending on your preferred development environment:
 
-* Using Visual Studio Code and the [nRF Connect for VS Code extension](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html)
+* Using Visual Studio Code and the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html)
 * Using command line and nRF Util
 
 In nRF Connect for VS Code, the Asset Tracker Template is available as an add-on in the **Create New Application** menu:
@@ -14,11 +14,11 @@ Select the **Browse nRF Connect SDK add-on Index** option and search for **Asset
 
 ![Asset Tracker Template add-on](../images/addon_att.png)
 
-Once you have created the project, you can access various development actions through the **Actions** panel in the nRF Connect for VS Code extension. These actions provide quick access to common tasks such as building, flashing, and debugging your application:
+Once you have created the project, you can access various development actions through the **Actions** panel in the nRF Connect for VS Code. These actions provide quick access to common tasks such as building, flashing, and debugging your application:
 
 ![Extension actions](../images/actions.png)
 
-For more details on how to use the VS Code extension, refer to the [nRF Connect for VS Code documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html).
+For more details on how to use the nRF Connect for VS Code, refer to the [nRF Connect for VS Code documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html).
 
 For pre-built binaries, refer to the latest tag and the [release artifacts](release.md) documentation.
 
@@ -45,7 +45,7 @@ The Asset Tracker Template is continuously verified in CI on the following board
 
     - Build target `nrf9151dk/nrf9151/ns`
 
-## Workspace Initialization
+## Workspace initialization
 
 Before initializing, start the toolchain environment:
 
@@ -59,7 +59,7 @@ Alternatively, you can run the command with a specific nRF Connect SDK version. 
 nrfutil sdk-manager toolchain launch --ncs-version v3.0.0 -- <your command>
 ```
 
-To run for instance the `west` command with the specified version of toolchain. You can create an alias or shell function for this command to avoid typing it in full every time.
+To run, for instance the `west` command with the specified version of the toolchain. You can create an alias or shell function for this command to avoid typing it in full every time.
 
 In this document, the `nrfutil toolchain-manager launch --shell` variant is used to launch the toolchain environment in the shell.
 
@@ -128,14 +128,14 @@ west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.con
 
 To connect to [nRF Cloud](https://nrfcloud.com), the device must be provisioned to your account. You can provision the device using one of the following methods:
 
-* **Quickstart application**: Use the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in the [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop)`_  for a streamlined setup process.
+* **Quickstart application**: Use the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in the [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop) for a streamlined setup process.
 * **Manual provisioning**: Follow the detailed steps in the [Provisioning](provisioning.md) documentation.
 
 The provisioning process establishes the necessary credentials and certificates for secure communication between your device and nRF Cloud.
 
 ## Testing
 
-To test that everything is working as expected, you can do the following:
+To test that everything is working as expected, complete the following steps:
 
 1. In a web browser, navigate to [nRF Cloud](https://nrfcloud.com) and log in to your account. Navigate to the **Device management** menu and select **Devices**. You should now see your device listed in the device overview. Click on the device ID to see the device page.
 
@@ -256,11 +256,11 @@ To test that everything is working as expected, you can do the following:
 If you experience issues, check the logs in the serial terminal for any error messages. You can find troubleshooting tips in the [Troubleshooting](tooling_troubleshooting.md) section of the documentation.
 You can also open a support ticket on [DevZone](https://devzone.nordicsemi.com) for further assistance.
 
-## Next Steps
+## Next steps
 
 Now that you have the application running, you can:
 
-* **Explore the architecture** - Learn about the modular design in the [Architecture](architecture.md) guide
-* **Configure the application** - Customize behavior using the [Configuration](configuration.md) guide
-* **Perform firmware updates** - Deploy new versions using the [Firmware Updates (FOTA)](fota.md) guide
-* **Customize functionality** - Add or modify features following the [Customization](customization.md) guide
+* **Explore the architecture** - Learn about the modular design in the [Architecture](architecture.md) guide.
+* **Configure the application** - Customize behavior using the [Configuration](configuration.md) guide.
+* **Perform firmware updates** - Deploy new versions using the [Firmware Updates (FOTA)](fota.md) guide.
+* **Customize functionality** - Add or modify features following the [Customization](customization.md) guide.

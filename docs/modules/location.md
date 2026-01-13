@@ -20,12 +20,12 @@ Refer to the source files (`location.c`, `location.h`, and `Kconfig.location`) f
 
 The location module publishes and receives messages over the zbus channel `LOCATION_CHAN`. All module message types are defined in `location.h` and used within `location.c`.
 
-### Input Messages
+### Input messages
 
 - `LOCATION_SEARCH_TRIGGER`:
   Triggers a location search request. The module will attempt to get the current location using configured methods.
 
-### Output Messages
+### Output messages
 
 - `LOCATION_SEARCH_STARTED`:
   Indicates that a location search has been initiated.
@@ -65,11 +65,11 @@ Several Kconfig options in `Kconfig.location` control this module's behavior. Th
   Watchdog timeout for the module's thread (default: 120 seconds).
   This covers both:
 
-  - Waiting for an incoming message in zbus_sub_wait_msg()
-  - Time spent processing the message, defined by the **CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS** Kconfig option.
+    * Waiting for an incoming message in zbus_sub_wait_msg()
+    * Time spent processing the message, defined by the **CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS** Kconfig option.
 
-  Must be larger than **CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS**.
-  A small difference between the two can mean more frequent watchdog feeds, which increases power consumption.
+    Must be larger than **CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS**.
+    A small difference between the two can mean more frequent watchdog feeds, which increases power consumption.
 
 - **CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS:**
   Maximum time allowed for processing a single message (default: 60 seconds).

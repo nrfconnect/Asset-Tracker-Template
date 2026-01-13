@@ -28,13 +28,14 @@ This section describes the available compile-time and runtime configuration opti
 
 </div>
 
-## Runtime Configurations
+## Runtime configurations
 
 The device supports runtime configurations that allow you to modify the template's behavior without firmware updates.
 
 The template uses separate parameters to control:
-- **Cloud updates**: When the device sends data and checks for updates
-- **Data sampling**: When the device collects sensor and location data
+
+- **Cloud updates**: When the device sends data and checks for updates.
+- **Data sampling**: When the device collects sensor and location data.
 
 Cloud updates include sending data, checking for FOTA jobs, and retrieving configuration/command updates. For implementation details, see [Configuration Flow](#configuration-flow).
 
@@ -44,45 +45,45 @@ Cloud updates include sending data, checking for FOTA jobs, and retrieving confi
 | **`sample_interval`** | <ul><li>**In passthrough mode**: Not valid.</li><li>**In buffer mode**: Sample interval.</li></ul> | Seconds | 1 to 4294967295 | `CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS` (default: 150)
 | **`buffer_mode`** | Storage mode control. Set to `true` for buffer mode or `false` for passthrough mode. | Boolean | true or false | `CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH` (default) / `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER`
 
-Runtime configurations can be set through the cloud device shadow and will override the compile-time Kconfig defaults shown in the Static Configuration column.
+You can set the runtime configurations through the cloud device shadow and they will override the compile-time Kconfig defaults shown in the Static Configuration column.
 
 The complete device shadow structure is defined in the [CDDL](https://datatracker.ietf.org/doc/html/rfc8610) schema at `Asset-Tracker-Template/app/src/cbor/device_shadow.cddl`. This schema specifies all supported configuration parameters, commands, and their valid value ranges.
 
-### Operation Modes
+### Operation modes
 
-The device operates in one of two modes based on which parameters are configured:
+The device operates in one of two following modes based on which parameters are configured:
 
-#### Passthrough Mode
+#### Passthrough mode
 
-**Activated when**: `buffer_mode` is set to `false` (or not configured)
+**Activated**: When `buffer_mode` is set to `false` (or not configured)
 
 **Configuration**: Uses `update_interval` parameter only (ignores `sample_interval`)
 
 **Behavior**:
 
-- Samples sensors and location at `update_interval`
-- Sends data immediately to cloud
-- Polls shadow and checks FOTA at `update_interval`
+- Samples sensors and location at `update_interval`.
+- Sends data immediately to cloud.
+- Polls shadow and checks FOTA at `update_interval`.
 
 **Use case**: Real-time data transmission, lower latency
 
-#### Buffer Mode
+#### Buffer mode
 
-**Activated when**: `buffer_mode` is set to `true`
+**Activated**: When `buffer_mode` is set to `true`
 
 **Configuration**: Uses both `sample_interval` and `update_interval` parameters
 
 **Behavior**:
 
-- Samples sensors and location at `sample_interval`
-- Buffers data locally
-- Sends buffered data at `update_interval`
-- Polls shadow and checks FOTA at `update_interval`
+- Samples sensors and location at `sample_interval`.
+- Buffers data locally.
+- Sends buffered data at `update_interval`.
+- Polls shadow and checks FOTA at `update_interval`.
 
 **Use case**: Reduced power consumption, batch data transmission
 
-> [!WARNING]
-> While low intervals are supported, they can cause network congestion and connectivity issues, especially in poor network conditions. Choose intervals appropriate for your network quality, use case and device mode.
+> [!CAUTION]
+> While low intervals are supported, they can cause network congestion and connectivity issues, especially in poor network conditions. Choose intervals appropriate for your network quality, use case, and device mode.
 
 ## Remote configuration from cloud
 
@@ -90,7 +91,7 @@ The Asset Tracker can be configured remotely through nRF Cloud's device shadow m
 
 ### Configuration through nRF Cloud UI
 
-> [!WARNING]
+> [!IMPORTANT]
 > The order of the configuration JSON structure matters.
 
 1. Log in to [nRF Cloud](https://nrfcloud.com/).
@@ -118,9 +119,7 @@ The Asset Tracker can be configured remotely through nRF Cloud's device shadow m
     }
     ```
 
-
-> [!WARNING]
-> To remove a configuration entry you need to explicitly `null` the parameter.
+    **IMPORTANT:** To remove a configuration entry you need to explicitly `null` the parameter.
 
 1. Click **Commit** to apply the changes.
 
@@ -162,106 +161,36 @@ curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
 **Command format**: `"command": [type, id]`
 
 - **type**: Command type (1=Provision)
-  - **Valid range**: 1 to 1
-- **id**: Unique identifier (increment for successive commands)
-  - **Valid range**: 1 to 4294967294 (excludes 0 and UINT32_MAX)
+    - **Valid range**: 1 to 1
+- **ID**: Unique identifier (increment for successive commands)
+    - **Valid range**: 1 to 4294967294 (excludes `0` and `UINT32_MAX`)
 
-*For shadow structure details, see `Asset-Tracker-Template/app/src/cbor/device_shadow.cddl`*
+For shadow structure details, see `Asset-Tracker-Template/app/src/cbor/device_shadow.cddl`.
 
 ### Configuration Flow
 
-The device starts in **passthrough mode** by default (configured via `CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH`). To start in buffer mode instead, use `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER`. Default intervals are set from `CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS` and `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS`.
+The device starts in **passthrough mode** by default (you can configure it using the `CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH` Kconfig option). To start in buffer mode instead, use `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER`. Default intervals are set from the `CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS` and `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig options.
 
-The following diagrams illustrates what happens in the various scenarios where the device polls the shadow:
+The following diagrams illustrate what happens in the various scenarios where the device polls the shadow:
 
 <details open>
 <summary><b>Shadow Desired Section Poll Flow</b></summary>
 
-```mermaid
-sequenceDiagram
-    participant main
-    participant cloud
-    participant nrfcloud as nRF Cloud
-
-    Note over main: Connected to cloud
-    main->>cloud: CLOUD_SHADOW_GET_DESIRED
-    cloud->>nrfcloud: Request shadow GET (state/desired)
-
-    alt desired EMPTY
-        nrfcloud-->>cloud: Shadow desired section response (EMPTY)
-        cloud->>main: CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED
-        main->>cloud: CLOUD_SHADOW_UPDATE_REPORTED
-        cloud->>nrfcloud: Report device configurations PATCH (state/reported)
-        nrfcloud-->>cloud: 2.01 OK
-    else desired present
-        nrfcloud-->>cloud: Shadow desired section response
-        cloud->>main: CLOUD_SHADOW_RESPONSE_DESIRED
-        Note over main: Decode and apply config
-        main->>cloud: CLOUD_SHADOW_UPDATE_REPORTED
-        cloud->>nrfcloud: Report device configurations PATCH (state/reported)
-        nrfcloud-->>cloud: 2.01 OK
-    end
-```
+<img src="../images/shadow_desired_section_poll_flow.svg" alt="Shadow Desired Section Poll Flow" />
 
 </details>
 
 <details>
 <summary><b>Shadow Delta Section Poll Flow</b></summary>
 
-```mermaid
-sequenceDiagram
-    participant main
-    participant cloud
-    participant nrfcloud as nRF Cloud
-
-    Note over main: TIMER_EXPIRED_CLOUD received
-    main->>cloud: CLOUD_SHADOW_GET_DELTA
-    cloud->>nrfcloud: Request shadow GET (state/delta)
-
-    alt delta EMPTY
-        nrfcloud-->>cloud: Shadow delta section response (EMPTY)
-        cloud->>main: CLOUD_SHADOW_RESPONSE_EMPTY_DELTA
-    else delta present
-        nrfcloud-->>cloud: Shadow delta section response
-        cloud->>main: CLOUD_SHADOW_RESPONSE_DELTA
-        Note over main: Decode and apply config
-        main->>cloud: CLOUD_SHADOW_UPDATE_REPORTED
-        cloud->>nrfcloud: Report device configurations PATCH (state/reported)
-        nrfcloud-->>cloud: 2.01 OK
-    end
-```
+<img src="../images/shadow_delta_section_poll_flow.svg" alt="Shadow Delta Section Poll Flow" />
 
 </details>
 
 <details>
 <summary><b>Shadow Delta Section Poll Flow - Command Execution</b></summary>
 
-```mermaid
-sequenceDiagram
-    participant main
-    participant cloud
-    participant nrfcloud as nRF Cloud
-    participant User as User/Cloud Service
-
-    User->>nrfcloud: Send command via REST API PATCH (state/desired)
-    nrfcloud-->>User: 2.01 OK
-
-    Note over main: TIMER_EXPIRED_CLOUD received
-    main->>cloud: CLOUD_SHADOW_GET_DELTA
-    cloud->>nrfcloud: Request shadow GET (state/delta)
-    nrfcloud-->>cloud: Shadow delta section response (with command)
-    cloud->>main: CLOUD_SHADOW_RESPONSE_DELTA
-    Note over main: Decode shadow delta
-
-    Note over main: Execute provisioning command
-    main->>cloud: CLOUD_PROVISIONING_REQUEST
-    Note over cloud: Start provisioning flow
-
-    main->>cloud: CLOUD_SHADOW_UPDATE_REPORTED (with command)
-    cloud->>nrfcloud: Report command execution PATCH (state/reported)
-    nrfcloud-->>cloud: 2.01 OK
-    Note over nrfcloud: Delta cleared (reported=desired)
-```
+<img src="../images/shadow_delta_section_poll_flow_commad_execution.svg" alt="Shadow Delta Section Poll Flow - Command Execution" />
 
 </details>
 
@@ -277,7 +206,7 @@ The following are the available location methods:
 - Wi-Fi® positioning
 - Cellular positioning
 
-### Configuration Examples
+### Configuration examples
 
 - **Thingy91x configuration** (Wi-Fi available):
 
@@ -295,7 +224,7 @@ The following are the available location methods:
     CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_SECOND_CELLULAR=y
     ```
 
-## Storage Mode Configuration
+## Storage mode configuration
 
 The storage module handles collected data in two modes: **Passthrough** (forward immediately, default) or **Buffer** (store and transmit in batches for lower power consumption). See [Storage Module Documentation](../modules/storage.md) for details.
 
@@ -328,21 +257,23 @@ att_storage stats              # Show statistics (if enabled)
 
 See [Storage Module Configurations](../modules/storage.md#configurations) for all options.
 
-## Network Configuration
+## Network configuration
 
 ### NB-IoT vs. LTE-M
 
 The Asset Tracker supports both LTE Cat NB1 (NB-IoT) and LTE Cat M1 (LTE-M) cellular connectivity:
 
 - **NB-IoT**: Optimized for:
-  - Low data rate applications.
-  - Better coverage.
-  - Stationary or low-mobility devices.
+
+    - Low data rate applications.
+    - Better coverage.
+    - Stationary or low-mobility devices.
 
 - **LTE-M**: Better suited for:
-  - Higher data rates.
-  - Mobile applications.
-  - Lower latency requirements.
+
+    - Higher data rates.
+    - Mobile applications.
+    - Lower latency requirements.
 
 #### Network mode selection
 
@@ -380,11 +311,12 @@ CONFIG_LTE_MODE_PREFERENCE_LTE_M_PLMN_PRIO=y
 
 PSM allows the device to enter deep sleep while maintaining network registration. Configuration is done through Kconfig options:
 
-#### PSM Parameters
+#### PSM parameters
 
 - **Periodic TAU (Tracking Area Update)**
-  - Controls how often the device updates its location with the network
-  - Configuration options:
+
+    - Controls how often the device updates its location with the network
+    - Configuration options:
 
     ```kconfig
     # Configure TAU in seconds
@@ -392,8 +324,9 @@ PSM allows the device to enter deep sleep while maintaining network registration
     ```
 
 - **Active Time (RAT)**
-  - Defines how long the device stays active after a wake-up
-  - Configuration options:
+
+    - Defines how long the device stays active after a wake-up
+    - Configuration options:
 
     ```kconfig
     # Configure RAT in seconds
@@ -430,7 +363,7 @@ Common scenarios for APN configuration:
 > [!NOTE]
 > In most cases, the default APN provided by the carrier should work without additional configuration.
 
-## LED Status Indicators
+## LED status indicators
 
 The Asset Tracker Template uses LED colors to indicate different device states:
 
@@ -439,7 +372,7 @@ The Asset Tracker Template uses LED colors to indicate different device states:
 - **Blue** (Blinking, 10 repetitions): Device is in lower power mode state between samples.
 - **Purple** (Blinking, 10 repetitions): FOTA download in progress.
 
-### Example: Setting LED Colors
+### Example: Setting LED colors
 
 You can control the LED colors through the LED module using zbus messages. The following is an example of how to set different LED patterns:
 

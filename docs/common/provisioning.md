@@ -38,8 +38,7 @@ Therefore it is normal that LTE is disconnected or connected multiple times duri
     at at%attesttoken
     ```
 
-    > [!NOTE]
-    > Token is printed automatically on first boot of unprovisioned devices.
+    **NOTE:** Token is printed automatically on first boot of unprovisioned devices.
 
 1. Log in to the [nRF Cloud](https://nrfcloud.com/#/) portal.
 1. Select **Security Services** in the left sidebar.
@@ -69,7 +68,7 @@ Therefore it is normal that LTE is disconnected or connected multiple times duri
 
     After your device is provisioned and connected, you can perform the following:
 
-    - **Monitor device data**: View real-time data from your device including location, temperature, battery percentage, and other sensor readings in the [nRF Cloud](https://nrfcloud.com/#/) portal.
+    - **Monitor device data**: View real-time data from your device, including location, temperature, battery percentage, and other sensor readings in the [nRF Cloud](https://nrfcloud.com/#/) portal.
     - **Retrieve data programmatically**:
         - Use the [Message Routing Service](https://docs.nordicsemi.com/bundle/nrf-cloud/page/Devices/MessagesAndAlerts/MessageRoutingService/ReceivingMessages.html) to automatically forward device messages to your own cloud infrastructure or application endpoints.
         - Query historical device messages using the REST API. For complete endpoint details, see the [REST API documentation](https://api.nrfcloud.com/) and [OpenAPI specification](https://api.nrfcloud.com/v1/openapi.json).
@@ -83,11 +82,11 @@ Therefore it is normal that LTE is disconnected or connected multiple times duri
               -H "Accept: application/json"
             ```
             </details>
-    - **Perform firmware updates**: Deploy over-the-air firmware updates to your device. See [Firmware Updates (FOTA)](fota.md) for detailed instructions on preparing and deploying firmware updates through nRF Cloud.
 
+    - **Perform firmware updates**: Deploy over-the-air firmware updates to your device. See [Firmware Updates (FOTA)](fota.md) for detailed instructions on preparing and deploying firmware updates through nRF Cloud.
     </details>
 
-### REST API Alternative
+### REST API alternative
 
 You can also use the REST API as an alternative for provisioning by running the following command:
 
@@ -102,25 +101,26 @@ curl 'https://api.provisioning.nrfcloud.com/v1/claimed-devices' \
 
 To update device credentials:
 
-> In an end product it is recommended to reprovision the device at a reasonable interval depending on the application use case for security reasons.
+In an end product it is recommended to reprovision the device at a reasonable interval depending on the application use case for security reasons.
 
 ### Manual
 
 1. Log in to the [nRF Cloud](https://nrfcloud.com/#/) portal.
 1. Select **Security Services** in the left sidebar.
 
-   A panel opens to the right.
+    A panel opens to the right.
+
 1. Select **Claimed Devices**.
 1. Find the device and click **Add Command**.
 1. Select **Cloud Access Key Generation** and click **Create Command**.
 1. Trigger on device:
 
-   - **Shell**: `att_cloud provision`
-   - **Cloud**: Update device shadow with `{"desired": {"command": [1, 1]}}`.
+    - **Shell**: `att_cloud provision`
+    - **Cloud**: Update device shadow with `{"desired": {"command": [1, 1]}}`.
 
 For detailed information on sending commands to devices through REST API, including command structure and available command types, see [Sending commands through REST API](configuration.md#sending-commands-through-rest-api) in the configuration documentation.
 
-### REST API Alternative
+### REST API alternative
 
 You can also use the REST API as an alternative for reprovisioning by running the following command:
 

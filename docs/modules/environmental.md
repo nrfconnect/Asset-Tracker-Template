@@ -9,12 +9,12 @@ To initiate a sensor reading, the main module sends an `ENVIRONMENTAL_SENSOR_SAM
 
 The Environmental module communicates via the zbus channel `ENVIRONMENTAL_CHAN`, using message types defined in `environmental.h`.
 
-### Input Messages
+### Input messages
 
 - **ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST:**
   Requests the module to take new sensor readings from the environmental sensor.
 
-### Output Messages
+### Output messages
 
 - **ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE:**
   Returns collected environmental data with the following fields:
@@ -35,6 +35,7 @@ struct environmental_msg {
 ```
 
 ## Configuration
+
 The Environmental module can be configured using the following Kconfig options:
 
 - **CONFIG_APP_ENVIRONMENTAL:**

@@ -6,6 +6,6 @@ The Button module provides button press event handling functionality for the app
 
 The Button module communicates through the zbus channel `BUTTON_CHAN`.
 
-### Output Messages
+### Output messages
 
 The module publishes a message with a payload of type `uint8_t` with the button number that has been pressed.

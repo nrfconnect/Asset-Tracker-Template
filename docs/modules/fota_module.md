@@ -29,7 +29,7 @@ All update operations feature error handling with appropriate status messages, a
 The FOTA module communicates through the zbus channel `FOTA_CHAN`, using input and output messages defined in `fota.h`.
 All input messages are requests from the application to the FOTA module. The output messages may be responses to input messages or notifications from the FOTA module to the application.
 
-### Input Messages
+### Input messages
 
 - **FOTA_POLL_REQUEST:**
   Request to check the cloud for pending updates.
@@ -40,7 +40,7 @@ All input messages are requests from the application to the FOTA module. The out
 - **FOTA_IMAGE_APPLY:**
   Apply the downloaded image (possibly requiring network disconnection).
 
-### Output Messages
+### Output messages
 
 - **FOTA_DOWNLOADING_UPDATE:**
   Indicates that a firmware image is being downloaded.

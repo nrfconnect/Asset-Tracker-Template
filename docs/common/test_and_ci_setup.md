@@ -5,21 +5,22 @@ Code analysis is performed through compliance checks and SonarCloud analysis.
 
 ## CI Pipeline Structure
 
-The CI pipeline is composed by the following workflows:
-- [.github/workflows/build.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/build.yml): For building the devices firmware.
+The CI pipeline is composed of the following workflows:
+
+- [.github/workflows/build.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/build.yml): For building the device's firmware.
 - [.github/workflows/target-test.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/target-test.yml): For running tests on real hardware.
 - [.github/workflows/build-and-target-test.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/build-and-target-test.yml): Workflow that glues together build.yml and target-test.yml.
-- [.github/workflows/sonarcloud.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/sonarcloud.yml): For building and running tests on emulation, and run Sonarcloud analysis.
+- [.github/workflows/sonarcloud.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/sonarcloud.yml): For building and running tests on emulation, and running Sonarcloud analysis.
 - [.github/workflows/compliance.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/compliance.yml): For static compliance checks.
 
-Additionally, AI assistant is used in [.github/workflows/ai-review.yaml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/ai-review.yaml). It is an AI reviewer that runs on pull request.
+Additionally, AI assistant is used in [.github/workflows/ai-review.yaml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/ai-review.yaml). It is an AI reviewer that runs on pull requests.
 You can choose to run it or not with a label.
 
 The CI pipeline is triggered as follows:
 
 - Pull Request: `build.yml`, `sonarcloud.yml`, `compliance.yml`. No target tests are run on PR to avoid instabilities.
-- Push to main: `build-and-target-test.yml`, `sonarcloud.yml`. Only "fast" targets tests are run. Avoiding excessively time-consuming tests.
-- Nightly: `build-and-target-test.yml`. Full set of target tests. Includes "slow" tests such as full modem FOTA test and power consumption test.
+- Push to main: `build-and-target-test.yml`, `sonarcloud.yml`. Only "fast" target tests are run. Avoiding excessively time-consuming tests.
+- Nightly: `build-and-target-test.yml`. Full set of target tests. Includes "slow" tests such as the full modem FOTA test and the power consumption test.
 
 ### Hardware Tests
 

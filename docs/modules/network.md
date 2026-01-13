@@ -14,7 +14,7 @@ All input messages are requests from the application to the network module. The 
 
 The following messages are supported:
 
-### Input Messages
+### Input messages
 
 - **NETWORK_CONNECT**: Request to connect to the network.
 - **NETWORK_DISCONNECT**: Request to disconnect from the network.
@@ -25,7 +25,7 @@ The following messages are supported:
 - **NETWORK_SYSTEM_MODE_SET_LTEM_NBIOT**: Request to set the system mode to use both LTE-M and NB-IoT.
 - **NETWORK_QUALITY_SAMPLE_REQUEST**: Request to sample the current network connection quality. The response will be sent as a `NETWORK_QUALITY_SAMPLE_RESPONSE` message.
 
-### Output Messages
+### Output messages
 
 - **NETWORK_DISCONNECTED**: The device is disconnected from the network.
 - **NETWORK_CONNECTED**: The device is connected to the network and has an IP address.
@@ -38,7 +38,7 @@ The following messages are supported:
 - **NETWORK_SYSTEM_MODE_RESPONSE**: Response to a system mode request (`NETWORK_SYSTEM_MODE_REQUEST`) with current mode in `.system_mode` field.
 - **NETWORK_QUALITY_SAMPLE_RESPONSE**: Response to a quality sample request (`NETWORK_QUALITY_SAMPLE_REQUEST`) with data in `.conn_eval_params` field.
 
-### Message Structure
+### Message structure
 
 The network module uses the `struct network_msg` structure for communication:
 

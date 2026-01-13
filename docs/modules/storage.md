@@ -1,7 +1,7 @@
 # Storage module
 
 The storage module forwards or stores data from enabled modules.
-It has following two modes:
+It has the following two modes:
 
 - Passthrough (default): forward data immediately.
 - Buffer: stores data, retrieves through flush or batch.
@@ -38,7 +38,7 @@ In buffer mode, data is stored and later emitted by flush or streamed over the b
 
 ### Memory management
 
-This module allocates RAM from the following places and understanding these helps you tune it down:
+This module allocates RAM from the following places, and understanding these helps you tune it down:
 
 - Built-in batch pipe buffer: `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` bytes are reserved at boot.
 - Per-type slabs: Each enabled data type declares a `k_mem_slab` with `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` blocks of that type's size.
@@ -116,8 +116,9 @@ CONFIG_APP_STORAGE_SHELL_STATS=n
 ```
 
 > [!NOTE]
-> - If you later enable buffer or batch, increase the value of the `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` Kconfig option, so that at least one header plus the largest item fits.
-> - The actual RAM consumed by ring buffers and slabs scales with which data types are enabled and the value of the `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` Kconfig option.
+>
+> * If you later enable buffer or batch, increase the value of the `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` Kconfig option, so that at least one header plus the largest item fits.
+> * The actual RAM consumed by ring buffers and slabs scales with which data types are enabled and the value of the `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` Kconfig option.
 
 ## Messages
 

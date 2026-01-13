@@ -27,7 +27,7 @@ If you are not familiar with the nRF91 Series SiPs and cellular in general, it i
 
 ## Quick Start
 
-For detailed setup instructions using the [nRF Connect for VS Code extension](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) and advanced configuration options, see the [Getting Started Guide](docs/common/getting_started.md).
+For detailed setup instructions using the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) and advanced configuration options, see the [Getting Started Guide](docs/common/getting_started.md).
 
 For pre-built binaries, refer to the latest tag and the [release artifacts](common/release.md) documentation.
 
@@ -40,7 +40,7 @@ For pre-built binaries, refer to the latest tag and the [release artifacts](comm
 
 * nRF Connect SDK development environment ([setup guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation.html))
 
-### Build and Run
+### Build and run
 
 <details>
 <summary>1. <strong>Initialize workspace:</strong></summary>
@@ -116,7 +116,7 @@ Create a new rule using the following configuration:<br>
 
 </details>
 
-## Key Technical Features
+## Key technical features
 
 Following are the key features of the template:
 
@@ -125,17 +125,17 @@ Following are the key features of the template:
     * Each module implements its own state machine using Zephyr's [State Machine Framework](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html).
     * The run-to-completion model ensures predictable behavior.
 
-* **Message-Based Communication (zbus)**
+* **Message-Based communication (zbus)**
 
     * Modules communicate through dedicated message channels using [zbus](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html).
 
-* **Modular Architecture**
+* **Modular architecture**
 
     * Separation of concerns between modules.
     * Each module that performs blocking operations runs in its own thread and uses zbus message subscribers to queue messages.
     * Non-blocking modules use zbus listeners for immediate processing.
 
-* **Power Optimization**
+* **Power optimization**
 
     * [LTE Power Saving Mode (PSM)](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/protocols/lte/psm.html#power_saving_mode_psm) enabled by default.
     * Configurable power-saving features.
