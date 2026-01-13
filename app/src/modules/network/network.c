@@ -220,6 +220,9 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		} else if (evt->modem_evt.type == LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE) {
 			LOG_DBG("LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE");
 			network_status_notify(NETWORK_LIGHT_SEARCH_DONE);
+		} else if (evt->modem_evt.type == LTE_LC_MODEM_EVT_SEARCH_DONE) {
+			LOG_DBG("LTE_LC_MODEM_EVT_SEARCH_DONE");
+			network_status_notify(NETWORK_SEARCH_DONE);
 		}
 		break;
 	case LTE_LC_EVT_PSM_UPDATE: {
