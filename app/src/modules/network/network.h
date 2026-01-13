@@ -46,6 +46,13 @@ enum network_msg_type {
 	 */
 	NETWORK_LIGHT_SEARCH_DONE,
 
+	/* The modem has completed a full search for a network to attach to without finding a
+	 * suitable cell according to 3GPP selection rules.
+	 * The modem will continue to search periodically for a suitable cell if it left in
+	 * normal mode.
+	 */
+	NETWORK_SEARCH_DONE,
+
 	/* A network attach request has been rejected by the network. */
 	NETWORK_ATTACH_REJECTED,
 

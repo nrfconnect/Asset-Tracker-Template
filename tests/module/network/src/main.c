@@ -367,6 +367,17 @@ void test_light_search_done(void)
 	TEST_ASSERT_EQUAL(NETWORK_LIGHT_SEARCH_DONE, msg.type);
 }
 
+void test_search_done(void)
+{
+	struct network_msg msg;
+
+	send_mdmev_evt(LTE_LC_MODEM_EVT_SEARCH_DONE);
+
+	wait_for_and_check_msg(&msg, NETWORK_SEARCH_DONE);
+
+	TEST_ASSERT_EQUAL(NETWORK_SEARCH_DONE, msg.type);
+}
+
 void test_modem_reset_loop(void)
 {
 	struct network_msg msg;
