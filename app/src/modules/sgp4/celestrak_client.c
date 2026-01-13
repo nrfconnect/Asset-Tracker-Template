@@ -280,12 +280,7 @@ int celestrak_fetch_tle(const char *catnr, char *buffer, size_t buffer_size, siz
         }
     }
 
-    /* Ensure proper socket shutdown */
-    err = shutdown(sock, SHUT_RDWR);
-    if (err) {
-        LOG_WRN("Failed to shutdown socket: %d", errno);
-    }
-
+    /* Close socket directly since shutdown is not supported */
     close(sock);
     k_mutex_unlock(&celestrak_mutex);
 
