@@ -467,8 +467,20 @@ static int reschedule_timers(struct ntn_state_object *state, const char * const 
 		return -EINVAL;
 	}
 
-	/* Convert to Unix timestamp */
-	time_t pass_timestamp = timegm(&pass_time);
+	/* Convert to Unix timestamp using date_time API */
+	int64_t pass_timestamp;
+	struct tm *utc_time = &pass_time;
+	err = date_time_set(utc_time);
+	if (err) {
+		LOG_ERR("Failed to set date time: %d", err);
+		return err;
+	}
+	err = date_time_now(&pass_timestamp);
+	if (err) {
+		LOG_ERR("Failed to get timestamp: %d", err);
+		return err;
+	}
+	pass_timestamp = pass_timestamp / 1000; /* Convert from ms to seconds */
 
 	/* Calculate time until pass */
 	int64_t seconds_until_pass = pass_timestamp - current_time;
@@ -929,7 +941,7 @@ static void state_running_entry(void *obj)
 	struct lte_lc_cellular_profile tn_profile = {
 			.id = 0,
 			.act = LTE_LC_ACT_LTEM || LTE_LC_ACT_NBIOT,
-			.uicc = LTE_LC_UICC_PHYSICAL,
+			.uicc = LTE_LC_UICC_SOFTSIM,
 		};
 
 	/* Set TN profile */
@@ -1068,7 +1080,7 @@ static enum smf_state_result state_tn_run(void *obj)
 			size_t bytes_written = 0;
 			const char* siot1_catnr = "60550";  // SATELIOT_1
 
-			LOG_INF("Starting TLE fetch for SIOT1");
+			LOG_INF("Starting TLE fetch for SIOT1 via SoftSIM");
 
 			err = celestrak_fetch_tle(siot1_catnr, tle_buffer, sizeof(tle_buffer), &bytes_written);
 				
@@ -1101,6 +1113,8 @@ static enum smf_state_result state_tn_run(void *obj)
 				return SMF_EVENT_HANDLED;
 			}
 			char *line2 = line;
+
+			LOG_INF("Using SGP4 to compute next pass");
 
 			sat_prediction_pass_t next_pass;
 			err = sat_prediction_get_next_pass_with_tle(
