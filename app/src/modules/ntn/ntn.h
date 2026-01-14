@@ -22,12 +22,12 @@ enum ntn_msg_type {
 	NETWORK_CONNECTED,    /* Network connectivity established */
 	NTN_NETWORK_DISCONNECTED, /* Network disconnected */
 	NTN_LOCATION_REQUEST, /*  */
-	GNSS_TRIGGER,          /* GNSS timer expired - get new fix */
 	NTN_TRIGGER,           /* LTE timer expired - connect to network */
 	NTN_SHELL_SET_TIME,  /* Set new time of pass from shell */
 	KEEPALIVE_TIMER,     /* Keepalive timer */
 	NETWORK_CONNECTION_FAILED, /*  */
 	GNSS_TIMEOUT, /* */
+	RUN_SGP4, /* */
 };
 
 /* NTN module message */

@@ -49,6 +49,7 @@ enum ntn_module_state {
 	STATE_RUNNING,
 	STATE_TN,
 	STATE_GNSS,
+	STATE_SGP4,
 	STATE_NTN,
 	STATE_IDLE,
 };
@@ -59,14 +60,19 @@ struct ntn_state_object {
 	const struct zbus_channel *chan;
 	uint8_t msg_buf[MAX_MSG_SIZE];
 	struct k_timer keepalive_timer;
-	struct k_timer gnss_timer;
 	struct k_timer ntn_timer;
 	int sock_fd;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
+	/* TLE storage */
+	char tle_name[30];
+	char tle_line1[80];
+	char tle_line2[80];
+	bool has_valid_tle;
+	bool has_valid_gnss;
+	uint64_t location_validity_end_time;
 };
 
 static struct k_work keepalive_timer_work;
-static struct k_work gnss_timer_work;
 static struct k_work ntn_timer_work;
 
 static struct k_work gnss_location_work;
@@ -89,16 +95,21 @@ static void state_gnss_exit(void *obj);
 static void state_ntn_entry(void *obj);
 static enum smf_state_result state_ntn_run(void *obj);
 static void state_ntn_exit(void *obj);
+static void state_sgp4_entry(void *obj);
+static enum smf_state_result state_sgp4_run(void *obj);
+static void state_sgp4_exit(void *obj);
 static void state_idle_entry(void *obj);
 static enum smf_state_result state_idle_run(void *obj);
 
 /* State machine definition */
 static const struct smf_state states[] = {
 	[STATE_RUNNING] = SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
-				NULL, &states[STATE_GNSS]),
+				NULL, &states[STATE_TN]),
+	[STATE_GNSS] = SMF_CREATE_STATE(state_gnss_entry, state_gnss_run, state_gnss_exit,
+				&states[STATE_RUNNING], NULL),
 	[STATE_TN] = SMF_CREATE_STATE(state_tn_entry, state_tn_run, state_tn_exit,
 				&states[STATE_RUNNING], NULL),
-	[STATE_GNSS] = SMF_CREATE_STATE(state_gnss_entry, state_gnss_run, state_gnss_exit,
+	[STATE_SGP4] = SMF_CREATE_STATE(state_sgp4_entry, state_sgp4_run, state_sgp4_exit,
 				&states[STATE_RUNNING], NULL),
 	[STATE_NTN] = SMF_CREATE_STATE(state_ntn_entry, state_ntn_run, state_ntn_exit,
 				&states[STATE_RUNNING], NULL),
@@ -113,7 +124,7 @@ static void keepalive_timer_work_fn(struct k_work *work)
 {
 	int err;
 
-	ntn_msg_publish(KEEPALIVE_TIMER);
+	LOG_INF("USB keepalive, needed for Windows setup");
 
 	/* Time to send AT+CFUN? to keep USB alive */
 	err = nrf_modem_at_printf("AT+CFUN?");
@@ -122,12 +133,8 @@ static void keepalive_timer_work_fn(struct k_work *work)
 
 		return;
 	}
-}
 
-static void gnss_timer_work_fn(struct k_work *work)
-{
-	/* Time to get new GNSS fix */
-	ntn_msg_publish(GNSS_TRIGGER);
+	ntn_msg_publish(KEEPALIVE_TIMER);
 }
 
 static void ntn_timer_work_fn(struct k_work *work)
@@ -146,12 +153,6 @@ static void handle_gnss_timeout_work_fn(struct k_work *work)
 static void keepalive_timer_handler(struct k_timer *timer)
 {
 	k_work_submit(&keepalive_timer_work);
-}
-
-/* Timer callback for GNSS update */
-static void gnss_timer_handler(struct k_timer *timer)
-{
-	k_work_submit(&gnss_timer_work);
 }
 
 /* Timer callback for NTN connection */
@@ -445,7 +446,7 @@ static int parse_time_of_pass(const char *time_str, struct tm *out)
 }
 
 /* Helper function to parse time and set up timers */
-static int reschedule_timers(struct ntn_state_object *state, const char * const time_of_pass)
+static int reschedule_next_pass(struct ntn_state_object *state, const char * const time_of_pass)
 {
 	int err;
 	int64_t current_time;
@@ -493,11 +494,6 @@ static int reschedule_timers(struct ntn_state_object *state, const char * const 
 		return -ETIME;
 	}
 
-	/* Start GNSS timer to wake up 300 seconds before pass */
-	int64_t gnss_timeout_value = seconds_until_pass - CONFIG_APP_NTN_TIMER_GNSS_VALUE_SECONDS;
-	k_timer_start(&state->gnss_timer,
-			K_SECONDS(gnss_timeout_value),
-			K_NO_WAIT);
 
 	/* Start LTE timer to wake up 20 seconds before pass */
 	int64_t ntn_timeout_value = seconds_until_pass - CONFIG_APP_NTN_TIMER_NTN_VALUE_SECONDS;
@@ -505,7 +501,6 @@ static int reschedule_timers(struct ntn_state_object *state, const char * const 
 			K_SECONDS(ntn_timeout_value),
 			K_NO_WAIT);
 
-	LOG_INF("GNSS timer set to wake up in %lld seconds", gnss_timeout_value);
 	LOG_INF("NTN timer set to wake up in %lld seconds", ntn_timeout_value);
 
 	return 0;
@@ -530,6 +525,15 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 {
 	int err;
 	enum lte_lc_func_mode mode;
+	uint32_t location_validity_time;
+	uint64_t current_time = k_uptime_get();
+
+	if (state->location_validity_end_time > current_time) {
+		location_validity_time =
+			(uint32_t)(state->location_validity_end_time - current_time) / MSEC_PER_SEC;
+	} else {
+		location_validity_time = 1;
+	}
 
 	err = lte_lc_func_mode_get(&mode);
 	if (err) {
@@ -566,7 +570,8 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	/* Configure location using latest GNSS data */
 	err = ntn_location_set((double)state->last_pvt.latitude,
 				(double)state->last_pvt.longitude,
-				(float)state->last_pvt.altitude, 0);
+				(float)state->last_pvt.altitude,
+				location_validity_time);
 	if (err) {
 		LOG_ERR("Failed to set location, error: %d", err);
 
@@ -859,11 +864,9 @@ static void state_running_entry(void *obj)
 	LOG_DBG("%s", __func__);
 
 	k_work_init(&keepalive_timer_work, keepalive_timer_work_fn);
-	k_work_init(&gnss_timer_work, gnss_timer_work_fn);
 	k_work_init(&ntn_timer_work, ntn_timer_work_fn);
 
 	k_timer_init(&state->keepalive_timer, keepalive_timer_handler, NULL);
-	k_timer_init(&state->gnss_timer, gnss_timer_handler, NULL);
 	k_timer_init(&state->ntn_timer, ntn_timer_handler, NULL);
 
 	k_work_init(&gnss_location_work, gnss_location_work_handler);
@@ -963,15 +966,10 @@ static enum smf_state_result state_running_run(void *obj)
 
 		switch (msg->type) {
 		case KEEPALIVE_TIMER:
-			LOG_DBG("USB keepalive");
+			LOG_ERR("Restarting timer for USB keepalive");
 			k_timer_start(&state->keepalive_timer,
-					K_SECONDS(300),
+					K_SECONDS(30),
 					K_NO_WAIT);
-
-			break;
-		case GNSS_TRIGGER:
-			LOG_DBG("GNSS trigger");
-			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 
 			break;
 		case NTN_TRIGGER:
@@ -983,7 +981,7 @@ static enum smf_state_result state_running_run(void *obj)
 
 			break;
 		case NTN_SHELL_SET_TIME:
-			reschedule_timers(state, msg->time_of_pass);
+			reschedule_next_pass(state, msg->time_of_pass);
 
 			break;
 		default:
@@ -993,6 +991,61 @@ static enum smf_state_result state_running_run(void *obj)
 	}
 
 	return SMF_EVENT_PROPAGATE;
+}
+
+
+static void state_gnss_entry(void *obj)
+{
+	int err;
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+
+	LOG_DBG("%s", __func__);
+
+	/* Close socket if it was open */
+	if (state->sock_fd >= 0) {
+		close(state->sock_fd);
+
+		state->sock_fd = -1;
+	}
+
+	err = set_gnss_active_mode(state);
+	if (err) {
+		LOG_ERR("Unable to set GNSS mode");
+
+		return;
+	}
+}
+
+static enum smf_state_result state_gnss_run(void *obj)
+{
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+
+	LOG_DBG("%s", __func__);
+
+	if (state->chan == &NTN_CHAN) {
+		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
+
+		if (msg->type == NTN_LOCATION_SEARCH_DONE) {
+			/* Store GNSS data */
+			memcpy(&state->last_pvt, &msg->pvt, sizeof(state->last_pvt));
+			state->has_valid_gnss = true;
+
+			state->location_validity_end_time =
+				k_uptime_get() +
+				CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS * MSEC_PER_SEC;
+
+			smf_set_state(SMF_CTX(state), &states[STATE_SGP4]);
+		}
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
+
+static void state_gnss_exit(void *obj)
+{
+	LOG_DBG("%s", __func__);
+
+	set_gnss_inactive_mode();
 }
 
 static void state_tn_entry(void *obj)
@@ -1098,73 +1151,31 @@ static enum smf_state_result state_tn_run(void *obj)
 				LOG_ERR("Failed to parse satellite name");
 				return SMF_EVENT_HANDLED;
 			}
-			char *name = line;
+
+			/* Store TLE data */
+			strncpy(state->tle_name, line, sizeof(state->tle_name) - 1);
+			state->tle_name[sizeof(state->tle_name) - 1] = '\0';
 
 			line = strtok_r(NULL, "\n", &saveptr);
 			if (!line) {
 				LOG_ERR("Failed to parse TLE line 1");
 				return SMF_EVENT_HANDLED;
 			}
-			char *line1 = line;
+			strncpy(state->tle_line1, line, sizeof(state->tle_line1) - 1);
+			state->tle_line1[sizeof(state->tle_line1) - 1] = '\0';
 
 			line = strtok_r(NULL, "\n", &saveptr);
 			if (!line) {
 				LOG_ERR("Failed to parse TLE line 2");
 				return SMF_EVENT_HANDLED;
 			}
-			char *line2 = line;
+			strncpy(state->tle_line2, line, sizeof(state->tle_line2) - 1);
+			state->tle_line2[sizeof(state->tle_line2) - 1] = '\0';
 
-			LOG_INF("Using SGP4 to compute next pass");
+			state->has_valid_tle = true;
+			LOG_INF("TLE data stored successfully");
 
-			sat_prediction_pass_t next_pass;
-			err = sat_prediction_get_next_pass_with_tle(
-				(double)state->last_pvt.latitude,
-				(double)state->last_pvt.longitude,
-				(double)state->last_pvt.altitude,
-				name,
-				line1,
-				line2,
-				&next_pass
-			);
-
-			if (err) {
-				LOG_ERR("Failed to get next satellite pass, error: %d", err);
-				return SMF_EVENT_HANDLED;
-			}
-
-			/* Convert timestamps to UTC time strings */
-			time_t start_time = next_pass.start_time_ms / 1000;
-			time_t end_time = next_pass.end_time_ms / 1000;
-			struct tm start_tm, end_tm;
-			char start_time_str[32], end_time_str[32];
-
-			gmtime_r(&start_time, &start_tm);
-			strftime(start_time_str, sizeof(start_time_str), "%Y-%m-%d %H:%M:%S UTC", &start_tm);
-			gmtime_r(&end_time, &end_tm);
-			strftime(end_time_str, sizeof(end_time_str), "%Y-%m-%d %H:%M:%S UTC", &end_tm);
-
-			LOG_INF("Next pass: %s", next_pass.sat_name);
-			LOG_INF("Start: %s", start_time_str);
-			LOG_INF("End: %s", end_time_str);
-            		LOG_INF("Max elevation: %.2f", next_pass.max_elevation);
-
-			/* Format time for reschedule_timers in YYYY-MM-DD-HH:mm:ss format */
-			char time_str[32];
-			snprintk(time_str, sizeof(time_str), "%04d-%02d-%02d-%02d:%02d:%02d",
-				start_tm.tm_year + 1900,
-				start_tm.tm_mon + 1,
-				start_tm.tm_mday,
-				start_tm.tm_hour,
-				start_tm.tm_min,
-				start_tm.tm_sec);
-
-			/* Reschedule timers based on next pass */
-			err = reschedule_timers(state, time_str);
-			if (err) {
-				LOG_ERR("Failed to reschedule timers, error: %d", err);
-			}
-
-			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -1189,53 +1200,84 @@ static void state_tn_exit(void *obj)
 	}
 }
 
-static void state_gnss_entry(void *obj)
+static void state_sgp4_entry(void *obj)
 {
 	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
 	LOG_DBG("%s", __func__);
 
-	/* Close socket if it was open */
-	if (state->sock_fd >= 0) {
-		close(state->sock_fd);
 
-		state->sock_fd = -1;
+	if (!state->has_valid_tle || !state->has_valid_gnss) {
+		LOG_ERR("Missing required data for SGP4 calculation");
+		smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+		return SMF_EVENT_HANDLED;
 	}
 
-	err = set_gnss_active_mode(state);
+	LOG_INF("Using SGP4 to compute next pass");
+
+	sat_prediction_pass_t next_pass;
+	err = sat_prediction_get_next_pass_with_tle(
+		(double)state->last_pvt.latitude,
+		(double)state->last_pvt.longitude,
+		(double)state->last_pvt.altitude,
+		state->tle_name,
+		state->tle_line1,
+		state->tle_line2,
+		&next_pass
+	);
+
 	if (err) {
-		LOG_ERR("Unable to set GNSS mode");
-
-		return;
+		LOG_ERR("Failed to get next satellite pass, error: %d", err);
+		smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+		return SMF_EVENT_HANDLED;
 	}
+
+	/* Format time for reschedule_next_pass */
+	time_t start_time = next_pass.start_time_ms / 1000;
+	time_t end_time = next_pass.end_time_ms / 1000;
+	struct tm start_tm, end_tm;
+	char start_time_str[32], end_time_str[32];
+
+	gmtime_r(&start_time, &start_tm);
+	strftime(start_time_str, sizeof(start_time_str), "%Y-%m-%d %H:%M:%S UTC", &start_tm);
+	gmtime_r(&end_time, &end_tm);
+	strftime(end_time_str, sizeof(end_time_str), "%Y-%m-%d %H:%M:%S UTC", &end_tm);
+
+	LOG_INF("Next pass: %s", next_pass.sat_name);
+	LOG_INF("Start: %s", start_time_str);
+	LOG_INF("End: %s", end_time_str);
+        LOG_INF("Max elevation: %.2f", next_pass.max_elevation);
+
+	char time_str[32];
+	snprintk(time_str, sizeof(time_str), "%04d-%02d-%02d-%02d:%02d:%02d",
+		start_tm.tm_year + 1900,
+		start_tm.tm_mon + 1,
+		start_tm.tm_mday,
+		start_tm.tm_hour,
+		start_tm.tm_min,
+		start_tm.tm_sec);
+
+	/* Schedule timers for next pass */
+	err = reschedule_next_pass(state, time_str);
+	if (err) {
+		LOG_ERR("Failed to reschedule timers, error: %d", err);
+	}
+
+	smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
 }
 
-static enum smf_state_result state_gnss_run(void *obj)
+static enum smf_state_result state_sgp4_run(void *obj)
 {
-	struct ntn_state_object *state = (struct ntn_state_object *)obj;
-
 	LOG_DBG("%s", __func__);
-
-	if (state->chan == &NTN_CHAN) {
-		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
-
-		if (msg->type == NTN_LOCATION_SEARCH_DONE) {
-			/* Location search completed, transition to NTN mode */
-			memcpy(&state->last_pvt, &msg->pvt, sizeof(state->last_pvt));
-
-			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
-		}
-	}
-
+	
 	return SMF_EVENT_PROPAGATE;
 }
 
-static void state_gnss_exit(void *obj)
+static void state_sgp4_exit(void *obj)
 {
 	LOG_DBG("%s", __func__);
-
-	set_gnss_inactive_mode();
 }
 
 static void state_ntn_entry(void *obj)
@@ -1336,8 +1378,9 @@ static void state_ntn_exit(void *obj)
 	if (err) {
 		LOG_ERR("Failed to set ntn dormant mode");
 	}
-}
 
+	ntn_msg_publish(RUN_SGP4);
+}
 
 static void state_idle_entry(void *obj)
 {
@@ -1349,9 +1392,30 @@ static void state_idle_entry(void *obj)
 
 static enum smf_state_result state_idle_run(void *obj)
 {
-	ARG_UNUSED(obj);
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
 	LOG_DBG("%s", __func__);
+
+	if (state->chan == &NTN_CHAN) {
+		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
+
+		if (msg->type == NTN_LOCATION_REQUEST) {
+			uint64_t current_time = k_uptime_get();
+			if (current_time < state->location_validity_end_time) {
+			LOG_DBG("NTN location is still valid, skipping location request");
+
+				return SMF_EVENT_HANDLED;
+			}
+
+			LOG_DBG("NTN location requested, location is invalid, fetching fresh TLE and GNSS");
+
+			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
+		} else if (msg->type == RUN_SGP4){
+			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
 
 	return SMF_EVENT_PROPAGATE;
 }
@@ -1366,6 +1430,8 @@ static void ntn_module_thread(void)
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	struct ntn_state_object ntn_state = {
 		.sock_fd = -1,
+		.has_valid_tle = false,
+		.has_valid_gnss = false,
 	 };
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, ntn_wdt_callback, (void *)k_current_get());
