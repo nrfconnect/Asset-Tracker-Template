@@ -24,6 +24,11 @@ Full modem updates require that the device disconnects from the network before a
 
 All update operations feature error handling with appropriate status messages, allowing the application to recover gracefully from download failures or interruptions.
 
+## Storage Clearing on Reboot
+
+> [!IMPORTANT]
+> Before rebooting to apply firmware updates, the FOTA module automatically clears all stored data in the storage module by sending a `STORAGE_CLEAR` message. This ensures a clean state after the firmware update and prevents potential data corruption or compatibility issues between firmware versions.
+
 ## Messages
 
 The FOTA module communicates through the zbus channel `FOTA_CHAN`, using input and output messages defined in `fota.h`.
