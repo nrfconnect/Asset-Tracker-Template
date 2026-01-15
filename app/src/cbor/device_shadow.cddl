@@ -39,5 +39,10 @@ shadow-object = {
         * tstr => any
     },
     ? "command": [type: uint .size 4 .ge 1 .le 1, id: uint .size 4 .ge 1 .le 4294967295],
+    ? "tle": {
+        "name": tstr,
+        "line1": tstr,
+        "line2": tstr
+    },
     * tstr => any
 }

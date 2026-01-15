@@ -23,6 +23,18 @@ struct config_params {
 	bool buffer_mode_valid;
 };
 
+/** TLE data parameters. */
+struct tle_data {
+	/** Satellite name */
+	char name[30];
+
+	/** TLE line 1 */
+	char line1[80];
+
+	/** TLE line 2 */
+	char line2[80];
+};
+
 /**
  * @brief Decode shadow parameters from CBOR buffer.
  *
@@ -63,3 +75,18 @@ int encode_shadow_parameters_to_cbor(const struct config_params *config,
 				     uint8_t *buffer,
 				     size_t buffer_size,
 				     size_t *encoded_len);
+
+/**
+ * @brief Decode TLE data from shadow CBOR buffer.
+ *
+ * @param[in]  cbor         CBOR buffer.
+ * @param[in]  len          CBOR buffer length.
+ * @param[out] tle          Decoded TLE data.
+ *
+ * @retval 0 Success.
+ * @retval -EINVAL Invalid parameters.
+ * @retval -EFAULT Invalid CBOR data.
+ */
+int decode_tle_from_shadow(const uint8_t *cbor,
+                            size_t len,
+                            struct tle_data *tle);

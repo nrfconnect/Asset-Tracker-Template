@@ -20,6 +20,15 @@
 #include <errno.h>
 #include <time.h>
 
+#include <net/nrf_cloud.h>
+#include <net/nrf_cloud_coap.h>
+#include <net/nrf_cloud_rest.h>
+#include <nrf_cloud_coap_transport.h>
+#include <app_version.h>
+
+
+#include "cbor_helper.h"
+
 #include "app_common.h"
 #include "ntn.h"
 #include "celestrak_client.h"
@@ -854,6 +863,45 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 }
 
 
+static int connect_to_cloud(void)
+{
+	int err;
+	char buf[NRF_CLOUD_CLIENT_ID_MAX_LEN];
+
+	/* First, check if the cloud connection is already established and we can resume it */
+	err = nrf_cloud_coap_resume();
+	if (err) {
+		LOG_DBG("nrf_cloud_coap_resume, error: %d", err);
+	} else {
+		LOG_INF("Cloud connection resumed");
+
+		return 0;
+	}
+
+	err = nrf_cloud_client_id_get(buf, sizeof(buf));
+	if (err) {
+		LOG_ERR("nrf_cloud_client_id_get, error: %d, cannot continue", err);
+
+		return err;
+	}
+
+	LOG_INF("Connecting to nRF Cloud CoAP using client ID: %s", buf);
+
+	err = nrf_cloud_coap_connect(APP_VERSION_STRING);
+	if (err == -EACCES || err == -ENOEXEC || err == -ECONNREFUSED) {
+		LOG_WRN("nrf_cloud_coap_connect, error: %d", err);
+		LOG_WRN("nRF Cloud CoAP connection failed, unauthorized or invalid credentials");
+
+		return err;
+	} else if (err < 0) {
+		LOG_WRN("nRF Cloud CoAP connection refused");
+
+		return err;
+	}
+
+	return 0;
+}
+
 /* State handlers */
 
 static void state_running_entry(void *obj)
@@ -954,6 +1002,16 @@ static void state_running_entry(void *obj)
 
 			return;
 		}
+
+	/* Init nrfcloud coap */
+	err = nrf_cloud_coap_init();
+	if (err) {
+		LOG_ERR("nrf_cloud_coap_init, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+
 }
 
 static enum smf_state_result state_running_run(void *obj)
@@ -966,9 +1024,8 @@ static enum smf_state_result state_running_run(void *obj)
 
 		switch (msg->type) {
 		case KEEPALIVE_TIMER:
-			LOG_ERR("Restarting timer for USB keepalive");
 			k_timer_start(&state->keepalive_timer,
-					K_SECONDS(30),
+					K_SECONDS(300),
 					K_NO_WAIT);
 
 			break;
@@ -1128,6 +1185,7 @@ static enum smf_state_result state_tn_run(void *obj)
 			return SMF_EVENT_HANDLED;
 		} else if (msg->type == NETWORK_CONNECTED) {
 
+#if defined(CONFIG_TLE_VIA_HTTP)
 			/* Fetch TLE for SIOT1 with proper error handling */
 			char tle_buffer[1024] = {0};
 			size_t bytes_written = 0;
@@ -1174,7 +1232,67 @@ static enum smf_state_result state_tn_run(void *obj)
 
 			state->has_valid_tle = true;
 			LOG_INF("TLE data stored successfully");
+#else /* TLE via nRFCloud */
+			err = connect_to_cloud();
+			if (err) {
+				LOG_WRN("Failed to connect to nRF Cloud CoAP on TN");
+				LOG_WRN("Cloud connection is not available for resumption on NTN");
 
+				smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+				return SMF_EVENT_HANDLED;
+			}
+
+			LOG_INF("Cloud connection established via TN network");
+
+			/* Fetch TLE from shadow */
+			uint8_t shadow_buf[1024];
+			size_t shadow_len = sizeof(shadow_buf);
+
+			err = nrf_cloud_coap_shadow_get(shadow_buf, &shadow_len, false, COAP_CONTENT_FORMAT_APP_CBOR);
+			if (err) {
+				LOG_ERR("Failed to get shadow data, error: %d", err);
+				smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+				return SMF_EVENT_HANDLED;
+			}
+
+			/* Parse TLE from shadow */
+			struct tle_data tle;
+			err = decode_tle_from_shadow(shadow_buf, shadow_len, &tle);
+			if (err) {
+				LOG_ERR("Failed to decode TLE data, error: %d", err);
+				smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+				return SMF_EVENT_HANDLED;
+			}
+
+			/* Store TLE data */
+			strncpy(state->tle_name, tle.name, sizeof(state->tle_name) - 1);
+			strncpy(state->tle_line1, tle.line1, sizeof(state->tle_line1) - 1);
+			strncpy(state->tle_line2, tle.line2, sizeof(state->tle_line2) - 1);
+
+			/* Ensure null termination */
+			state->tle_name[sizeof(state->tle_name) - 1] = '\0';
+			state->tle_line1[sizeof(state->tle_line1) - 1] = '\0';
+			state->tle_line2[sizeof(state->tle_line2) - 1] = '\0';
+
+			state->has_valid_tle = true;
+			LOG_INF("TLE data stored successfully:");
+			LOG_INF("Name:  %s", state->tle_name);
+			LOG_INF("Line1: %s", state->tle_line1);
+			LOG_INF("Line2: %s", state->tle_line2);
+
+
+			/* Pause the CoAP connection to save the DTLS CID and resume it
+			 * when transitioning to NTN mode.
+			 */
+			err = nrf_cloud_coap_pause();
+			if ((err < 0) && (err != -EBADF)) {
+				/* -EBADF means cloud was disconnected */
+				LOG_ERR("Error pausing connection: %d", err);
+			} else if (err == 0) {
+				LOG_INF("CoAP connection paused");
+			}
+#endif
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 
 			return SMF_EVENT_HANDLED;
