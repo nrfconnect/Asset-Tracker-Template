@@ -248,7 +248,7 @@ static int FindNextPass(Satellite* sat, double lat, double lon, double alt, int6
              double elevation;
              CalculateLookAngle(r, r_station_ecef, lat, lon, gmst, &elevation);
 
-             if (elevation > 50.0) {
+             if (elevation > 40.0) {
                  if (!in_pass) {
                      in_pass = true;
                      pass_start = start_time_ms + (i * 60 * 1000);
