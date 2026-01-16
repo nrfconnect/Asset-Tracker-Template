@@ -464,7 +464,8 @@ static void poll_triggers_send(void)
 
 /* Common helpers for buffer-mode substates */
 
-static void sampling_begin_common(struct main_state *state_object)
+static void sampling_begin_common(struct main_state *state_object,
+				  const struct smf_state *fallback_state)
 {
 	int err;
 	struct location_msg location_msg = {
@@ -478,6 +479,9 @@ static void sampling_begin_common(struct main_state *state_object)
 	    (state_object->chan != &BUTTON_CHAN)) {
 		LOG_DBG("Too soon to start sampling, time_elapsed: %d, interval: %d",
 			time_elapsed, state_object->sample_interval_sec);
+
+		/* Go back to waiting state to wait out the remainder of the interval */
+		smf_set_state(SMF_CTX(state_object), fallback_state);
 
 		return;
 	}
@@ -1115,7 +1119,7 @@ static void buffer_disconnected_sampling_entry(void *o)
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
-	sampling_begin_common(state_object);
+	sampling_begin_common(state_object, &states[STATE_BUFFER_DISCONNECTED_WAITING]);
 }
 
 static enum smf_state_result buffer_disconnected_sampling_run(void *o)
@@ -1211,7 +1215,7 @@ static void buffer_connected_sampling_entry(void *o)
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
-	sampling_begin_common(state_object);
+	sampling_begin_common(state_object, &states[STATE_BUFFER_CONNECTED_WAITING]);
 }
 
 static enum smf_state_result buffer_connected_sampling_run(void *o)
