@@ -8,9 +8,9 @@
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/logging/log.h>
+#include <modem/nrf_modem_lib.h>
 #include <modem/lte_lc.h>
 #include <modem/modem_info.h>
-#include <zephyr/net/net_mgmt.h>
 
 #include "app_common.h"
 #include "network.h"
@@ -19,20 +19,20 @@ LOG_MODULE_REGISTER(network_module_test, 4);
 
 DEFINE_FFF_GLOBALS;
 
+FAKE_VALUE_FUNC(int, nrf_modem_lib_init);
 FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
 FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
 FAKE_VALUE_FUNC(int, lte_lc_conn_eval_params_get, struct lte_lc_conn_eval_params *);
-FAKE_VALUE_FUNC(int, conn_mgr_all_if_connect, bool);
-FAKE_VALUE_FUNC(int, conn_mgr_all_if_up, bool);
-FAKE_VALUE_FUNC(int, conn_mgr_all_if_disconnect, bool);
-FAKE_VOID_FUNC(net_mgmt_add_event_callback, struct net_mgmt_event_callback *);
 FAKE_VOID_FUNC(lte_lc_register_handler, lte_lc_evt_handler_t);
 FAKE_VALUE_FUNC(int, lte_lc_modem_events_enable);
 FAKE_VALUE_FUNC(int, lte_lc_system_mode_get, enum lte_lc_system_mode *,
 		enum lte_lc_system_mode_preference *);
 FAKE_VALUE_FUNC(int, lte_lc_system_mode_set, enum lte_lc_system_mode,
 		enum lte_lc_system_mode_preference);
+FAKE_VALUE_FUNC(int, lte_lc_offline);
+FAKE_VALUE_FUNC(int, lte_lc_connect_async, lte_lc_evt_handler_t);
+FAKE_VALUE_FUNC(int, lte_lc_pdn_default_ctx_events_enable);
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(test_subscriber);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, test_subscriber, 0);
@@ -52,15 +52,12 @@ ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, test_subscriber, 0);
 #define FAKE_SYSTEM_MODE_DEFAULT	LTE_LC_SYSTEM_MODE_LTEM_NBIOT_GPS
 
 static lte_lc_evt_handler_t lte_evt_handler;
-static struct net_mgmt_event_callback net_mgmt_evt_cb;
 static enum lte_lc_system_mode current_fake_system_mode = FAKE_SYSTEM_MODE_DEFAULT;
-
-/* Forward declarations */
-static void send_l4_evt(unsigned long long mgmt_event);
 
 static int date_time_now_custom_fake(int64_t *time)
 {
 	*time = FAKE_TIME_MS;
+
 	return 0;
 }
 
@@ -77,39 +74,70 @@ static void lte_lc_register_handler_custom_fake(lte_lc_evt_handler_t handler)
 	lte_evt_handler = handler;
 }
 
-static int conn_mgr_all_if_connect_custom_fake(bool unused)
+static int lte_lc_pdn_default_ctx_events_enable_custom_fake(void)
 {
-	ARG_UNUSED(unused);
+	/* Simulate initial PDN state as disconnected */
+	struct lte_lc_evt evt = {
+		.type = LTE_LC_EVT_PDN,
+		.pdn = {
+			.type = LTE_LC_EVT_PDN_DEACTIVATED,
+			.cid = 0,
+		},
+	};
 
-	TEST_ASSERT_NOT_NULL(net_mgmt_evt_cb.handler);
-
-	send_l4_evt(NET_EVENT_L4_CONNECTED);
-
-	return 0;
-}
-
-static int conn_mgr_all_if_disconnect_custom_fake(bool unused)
-{
-	ARG_UNUSED(unused);
-
-	TEST_ASSERT_NOT_NULL(net_mgmt_evt_cb.handler);
-
-	send_l4_evt(NET_EVENT_L4_DISCONNECTED);
-
-	return 0;
-}
-
-static void net_mgmt_add_event_callback_custom_fake(struct net_mgmt_event_callback *cb)
-{
-	/* We only want to hook into the L4 callback */
-	if (cb->event_mask == (NET_EVENT_L4_CONNECTED | NET_EVENT_L4_DISCONNECTED)) {
-
-		net_mgmt_evt_cb = *cb;
+	/* Notify the handler of initial disconnected state */
+	if (lte_evt_handler) {
+		lte_evt_handler(&evt);
 	}
+
+	return 0;
+}
+
+static int lte_lc_connect_async_custom_fake(lte_lc_evt_handler_t handler)
+{
+	/* Simulate successful connection by sending PDN activated event */
+	struct lte_lc_evt evt = {
+		.type = LTE_LC_EVT_PDN,
+		.pdn = {
+			.type = LTE_LC_EVT_PDN_ACTIVATED,
+			.cid = 0,
+		},
+	};
+
+	/* Store the handler for later use */
+	lte_evt_handler = handler;
+
+	/* Simulate the PDN activation event */
+	if (lte_evt_handler) {
+		lte_evt_handler(&evt);
+	}
+
+	return 0;
+}
+
+
+
+static int lte_lc_offline_custom_fake(void)
+{
+	/* Simulate going offline by sending PDN deactivated event */
+	struct lte_lc_evt evt = {
+		.type = LTE_LC_EVT_PDN,
+		.pdn = {
+			.type = LTE_LC_EVT_PDN_DEACTIVATED,
+			.cid = 0,
+		},
+	};
+
+	/* Simulate the PDN deactivation event */
+	if (lte_evt_handler) {
+		lte_evt_handler(&evt);
+	}
+
+	return 0;
 }
 
 static int lte_lc_system_mode_get_custom_fake(enum lte_lc_system_mode *mode,
-					       enum lte_lc_system_mode_preference *preference)
+					      enum lte_lc_system_mode_preference *preference)
 {
 	ARG_UNUSED(preference);
 
@@ -126,13 +154,6 @@ static int lte_lc_system_mode_set_custom_fake(enum lte_lc_system_mode mode,
 	current_fake_system_mode = mode;
 
 	return 0;
-}
-
-static void send_l4_evt(unsigned long long mgmt_event)
-{
-	TEST_ASSERT_NOT_NULL(net_mgmt_evt_cb.handler);
-
-	net_mgmt_evt_cb.handler(&net_mgmt_evt_cb, mgmt_event, NULL);
 }
 
 static void send_psm_update_evt(void)
@@ -221,6 +242,7 @@ static void wait_for_and_check_msg(struct network_msg *msg, enum network_msg_typ
 
 		if (msg->type == expected_type) {
 			LOG_DBG("Received expected message type: %d\n", msg->type);
+
 			return;
 		}
 	}
@@ -232,7 +254,6 @@ static void wait_for_and_check_msg(struct network_msg *msg, enum network_msg_typ
 static void request_nw_quality(void)
 {
 	struct network_msg msg = { .type = NETWORK_QUALITY_SAMPLE_REQUEST, };
-
 	int err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
@@ -244,19 +265,25 @@ void setUp(void)
 	RESET_FAKE(task_wdt_add);
 	RESET_FAKE(date_time_now);
 	RESET_FAKE(lte_lc_conn_eval_params_get);
-	RESET_FAKE(conn_mgr_all_if_connect);
-	RESET_FAKE(conn_mgr_all_if_up);
-	RESET_FAKE(net_mgmt_add_event_callback);
-	RESET_FAKE(conn_mgr_all_if_disconnect);
+	RESET_FAKE(lte_lc_offline);
+	RESET_FAKE(lte_lc_connect_async);
+	RESET_FAKE(lte_lc_pdn_default_ctx_events_enable);
+	RESET_FAKE(lte_lc_modem_events_enable);
+	RESET_FAKE(lte_lc_system_mode_get);
+	RESET_FAKE(lte_lc_system_mode_set);
+	RESET_FAKE(lte_lc_register_handler);
+	RESET_FAKE(nrf_modem_lib_init);
+
 
 	date_time_now_fake.custom_fake = date_time_now_custom_fake;
 	lte_lc_register_handler_fake.custom_fake = lte_lc_register_handler_custom_fake;
-	conn_mgr_all_if_connect_fake.custom_fake = conn_mgr_all_if_connect_custom_fake;
-	conn_mgr_all_if_disconnect_fake.custom_fake = conn_mgr_all_if_disconnect_custom_fake;
-	net_mgmt_add_event_callback_fake.custom_fake = net_mgmt_add_event_callback_custom_fake;
 	lte_lc_conn_eval_params_get_fake.custom_fake = lte_lc_conn_eval_params_get_custom_fake;
 	lte_lc_system_mode_get_fake.custom_fake = lte_lc_system_mode_get_custom_fake;
 	lte_lc_system_mode_set_fake.custom_fake = lte_lc_system_mode_set_custom_fake;
+	lte_lc_connect_async_fake.custom_fake = lte_lc_connect_async_custom_fake;
+	lte_lc_offline_fake.custom_fake = lte_lc_offline_custom_fake;
+	lte_lc_pdn_default_ctx_events_enable_fake.custom_fake =
+		lte_lc_pdn_default_ctx_events_enable_custom_fake;
 
 	/* Sleep to allow threads to start */
 	k_sleep(K_MSEC(500));
@@ -276,20 +303,32 @@ void test_network_disconnected(void)
 {
 	struct network_msg msg;
 
-	send_l4_evt(NET_EVENT_L4_DISCONNECTED);
-
 	wait_for_and_check_msg(&msg, NETWORK_DISCONNECTED);
 	TEST_ASSERT_EQUAL(NETWORK_DISCONNECTED, msg.type);
 }
 
 void test_network_connected(void)
 {
-	struct network_msg msg;
+	struct network_msg msg_tx = { .type = NETWORK_DISCONNECT };
+	struct network_msg msg_rx;
+	int err;
 
-	send_l4_evt(NET_EVENT_L4_CONNECTED);
+	/* First, ensure we are disconnected and idle */
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg_tx, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
 
-	wait_for_and_check_msg(&msg, NETWORK_CONNECTED);
-	TEST_ASSERT_EQUAL(NETWORK_CONNECTED, msg.type);
+	/* The test thread needs to yield to allow the message to be processed */
+	k_sleep(K_MSEC(10));
+
+	/* Then, trigger connection */
+	msg_tx.type = NETWORK_CONNECT;
+
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg_tx, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Now wait for the connected message */
+	wait_for_and_check_msg(&msg_rx, NETWORK_CONNECTED);
+	TEST_ASSERT_EQUAL(NETWORK_CONNECTED, msg_rx.type);
 }
 
 void test_energy_estimate(void)
@@ -299,7 +338,6 @@ void test_energy_estimate(void)
 	lte_lc_conn_eval_params_get_fake.custom_fake = lte_lc_conn_eval_params_get_custom_fake;
 
 	/* Network quality can only be sampled when connected */
-	send_l4_evt(NET_EVENT_L4_CONNECTED);
 	request_nw_quality();
 
 	wait_for_and_check_msg(&msg, NETWORK_QUALITY_SAMPLE_RESPONSE);
@@ -491,9 +529,6 @@ void test_disconnect_while_searching(void)
 		.type = NETWORK_DISCONNECT,
 	};
 
-	/* Disable auto-connect for this test so we stay in SEARCHING state */
-	conn_mgr_all_if_connect_fake.custom_fake = NULL;
-
 	/* Ensure we are disconnected and idle */
 	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
@@ -514,10 +549,9 @@ void test_disconnect_while_searching(void)
 	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
-	k_sleep(K_MSEC(100));
-
-	/* Assert that disconnect was called */
-	TEST_ASSERT_EQUAL(1, conn_mgr_all_if_disconnect_fake.call_count);
+	/* Verify we receive the disconnected event confirming the action */
+	wait_for_and_check_msg(&msg, NETWORK_DISCONNECTED);
+	TEST_ASSERT_EQUAL(NETWORK_DISCONNECTED, msg.type);
 }
 
 void test_connect_from_idle(void)
@@ -526,6 +560,7 @@ void test_connect_from_idle(void)
 	struct network_msg msg = {
 		.type = NETWORK_DISCONNECT,
 	};
+	struct network_msg msg_rx;
 
 	/* Ensure we are disconnected and idle */
 	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
@@ -539,10 +574,9 @@ void test_connect_from_idle(void)
 	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
-	k_sleep(K_MSEC(100));
-
-	/* Verify connect was called */
-	TEST_ASSERT_EQUAL(1, conn_mgr_all_if_connect_fake.call_count);
+	/* Verify we eventually connect */
+	wait_for_and_check_msg(&msg_rx, NETWORK_CONNECTED);
+	TEST_ASSERT_EQUAL(NETWORK_CONNECTED, msg_rx.type);
 }
 
 /* This is required to be added to each test. That is because unity's

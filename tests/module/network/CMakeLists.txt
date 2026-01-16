@@ -22,6 +22,8 @@ zephyr_include_directories(${ZEPHYR_BASE}/subsys/testsuite/include)
 zephyr_include_directories(../../../app/src/common)
 zephyr_include_directories(../../../app/src/modules/cloud)
 zephyr_include_directories(../../../app/src/modules/network)
+zephyr_include_directories(${NRF_BASE}/include/)
+zephyr_include_directories(${ZEPHYR_BASE}/../nrfxlib/nrf_modem/include/)
 
 target_link_options(app PRIVATE --whole-archive)
 # Options that cannot be passed through Kconfig fragments
@@ -32,9 +34,9 @@ target_compile_definitions(app PRIVATE
 	-DCONFIG_APP_NETWORK_MESSAGE_QUEUE_SIZE=5
 	-DCONFIG_APP_NETWORK_MSG_PROCESSING_TIMEOUT_SECONDS=1
 	-DCONFIG_APP_NETWORK_WATCHDOG_TIMEOUT_SECONDS=2
-	-DCONFIG_NET_MGMT_EVENT
 	-DCONFIG_LTE_LC_NETWORK_REGISTRATION_MODULE=1
 	-DCONFIG_LTE_LC_CONN_EVAL_MODULE=1
 	-DCONFIG_LTE_LC_EDRX_MODULE=1
 	-DCONFIG_LTE_LC_PSM_MODULE=1
+	-DCONFIG_LTE_LC_PDN_MODULE=1
 )
