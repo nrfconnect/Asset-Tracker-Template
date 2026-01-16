@@ -7,8 +7,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
-#include <zephyr/net/conn_mgr_connectivity.h>
-#include <zephyr/net/conn_mgr_monitor.h>
+#include <modem/nrf_modem_lib.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <date_time.h>
 #include <zephyr/smf.h>
@@ -41,14 +40,6 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(network);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network, 0);
 
 #define MAX_MSG_SIZE sizeof(struct network_msg)
-
-/* Macros used to subscribe to specific Zephyr NET management events. */
-#define L4_EVENT_MASK (NET_EVENT_L4_CONNECTED | NET_EVENT_L4_DISCONNECTED)
-#define CONN_LAYER_EVENT_MASK (NET_EVENT_CONN_IF_FATAL_ERROR)
-
-/* Zephyr NET management event callback structures. */
-static struct net_mgmt_event_callback l4_cb;
-static struct net_mgmt_event_callback conn_cb;
 
 /* State machine */
 
@@ -161,42 +152,6 @@ static void network_msg_send(const struct network_msg *msg)
 	}
 }
 
-static void l4_event_handler(struct net_mgmt_event_callback *cb,
-			     uint64_t event,
-			     struct net_if *iface)
-{
-	ARG_UNUSED(cb);
-	ARG_UNUSED(iface);
-
-	switch (event) {
-	case NET_EVENT_L4_CONNECTED:
-		LOG_DBG("Network connectivity established");
-		network_status_notify(NETWORK_CONNECTED);
-		break;
-	case NET_EVENT_L4_DISCONNECTED:
-		LOG_DBG("Network connectivity lost");
-		network_status_notify(NETWORK_DISCONNECTED);
-		break;
-	default:
-		/* Don't care */
-		return;
-	}
-}
-
-static void connectivity_event_handler(struct net_mgmt_event_callback *cb,
-				       uint64_t event,
-				       struct net_if *iface)
-{
-	ARG_UNUSED(cb);
-	ARG_UNUSED(iface);
-
-	if (event == NET_EVENT_CONN_IF_FATAL_ERROR) {
-		LOG_ERR("NET_EVENT_CONN_IF_FATAL_ERROR");
-		SEND_FATAL_ERROR();
-		return;
-	}
-}
-
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 {
 	switch (evt->type) {
@@ -208,6 +163,38 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			LOG_WRN("Not registered, check rejection cause");
 			network_status_notify(NETWORK_ATTACH_REJECTED);
 		}
+
+		break;
+	case LTE_LC_EVT_PDN:
+		switch (evt->pdn.type) {
+		case LTE_LC_EVT_PDN_ACTIVATED:
+			LOG_DBG("PDN connection activated");
+			network_status_notify(NETWORK_CONNECTED);
+
+			break;
+		case LTE_LC_EVT_PDN_DEACTIVATED:
+			LOG_DBG("PDN connection deactivated");
+			network_status_notify(NETWORK_DISCONNECTED);
+
+			break;
+		case LTE_LC_EVT_PDN_NETWORK_DETACH:
+			LOG_DBG("PDN connection network detached");
+			network_status_notify(NETWORK_DISCONNECTED);
+
+			break;
+		case LTE_LC_EVT_PDN_SUSPENDED:
+			LOG_DBG("PDN connection suspended");
+			network_status_notify(NETWORK_DISCONNECTED);
+
+			break;
+		case LTE_LC_EVT_PDN_RESUMED:
+			LOG_DBG("PDN connection resumed");
+			network_status_notify(NETWORK_CONNECTED);
+
+		default:
+			break;
+		}
+
 		break;
 	case LTE_LC_EVT_MODEM_EVENT:
 		/* If a reset loop happens in the field, it should not be necessary
@@ -224,6 +211,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			LOG_DBG("LTE_LC_MODEM_EVT_SEARCH_DONE");
 			network_status_notify(NETWORK_SEARCH_DONE);
 		}
+
 		break;
 	case LTE_LC_EVT_PSM_UPDATE: {
 		struct network_msg msg = {
@@ -302,10 +290,10 @@ static int network_disconnect(void)
 {
 	int err;
 
-	err = conn_mgr_all_if_disconnect(true);
+	err = lte_lc_offline();
 	if (err) {
-		LOG_ERR("conn_mgr_all_if_down, error: %d", err);
-		SEND_FATAL_ERROR();
+		LOG_ERR("lte_lc_offline, error: %d", err);
+
 		return err;
 	}
 
@@ -322,25 +310,22 @@ static void state_running_entry(void *obj)
 
 	LOG_DBG("state_running_entry");
 
-	/* Setup handler for Zephyr NET Connection Manager events. */
-	net_mgmt_init_event_callback(&l4_cb, &l4_event_handler, L4_EVENT_MASK);
-	net_mgmt_add_event_callback(&l4_cb);
-
-	/* Setup handler for Zephyr NET Connection Manager Connectivity layer. */
-	net_mgmt_init_event_callback(&conn_cb, &connectivity_event_handler, CONN_LAYER_EVENT_MASK);
-	net_mgmt_add_event_callback(&conn_cb);
-
-	/* Connecting to the configured connectivity layer. */
-	LOG_DBG("Bringing network interface up and connecting to the network");
-
-	err = conn_mgr_all_if_up(true);
+	err = nrf_modem_lib_init();
 	if (err) {
-		LOG_ERR("conn_mgr_all_if_up, error: %d", err);
-		SEND_FATAL_ERROR();
+		LOG_ERR("Failed to initialize the modem library, error: %d", err);
+
 		return;
 	}
 
 	lte_lc_register_handler(lte_lc_evt_handler);
+
+	/* Register handler for default PDP context. */
+	err = lte_lc_pdn_default_ctx_events_enable();
+	if (err) {
+		LOG_ERR("lte_lc_pdn_default_ctx_events_enable, error: %d", err);
+
+		return;
+	}
 
 	LOG_DBG("Network module started");
 }
@@ -382,16 +367,6 @@ static void state_disconnected_entry(void *obj)
 	ARG_UNUSED(obj);
 
 	LOG_DBG("state_disconnected_entry");
-
-	/* Resend connection status if the sample is built for Native Sim.
-	 * This is necessary because the network interface is automatically brought up
-	 * at SYS_INIT() before main() is called.
-	 * This means that NET_EVENT_L4_CONNECTED fires before the
-	 * appropriate handler l4_event_handler() is registered.
-	 */
-	if (IS_ENABLED(CONFIG_BOARD_NATIVE_SIM)) {
-		conn_mgr_mon_resend_status();
-	}
 }
 
 static enum smf_state_result state_disconnected_run(void *obj)
@@ -424,21 +399,11 @@ static void state_disconnected_searching_entry(void *obj)
 
 	LOG_DBG("state_disconnected_searching_entry");
 
-	err = conn_mgr_all_if_connect(true);
+	err = lte_lc_connect_async(lte_lc_evt_handler);
 	if (err) {
-		LOG_ERR("conn_mgr_all_if_connect, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
+		LOG_ERR("lte_lc_connect_async, error: %d", err);
 
-	/* Resend connection status if the sample is built for Native Sim.
-	 * This is necessary because the network interface is automatically brought up
-	 * at SYS_INIT() before main() is called.
-	 * This means that NET_EVENT_L4_CONNECTED fires before the
-	 * appropriate handler l4_event_handler() is registered.
-	 */
-	if (IS_ENABLED(CONFIG_BOARD_NATIVE_SIM)) {
-		conn_mgr_mon_resend_status();
+		return;
 	}
 }
 
