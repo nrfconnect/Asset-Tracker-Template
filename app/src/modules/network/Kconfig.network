@@ -5,7 +5,7 @@
 #
 
 menu "Network"
-	depends on NRF_MODEM_LIB_NET_IF || (WIFI_NRF700X && WIFI_MGMT_EXT) || BOARD_NATIVE_POSIX
+	depends on LTE_LINK_CONTROL
 
 config APP_NETWORK_SHELL
 	bool "Network module shell commands"
