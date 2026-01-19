@@ -570,7 +570,7 @@ def print_summary(jlink, lookup):
             print(f"{name:<15} | {'???':<60} | Error reading")
 
 
-def interactive_loop(lookup, device_name):
+def interactive_loop(lookup, device_name: str, serial_number: Optional[str]):
     """Main interactive loop."""
 
     print(f"Connecting to J-Link ({device_name})...")
@@ -578,7 +578,8 @@ def interactive_loop(lookup, device_name):
     jlink = pylink.JLink()
 
     try:
-        jlink.open()
+        jlink.open(serial_number if serial_number else None)
+        jlink.set_tif(pylink.enums.JLinkInterfaces.SWD)
         jlink.connect(device_name)
 
         while True:
@@ -640,6 +641,7 @@ def main():
         default='Cortex-M33',
         help='J-Link Device Name (default: Cortex-M33).'
     )
+    parser.add_argument('--snr', help='J-Link Serial Number')
     args = parser.parse_args()
 
     elf_path = Path(args.elf)
@@ -657,7 +659,7 @@ def main():
         )
         sys.exit(1)
 
-    interactive_loop(lookup, args.device)
+    interactive_loop(lookup, args.device, args.snr)
 
 
 if __name__ == "__main__":
