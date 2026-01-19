@@ -44,7 +44,7 @@ def _wait_for_lte_connection(dut_cloud, timeout: int = 240):
 def _disconnect_network_and_clear_modem_credentials(dut_cloud, sec_tag: int):
     logger.info("Disconnecting network and clearing modem credentials...")
 
-    log_pattern_network_disconnected = "network: l4_event_handler: Network connectivity lost"
+    log_pattern_network_disconnected = "network: lte_lc_evt_handler: PDN connection network detached"
     dut_cloud.uart.write("att_network disconnect\r\n")
     dut_cloud.uart.wait_for_str(
         log_pattern_network_disconnected,

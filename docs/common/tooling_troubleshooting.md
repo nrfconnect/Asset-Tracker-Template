@@ -118,7 +118,7 @@ and execute them if any. You can use it to reprovision the device for developmen
 uart:~$ att_network disconnect
 [00:00:36.758,758] <dbg> network: state_disconnecting_entry: state_disconnecting_entry
 [00:00:37.196,746] <wrn> network: Not registered, check rejection cause
-[00:00:37.197,021] <dbg> network: l4_event_handler: Network connectivity lost
+[00:00:37.197,021] <dbg> network: lte_lc_evt_handler: PDN connection network detached
 [00:00:37.198,608] <dbg> cloud: state_connected_paused_entry: state_connected_paused_entry
 [00:00:37.198,974] <dbg> main: wait_for_trigger_exit: wait_for_trigger_exit
 [00:00:37.199,005] <dbg> main: idle_entry: idle_entry
