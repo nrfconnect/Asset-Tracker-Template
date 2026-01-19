@@ -9,6 +9,13 @@
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/smf.h>
 #include <modem/lte_lc.h>
+#include <memfault/components.h>
+#include <memfault/ports/zephyr/http.h>
+#include <memfault/metrics/metrics.h>
+#include <memfault/core/data_packetizer.h>
+#include <memfault/core/trace_event.h>
+#include "memfault/panics/coredump.h"
+#include <modem/nrf_modem_lib_trace.h>
 #include <date_time.h>
 #include <modem/nrf_modem_lib.h>
 #include <modem/ntn.h>
@@ -1012,6 +1019,18 @@ static void state_running_entry(void *obj)
 		return;
 	}
 
+	/* Stop modem trace collection */
+	err = nrf_modem_lib_trace_level_set(NRF_MODEM_LIB_TRACE_LEVEL_OFF);
+	if (err) {
+		LOG_ERR("Failed to disable modem trace level: %d", err);
+	}
+
+
+	/* Clear any existing traces before starting collection */
+	err = nrf_modem_lib_trace_clear();
+	if (err) {
+		LOG_ERR("Failed to clear modem trace data: %d", err);
+	}
 }
 
 static enum smf_state_result state_running_run(void *obj)
@@ -1109,10 +1128,16 @@ static void state_tn_entry(void *obj)
 {
 	int err;
 	enum lte_lc_func_mode mode;
-
-	ARG_UNUSED(obj);
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
 	LOG_DBG("%s", __func__);
+
+	/* Initialize memfault modem trace */
+	err = memfault_lte_coredump_modem_trace_init();
+	if (err && err != -EALREADY) {
+		LOG_ERR("Failed to initialize memfault modem trace: %d", err);
+		return;
+	}
 
 	err = lte_lc_func_mode_get(&mode);
 	if (err) {
@@ -1238,9 +1263,6 @@ static enum smf_state_result state_tn_run(void *obj)
 				LOG_WRN("Failed to connect to nRF Cloud CoAP on TN");
 				LOG_WRN("Cloud connection is not available for resumption on NTN");
 
-				smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-
-				return SMF_EVENT_HANDLED;
 			}
 
 			LOG_INF("Cloud connection established via TN network");
@@ -1252,8 +1274,6 @@ static enum smf_state_result state_tn_run(void *obj)
 			err = nrf_cloud_coap_shadow_get(shadow_buf, &shadow_len, false, COAP_CONTENT_FORMAT_APP_CBOR);
 			if (err) {
 				LOG_ERR("Failed to get shadow data, error: %d", err);
-				smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-				return SMF_EVENT_HANDLED;
 			}
 
 			/* Parse TLE from shadow */
@@ -1261,8 +1281,6 @@ static enum smf_state_result state_tn_run(void *obj)
 			err = decode_tle_from_shadow(shadow_buf, shadow_len, &tle);
 			if (err) {
 				LOG_ERR("Failed to decode TLE data, error: %d", err);
-				smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-				return SMF_EVENT_HANDLED;
 			}
 
 			/* Store TLE data */
@@ -1293,6 +1311,26 @@ static enum smf_state_result state_tn_run(void *obj)
 				LOG_INF("CoAP connection paused");
 			}
 #endif
+
+
+			/* Prepare modem traces for upload */
+			err = memfault_lte_coredump_modem_trace_prepare_for_upload();
+			if (err == -ENODATA) {
+				LOG_DBG("No modem traces to upload");
+			} else if (err) {
+				LOG_ERR("Failed to prepare modem traces for upload: %d", err);
+			} else {
+				LOG_INF("Modem traces ready for upload");
+				
+				/* Only post data if we have traces to upload */
+				err = memfault_zephyr_port_post_data();
+				if (err) {
+					LOG_ERR("Failed to post data to Memfault: %d", err);
+				} else {
+					LOG_INF("Successfully posted modem trace data to Memfault");
+				}
+			}
+
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 
 			return SMF_EVENT_HANDLED;
@@ -1405,6 +1443,22 @@ static void state_ntn_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 
+	/* Trigger Memfault log collection */
+	memfault_log_trigger_collection();
+
+	/* Logs are automatically captured by Memfault through the Zephyr logging system */
+	/* Clear any existing traces before starting collection */
+	err = nrf_modem_lib_trace_clear();
+	if (err) {
+		LOG_ERR("Failed to clear modem trace data: %d", err);
+	}
+
+	/* Enable modem trace collection */
+	err = nrf_modem_lib_trace_level_set(NRF_MODEM_LIB_TRACE_LEVEL_LTE_AND_IP);
+	if (err) {
+		LOG_ERR("Failed to set modem trace level: %d", err);
+	}
+
 	err = set_ntn_active_mode(state);
 	if (err) {
 		LOG_ERR("Failed to set ntn active mode");
@@ -1423,7 +1477,7 @@ static enum smf_state_result state_ntn_run(void *obj)
 
 		switch (msg->type) {
 		case NETWORK_CONNECTION_FAILED:
-			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
 
 			return SMF_EVENT_HANDLED;
 
@@ -1463,7 +1517,7 @@ static enum smf_state_result state_ntn_run(void *obj)
 			*/
 			k_sleep(K_MSEC(20000));
 
-			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
 
 			return SMF_EVENT_HANDLED;
 
@@ -1497,7 +1551,13 @@ static void state_ntn_exit(void *obj)
 		LOG_ERR("Failed to set ntn dormant mode");
 	}
 
-	ntn_msg_publish(RUN_SGP4);
+	/* Stop modem trace collection */
+	err = nrf_modem_lib_trace_level_set(NRF_MODEM_LIB_TRACE_LEVEL_OFF);
+	if (err) {
+		LOG_ERR("Failed to disable modem trace level: %d", err);
+	}
+
+	// ntn_msg_publish(RUN_SGP4);
 }
 
 static void state_idle_entry(void *obj)
@@ -1527,9 +1587,10 @@ static enum smf_state_result state_idle_run(void *obj)
 
 			LOG_DBG("NTN location requested, location is invalid, fetching fresh TLE and GNSS");
 
-			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
+			LOG_WRN("Skipping modem location request for now");
+			// smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 		} else if (msg->type == RUN_SGP4){
-			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
+			smf_set_state(SMF_CTX(state), &states[STATE_SGP4]);
 
 			return SMF_EVENT_HANDLED;
 		}
