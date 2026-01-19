@@ -14,6 +14,25 @@
 
 LOG_MODULE_DECLARE(ntn, CONFIG_APP_NTN_LOG_LEVEL);
 
+static int cmd_trigger(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	struct ntn_msg msg = {
+		.type = NTN_TRIGGER
+	};
+
+	int err = zbus_chan_pub(&NTN_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		shell_print(sh, "Failed to publish trigger message, error: %d", err);
+		return 1;
+	}
+
+	shell_print(sh, "Triggering NTN state manually");
+	return 0;
+}
+
 static int cmd_set_time(const struct shell *sh, size_t argc, char **argv)
 {
 	int err;
@@ -47,6 +66,10 @@ static int cmd_set_time(const struct shell *sh, size_t argc, char **argv)
 	return 0;
 }
 
-SHELL_CMD_REGISTER(att_ntn_set_time, NULL,
-		  "Set new time of pass for NTN module (format: YYYY-MM-DD-HH:MM:SS)",
-		  cmd_set_time);
+SHELL_STATIC_SUBCMD_SET_CREATE(sub_att_ntn,
+	SHELL_CMD(trigger, NULL, "Trigger NTN state manually", cmd_trigger),
+	SHELL_CMD(set_time, NULL, "Set new time of pass (format: YYYY-MM-DD-HH:MM:SS)", cmd_set_time),
+	SHELL_SUBCMD_SET_END
+);
+
+SHELL_CMD_REGISTER(att_ntn, &sub_att_ntn, "NTN commands", NULL);
