@@ -415,7 +415,7 @@ static void sample(int64_t *ref_time)
 	}
 
 	state_of_charge = (float)soc.soc / (float)CONFIG_MEMFAULT_METRICS_BATTERY_SOC_PCT_SCALE_VALUE;
-	charging = soc.discharging;
+	charging = !soc.discharging;
 
 	(void)delta;
 
