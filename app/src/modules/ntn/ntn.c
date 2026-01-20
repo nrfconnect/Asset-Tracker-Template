@@ -38,7 +38,9 @@
 
 #include "app_common.h"
 #include "ntn.h"
+#if defined(CONFIG_TLE_VIA_HTTP)
 #include "celestrak_client.h"
+#endif
 #include "sat_prediction.h"
 
 LOG_MODULE_REGISTER(ntn_module, CONFIG_APP_NTN_LOG_LEVEL);
@@ -213,6 +215,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_UNKNOWN) {
 			/* cereg 4 */
 			LOG_DBG("LTE_LC_NW_REG_UNKNOWN");
+			ntn_msg_publish(NETWORK_CONNECTION_FAILED);
 		}
 
 		break;
@@ -937,12 +940,14 @@ static void state_running_entry(void *obj)
 	/* Initialize satellite prediction module */
 	sat_prediction_init();
 
+#if defined(CONFIG_TLE_VIA_HTTP)
 	/* Initialize Celestrak client */
 	err = celestrak_client_init();
 	if (err) {
 		LOG_ERR("Failed to initialize Celestrak client, error: %d", err);
 		return;
 	}
+#endif
 
 	/* Register GNSS event handler */
 	nrf_modem_gnss_event_handler_set(gnss_event_handler);
@@ -1450,9 +1455,6 @@ static void state_ntn_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 
-	/* Trigger Memfault log collection */
-	memfault_log_trigger_collection();
-
 	/* Logs are automatically captured by Memfault through the Zephyr logging system */
 	/* Clear any existing traces before starting collection */
 	err = nrf_modem_lib_trace_clear();
@@ -1460,11 +1462,15 @@ static void state_ntn_entry(void *obj)
 		LOG_ERR("Failed to clear modem trace data: %d", err);
 	}
 
+	k_sleep(K_SECONDS(2));
+
 	/* Enable modem trace collection */
-	err = nrf_modem_lib_trace_level_set(NRF_MODEM_LIB_TRACE_LEVEL_LTE_AND_IP);
+	err = nrf_modem_lib_trace_level_set(NRF_MODEM_LIB_TRACE_LEVEL_FULL);
 	if (err) {
 		LOG_ERR("Failed to set modem trace level: %d", err);
 	}
+
+	k_sleep(K_SECONDS(2));
 
 	err = set_ntn_active_mode(state);
 	if (err) {
@@ -1542,6 +1548,12 @@ static void state_ntn_exit(void *obj)
 {
 	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+
+
+	k_sleep(K_SECONDS(2));
+
+	/* Trigger Memfault log collection */
+	memfault_log_trigger_collection();
 
 	LOG_DBG("%s", __func__);
 
