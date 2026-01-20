@@ -184,8 +184,7 @@ To test that everything is working as expected, complete the following steps:
     [00:00:00.963,378] <dbg> network: state_disconnected_entry: state_disconnected_entry
     [00:00:00.963,378] <dbg> network: state_disconnected_searching_entry: state_disconnected_searching_entry
     [00:00:03.496,551] <dbg> network: lte_lc_evt_handler: eDRX parameters received, mode: 7, eDRX: 5.12 s, PTW: 2.56 s
-    [00:00:03.497,406] <dbg> nrf_provisioning: l4_event_handler: Connected to network
-    [00:00:03.497,436] <dbg> network: l4_event_handler: Network connectivity established
+    [00:00:03.497,406] <dbg> network: lte_lc_evt_handler: PDN connection activated
     [00:00:03.498,962] <dbg> cloud: state_connecting_entry: state_connecting_entry
     [00:00:03.498,992] <dbg> cloud: state_connecting_attempt_entry: state_connecting_attempt_entry
     [00:00:03.499,023] <dbg> cloud: state_connecting_provisioned_entry: state_connecting_provisioned_entry
