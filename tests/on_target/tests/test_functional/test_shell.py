@@ -34,7 +34,7 @@ def test_shell(dut_cloud, hex_file):
         "network: lte_lc_evt_handler: PDN connection network detached",
     ]
     patterns_network_connected = [
-        "network: l4_event_handler: Network connectivity established",
+        "network: lte_lc_evt_handler: PDN connection activated",
     ]
 
     # Boot
