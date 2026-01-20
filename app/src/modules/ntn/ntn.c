@@ -15,6 +15,7 @@
 #include <memfault/core/data_packetizer.h>
 #include <memfault/core/trace_event.h>
 #include "memfault/panics/coredump.h"
+#include "memfault_lte_coredump_modem_trace.h"
 #include <modem/nrf_modem_lib_trace.h>
 #include <date_time.h>
 #include <modem/nrf_modem_lib.h>
@@ -625,7 +626,7 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	}
 #endif
 
-	configure_periodic_search();
+	// configure_periodic_search();
 
 	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
 	if (err) {
@@ -1133,7 +1134,7 @@ static void state_tn_entry(void *obj)
 {
 	int err;
 	enum lte_lc_func_mode mode;
-	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 
@@ -1172,7 +1173,7 @@ static void state_tn_entry(void *obj)
 	if (err) {
 		LOG_ERR("Failed to set AT+COPS=0, error: %d", err);
 
-		return err;
+		return;
 	}
 
 	err = nrf_modem_at_printf("AT%%XBANDLOCK=0");
@@ -1186,7 +1187,7 @@ static void state_tn_entry(void *obj)
 	if (err) {
 		LOG_ERR("Failed to set NTN channel, error: %d", err);
 
-		return err;
+		return;
 	}
 
 	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM,
@@ -1379,7 +1380,7 @@ static void state_sgp4_entry(void *obj)
 	if (!state->has_valid_tle || !state->has_valid_gnss) {
 		LOG_ERR("Missing required data for SGP4 calculation");
 		smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-		return SMF_EVENT_HANDLED;
+		return;
 	}
 
 	LOG_INF("Using SGP4 to compute next pass");
@@ -1398,7 +1399,7 @@ static void state_sgp4_entry(void *obj)
 	if (err) {
 		LOG_ERR("Failed to get next satellite pass, error: %d", err);
 		smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-		return SMF_EVENT_HANDLED;
+		return;
 	}
 
 	/* Format time for reschedule_next_pass */
@@ -1581,7 +1582,7 @@ static void state_ntn_exit(void *obj)
 
 static void state_idle_entry(void *obj)
 {
-	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 }
