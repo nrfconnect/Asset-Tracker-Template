@@ -1462,7 +1462,7 @@ static void state_ntn_entry(void *obj)
 		LOG_ERR("Failed to clear modem trace data: %d", err);
 	}
 
-	k_sleep(K_SECONDS(2));
+	k_sleep(K_SECONDS(1));
 
 	/* Enable modem trace collection */
 	err = nrf_modem_lib_trace_level_set(NRF_MODEM_LIB_TRACE_LEVEL_FULL);
@@ -1470,7 +1470,7 @@ static void state_ntn_entry(void *obj)
 		LOG_ERR("Failed to set modem trace level: %d", err);
 	}
 
-	k_sleep(K_SECONDS(2));
+	k_sleep(K_SECONDS(1));
 
 	err = set_ntn_active_mode(state);
 	if (err) {
