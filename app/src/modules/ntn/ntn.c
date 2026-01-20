@@ -1177,6 +1177,13 @@ static void state_tn_entry(void *obj)
 		return;
 	}
 
+	err = nrf_modem_at_printf("AT%%CHSELECT=0");
+	if (err) {
+		LOG_ERR("Failed to set NTN channel, error: %d", err);
+
+		return err;
+	}
+
 	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM,
 				     LTE_LC_SYSTEM_MODE_PREFER_LTEM);
 	if (err) {
