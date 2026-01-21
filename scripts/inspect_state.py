@@ -2,18 +2,42 @@
 """
 Asset Tracker Template State Inspector
 
-This script connects to an nRF91 device via J-Link, inspects the ELF file for
-symbol locations, and reads the current state of various state machines in RAM.
-It also allows interactive inspection of the full state structure of each module.
+This script inspects the current state of modules in the Asset Tracker application.
+It supports two modes of operation:
+
+1. LIVE DEBUGGING (J-Link mode - default):
+   Connects to a running nRF91 device via J-Link and reads state information directly
+   from the device's RAM in real-time. This mode allows you to monitor state changes
+   as the application runs.
+
+   Usage:
+     python3 inspect_state.py --elf path/to/zephyr.elf
+     python3 inspect_state.py --elf path/to/zephyr.elf --device Cortex-M33 --snr <serial_number>
+
+2. COREDUMP ANALYSIS (offline mode):
+   Analyzes a captured coredump ELF file without requiring a physical device or J-Link
+   connection. This mode is useful for post-mortem debugging of crashes or for analyzing
+   states from field devices.
+
+   Usage:
+     python3 inspect_state.py --elf path/to/zephyr.elf --coredump path/to/coredump.elf
+
+Both modes provide:
+- Summary table showing the current SMF state of all modules
+- Interactive menu to inspect detailed structure contents of individual modules
+- Full DWARF-based type resolution for accurate memory interpretation
 
 Prerequisites:
     pip install "pyelftools>=0.30" pylink-square
+
+    Note: pylink-square is only required for J-Link mode, not for coredump analysis.
 """
 
 import sys
 import argparse
 import logging
 import traceback
+import struct
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
@@ -620,6 +644,134 @@ def interactive_loop(lookup, device_name: str, serial_number: Optional[str]):
             jlink.close()
 
 
+def interactive_coredump_loop(lookup, mem):
+    """Interactive loop for coredump-backed inspection (no J-Link)."""
+
+    while True:
+        print_summary(mem, lookup)
+
+        print("\nOptions:")
+        print("  q: Quit")
+
+        modules = list(lookup.keys())
+
+        for i, name in enumerate(modules):
+            print(f"  {i+1}: Inspect {name}")
+
+        choice = input("\nSelect option: ").strip().lower()
+
+        if choice == 'q':
+            break
+
+        try:
+            idx = int(choice) - 1
+
+            if 0 <= idx < len(modules):
+                inspect_module_detail(mem, lookup[modules[idx]], modules[idx])
+                input("\nPress Enter to continue...")
+            else:
+                print("Invalid selection.")
+        except ValueError:
+            pass
+
+
+# --- Minimal coredump ELF reader (PT_LOAD only) ---
+
+class SegmentMemory:
+    """Minimal memory reader over PT_LOAD segments for state inspection."""
+
+    def __init__(self, memory_segments: List[tuple]):
+        # memory_segments: List[(name, vaddr, data)]
+        self.segments = []
+        for _, start, data in memory_segments:
+            end = start + len(data)
+            self.segments.append((start, end, data))
+        self.segments.sort(key=lambda s: s[0])
+
+    def _slice(self, addr: int, size: int) -> bytes:
+        for start, end, data in self.segments:
+            if start <= addr and addr + size <= end:
+                offset = addr - start
+                return data[offset:offset + size]
+        raise ValueError(f"Address 0x{addr:x} (size {size}) not in coredump segments")
+
+    def memory_read(self, addr: int, size: int) -> bytes:
+        return self._slice(addr, size)
+
+    def memory_read32(self, addr: int, count: int = 1) -> List[int]:
+        raw = self._slice(addr, 4 * count)
+        return [int.from_bytes(raw[i * 4:(i + 1) * 4], 'little') for i in range(count)]
+
+
+def load_coredump_segments(coredump_path: Path) -> List[tuple]:
+    """Load PT_LOAD segments from an ELF coredump (32/64-bit, little/big-endian)."""
+
+    with open(coredump_path, 'rb') as f:
+        data = f.read()
+
+    if len(data) < 0x34 or data[0:4] != b"\x7fELF":
+        raise ValueError("Not an ELF file")
+
+    ei_class = data[4]
+    ei_data = data[5]
+    is_64 = ei_class == 2
+    endian = '<' if ei_data == 1 else '>'
+
+    def u16(off):
+        return struct.unpack(f"{endian}H", data[off:off+2])[0]
+
+    def u32(off):
+        return struct.unpack(f"{endian}I", data[off:off+4])[0]
+
+    def u64(off):
+        return struct.unpack(f"{endian}Q", data[off:off+8])[0]
+
+    if is_64:
+        e_phoff = u64(32)
+        e_phentsize = u16(54)
+        e_phnum = u16(56)
+    else:
+        e_phoff = u32(28)
+        e_phentsize = u16(42)
+        e_phnum = u16(44)
+
+    if e_phentsize == 0 or e_phnum == 0:
+        return []
+
+    segments = []
+    for i in range(e_phnum):
+        off = e_phoff + i * e_phentsize
+        if off + e_phentsize > len(data):
+            break
+
+        p_type = u32(off)
+
+        if is_64:
+            p_flags = u32(off + 4)
+            p_offset = u64(off + 8)
+            p_vaddr = u64(off + 16)
+            p_filesz = u64(off + 32)
+        else:
+            p_offset = u32(off + 4)
+            p_vaddr = u32(off + 8)
+            p_filesz = u32(off + 16)
+            p_flags = u32(off + 24)
+
+        PT_LOAD = 1
+        if p_type != PT_LOAD or p_filesz == 0:
+            continue
+
+        end = p_offset + p_filesz
+        if end > len(data):
+            continue
+
+        seg_data = data[p_offset:end]
+        name = f"Segment_{len(segments)}"
+        segments.append((name, p_vaddr, seg_data))
+
+    return segments
+
+
 def main():
     try:
         # pylint: disable=import-outside-toplevel
@@ -633,15 +785,31 @@ def main():
     except ImportError:
         pass
 
-    parser = argparse.ArgumentParser(description='Asset Tracker State Inspector',
-                                     allow_abbrev=False)
-    parser.add_argument('--elf', required=True, help='Path to zephyr.elf file')
+    parser = argparse.ArgumentParser(
+        description='Asset Tracker State Inspector: Inspect module states via J-Link or coredump',
+        allow_abbrev=False,
+        epilog='''
+Examples:
+  Live debugging via J-Link:
+    %(prog)s --elf build/zephyr/zephyr.elf
+    %(prog)s --elf build/zephyr/zephyr.elf --device Cortex-M33 --snr 123456789
+
+  Offline coredump analysis:
+    %(prog)s --elf build/zephyr/zephyr.elf --coredump coredump-12345678.elf
+        ''',
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument('--elf', required=True,
+                        help='Path to zephyr.elf file with debug symbols')
+    parser.add_argument('--coredump',
+                        help='Path to coredump ELF file for offline analysis (mutually exclusive with J-Link)')
     parser.add_argument(
         '--device',
         default='Cortex-M33',
-        help='J-Link Device Name (default: Cortex-M33).'
+        help='J-Link device name for live debugging (default: Cortex-M33). Only used without --coredump.'
     )
-    parser.add_argument('--snr', help='J-Link Serial Number')
+    parser.add_argument('--snr',
+                        help='J-Link serial number for live debugging. Only used without --coredump.')
     args = parser.parse_args()
 
     elf_path = Path(args.elf)
@@ -659,6 +827,23 @@ def main():
         )
         sys.exit(1)
 
+    # If a coredump is provided, read SMF states from PT_LOAD segments instead of J-Link
+    if args.coredump:
+        try:
+            memory_segments = load_coredump_segments(Path(args.coredump))
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.error("Failed to load coredump: %s", exc)
+            sys.exit(1)
+
+        if not memory_segments:
+            logger.error("Coredump does not contain ELF PT_LOAD segments to read state from.")
+            sys.exit(1)
+
+        mem = SegmentMemory(memory_segments)
+        interactive_coredump_loop(lookup, mem)
+        sys.exit(0)
+
+    # Default: live device via J-Link
     interactive_loop(lookup, args.device, args.snr)
 
 
