@@ -27,7 +27,8 @@ For more knowledge on debugging and troubleshooting [nRF Connect SDK](https://gi
   - [Hardfaults](#hardfaults)
   - [State Inspection Script](#state-inspection-script)
 - [Memfault Remote Debugging](#memfault-remote-debugging)
-  - [Recommended Prerequisites](#recommended-prerequisites)
+  - [When to Use Memfault](#when-to-use-memfault)
+  - [Prerequisites](#prerequisites)
   - [Test shell commands](#test-shell-commands)
 - [Modem Tracing](#modem-tracing)
   - [UART Tracing](#uart-tracing)
@@ -467,7 +468,46 @@ For more information see the following documenation:
 - [Memfault Sample](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/samples/debug/memfault/README.html)
 - [Memfault Integration](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/debug/memfault_ncs.html)
 
-### Recommended Prerequisites
+### When to Use Memfault
+
+Memfault is a device observability platform that complements traditional debugging tools by providing remote diagnostics and fleet-wide insights. It is particularly valuable in the following scenarios:
+
+**Field debugging:**
+
+- Capture crashes and diagnostics from devices deployed in remote locations where physical access is limited or impossible
+- Investigate issues that only occur in production environments with real network conditions
+
+**Intermittent issues:**
+
+- Debug problems that occur sporadically and are difficult to reproduce in a development environment
+- Collect crash data over time to identify patterns and root causes
+
+**Fleet monitoring:**
+
+- Track device health metrics across multiple deployed units
+- Identify systemic issues affecting specific firmware versions, hardware batches, or network configurations
+- Monitor LTE connectivity metrics, stack usage, and memory statistics across your device fleet
+
+**Post-mortem analysis:**
+
+- Analyze crashes after they occur without requiring device physical access or live debugging sessions
+- Capture full coredumps with register state, stack traces, and memory contents
+- Include modem traces for in-depth cellular connectivity analysis
+
+**Use Memfault alongside other debugging tools:**
+
+- **GDB**: Use for interactive development debugging with breakpoints and step-through execution
+- **Crash analysis**: Use for immediate crash investigation during development with serial connection
+- **Memfault**: Use for remote, asynchronous crash collection, fleet-wide analysis, and field diagnostics
+
+**Symbol file management:**
+
+- Upload symbol files for each firmware version you deploy
+- The CI pipeline automatically uploads symbols for release builds
+- For local development builds, manually upload using the `memfault` CLI tool
+- Symbol files enable Memfault to decode crash addresses into meaningful function names and line numbers
+
+### Prerequisites
 
 1. Register at [Memfault](https://app.memfault.com/register-nordic)
 2. Complete the [Remote Debugging with Memfault](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/exercise-4-remote-debugging-with-memfault/) exercise.
