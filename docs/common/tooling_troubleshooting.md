@@ -502,10 +502,10 @@ Memfault is a device observability platform that complements traditional debuggi
 
 **Symbol file management:**
 
-- Upload symbol files for each firmware version you deploy
-- The CI pipeline automatically uploads symbols for release builds
-- For local development builds, manually upload using the `memfault` CLI tool
 - Symbol files enable Memfault to decode crash addresses into meaningful function names and line numbers
+- Upload symbol files for each firmware version you deploy using the Memfault user interface or the [Memfault CLI tool](https://docs.memfault.com/docs/ci/install-memfault-cli)
+- For local development builds, manually upload using the CLI tool or the Memfault user interface
+- The CI pipeline automatically uploads symbols using the CLI tool
 
 ### Prerequisites
 
