@@ -18,23 +18,23 @@ extern "C" {
 /* NTN module message types */
 enum ntn_msg_type {
 	/* Events that trigger state transitions */
-	NTN_LOCATION_SEARCH_DONE, /* Location search completed - triggers transition to NTN mode */
 	NETWORK_CONNECTED,    /* Network connectivity established */
-	NTN_NETWORK_DISCONNECTED, /* Network disconnected */
-	NTN_LOCATION_REQUEST, /*  */
+	NETWORK_DISCONNECTED, /* Network disconnected */
+	NETWORK_CONNECTION_FAILED, /*  */
+	NETWORK_CONNECTION_TIMEOUT, /*  */
+	LOCATION_SEARCH_DONE, /* Location search completed - triggers transition to NTN mode */
+	LOCATION_REQUEST, /*  */
+	GNSS_TIMEOUT, /* */
 	NTN_TRIGGER,           /* LTE timer expired - connect to network */
 	NTN_SHELL_SET_TIME,  /* Set new time of pass from shell */
 	KEEPALIVE_TIMER,     /* Keepalive timer */
-	NETWORK_CONNECTION_FAILED, /*  */
-	GNSS_TIMEOUT, /* */
 	RUN_SGP4, /* */
-	NETWORK_CONNECTION_TIMEOUT,
 };
 
 /* NTN module message */
 struct ntn_msg {
 	enum ntn_msg_type type;
-	char time_of_pass[32];  /* For NTN_SHELL_SET_TIME */
+	char time_of_pass[32];
 	struct nrf_modem_gnss_pvt_data_frame pvt;
 };
 

@@ -231,7 +231,6 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_UNKNOWN) {
 			/* cereg 4 */
 			LOG_DBG("LTE_LC_NW_REG_UNKNOWN");
-			ntn_msg_publish(NETWORK_CONNECTION_FAILED);
 		}
 
 		break;
@@ -244,17 +243,17 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			break;
 		case LTE_LC_EVT_PDN_DEACTIVATED:
 			LOG_DBG("PDN connection deactivated");
-			ntn_msg_publish(NTN_NETWORK_DISCONNECTED);
+			ntn_msg_publish(NETWORK_DISCONNECTED);
 
 			break;
 		case LTE_LC_EVT_PDN_NETWORK_DETACH:
 			LOG_DBG("PDN connection network detached");
-			ntn_msg_publish(NTN_NETWORK_DISCONNECTED);
+			ntn_msg_publish(NETWORK_DISCONNECTED);
 
 			break;
 		case LTE_LC_EVT_PDN_SUSPENDED:
 			LOG_DBG("PDN connection suspended");
-			ntn_msg_publish(NTN_NETWORK_DISCONNECTED);
+			ntn_msg_publish(NETWORK_DISCONNECTED);
 
 			break;
 		case LTE_LC_EVT_PDN_RESUMED:
@@ -304,7 +303,7 @@ static void ntn_event_handler(const struct ntn_evt *evt)
 			evt->location_request.requested ? "true" : "false",
 			evt->location_request.accuracy);
 
-		ntn_msg_publish(NTN_LOCATION_REQUEST);
+		ntn_msg_publish(LOCATION_REQUEST);
 
 		break;
 	default:
@@ -376,7 +375,7 @@ static void publish_last_pvt(const struct nrf_modem_gnss_pvt_data_frame *pvt)
 {
 	int err;
 	struct ntn_msg msg = {
-		.type = NTN_LOCATION_SEARCH_DONE,
+		.type = LOCATION_SEARCH_DONE,
 		.pvt = *pvt
 	};
 
@@ -1124,7 +1123,7 @@ static enum smf_state_result state_gnss_run(void *obj)
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
-		if (msg->type == NTN_LOCATION_SEARCH_DONE) {
+		if (msg->type == LOCATION_SEARCH_DONE) {
 			/* Store GNSS data */
 			memcpy(&state->last_pvt, &msg->pvt, sizeof(state->last_pvt));
 			state->has_valid_gnss = true;
@@ -1502,8 +1501,8 @@ static void state_ntn_entry(void *obj)
 		LOG_ERR("Failed to set ntn active mode");
 	}
 
-	/* Start network connection timeout timer - 5 minutes */
-	k_timer_start(&state->network_connection_timeout_timer, K_MINUTES(5), K_NO_WAIT);
+	/* Start network connection timeout timer - 3 minutes */
+	k_timer_start(&state->network_connection_timeout_timer, K_MINUTES(3), K_NO_WAIT);
 }
 
 static enum smf_state_result state_ntn_run(void *obj)
@@ -1519,7 +1518,6 @@ static enum smf_state_result state_ntn_run(void *obj)
 		switch (msg->type) {
 		case NETWORK_CONNECTION_FAILED:
 		case NETWORK_CONNECTION_TIMEOUT:
-			LOG_WRN("Network connection failed or timed out, switching to TN mode");
 			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
 			return SMF_EVENT_HANDLED;
 
@@ -1627,7 +1625,7 @@ static enum smf_state_result state_idle_run(void *obj)
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
-		if (msg->type == NTN_LOCATION_REQUEST) {
+		if (msg->type == LOCATION_REQUEST) {
 			uint64_t current_time = k_uptime_get();
 			if (current_time < state->location_validity_end_time) {
 			LOG_DBG("NTN location is still valid, skipping location request");

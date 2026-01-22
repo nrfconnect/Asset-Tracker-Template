@@ -52,21 +52,6 @@ config APP_NTN_CHANNEL_SELECT
 
 endif # APP_NTN_CHANNEL_SELECT_ENABLE
 
-config APP_NTN_APN_ENABLE
-	bool "Enable NTN APN select"
-	help
-	  Enable APN selection for NTN mode.
-
-if APP_NTN_APN_ENABLE
-
-config APP_NTN_APN
-	string "NTN APN"
-	default ""
-	help
-	  Access Point Name (APN) for NTN connection.
-	  Leave empty to use default APN.
-endif # APP_NTN_APN_ENABLE
-
 config APP_NTN_COPS_ENABLE
 	bool "Enable NTN PLMN select"
 	help
@@ -116,22 +101,11 @@ config APP_NTN_THINGY_ROCKS_ENDPOINT
 	help
 	  Use world.thingy.rocks endpoint.
 
-config APP_NTN_TIMER_GNSS_VALUE_SECONDS
-	int "Timer value for GNSS activation"
-	default 300
-	help
-	  Timer value for GNSS activation
-
 config APP_NTN_TIMER_NTN_VALUE_SECONDS
 	int "Timer value for NTN activation"
 	default 20
 	help
 	  Timer value for NTN activation
-
-config APP_NTN_CELLULARPRFL_ENABLE
-	bool "Enable setting of cellular profiles"
-	help
-	  Enable setting of cellular profiles.
 
 config APP_NTN_WATCHDOG_TIMEOUT_SECONDS
 	int "NTN module watchdog timeout in seconds"
