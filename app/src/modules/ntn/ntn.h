@@ -28,6 +28,7 @@ enum ntn_msg_type {
 	NETWORK_CONNECTION_FAILED, /*  */
 	GNSS_TIMEOUT, /* */
 	RUN_SGP4, /* */
+	NETWORK_CONNECTION_TIMEOUT,
 };
 
 /* NTN module message */

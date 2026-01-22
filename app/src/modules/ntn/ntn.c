@@ -80,6 +80,7 @@ struct ntn_state_object {
 	uint8_t msg_buf[MAX_MSG_SIZE];
 	struct k_timer keepalive_timer;
 	struct k_timer ntn_timer;
+	struct k_timer network_connection_timeout_timer;
 	int sock_fd;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
 	/* TLE storage */
@@ -93,6 +94,7 @@ struct ntn_state_object {
 
 static struct k_work keepalive_timer_work;
 static struct k_work ntn_timer_work;
+static struct k_work network_connection_timeout_work;
 
 static struct k_work gnss_location_work;
 static struct k_work gnss_timeout_work;
@@ -168,6 +170,13 @@ static void handle_gnss_timeout_work_fn(struct k_work *work)
 	ntn_msg_publish(GNSS_TIMEOUT);
 }
 
+static void network_connection_timeout_work_fn(struct k_work *work)
+{
+	/* Network connection timeout */
+	LOG_WRN("Network connection timeout occurred");
+	ntn_msg_publish(NETWORK_CONNECTION_TIMEOUT);
+}
+
 /* Timer callback for keepalive */
 static void keepalive_timer_handler(struct k_timer *timer)
 {
@@ -178,6 +187,12 @@ static void keepalive_timer_handler(struct k_timer *timer)
 static void ntn_timer_handler(struct k_timer *timer)
 {
 	k_work_submit(&ntn_timer_work);
+}
+
+/* Timer callback for network connection timeout */
+static void network_connection_timeout_handler(struct k_timer *timer)
+{
+	k_work_submit(&network_connection_timeout_work);
 }
 
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
@@ -924,9 +939,11 @@ static void state_running_entry(void *obj)
 
 	k_work_init(&keepalive_timer_work, keepalive_timer_work_fn);
 	k_work_init(&ntn_timer_work, ntn_timer_work_fn);
+	k_work_init(&network_connection_timeout_work, network_connection_timeout_work_fn);
 
 	k_timer_init(&state->keepalive_timer, keepalive_timer_handler, NULL);
 	k_timer_init(&state->ntn_timer, ntn_timer_handler, NULL);
+	k_timer_init(&state->network_connection_timeout_timer, network_connection_timeout_handler, NULL);
 
 	k_work_init(&gnss_location_work, gnss_location_work_handler);
 	k_work_init(&gnss_timeout_work, handle_gnss_timeout_work_fn);
@@ -1484,6 +1501,9 @@ static void state_ntn_entry(void *obj)
 	if (err) {
 		LOG_ERR("Failed to set ntn active mode");
 	}
+
+	/* Start network connection timeout timer - 5 minutes */
+	k_timer_start(&state->network_connection_timeout_timer, K_MINUTES(5), K_NO_WAIT);
 }
 
 static enum smf_state_result state_ntn_run(void *obj)
@@ -1498,12 +1518,14 @@ static enum smf_state_result state_ntn_run(void *obj)
 
 		switch (msg->type) {
 		case NETWORK_CONNECTION_FAILED:
+		case NETWORK_CONNECTION_TIMEOUT:
+			LOG_WRN("Network connection failed or timed out, switching to TN mode");
 			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
-
 			return SMF_EVENT_HANDLED;
 
-			break;
 		case NETWORK_CONNECTED:
+			/* Stop the connection timeout timer since we're connected */
+			k_timer_stop(&state->network_connection_timeout_timer);
 			LOG_DBG("Setting up socket");
 
 			/* Network is connected, set up socket */
@@ -1572,6 +1594,7 @@ static void state_ntn_exit(void *obj)
 	}
 
 	k_timer_stop(&state->ntn_timer);
+	k_timer_stop(&state->network_connection_timeout_timer);
 
 	err = set_ntn_offline_mode();
 	if (err) {
