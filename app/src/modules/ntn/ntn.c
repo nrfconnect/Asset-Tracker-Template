@@ -1413,19 +1413,26 @@ static void state_sgp4_entry(void *obj)
 	gmtime_r(&end_time, &end_tm);
 	strftime(end_time_str, sizeof(end_time_str), "%Y-%m-%d %H:%M:%S UTC", &end_tm);
 
+	/* Convert max elevation time to readable format */
+	time_t max_el_time = next_pass.max_elevation_time_ms / 1000;
+	struct tm max_el_tm;
+	char max_el_time_str[32];
+	gmtime_r(&max_el_time, &max_el_tm);
+	strftime(max_el_time_str, sizeof(max_el_time_str), "%Y-%m-%d %H:%M:%S UTC", &max_el_tm);
+
 	LOG_INF("Next pass: %s", next_pass.sat_name);
 	LOG_INF("Start: %s", start_time_str);
 	LOG_INF("End: %s", end_time_str);
-        LOG_INF("Max elevation: %.2f", next_pass.max_elevation);
+	LOG_INF("Max elevation: %.2f degrees at %s", next_pass.max_elevation, max_el_time_str);
 
 	char time_str[32];
 	snprintk(time_str, sizeof(time_str), "%04d-%02d-%02d-%02d:%02d:%02d",
-		start_tm.tm_year + 1900,
-		start_tm.tm_mon + 1,
-		start_tm.tm_mday,
-		start_tm.tm_hour,
-		start_tm.tm_min,
-		start_tm.tm_sec);
+		max_el_tm.tm_year + 1900,
+		max_el_tm.tm_mon + 1,
+		max_el_tm.tm_mday,
+		max_el_tm.tm_hour,
+		max_el_tm.tm_min,
+		max_el_tm.tm_sec);
 
 	/* Schedule timers for next pass */
 	err = reschedule_next_pass(state, time_str);

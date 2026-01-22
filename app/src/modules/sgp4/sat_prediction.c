@@ -249,13 +249,17 @@ static int FindNextPass(Satellite* sat, double lat, double lon, double alt, int6
              CalculateLookAngle(r, r_station_ecef, lat, lon, gmst, &elevation);
 
              if (elevation > 40.0) {
-                 if (!in_pass) {
-                     in_pass = true;
-                     pass_start = start_time_ms + (i * 60 * 1000);
-                     max_el = elevation;
-                 } else {
-                     if (elevation > max_el) max_el = elevation;
-                 }
+                     if (!in_pass) {
+                         in_pass = true;
+                         pass_start = start_time_ms + (i * 60 * 1000);
+                         max_el = elevation;
+                         pass->max_elevation_time_ms = start_time_ms + (i * 60 * 1000);
+                     } else {
+                         if (elevation > max_el) {
+                             max_el = elevation;
+                             pass->max_elevation_time_ms = start_time_ms + (i * 60 * 1000);
+                         }
+                     }
              } else {
                  if (in_pass) {
                      // Pass ended

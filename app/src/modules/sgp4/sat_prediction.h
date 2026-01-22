@@ -7,6 +7,7 @@ typedef struct {
     int64_t start_time_ms;
     int64_t end_time_ms;
     double max_elevation;
+    int64_t max_elevation_time_ms;  /* Time at which maximum elevation occurs */
     char sat_name[30];
 } sat_prediction_pass_t;
 
@@ -17,6 +18,13 @@ void sat_prediction_init(void);
 
 /**
  * @brief Get the next satellite pass based on the provided location.
+ *
+ * The pass information includes:
+ * - start_time_ms: Time when satellite rises above 40° elevation
+ * - end_time_ms: Time when satellite drops below 40° elevation
+ * - max_elevation: Maximum elevation angle reached during the pass
+ * - max_elevation_time_ms: Time when the maximum elevation occurs
+ * - sat_name: Name of the satellite
  *
  * @param lat Latitude in degrees
  * @param lon Longitude in degrees
@@ -38,6 +46,13 @@ void sat_prediction_update_tles(void);
 
 /**
  * @brief Get the next satellite pass using provided TLE data.
+ *
+ * The pass information includes:
+ * - start_time_ms: Time when satellite rises above 40° elevation
+ * - end_time_ms: Time when satellite drops below 40° elevation
+ * - max_elevation: Maximum elevation angle reached during the pass
+ * - max_elevation_time_ms: Time when the maximum elevation occurs
+ * - sat_name: Name of the satellite
  *
  * @param lat Latitude in degrees
  * @param lon Longitude in degrees
