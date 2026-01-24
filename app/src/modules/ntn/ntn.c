@@ -615,6 +615,13 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 		break;
 	}
 
+	/* Select physical SIM for NTN mode */
+	err = nrf_modem_at_printf("AT%%CSUS=0");
+	if (err) {
+		LOG_ERR("Failed to select physical SIM, error: %d", err);
+		return err;
+	}
+
 	/* Configure NTN system mode */
 	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
 	if (err) {
@@ -1216,6 +1223,13 @@ static void state_tn_entry(void *obj)
 		}
 
 		break;
+	}
+
+	/* Select softsim for terrestrial mode */
+	err = nrf_modem_at_printf("AT%%CSUS=2");
+	if (err) {
+		LOG_ERR("Failed to select softsim, error: %d", err);
+		return;
 	}
 
 	err = nrf_modem_at_printf("AT+COPS=0");
