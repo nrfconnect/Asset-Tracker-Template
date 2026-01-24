@@ -1020,7 +1020,7 @@ static void state_running_entry(void *obj)
 	*/
 	struct lte_lc_cellular_profile tn_profile = {
 			.id = 0,
-			.act = LTE_LC_ACT_LTEM || LTE_LC_ACT_NBIOT,
+			.act = LTE_LC_ACT_LTEM | LTE_LC_ACT_NBIOT,
 			.uicc = LTE_LC_UICC_SOFTSIM,
 		};
 
@@ -1206,8 +1206,8 @@ static void state_tn_entry(void *obj)
 		return;
 	}
 
-	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM,
-				     LTE_LC_SYSTEM_MODE_PREFER_LTEM);
+	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM_NBIOT,
+				     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
 	if (err) {
 		LOG_ERR("lte_lc_system_mode_set, error: %d", err);
 
@@ -1309,24 +1309,24 @@ static enum smf_state_result state_tn_run(void *obj)
 			struct tle_data tle;
 			err = decode_tle_from_shadow(shadow_buf, shadow_len, &tle);
 			if (err) {
-				LOG_ERR("Failed to decode TLE data, error: %d", err);
+				LOG_ERR("Failed to obtain TLE data, error: %d", err);
+			} else {
+				/* Store TLE data */
+				strncpy(state->tle_name, tle.name, sizeof(state->tle_name) - 1);
+				strncpy(state->tle_line1, tle.line1, sizeof(state->tle_line1) - 1);
+				strncpy(state->tle_line2, tle.line2, sizeof(state->tle_line2) - 1);
+
+				/* Ensure null termination */
+				state->tle_name[sizeof(state->tle_name) - 1] = '\0';
+				state->tle_line1[sizeof(state->tle_line1) - 1] = '\0';
+				state->tle_line2[sizeof(state->tle_line2) - 1] = '\0';
+
+				state->has_valid_tle = true;
+				LOG_INF("TLE data stored successfully:");
+				LOG_INF("Name:  %s", state->tle_name);
+				LOG_INF("Line1: %s", state->tle_line1);
+				LOG_INF("Line2: %s", state->tle_line2);
 			}
-
-			/* Store TLE data */
-			strncpy(state->tle_name, tle.name, sizeof(state->tle_name) - 1);
-			strncpy(state->tle_line1, tle.line1, sizeof(state->tle_line1) - 1);
-			strncpy(state->tle_line2, tle.line2, sizeof(state->tle_line2) - 1);
-
-			/* Ensure null termination */
-			state->tle_name[sizeof(state->tle_name) - 1] = '\0';
-			state->tle_line1[sizeof(state->tle_line1) - 1] = '\0';
-			state->tle_line2[sizeof(state->tle_line2) - 1] = '\0';
-
-			state->has_valid_tle = true;
-			LOG_INF("TLE data stored successfully:");
-			LOG_INF("Name:  %s", state->tle_name);
-			LOG_INF("Line1: %s", state->tle_line1);
-			LOG_INF("Line2: %s", state->tle_line2);
 
 
 			/* Pause the CoAP connection to save the DTLS CID and resume it
