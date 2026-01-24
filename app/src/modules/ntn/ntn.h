@@ -29,6 +29,7 @@ enum ntn_msg_type {
 	NTN_SHELL_SET_TIME,  /* Set new time of pass from shell */
 	KEEPALIVE_TIMER,     /* Keepalive timer */
 	RUN_SGP4, /* */
+	GNSS_TRIGGER, /* */
 };
 
 /* NTN module message */

@@ -80,6 +80,7 @@ struct ntn_state_object {
 	uint8_t msg_buf[MAX_MSG_SIZE];
 	struct k_timer keepalive_timer;
 	struct k_timer ntn_timer;
+	struct k_timer gnss_timer;
 	struct k_timer network_connection_timeout_timer;
 	int sock_fd;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
@@ -90,10 +91,12 @@ struct ntn_state_object {
 	bool has_valid_tle;
 	bool has_valid_gnss;
 	uint64_t location_validity_end_time;
+	bool run_sgp4_after_gnss;
 };
 
 static struct k_work keepalive_timer_work;
 static struct k_work ntn_timer_work;
+static struct k_work gnss_timer_work;
 static struct k_work network_connection_timeout_work;
 
 static struct k_work gnss_location_work;
@@ -193,6 +196,18 @@ static void ntn_timer_handler(struct k_timer *timer)
 static void network_connection_timeout_handler(struct k_timer *timer)
 {
 	k_work_submit(&network_connection_timeout_work);
+}
+
+/* Timer callback for GNSS fix */
+static void gnss_timer_handler(struct k_timer *timer)
+{
+	k_work_submit(&gnss_timer_work);
+}
+
+static void gnss_timer_work_fn(struct k_work *work)
+{
+	/* Time to get GNSS fix */
+	ntn_msg_publish(GNSS_TRIGGER);
 }
 
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
@@ -529,12 +544,19 @@ static int reschedule_next_pass(struct ntn_state_object *state, const char * con
 	}
 
 
+	/* Start GNSS timer to wake up 5 minutes before pass */
+	int64_t gnss_timeout_value = seconds_until_pass - (5 * 60);
+	k_timer_start(&state->gnss_timer,
+			K_SECONDS(gnss_timeout_value),
+			K_NO_WAIT);
+
 	/* Start LTE timer to wake up 20 seconds before pass */
 	int64_t ntn_timeout_value = seconds_until_pass - CONFIG_APP_NTN_TIMER_NTN_VALUE_SECONDS;
 	k_timer_start(&state->ntn_timer,
 			K_SECONDS(ntn_timeout_value),
 			K_NO_WAIT);
 
+	LOG_INF("GNSS timer set to wake up in %lld seconds", gnss_timeout_value);
 	LOG_INF("NTN timer set to wake up in %lld seconds", ntn_timeout_value);
 
 	return 0;
@@ -938,10 +960,12 @@ static void state_running_entry(void *obj)
 
 	k_work_init(&keepalive_timer_work, keepalive_timer_work_fn);
 	k_work_init(&ntn_timer_work, ntn_timer_work_fn);
+	k_work_init(&gnss_timer_work, gnss_timer_work_fn);
 	k_work_init(&network_connection_timeout_work, network_connection_timeout_work_fn);
 
 	k_timer_init(&state->keepalive_timer, keepalive_timer_handler, NULL);
 	k_timer_init(&state->ntn_timer, ntn_timer_handler, NULL);
+	k_timer_init(&state->gnss_timer, gnss_timer_handler, NULL);
 	k_timer_init(&state->network_connection_timeout_timer, network_connection_timeout_handler, NULL);
 
 	k_work_init(&gnss_location_work, gnss_location_work_handler);
@@ -1070,6 +1094,10 @@ static enum smf_state_result state_running_run(void *obj)
 					K_NO_WAIT);
 
 			break;
+		case GNSS_TRIGGER:
+			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
+
+			break;
 		case NTN_TRIGGER:
 			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
 
@@ -1132,7 +1160,12 @@ static enum smf_state_result state_gnss_run(void *obj)
 				k_uptime_get() +
 				CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS * MSEC_PER_SEC;
 
-			smf_set_state(SMF_CTX(state), &states[STATE_SGP4]);
+			/* Transition based on state flag */
+			if (state->run_sgp4_after_gnss) {
+				smf_set_state(SMF_CTX(state), &states[STATE_SGP4]);
+			} else {
+				smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+			}
 		}
 	}
 
@@ -1469,7 +1502,12 @@ static enum smf_state_result state_sgp4_run(void *obj)
 
 static void state_sgp4_exit(void *obj)
 {
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+
 	LOG_DBG("%s", __func__);
+
+	/* Set flag to not run SGP4 after next GNSS fix */
+	state->run_sgp4_after_gnss = false;
 }
 
 static void state_ntn_entry(void *obj)
@@ -1605,6 +1643,10 @@ static void state_ntn_exit(void *obj)
 		LOG_ERR("Failed to disable modem trace level: %d", err);
 	}
 
+	/* Set flag to run SGP4 after next GNSS fix */
+	state->run_sgp4_after_gnss = true;
+
+
 	// ntn_msg_publish(RUN_SGP4);
 }
 
@@ -1659,6 +1701,7 @@ static void ntn_module_thread(void)
 		.sock_fd = -1,
 		.has_valid_tle = false,
 		.has_valid_gnss = false,
+		.run_sgp4_after_gnss = true,
 	 };
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, ntn_wdt_callback, (void *)k_current_get());
