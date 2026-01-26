@@ -12,13 +12,47 @@ if APP_STORAGE
 
 config APP_STORAGE_THREAD_STACK_SIZE
 	int "Storage module thread stack size"
-	default 1536
+	default 1720 if APP_STORAGE_BACKEND_RAM
+	default 3000 if APP_STORAGE_BACKEND_LITTLEFS
+
+choice APP_STORAGE_BACKEND
+	prompt "Storage backend"
+	default APP_STORAGE_BACKEND_RAM
+	help
+	  Select the storage backend to use for storing data samples.
 
 config APP_STORAGE_BACKEND_RAM
 	bool "RAM storage backend"
-	default y
 	help
 	  Store data in RAM. Data will be lost on power loss or reset.
+
+config APP_STORAGE_BACKEND_LITTLEFS
+	bool "LittleFS storage backend"
+	select FILE_SYSTEM
+	select FILE_SYSTEM_LITTLEFS
+	help
+	  Store data in LittleFS filesystem. Data will persist across power
+	  loss and resets, as long as the underlying flash storage is intact.
+
+endchoice # APP_STORAGE_BACKEND
+
+if APP_STORAGE_BACKEND_LITTLEFS
+
+# Setup PM partition size for LittleFS to 64KB by default
+config PM_PARTITION_SIZE_LITTLEFS
+	default 0x10000
+
+config PM_PARTITION_REGION_LITTLEFS_EXTERNAL
+	default y if PM_EXTERNAL_FLASH_ENABLED
+
+config APP_STORAGE_LITTLEFS_MAX_PATH_LEN
+	int "Maximum length of storage file names"
+	default 64
+	help
+	  Maximum length of file names used by the storage module
+	  in the LittleFS backend.
+
+endif # APP_STORAGE_BACKEND_LITTLEFS
 
 config APP_STORAGE_MAX_TYPES
 	int "Maximum number of data types"
@@ -97,6 +131,7 @@ endchoice
 config APP_STORAGE_SHELL
 	bool "Enable storage shell commands"
 	default y if SHELL
+	select FILE_SYSTEM_SHELL if APP_STORAGE_BACKEND_LITTLEFS
 	help
 	  Enable shell commands for interacting with the storage module.
 	  This allows you to manage stored data from the command line.

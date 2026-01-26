@@ -49,7 +49,8 @@ Complete the following steps for preparing firmware:
 ### Version verification
 
 > [!IMPORTANT]
-> The `fwversion` field in a firmware bundle is independent from the device's reported version.
+> - The `fwversion` field in a firmware bundle is independent from the device's reported version.
+> - **All stored data in the storage module will be automatically cleared when applying firmware updates.** If you need to preserve data across updates, ensure it is sent to the cloud or retrieved before the update completes, or edit the source code to fit your needs.
 
 To verify a successful update:
 
