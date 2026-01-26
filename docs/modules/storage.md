@@ -27,8 +27,21 @@ The storage module implements a state machine with the following states and tran
 
 ### Backend
 
-Backends implement the API defined in the `app/src/modules/storagestorage_backend.h` file and provide `init`, `store`, `peek`, `retrieve`, `count`, and `clear` functionalities.
-The default backend is RAM.
+Backends implement the API defined in the `app/src/modules/storage/storage_backend.h` file and provide `init`, `store`, `peek`, `retrieve`, `count`, and `clear` functionalities.
+
+The storage module supports two backends:
+
+#### RAM Backend (Default)
+
+- **Characteristics**: Fast in-memory storage
+- **Data persistence**: Lost on power loss or device reset
+- **Use case**: Applications that can tolerate data loss
+
+#### LittleFS Flash Backend
+
+- **Characteristics**: Persistent flash-based storage using the LittleFS filesystem
+- **Data persistence**: Data survives power loss and device resets
+- **Use case**: Applications requiring data durability and persistence across power cycles
 
 ### Data flow
 
@@ -41,7 +54,7 @@ In buffer mode, data is stored and later emitted by flush or streamed over the b
 This module allocates RAM from the following places, and understanding these helps you tune it down:
 
 - Built-in batch pipe buffer: `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` bytes are reserved at boot.
-- Per-type slabs: Each enabled data type declares a `k_mem_slab` with `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` blocks of that type's size.
+<!-- - Per-type buffers: Each enabled data type declares a `struct ring_buf` with `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` slots of that type's size. -->
 - RAM backend ring buffers: For each enabled data type, a ring buffer is declared with capacity `sizeof(type) * CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE`.
 - Message buffers: `struct storage_msg` carries a `buffer[STORAGE_MAX_DATA_SIZE]`, where `STORAGE_MAX_DATA_SIZE` is the max size of any enabled data type.
   Enabling large types increases this buffer and several temporary buffers.
@@ -118,7 +131,123 @@ CONFIG_APP_STORAGE_SHELL_STATS=n
 > [!NOTE]
 >
 > * If you later enable buffer or batch, increase the value of the `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` Kconfig option, so that at least one header plus the largest item fits.
-> * The actual RAM consumed by ring buffers and slabs scales with which data types are enabled and the value of the `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` Kconfig option.
+> * For RAM backend the actual RAM consumed by ring buffers scales with which data types are enabled and the value of the `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` Kconfig option.
+
+### Flash management (LittleFS backend)
+
+#### Partition Sizing
+
+The partition size for the LittleFS backend must be configured to accommodate the data types in use, their sizes, and the number of records per type. A minimum partition size is required to ensure proper operation.
+
+How to calculate the needed size:
+
+1) Per-type block need
+
+$$\text{blocks per type} = \left\lceil \frac{\text{data size} \times \text{records per type}}{\text{block size}} \right\rceil$$
+
+2) Total required blocks
+
+$$\text{required blocks} = \sum \text{blocks per type} + 3$$
+
+where the `+3` accounts for LittleFS metadata and the CoW block.
+
+3) Minimum partition size
+
+ $$\text{flash size} = \text{required blocks} \times \text{block size}$$
+
+Choose a partition size that meets or exceeds `flash_size`. The LittleFS partition size is set by `CONFIG_PM_PARTITION_SIZE_LITTLEFS` (or the corresponding DTS partition definition).
+
+If the requirement is not met, either increase the partition (`CONFIG_PM_PARTITION_SIZE_LITTLEFS` or DTS partition size) or reduce storage pressure (fewer records, smaller data types, or fewer enabled types).
+
+> [!NOTE]
+> The data types are stored in separate files, so the minimum amount of flash blocks needed are $\sum \text{data type} + 3$,
+
+#### Target-specific defaults
+
+| **Target** | **Block size** | **Default blocks needed** | **Minimal partition size** |
+| - | - | - | - |
+| nrf9151 DK (internal flash) | 0x1000 | 5 | 0x5000 |
+| nrf9151 DK (external flash, gd25wb256) | 0x10000 | 5 | 0x50000 |
+| nrf9161 DK (internal flash) | 0x1000 | 5 | 0x5000 |
+| nrf9161 DK (external flash, gd25wb256) | 0x10000 | 5 | 0x50000 |
+| nrf9160 DK (internal flash) | 0x1000 | 5 | 0x5000 |
+| nrf9160 DK (external flash, mx25r64) | 0x10000 | 5 | 0x50000 |
+| thingy91x (internal flash) | 0x1000 | 8 | 0x8000 |
+| thingy91x (external flash) | 0x1000 | 8 | 0x8000 |
+| thingy91 (internal flash) | 0x1000 | 6 | 0x6000 |
+
+#### LittleFS Built-in Wear Leveling
+
+LittleFS provides inherent wear leveling at the filesystem level:
+
+- LittleFS automatically distributes writes across available flash blocks, avoiding repeated writes to the same physical location
+- Filesystem metadata is spread across the partition, preventing hotspots on metadata blocks
+- Updates are written to new blocks rather than overwriting existing data, naturally distributing erase cycles
+- As blocks become dirty, LittleFS reclaims and redistributes them, ensuring uniform wear across the entire partition
+- The filesystem tracks block usage patterns and preferentially allocates less-worn blocks for new writes
+
+#### Application-Level Ring Buffer Wear Leveling
+
+The storage module adds an additional wear leveling layer through its ring buffer architecture:
+
+##### Block-Level Distribution
+
+- Entries are distributed across files matched to flash blocks
+- Each data type has its own file, preventing cross-type interference
+- Writes cycle through all available record slots before overwriting
+- Rewrites only modify the affected flash blocks, minimizing unnecessary writes
+
+#### Combined Wear Protection
+
+The combination of LittleFS wear leveling and the ring buffer architecture provides:
+
+1. **Temporal distribution**: Ring buffer spreads writes over time across record slots
+2. **Spatial distribution**: LittleFS spreads those writes across physical flash blocks
+3. **Type isolation**: Each data type has its own write pattern, preventing interference
+4. **Automatic wear balancing**: No configuration needed—works transparently
+
+#### Minimizing Flash Wear
+
+To further optimize flash lifespan:
+
+1. **Increase partition size**: Larger partitions provide more blocks for write distribution
+2. **Increase record count**: Higher `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` reduces rewrite frequency
+3. **Use ram backend when possible**: If data persistence is not critical, use the RAM backend to avoid flash writes entirely
+
+#### Configuration Examples
+
+##### Basic LittleFS Configuration
+
+To enable persistent flash storage:
+
+```config
+CONFIG_APP_STORAGE=y
+CONFIG_APP_STORAGE_BACKEND_LITTLEFS=y
+CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y
+
+# Configure partition size (default is 64 KB)
+CONFIG_PM_PARTITION_SIZE_LITTLEFS=0x10000
+
+# Adjust for your needs
+CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=16
+CONFIG_APP_STORAGE_THREAD_STACK_SIZE=3000
+```
+
+#### Optimized for Data Persistence with Minimal Flash Wear
+
+```config
+# Storage enabled with persistent backend
+CONFIG_APP_STORAGE=y
+CONFIG_APP_STORAGE_BACKEND_LITTLEFS=y
+CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y
+
+# Larger partition distributes writes across more flash blocks
+CONFIG_PM_PARTITION_SIZE_LITTLEFS=0x20000
+
+# Higher record count reduces rewrite frequency
+CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=50
+
+```
 
 ## Messages
 
@@ -208,12 +337,18 @@ The following includes the key configuration categories:
 
 ### Storage Backend
 
-- **`CONFIG_APP_STORAGE_BACKEND_RAM`** (default and only backend currently provided): Uses RAM for storage.
+- **`CONFIG_APP_STORAGE_BACKEND_RAM`** (default): Uses RAM for storage.
   Data is lost on power cycle but provides fast access.
+
+- **`CONFIG_APP_STORAGE_BACKEND_LITTLEFS`** : Uses the LittleFS filesystem for flash storage.
+  Data is persistent across power cycles, but provides slower access.
+
+> [!NOTE]
+> Regardless of the backend used, stored data is automatically cleared when FOTA updates are applied to ensure a clean state after firmware updates. See the [FOTA module documentation](fota_module.md#storage-clearing-on-reboot) for details.
 
 ### Memory Configuration
 
-- **`CONFIG_APP_STORAGE_MAX_TYPES`** (default: 3): Maximum number of different data types that can be registered.
+- **`CONFIG_APP_STORAGE_MAX_TYPES`** (default: 4): Maximum number of different data types that can be registered.
   Affects RAM usage.
 
 - **`CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE`** (default: 8): Maximum records stored per data type.

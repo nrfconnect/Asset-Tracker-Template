@@ -9,30 +9,30 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(storage_module_test)
 
-test_runner_generate(src/storage_module_test.c)
+test_runner_generate(../src/storage_module_test.c)
 
 target_sources(app
 	PRIVATE
-	src/storage_module_test.c
-	src/test_samples.c
-	../../../app/src/modules/storage/storage.c
-	../../../app/src/modules/storage/storage_data_types.c
-	../../../app/src/modules/storage/backends/ram_ring_buffer_backend.c
+	../src/storage_module_test.c
+	../src/test_samples.c
+	../../../../app/src/modules/storage/storage.c
+	../../../../app/src/modules/storage/storage_data_types.c
+	../../../../app/src/modules/storage/backends/littlefs_backend.c
 )
 
 zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)
 zephyr_include_directories(${ZEPHYR_BASE}/subsys/testsuite/include)
-zephyr_include_directories(../../../app/src/modules/storage)
-zephyr_include_directories(../../../app/src/modules/storage/backends)
-zephyr_include_directories(../../../app/src/common)
-zephyr_include_directories(../../../app/src/modules/power)
-zephyr_include_directories(../../../app/src/modules/network)
-zephyr_include_directories(../../../app/src/modules/environmental)
-zephyr_include_directories(../../../app/src/modules/location)
+zephyr_include_directories(../../../../app/src/modules/storage)
+zephyr_include_directories(../../../../app/src/modules/storage/backends)
+zephyr_include_directories(../../../../app/src/common)
+zephyr_include_directories(../../../../app/src/modules/power)
+zephyr_include_directories(../../../../app/src/modules/network)
+zephyr_include_directories(../../../../app/src/modules/environmental)
+zephyr_include_directories(../../../../app/src/modules/location)
 zephyr_include_directories(${ZEPHYR_BASE}/../nrfxlib/nrf_modem/include)
-zephyr_include_directories(src)
+zephyr_include_directories(../src)
 
-zephyr_linker_sources(SECTIONS ../../../app/src/modules/storage/storage_sections.ld)
+zephyr_linker_sources(SECTIONS ../../../../app/src/modules/storage/storage_sections.ld)
 
 # The test uses double precision floating point numbers. This is not enabled by default in unity
 # unless we set the following define.
@@ -40,16 +40,17 @@ zephyr_compile_definitions(UNITY_INCLUDE_DOUBLE)
 
 # Options that cannot be passed through Kconfig fragments
 target_compile_definitions(app PRIVATE
+        -DCONFIG_LOG=1
+        -DCONFIG_APP_STORAGE_LOG_LEVEL=3
 	-DCONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=1
 	-DCONFIG_APP_STORAGE_MAX_TYPES=4
 	-DCONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=100
-	-DCONFIG_APP_STORAGE_MESSAGE_QUEUE_SIZE=10
-	-DCONFIG_APP_STORAGE_THREAD_STACK_SIZE=2048
+        -DCONFIG_APP_STORAGE_LITTLEFS_MAX_PATH_LEN=64
+	-DCONFIG_APP_STORAGE_THREAD_STACK_SIZE=3000
 	-DCONFIG_APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS=120
 	-DCONFIG_APP_STORAGE_MSG_PROCESSING_TIMEOUT_SECONDS=60
 	-DCONFIG_APP_POWER=1
 	-DCONFIG_APP_ENVIRONMENTAL=1
-	-DCONFIG_APP_STORAGE_LOG_LEVEL=3
 	-DCONFIG_APP_STORAGE_BATCH_BUFFER_SIZE=1024
 	-DCONFIG_APP_STORAGE_SESSION_TIMEOUT_SECONDS=60
 	-DCONFIG_APP_LOCATION=1

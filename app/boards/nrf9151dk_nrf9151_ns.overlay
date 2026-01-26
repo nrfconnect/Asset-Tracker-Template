@@ -14,10 +14,37 @@
 	aliases {
 		ext-flash = &gd25wb256;
 	};
+
+	fstab {
+		compatible = "zephyr,fstab";
+		lfs1: lfs1 {
+			compatible = "zephyr,fstab,littlefs";
+			mount-point = "/att_storage";
+			partition = <&littlefs_storage>;
+			automount;
+			read-size = <16>;
+			prog-size = <16>;
+			cache-size = <64>;
+			lookahead-size = <32>;
+			block-cycles = <512>;
+		};
+	};
 };
 
 &gd25wb256 {
 	status = "okay";
+
+	/* Partitions will be overridden by PM but needed for DTS parsing */
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		littlefs_storage: partition@0 {
+			label = "littlefs_storage";
+			reg = <0x00000000 0x00100000>;
+		};
+	};
 };
 
 &uart1 {

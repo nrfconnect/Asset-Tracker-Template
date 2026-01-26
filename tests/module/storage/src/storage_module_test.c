@@ -251,6 +251,14 @@ static size_t read_batch_data(size_t expected_item_count)
 
 void setUp(void)
 {
+	int err;
+	struct storage_msg clear_msg = { .type = STORAGE_CLEAR };
+
+	/* Clear storage backend before each test */
+	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(500));
+
 	/* Reset fakes */
 	RESET_FAKE(task_wdt_feed);
 	RESET_FAKE(task_wdt_add);

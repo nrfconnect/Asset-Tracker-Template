@@ -26,3 +26,35 @@
 &nrf70 {
 	compatible = "nordic,nrf7000-spi";
 };
+
+
+/ {
+	fstab {
+		compatible = "zephyr,fstab";
+		lfs1: lfs1 {
+			compatible = "zephyr,fstab,littlefs";
+			mount-point = "/att_storage";
+			partition = <&littlefs_storage>;  /* Reference PM partition */
+			automount;
+			read-size = <16>;
+			prog-size = <16>;
+			cache-size = <64>;
+			lookahead-size = <32>;
+			block-cycles = <512>;
+		};
+	};
+};
+
+&flash_ext {
+	/* Partitions will be overridden by PM but needed for DTS parsing */
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		littlefs_storage: partition@0 {
+			label = "littlefs_storage";
+			reg = <0x00000000 0x00100000>;
+		};
+	};
+};

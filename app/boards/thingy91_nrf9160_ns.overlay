@@ -13,6 +13,21 @@
 		accelerometer = &adxl362;
 		impact-sensor = &adxl372;
 	};
+
+	fstab {
+		compatible = "zephyr,fstab";
+		lfs1: lfs1 {
+			compatible = "zephyr,fstab,littlefs";
+			mount-point = "/att_storage";
+			partition = <&littlefs_storage>;
+			automount;
+			read-size = <16>;
+			prog-size = <16>;
+			cache-size = <64>;
+			lookahead-size = <32>;
+			block-cycles = <512>;
+		};
+	};
 };
 
 &i2c2 {
@@ -28,5 +43,16 @@
 		odr = <4>;
 		bw = <4>;
 		hpf = <0>;
+	};
+};
+
+/* Use internal flash for storage (Thingy:91 has no external flash) */
+/* Partitions will be overridden by PM but needed for DTS parsing */
+&flash0 {
+	partitions {
+		littlefs_storage: partition@fa000 {
+			label = "littlefs_storage";
+			reg = <0x000fa000 0x00006000>; /* 24KB at end of flash */
+		};
 	};
 };
