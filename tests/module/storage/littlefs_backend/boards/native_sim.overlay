@@ -1,0 +1,23 @@
+/*
+ * Copyright (c) 2025 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+&flashcontroller0 {
+	reg = <0x00000000 DT_SIZE_K(4096)>;
+};
+
+&flash0 {
+	reg = <0x00000000 DT_SIZE_K(4096)>;
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		littlefs_storage: partition@0 {
+			label = "littlefs_storage";
+			reg = <0x00000000 0x00100000>;
+		};
+	};
+};

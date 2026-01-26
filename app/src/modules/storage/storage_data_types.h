@@ -177,9 +177,6 @@ struct storage_data {
 	 */
 	size_t data_size;
 
-	/* Pointer to the memory slab for this data type */
-	struct k_mem_slab *slab;
-
 	/**
 	 * @brief Function to determine if a message should be stored
 	 *
@@ -260,10 +257,6 @@ struct storage_data {
 		_extract_fn(m, (_data_type *)data);						\
 	}											\
 												\
-	K_MEM_SLAB_DEFINE_STATIC(_name ## _slab,						\
-				 sizeof(_data_type),						\
-				 CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE, 4);			\
-												\
 	STRUCT_SECTION_ITERABLE(storage_data, _STORAGE_TYPE_NAME(_name)) = {			\
 		.name = #_name,									\
 		.chan = &_chan,									\
@@ -271,7 +264,6 @@ struct storage_data {
 		.data_size = sizeof(_data_type),						\
 		.should_store = _name ## _should_store,						\
 		.extract_data = _name ## _extract_data,						\
-		.slab = &_name ## _slab,							\
 	};
 
 #endif /* _STORAGE_DATA_TYPES_H_ */

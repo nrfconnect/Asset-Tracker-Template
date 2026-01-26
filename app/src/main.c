@@ -1931,7 +1931,19 @@ static void fota_rebooting_entry(void *o)
 {
 	ARG_UNUSED(o);
 
+	struct storage_msg msg = { .type = STORAGE_CLEAR };
+	int err;
+
 	LOG_DBG("%s", __func__);
+
+	/* Tell storage module to clear any stored data */
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to publish storage clear message, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
 
 	/* Reboot the device */
 	LOG_WRN("Rebooting the device to apply the FOTA update");

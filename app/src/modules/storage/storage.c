@@ -744,8 +744,10 @@ static void handle_storage_stats(void)
 	int total_types = 0;
 
 	LOG_INF("=== Storage Statistics ===");
-	LOG_INF("Backend: %s", backend ? "Available" : "Not available");
-
+	LOG_INF("Backend: %s: %s", backend ? "Available" : "Not available",
+		IS_ENABLED(CONFIG_APP_STORAGE_BACKEND_RAM)        ? "RAM"
+		: IS_ENABLED(CONFIG_APP_STORAGE_BACKEND_LITTLEFS) ? "LittleFS"
+								  : "Unknown");
 	if (!backend) {
 		LOG_ERR("No storage backend available");
 		return;
