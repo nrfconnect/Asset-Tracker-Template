@@ -111,8 +111,7 @@ In an end product it is recommended to reprovision the device at a reasonable in
     A panel opens to the right.
 
 1. Select **Claimed Devices**.
-1. Find the device and click **Add Command**.
-1. Select **Cloud Access Key Generation** and click **Create Command**.
+1. Find the device and click **Reset**.
 1. Trigger on device:
 
     - **Shell**: `att_cloud provision`
