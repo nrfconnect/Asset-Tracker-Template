@@ -15,7 +15,9 @@ logging.basicConfig(
 
 # Configuration
 CELESTRAK_URL = "https://celestrak.org/NORAD/elements/gp.php"
-SATELIOT_CATNR = "60550"  # SATELIOT_1
+# SATELIOT_CATNR = "60550"  # SATELIOT_1
+# SATELIOT_CATNR = "60552"  # SATELIOT_3
+SATELIOT_CATNR = "60537"  # SATELIOT_4
 NRF_CLOUD_API_URL = "https://api.nrfcloud.com/v1/devices"
 
 def get_tle_from_celestrak(catnr):

@@ -659,7 +659,7 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	}
 #endif
 
-	// configure_periodic_search();
+	configure_periodic_search();
 
 	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
 	if (err) {
