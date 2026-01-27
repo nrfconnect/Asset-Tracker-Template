@@ -52,21 +52,6 @@ config APP_NTN_CHANNEL_SELECT
 
 endif # APP_NTN_CHANNEL_SELECT_ENABLE
 
-config APP_NTN_COPS_ENABLE
-	bool "Enable NTN PLMN select"
-	help
-	  Enable mobile network selection for NTN mode.
-
-if APP_NTN_COPS_ENABLE
-
-config APP_NTN_COPS
-	string "NTN PLMN"
-	default ""
-	help
-	  PLMN for NTN connection.
-
-endif # APP_NTN_COPS_ENABLE
-
 config APP_NTN_SERVER_ADDR
 	string "NTN server address"
 	default ""

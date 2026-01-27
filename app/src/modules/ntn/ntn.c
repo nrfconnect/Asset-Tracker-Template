@@ -641,16 +641,6 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 		return err;
 	}
 
-#if defined(CONFIG_APP_NTN_COPS_ENABLE)
-	err = nrf_modem_at_printf("AT+COPS=1,2,\"%s\"", CONFIG_APP_NTN_COPS);
-	if (err) {
-		LOG_ERR("Failed to set AT+COPS=1,2,\"90197\", error: %d", err);
-
-		return err;
-	}
-#endif
-
-
 #if defined(CONFIG_APP_NTN_BANDLOCK_ENABLE)
 	err = nrf_modem_at_printf("AT%%XBANDLOCK=1,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
 	if (err) {
@@ -1229,13 +1219,6 @@ static void state_tn_entry(void *obj)
 	err = nrf_modem_at_printf("AT%%CSUS=2");
 	if (err) {
 		LOG_ERR("Failed to select softsim, error: %d", err);
-		return;
-	}
-
-	err = nrf_modem_at_printf("AT+COPS=0");
-	if (err) {
-		LOG_ERR("Failed to set AT+COPS=0, error: %d", err);
-
 		return;
 	}
 
