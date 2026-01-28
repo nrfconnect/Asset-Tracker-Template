@@ -82,6 +82,7 @@ struct ntn_state_object {
 	struct k_timer ntn_timer;
 	struct k_timer gnss_timer;
 	struct k_timer network_connection_timeout_timer;
+	struct k_timer tn_timeout_timer;
 	int sock_fd;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
 	/* TLE storage */
@@ -98,6 +99,7 @@ static struct k_work keepalive_timer_work;
 static struct k_work ntn_timer_work;
 static struct k_work gnss_timer_work;
 static struct k_work network_connection_timeout_work;
+static struct k_work tn_timeout_work;
 
 static struct k_work gnss_location_work;
 static struct k_work gnss_timeout_work;
@@ -178,6 +180,20 @@ static void network_connection_timeout_work_fn(struct k_work *work)
 	/* Network connection timeout */
 	LOG_WRN("Network connection timeout occurred");
 	ntn_msg_publish(NETWORK_CONNECTION_TIMEOUT);
+}
+
+/* Timer callback for TN timeout */
+static void tn_timeout_timer_handler(struct k_timer *timer)
+{
+	k_work_submit(&tn_timeout_work);
+}
+
+/* Work handler for TN timeout */
+static void tn_timeout_work_fn(struct k_work *work)
+{
+	/* TN timeout - transition to GNSS state */
+	LOG_WRN("TN timeout occurred, transitioning to GNSS state");
+	ntn_msg_publish(GNSS_TRIGGER);
 }
 
 /* Timer callback for keepalive */
@@ -959,11 +975,13 @@ static void state_running_entry(void *obj)
 	k_work_init(&ntn_timer_work, ntn_timer_work_fn);
 	k_work_init(&gnss_timer_work, gnss_timer_work_fn);
 	k_work_init(&network_connection_timeout_work, network_connection_timeout_work_fn);
+	k_work_init(&tn_timeout_work, tn_timeout_work_fn);
 
 	k_timer_init(&state->keepalive_timer, keepalive_timer_handler, NULL);
 	k_timer_init(&state->ntn_timer, ntn_timer_handler, NULL);
 	k_timer_init(&state->gnss_timer, gnss_timer_handler, NULL);
 	k_timer_init(&state->network_connection_timeout_timer, network_connection_timeout_handler, NULL);
+	k_timer_init(&state->tn_timeout_timer, tn_timeout_timer_handler, NULL);
 
 	k_work_init(&gnss_location_work, gnss_location_work_handler);
 	k_work_init(&gnss_timeout_work, handle_gnss_timeout_work_fn);
@@ -1265,10 +1283,9 @@ static enum smf_state_result state_tn_run(void *obj)
 		if (msg->type == NETWORK_CONNECTION_FAILED) {
 			LOG_INF("Out of LTE coverage, going to idle state");
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-
 			return SMF_EVENT_HANDLED;
 		} else if (msg->type == NETWORK_CONNECTED) {
-
+			k_sleep(K_SECONDS(2));
 #if defined(CONFIG_TLE_VIA_HTTP)
 			/* Fetch TLE for SIOT1 with proper error handling */
 			char tle_buffer[1024] = {0};
@@ -1278,10 +1295,9 @@ static enum smf_state_result state_tn_run(void *obj)
 			LOG_INF("Starting TLE fetch for SIOT1 via SoftSIM");
 
 			err = celestrak_fetch_tle(siot1_catnr, tle_buffer, sizeof(tle_buffer), &bytes_written);
-				
 			if (err != 0 || bytes_written == 0) {
-				LOG_ERR("Failed to fetch TLEs after all retries");
-				return SMF_EVENT_HANDLED;
+				LOG_ERR("Failed to fetch TLEs");
+				goto fail;
 			}
 
 			LOG_INF("TLE for SIOT1:\n%s", tle_buffer);
@@ -1291,7 +1307,7 @@ static enum smf_state_result state_tn_run(void *obj)
 			char *line = strtok_r(tle_buffer, "\n", &saveptr);
 			if (!line) {
 				LOG_ERR("Failed to parse satellite name");
-				return SMF_EVENT_HANDLED;
+				goto fail;
 			}
 
 			/* Store TLE data */
@@ -1301,7 +1317,7 @@ static enum smf_state_result state_tn_run(void *obj)
 			line = strtok_r(NULL, "\n", &saveptr);
 			if (!line) {
 				LOG_ERR("Failed to parse TLE line 1");
-				return SMF_EVENT_HANDLED;
+				goto fail;
 			}
 			strncpy(state->tle_line1, line, sizeof(state->tle_line1) - 1);
 			state->tle_line1[sizeof(state->tle_line1) - 1] = '\0';
@@ -1309,7 +1325,7 @@ static enum smf_state_result state_tn_run(void *obj)
 			line = strtok_r(NULL, "\n", &saveptr);
 			if (!line) {
 				LOG_ERR("Failed to parse TLE line 2");
-				return SMF_EVENT_HANDLED;
+				goto fail;
 			}
 			strncpy(state->tle_line2, line, sizeof(state->tle_line2) - 1);
 			state->tle_line2[sizeof(state->tle_line2) - 1] = '\0';
@@ -1319,9 +1335,8 @@ static enum smf_state_result state_tn_run(void *obj)
 #else /* TLE via nRFCloud */
 			err = connect_to_cloud();
 			if (err) {
-				LOG_WRN("Failed to connect to nRF Cloud CoAP on TN");
-				LOG_WRN("Cloud connection is not available for resumption on NTN");
-
+				LOG_ERR("Failed to connect to nRF Cloud CoAP on TN");
+				goto fail;
 			}
 
 			LOG_INF("Cloud connection established via TN network");
@@ -1333,6 +1348,7 @@ static enum smf_state_result state_tn_run(void *obj)
 			err = nrf_cloud_coap_shadow_get(shadow_buf, &shadow_len, false, COAP_CONTENT_FORMAT_APP_CBOR);
 			if (err) {
 				LOG_ERR("Failed to get shadow data, error: %d", err);
+				goto fail;
 			}
 
 			/* Parse TLE from shadow */
@@ -1340,6 +1356,7 @@ static enum smf_state_result state_tn_run(void *obj)
 			err = decode_tle_from_shadow(shadow_buf, shadow_len, &tle);
 			if (err) {
 				LOG_ERR("Failed to obtain TLE data, error: %d", err);
+				goto fail;
 			} else {
 				/* Store TLE data */
 				strncpy(state->tle_name, tle.name, sizeof(state->tle_name) - 1);
@@ -1378,6 +1395,7 @@ static enum smf_state_result state_tn_run(void *obj)
 				LOG_DBG("No modem traces to upload");
 			} else if (err) {
 				LOG_ERR("Failed to prepare modem traces for upload: %d", err);
+				goto fail;
 			} else {
 				LOG_INF("Modem traces ready for upload");
 				
@@ -1385,13 +1403,19 @@ static enum smf_state_result state_tn_run(void *obj)
 				err = memfault_zephyr_port_post_data();
 				if (err) {
 					LOG_ERR("Failed to post data to Memfault: %d", err);
-				} else {
-					LOG_INF("Successfully posted modem trace data to Memfault");
+					goto fail;
 				}
+				LOG_INF("Successfully posted modem trace data to Memfault");
 			}
 
+			/* All operations succeeded, stop timeout timer and proceed to GNSS state */
+			k_timer_stop(&state->tn_timeout_timer);
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
+			return SMF_EVENT_HANDLED;
 
+fail:
+			/* Start timeout timer and try again later */
+			k_timer_start(&state->tn_timeout_timer, K_SECONDS(60), K_NO_WAIT);
 			return SMF_EVENT_HANDLED;
 		}
 	}
