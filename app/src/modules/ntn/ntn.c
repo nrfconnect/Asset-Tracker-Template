@@ -22,6 +22,7 @@
 #include <modem/ntn.h>
 #include <modem/modem_info.h>
 #include <nrf_modem_at.h>
+#include <modem/at_monitor.h>
 #include <nrf_modem_gnss.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/net/socket.h>
@@ -45,6 +46,14 @@
 #include "sat_prediction.h"
 
 LOG_MODULE_REGISTER(ntn_module, CONFIG_APP_NTN_LOG_LEVEL);
+
+/* AT monitor for SIB32 notifications */
+static void sib32_mon(const char *notif)
+{
+	LOG_INF("SIB notification: %s", notif);
+}
+
+AT_MONITOR(sib32_monitor, "SIBCONFIG", sib32_mon, PAUSED);
 
 /* Define channels provided by this module */
 ZBUS_CHAN_DEFINE(NTN_CHAN,
@@ -676,6 +685,15 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 #endif
 
 	configure_periodic_search();
+
+	/* Configure SIB32 and start monitoring */
+	err = nrf_modem_at_printf("AT%%SIBCONFIG=32,0");
+	if (err) {
+		LOG_ERR("Failed to configure SIB32, error: %d", err);
+		return err;
+	}
+	LOG_INF("SIB32 configured successfully");
+	at_monitor_resume(&sib32_monitor);
 
 	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
 	if (err) {
@@ -1652,6 +1670,9 @@ static void state_ntn_exit(void *obj)
 
 	k_timer_stop(&state->ntn_timer);
 	k_timer_stop(&state->network_connection_timeout_timer);
+
+	/* Pause SIB32 monitoring */
+	at_monitor_pause(&sib32_monitor);
 
 	err = set_ntn_offline_mode();
 	if (err) {
