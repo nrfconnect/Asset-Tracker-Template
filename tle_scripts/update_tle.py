@@ -90,6 +90,8 @@ def main():
         if tle_data:
             logging.info(f"Got TLE data for {tle_data['name']}")
             
+            logging.info(f"Updating TLE data for device {device_id}")
+
             # Update nRFCloud shadow
             if update_nrfcloud_shadow(tle_data, device_id, api_key):
                 logging.info("TLE data successfully updated in nRFCloud")
