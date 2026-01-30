@@ -665,21 +665,7 @@ The following are some of the available options for controlling the MQTT module:
 
 The cloud MQTT module implements an internal state machine to manage the connection and reconnection logic.
 
-   ```mermaid
-   stateDiagram-v2
-       [*] --> STATE_RUNNING
-       STATE_RUNNING --> STATE_DISCONNECTED : NETWORK_DISCONNECTED
-       STATE_DISCONNECTED --> STATE_CONNECTING : NETWORK_CONNECTED
-       STATE_CONNECTING --> STATE_CONNECTING_ATTEMPT
-       STATE_CONNECTING_ATTEMPT --> STATE_CONNECTING_BACKOFF : CLOUD_CONN_FAILED
-       STATE_CONNECTING_BACKOFF --> STATE_CONNECTING_ATTEMPT : CLOUD_BACKOFF_EXPIRED
-       STATE_CONNECTING_ATTEMPT --> STATE_CONNECTED : CLOUD_CONN_SUCCESS
-       STATE_CONNECTED --> STATE_DISCONNECTED : NETWORK_DISCONNECTED
-       STATE_CONNECTED --> STATE_CONNECTED : PAYLOAD_CHAN / send_data()
-       STATE_CONNECTED --> STATE_CONNECTED : <module>_SAMPLE_RESPONSE / send_<module>_data()
-       STATE_CONNECTED --> STATE_CONNECTED : NETWORK_CONNECTED / (noop)
-       STATE_CONNECTED --> STATE_DISCONNECTED : exit / mqtt_helper_disconnect()
-   ```
+![Cloud MQTT state diagram](../images/cloud_mqtt_module_state_diagram.svg "Cloud MQTT state diagram")
 
 ### Limitations
 
