@@ -1104,12 +1104,6 @@ static void state_running_entry(void *obj)
 		LOG_ERR("Failed to disable modem trace level: %d", err);
 	}
 
-
-	/* Clear any existing traces before starting collection */
-	err = nrf_modem_lib_trace_clear();
-	if (err) {
-		LOG_ERR("Failed to clear modem trace data: %d", err);
-	}
 }
 
 static enum smf_state_result state_running_run(void *obj)
@@ -1555,13 +1549,6 @@ static void state_ntn_entry(void *obj)
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
 	LOG_DBG("%s", __func__);
-
-	/* Logs are automatically captured by Memfault through the Zephyr logging system */
-	/* Clear any existing traces before starting collection */
-	err = nrf_modem_lib_trace_clear();
-	if (err) {
-		LOG_ERR("Failed to clear modem trace data: %d", err);
-	}
 
 	k_sleep(K_SECONDS(1));
 
