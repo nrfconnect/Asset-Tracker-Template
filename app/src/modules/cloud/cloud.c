@@ -1121,23 +1121,23 @@ static enum smf_state_result state_connected_ready_run(void *obj)
 		return SMF_EVENT_HANDLED;
 	}
 
-	if (state_object->chan == &STORAGE_CHAN) {
-		handle_storage_channel_message(state_object);
+	// if (state_object->chan == &STORAGE_CHAN) {
+	// 	handle_storage_channel_message(state_object);
 
-		return SMF_EVENT_HANDLED;
-	}
+	// 	return SMF_EVENT_HANDLED;
+	// }
 
-	if (state_object->chan == &STORAGE_DATA_CHAN) {
-		handle_storage_data_message(state_object);
+	// if (state_object->chan == &STORAGE_DATA_CHAN) {
+	// 	handle_storage_data_message(state_object);
 
-		return SMF_EVENT_HANDLED;
-	}
+	// 	return SMF_EVENT_HANDLED;
+	// }
 
-	if (state_object->chan == &CLOUD_CHAN) {
-		handle_cloud_channel_message(state_object);
+	// if (state_object->chan == &CLOUD_CHAN) {
+	// 	handle_cloud_channel_message(state_object);
 
-		return SMF_EVENT_HANDLED;
-	}
+	// 	return SMF_EVENT_HANDLED;
+	// }
 
 #if defined(CONFIG_APP_LOCATION)
 	if (state_object->chan == &LOCATION_CHAN) {

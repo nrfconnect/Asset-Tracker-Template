@@ -122,6 +122,28 @@ enum network_msg_type {
 	 * NETWORK_SYSTEM_MODE_RESPONSE message.
 	 */
 	NETWORK_SYSTEM_MODE_REQUEST,
+
+	/* Anyput message types: messages that can be anything */
+
+	/* No cell found
+	 * 
+	 */
+	NETWORK_NO_SUITABLE_CELL,
+
+	/* Terrestrial cell found
+	 * 
+	 */
+	NETWORK_TN_CELL_FOUND,
+
+	/* Perform TN background scan
+	 * 
+	 */
+	BACKGROUND_SCAN,
+
+	/* Location request from NTN loibrary
+	 * 
+	 */
+	NTN_LOCATION_REQUEST,
 };
 
 struct network_msg {

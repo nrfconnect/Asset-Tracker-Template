@@ -44,6 +44,17 @@ config APP_NETWORK_SEARCH_NETWORK_ON_STARTUP
 	  If enabled, the module will search for a network on startup.
 	  If disabled, network search must be triggered by a NETWORK_CONNECT message.
 
+config APP_NETWORK_NTN_LEO
+	bool "LEO NTN"
+	help
+	  Enable LEO NTN networking
+
+config APP_NETWORK_TN_SOFTSIM
+	bool "LEO NTN"
+	help
+	  Enable LEO NTN networking
+
+
 module = APP_NETWORK
 module-str = Network
 source "subsys/logging/Kconfig.template.log_config"
