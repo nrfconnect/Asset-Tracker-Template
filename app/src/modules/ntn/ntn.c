@@ -321,7 +321,7 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 #endif
 
 #if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
-		err = nrf_modem_at_printf("AT%%CHSELECT=1,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
+		err = nrf_modem_at_printf("AT%%CHSELECT=2,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
 		if (err) {
 			LOG_ERR("Failed to set NTN channel, error: %d", err);
 
