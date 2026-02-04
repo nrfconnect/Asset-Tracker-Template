@@ -21,11 +21,21 @@ FAKE_VALUE_FUNC(int, charger_read_sensors, float *, float *, float *, int32_t *)
 FAKE_VALUE_FUNC(int, nrf_fuel_gauge_init, const struct nrf_fuel_gauge_init_parameters *, void *);
 FAKE_VALUE_FUNC(int, mfd_npm13xx_add_callback, const struct device *, struct gpio_callback *);
 FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
+FAKE_VALUE_FUNC(int, nrf_modem_lib_trace_level_set, int);
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(power_subscriber);
 ZBUS_CHAN_ADD_OBS(POWER_CHAN, power_subscriber, 0);
 
 LOG_MODULE_REGISTER(power_module_test, 4);
+
+/* NRF_MODEM_LIB_ON_INIT creates a structure with the callback.
+ * We can access it to invoke the modem init callback in tests.
+ */
+struct nrf_modem_lib_init_cb {
+	void (*callback)(int ret, void *ctx);
+	void *context;
+};
+extern struct nrf_modem_lib_init_cb nrf_modem_hook_power_modem_init_hook;
 
 void setUp(void)
 {
@@ -33,6 +43,26 @@ void setUp(void)
 	RESET_FAKE(task_wdt_feed);
 	RESET_FAKE(task_wdt_add);
 	RESET_FAKE(date_time_now);
+	RESET_FAKE(nrf_modem_lib_trace_level_set);
+
+	/* Set default return values */
+	nrf_modem_lib_trace_level_set_fake.return_val = 0;
+
+	const struct zbus_channel *chan;
+	struct power_msg received_msg;
+
+	while (zbus_sub_wait_msg(&power_subscriber, &chan, &received_msg, K_NO_WAIT) == 0) {
+		/* Purge all messages from the channel */
+	}
+
+	/* Initialize the power module by calling the modem init callback
+	 * via the hook structure
+	 */
+	nrf_modem_hook_power_modem_init_hook.callback(0,
+		nrf_modem_hook_power_modem_init_hook.context);
+
+	/* Wait for initialization */
+	k_sleep(K_MSEC(100));
 }
 
 void check_power_event(enum power_msg_type expected_power_type)
@@ -88,6 +118,15 @@ static void send_power_battery_percentage_sample_request(void)
 	int err = zbus_chan_pub(&POWER_CHAN, &msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
+}
+
+void test_module_init(void)
+{
+	/* Verify that the module initialized successfully by checking that
+	 * nrf_fuel_gauge_init was called
+	 */
+	TEST_ASSERT_EQUAL(1, nrf_fuel_gauge_init_fake.call_count);
+	TEST_ASSERT_EQUAL(1, mfd_npm13xx_add_callback_fake.call_count);
 }
 
 void test_power_percentage_sample(void)

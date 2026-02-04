@@ -17,8 +17,9 @@
 #include <math.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
-#include <modem/nrf_modem_lib_trace.h>
 #include <date_time.h>
+#include <modem/nrf_modem_lib_trace.h>
+#include <modem/nrf_modem_lib.h>
 
 #include "lp803448_model.h"
 #include "app_common.h"
@@ -39,10 +40,39 @@ ZBUS_CHAN_DEFINE(POWER_CHAN,
 		 ZBUS_MSG_INIT(0)
 );
 
-/* Observe channels */
-ZBUS_CHAN_ADD_OBS(POWER_CHAN, power, 0);
+/* Private channel message types for internal state management. */
+enum priv_power_msg {
+	/* Modem has completed initialization. */
+	POWER_PRIV_MODEM_INITIALIZED,
+};
 
-#define MAX_MSG_SIZE sizeof(struct power_msg)
+/* Create private power channel for internal messaging that is not intended for external use. */
+ZBUS_CHAN_DEFINE(PRIV_POWER_CHAN,
+		 enum priv_power_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS(power),
+		 ZBUS_MSG_INIT(0)
+);
+
+/* Define the channels that the module subscribes to, their associated message types
+ * and the subscriber that will receive the messages on the channel.
+ */
+#define CHANNEL_LIST(X)							\
+	X(POWER_CHAN,		struct power_msg)			\
+	X(PRIV_POWER_CHAN,	enum priv_power_msg)			\
+
+/* Calculate the maximum message size from the list of channels */
+#define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
+
+/* Add the power subscriber as observer to all the channels in the list. */
+#define ADD_OBSERVERS(_chan, _type)	ZBUS_CHAN_ADD_OBS(_chan, power, 0);
+
+/*
+ * Expand to a call to ZBUS_CHAN_ADD_OBS for each channel in the list.
+ * Example: ZBUS_CHAN_ADD_OBS(POWER_CHAN, power, 0);
+ */
+CHANNEL_LIST(ADD_OBSERVERS)
 
 BUILD_ASSERT(CONFIG_APP_POWER_WATCHDOG_TIMEOUT_SECONDS >
 	     CONFIG_APP_POWER_MSG_PROCESSING_TIMEOUT_SECONDS,
@@ -69,12 +99,39 @@ static int charger_read_sensors(float *voltage, float *current, float *temp, int
 static void sample(int64_t *ref_time);
 static int vbus_is_present(void);
 static int sync_uart_to_vbus_status(void);
+static void on_modem_init(int ret, void *ctx);
+
+NRF_MODEM_LIB_ON_INIT(power_modem_init_hook, on_modem_init, NULL);
+
+static void on_modem_init(int ret, void *ctx)
+{
+	int err;
+	enum priv_power_msg msg = POWER_PRIV_MODEM_INITIALIZED;
+
+	ARG_UNUSED(ctx);
+
+	if (ret) {
+		LOG_ERR("Modem init failed: %d, power module cannot initialize", ret);
+		return;
+	}
+
+	err = zbus_chan_pub(&PRIV_POWER_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+}
 
 /* State machine */
 
 /* Power module states.
  */
 enum power_module_state {
+	/* Waiting for modem initialization */
+	STATE_WAITING_FOR_MODEM_INIT,
+	/* The module is running */
 	STATE_RUNNING,
 };
 
@@ -88,7 +145,7 @@ struct power_state_object {
 	/* Last channel type that a message was received on */
 	const struct zbus_channel *chan;
 
-	/* Buffer for last zbus message */
+	/* Last received message */
 	uint8_t msg_buf[MAX_MSG_SIZE];
 
 	/* Fuel gauge reference time */
@@ -96,17 +153,45 @@ struct power_state_object {
 };
 
 /* Forward declarations of state handlers */
+static enum smf_state_result state_waiting_for_modem_init_run(void *obj);
 static void state_running_entry(void *obj);
 static enum smf_state_result state_running_run(void *obj);
 
-/* State machine definition */
+/* Construct state table */
 static const struct smf_state states[] = {
+	[STATE_WAITING_FOR_MODEM_INIT] =
+		SMF_CREATE_STATE(NULL,
+				 state_waiting_for_modem_init_run,
+				 NULL,
+				 NULL,
+				 NULL),
 	[STATE_RUNNING] =
-		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL, NULL, NULL),
+		SMF_CREATE_STATE(state_running_entry,
+				 state_running_run,
+				 NULL,
+				 NULL,
+				 NULL),
 };
 
-
 /* State handlers */
+
+static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
+{
+	struct power_state_object *state_object = obj;
+
+	if (state_object->chan == &PRIV_POWER_CHAN) {
+		enum priv_power_msg msg = *(const enum priv_power_msg *)state_object->msg_buf;
+
+		if (msg == POWER_PRIV_MODEM_INITIALIZED) {
+			LOG_DBG("Modem initialized, transitioning to running state");
+			smf_set_state(SMF_CTX(state_object), &states[STATE_RUNNING]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
 
 static void state_running_entry(void *obj)
 {
@@ -488,7 +573,8 @@ static void power_module_thread(void)
 		return;
 	}
 
-	smf_set_initial(SMF_CTX(&power_state), &states[STATE_RUNNING]);
+	/* Initialize the state machine */
+	smf_set_initial(SMF_CTX(&power_state), &states[STATE_WAITING_FOR_MODEM_INIT]);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
