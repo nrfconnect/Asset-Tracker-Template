@@ -1553,7 +1553,7 @@ static void state_ntn_entry(void *obj)
 	k_sleep(K_SECONDS(1));
 
 	/* Enable modem trace collection */
-	err = nrf_modem_lib_trace_level_set(NRF_MODEM_LIB_TRACE_LEVEL_FULL);
+	err = nrf_modem_lib_trace_level_set(NRF_MODEM_LIB_TRACE_LEVEL_LTE_AND_IP);
 	if (err) {
 		LOG_ERR("Failed to set modem trace level: %d", err);
 	}
