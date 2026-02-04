@@ -46,23 +46,27 @@ For pre-built binaries, refer to the latest tag and release artifacts documentai
 <details>
 <summary>1. <strong>Initialize workspace:</strong></summary>
 
-```shell
-# Install nRF Util
-pip install nrfutil
+1. Install nRF Util. Follow the <a href="https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html">nRF Util documentation</a> for installation instructions.
 
-# or follow install [documentation](https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html)
+2. Install toolchain:
 
-# Install toolchain
-nrfutil toolchain-manager install --ncs-version v3.1.0
+   ```bash
+   nrfutil sdk-manager install v3.1.0
+	 ```
 
-# Launch toolchain
-nrfutil toolchain-manager launch --ncs-version v3.1.0 --shell
+3. Launch toolchain:
 
-# Initialize workspace
-west init -m https://github.com/nrfconnect/Asset-Tracker-Template.git --mr main asset-tracker-template
-cd asset-tracker-template/project/app
-west update
-```
+   ```bash
+   nrfutil sdk-manager toolchain launch --ncs-version v3.1.0 --terminal
+	 ```
+
+4. Initialize workspace:
+
+   ```bash
+   west init -m https://github.com/nrfconnect/Asset-Tracker-Template.git --mr main asset-tracker-template
+   cd asset-tracker-template/project/app
+   west update
+   ```
 </details>
 
 <details>

@@ -4,18 +4,6 @@ The Asset Tracker Template is a modular framework for developing IoT application
 
 The system is organized into modules, each responsible for a specific functionality, such as managing network connectivity, handling cloud communication, or collecting environmental data. Modules communicate through [zbus](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) channels, ensuring loose coupling and maintainability.
 
-This template is suitable for applications like asset tracking, environmental monitoring, and other IoT use cases requiring modularity, configurability, and efficient power management. It includes a test setup with GitHub Actions for automated testing and continuous integration.
-
-The framework is designed for customization, allowing you to:
-
-- Modify the central business logic in the `main.c` file.
-- Enable, disable, and configure modules using Kconfig options.
-- Add new modules following the established patterns.
-- Modify existing modules to suit specific requirements.
-- Contribute to the open-source project by submitting improvements, bug fixes, or new features.
-
-More information on how to customize the template can be found in the [Customization](common/customization.md) document.
-
 The Asset Tracker Template is an add-on and released separately from the [Asset-Tracker-Template](https://github.com/nrfconnect/Asset-Tracker-Template) repository.
 
 **Supported and verified hardware**:
@@ -27,7 +15,7 @@ If you are not familiar with the nRF91 Series SiPs and cellular in general, it i
 
 ## Quick Start
 
-For detailed setup instructions using the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) and advanced configuration options, see the [Getting Started Guide](../docs/common/getting_started.md).
+For detailed setup instructions using the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) and advanced configuration options, see the [Getting Started Guide](common/getting_started.md).
 
 For pre-built binaries, refer to the latest tag and the [release artifacts](common/release.md) documentation.
 
@@ -44,24 +32,20 @@ For pre-built binaries, refer to the latest tag and the [release artifacts](comm
 
 <details>
 <summary>1. <strong>Initialize workspace:</strong></summary>
-
-    ```shell
-    # Install nRF Util
-    pip install nrfutil
-
-    # or follow install [documentation](https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html)
-
-    # Install toolchain
-    nrfutil toolchain-manager install --ncs-version v3.1.0
-
-    # Launch toolchain
-    nrfutil toolchain-manager launch --ncs-version v3.1.0 --shell
-
-    # Initialize workspace
-    west init -m https://github.com/nrfconnect/Asset-Tracker-Template.git --mr main asset-tracker-template
-    cd asset-tracker-template/project/app
-    west update
-    ```
+<ol>
+<li>Install nRF Util. Follow <a href="https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html">documentation</a> for installation instructions.</li>
+<li>Install toolchain:
+<pre><code class="language-bash">nrfutil sdk-manager install v3.1.0</code></pre>
+</li>
+<li>Launch toolchain:
+<pre><code class="language-bash">nrfutil sdk-manager toolchain launch --ncs-version v3.1.0 --terminal</code></pre>
+</li>
+<li>Initialize workspace
+<pre><code class="language-bash">west init -m https://github.com/nrfconnect/Asset-Tracker-Template.git --mr main asset-tracker-template
+cd asset-tracker-template/project/app
+west update</code></pre>
+</li>
+</ol>
 </details>
 
 <details>
@@ -89,12 +73,8 @@ For pre-built binaries, refer to the latest tag and the [release artifacts](comm
 <summary>3. <strong>Provision device:</strong></summary>
 <ol>
 <li>Get the device attestation token over terminal shell:
-
-    ```bash
-    at at%attesttoken
-    ```
-
-Token is printed automatically on first boot of unprovisioned devices.</li>
+<pre><code class="language-bash">at at%attesttoken</code></pre>
+<br>Token is printed automatically on first boot of unprovisioned devices.</br></li>
 <li>Select <strong>Security Services</strong> in the left sidebar.</li>
 <li>Select <strong>Claimed Devices</strong>.</li>
 <li>Click <strong>Claim Device</strong>.</li>
