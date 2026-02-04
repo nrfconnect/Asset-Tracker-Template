@@ -76,6 +76,15 @@ jobs:
         run: |
           gcovr twister-out -v --merge-mode-functions=separate --exclude='twister-out|drivers' --sonarqube coverage.xml
 
+      - name: Upload Twister Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: twister-results
+          path: |
+            asset-tracker-template/twister-out/**/*.log
+          retention-days: 30
+
       - name: SonarQube Scan on main
         if: github.event_name != 'pull_request'
         uses: SonarSource/sonarqube-scan-action@v6.0.0
