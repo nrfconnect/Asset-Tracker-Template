@@ -28,6 +28,23 @@
 /* Register log module */
 LOG_MODULE_REGISTER(power, CONFIG_APP_POWER_LOG_LEVEL);
 
+/* Battery drain detection configuration */
+#define BATTERY_HISTORY_SIZE 20  /* Store up to 20 readings */
+#define BATTERY_DRAIN_THRESHOLD_PCT 5.0  /* 5% drop threshold */
+#define BATTERY_DRAIN_WINDOW_MS (60 * 60 * 1000)  /* 1 hour in milliseconds */
+
+/* Battery reading structure for historical tracking */
+struct battery_reading {
+	int64_t timestamp;  /* Unix time in milliseconds */
+	double percentage;  /* Battery percentage */
+};
+
+/* Circular buffer for battery history */
+static struct battery_reading battery_history[BATTERY_HISTORY_SIZE];
+static uint8_t battery_history_index = 0;
+static uint8_t battery_history_count = 0;
+static bool previous_charging_state = false;
+
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(power);
 
@@ -100,6 +117,9 @@ static void sample(int64_t *ref_time);
 static int vbus_is_present(void);
 static int sync_uart_to_vbus_status(void);
 static void on_modem_init(int ret, void *ctx);
+static void add_battery_reading(double percentage, int64_t timestamp);
+static void check_battery_drain(double current_percentage, int64_t current_timestamp);
+static void clear_battery_history(void);
 
 NRF_MODEM_LIB_ON_INIT(power_modem_init_hook, on_modem_init, NULL);
 
@@ -348,6 +368,10 @@ static void event_callback(const struct device *dev, struct gpio_callback *cb, u
 	if (pins & BIT(NPM13XX_EVENT_VBUS_DETECTED)) {
 		LOG_DBG("VBUS detected");
 
+		/* Clear battery history when USB power is connected */
+		clear_battery_history();
+		LOG_WRN("VBUS connected, clearing battery history");
+
 		if (IS_ENABLED(CONFIG_APP_POWER_DISABLE_UART_ON_VBUS_REMOVED)) {
 			err = uart_enable();
 			if (err) {
@@ -543,6 +567,19 @@ static void sample(int64_t *ref_time)
 		SEND_FATAL_ERROR();
 		return;
 	}
+
+	/* Detect charging state change and clear history if charging just started */
+	if (charging && !previous_charging_state) {
+		LOG_INF("Charging started, clearing battery history");
+		clear_battery_history();
+	}
+	previous_charging_state = charging;
+
+	/* Track battery drain when not charging */
+	if (!charging) {
+		add_battery_reading(msg.percentage, msg.timestamp);
+		check_battery_drain(msg.percentage, msg.timestamp);
+	}
 }
 
 static void power_wdt_callback(int channel_id, void *user_data)
@@ -608,3 +645,76 @@ static void power_module_thread(void)
 K_THREAD_DEFINE(power_module_thread_id,
 		CONFIG_APP_POWER_THREAD_STACK_SIZE,
 		power_module_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+
+/* Clear all battery history */
+static void clear_battery_history(void)
+{
+	battery_history_index = 0;
+	battery_history_count = 0;
+	LOG_DBG("Battery history cleared");
+}
+
+/* Add a new battery reading to the circular buffer */
+static void add_battery_reading(double percentage, int64_t timestamp)
+{
+	/* Store reading in circular buffer */
+	battery_history[battery_history_index].percentage = percentage;
+	battery_history[battery_history_index].timestamp = timestamp;
+	
+	/* Update index and count */
+	battery_history_index = (battery_history_index + 1) % BATTERY_HISTORY_SIZE;
+	if (battery_history_count < BATTERY_HISTORY_SIZE) {
+		battery_history_count++;
+	}
+	
+	LOG_WRN("Stored battery reading: %.1f%% at timestamp: %lld",
+		percentage, timestamp);
+}
+
+/* Check if battery has drained more than threshold in the last hour */
+static void check_battery_drain(double current_percentage, int64_t current_timestamp)
+{
+	if (battery_history_count < 2) {
+		/* Not enough data to check drain */
+		LOG_DBG("Insufficient data for drain check (count: %d)", battery_history_count);
+		return;
+	}
+	
+	/* Find the oldest reading within the 1-hour window */
+	double max_drop = 0.0;
+	int64_t oldest_timestamp_in_window = 0;
+	double oldest_percentage_in_window = current_percentage;
+	
+	for (int i = 0; i < battery_history_count; i++) {
+		int64_t timestamp_diff = current_timestamp - battery_history[i].timestamp;
+		
+		/* Check if this reading is within the 1-hour window */
+		if (timestamp_diff <= BATTERY_DRAIN_WINDOW_MS && timestamp_diff > 0) {
+			double percentage_drop = battery_history[i].percentage - current_percentage;
+			
+			if (percentage_drop > max_drop) {
+				max_drop = percentage_drop;
+				oldest_timestamp_in_window = battery_history[i].timestamp;
+				oldest_percentage_in_window = battery_history[i].percentage;
+			}
+			
+			LOG_WRN("Checking reading from %lld ms ago: %.1f%% (drop: %.1f%%)",
+				timestamp_diff, battery_history[i].percentage, percentage_drop);
+		}
+	}
+	
+	if (max_drop > BATTERY_DRAIN_THRESHOLD_PCT) {
+		int64_t time_window_sec = (current_timestamp - oldest_timestamp_in_window) / 1000;
+		
+		LOG_ERR("ABNORMAL BATTERY DRAIN DETECTED!");
+		LOG_ERR("Battery dropped %.1f%% in %lld seconds (%.1f minutes)",
+			max_drop, time_window_sec, (double)time_window_sec / 60.0);
+		LOG_ERR("From %.1f%% to %.1f%%", 
+			oldest_percentage_in_window, current_percentage);
+		
+		/* Assert to indicate abnormal condition */
+		SEND_FATAL_ERROR();
+	} else {
+		LOG_WRN("Battery drain within normal range: %.1f%% drop in last hour", max_drop);
+	}
+}
