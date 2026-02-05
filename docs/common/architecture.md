@@ -29,7 +29,7 @@ The following diagram shows the system architecture and how the modules interact
 
 The following steps show the simplified flow of a typical operation:
 
-1. The Main module schedules periodic triggers or responds to button presses reported on the `BUTTON_CHAN` channel.
+1. The Main module schedules periodic triggers or responds to a short button presses reported on the `BUTTON_CHAN` channel.
 2. When triggered either by timeout or button press, it requests location data from the Location module on the `LOCATION_CHAN` channel.
 3. After the location search is completed and reported on the `LOCATION_CHAN`, the Main module requests sensor data from the Environmental module on the `ENVIRONMENTAL_CHAN` channel.
 4. Throughout the operation, the Main module controls the LED module over the `LED_CHAN` channel to provide visual feedback about the system state.
