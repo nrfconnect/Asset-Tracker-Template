@@ -12,7 +12,7 @@ The Main module uses the following zbus channels, both for subscribing to incomi
 
 | Zbus Channels       | Description                                                                                   |
 |---------------------|-----------------------------------------------------------------------------------------------|
-| **BUTTON_CHAN**     | Processes user button presses for manually triggering data samples.                           |
+| **BUTTON_CHAN**     | Processes user button presses for manually triggering data samples or sending.                |
 | **CLOUD_CHAN**      | Receive connectivity status (connected, disconnected) and cloud response data. Trigger device shadow polling to retrieve configuration updates. |
 | **STORAGE_CHAN**    | Control the storage module and receive control or status responses. |
 | **ENVIRONMENTAL_CHAN** | Request sensor data from the environmental module.                                           |
