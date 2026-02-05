@@ -13,7 +13,7 @@ if APP_STORAGE
 config APP_STORAGE_THREAD_STACK_SIZE
 	int "Storage module thread stack size"
 	default 1720 if APP_STORAGE_BACKEND_RAM
-	default 3000 if APP_STORAGE_BACKEND_LITTLEFS
+	default 3200 if APP_STORAGE_BACKEND_LITTLEFS
 
 choice APP_STORAGE_BACKEND
 	prompt "Storage backend"
