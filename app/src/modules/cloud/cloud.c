@@ -301,10 +301,8 @@ static uint32_t calculate_backoff_time(uint32_t attempts)
 			((attempts - 1) * CONFIG_APP_CLOUD_BACKOFF_LINEAR_INCREMENT_SECONDS);
 	}
 
-	/* Limit backoff time */
-	if (backoff_time > CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS) {
-		backoff_time = CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS;
-	}
+	__ASSERT(backoff_time <= CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS,
+		 "Backoff time exceeds maximum configured backoff time");
 
 	LOG_DBG("Backoff time: %u seconds", backoff_time);
 
