@@ -143,7 +143,6 @@ static void state_location_search_inactive_entry(void *obj);
 static enum smf_state_result state_location_search_inactive_run(void *obj);
 static void state_location_search_active_entry(void *obj);
 static enum smf_state_result state_location_search_active_run(void *obj);
-static void state_location_search_active_exit(void *obj);
 
 /* Construct state table */
 static const struct smf_state states[] = {
@@ -168,7 +167,7 @@ static const struct smf_state states[] = {
 	[STATE_LOCATION_SEARCH_ACTIVE] =
 		SMF_CREATE_STATE(state_location_search_active_entry,
 				 state_location_search_active_run,
-				 state_location_search_active_exit,
+				 NULL,
 				 &states[STATE_RUNNING],
 				 NULL),
 };
@@ -261,33 +260,6 @@ static void status_send(enum location_msg_type status)
 	}
 }
 
-static void gnss_enable(void)
-{
-	if (IS_ENABLED(CONFIG_LOCATION_METHOD_GNSS)) {
-		int err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
-
-		if (err) {
-			LOG_ERR("Activating GNSS in the modem failed: %d", err);
-			SEND_FATAL_ERROR();
-			return;
-		}
-	}
-}
-
-static void gnss_disable(void)
-{
-	if (IS_ENABLED(CONFIG_LOCATION_METHOD_GNSS)) {
-		int err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_DEACTIVATE_GNSS);
-
-		if (err) {
-			LOG_ERR("Deactivating GNSS in the modem failed: %d", err);
-			SEND_FATAL_ERROR();
-			return;
-		}
-	}
-}
-
-
 /* State handlers */
 
 static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
@@ -361,8 +333,6 @@ static void state_location_search_active_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 
-	gnss_enable();
-
 	int err = location_request(NULL);
 
 	if (err) {
@@ -404,15 +374,6 @@ static enum smf_state_result state_location_search_active_run(void *obj)
 	}
 
 	return SMF_EVENT_PROPAGATE;
-}
-
-static void state_location_search_active_exit(void *obj)
-{
-	ARG_UNUSED(obj);
-
-	LOG_DBG("%s", __func__);
-
-	gnss_disable();
 }
 
 static void location_print_data_details(enum location_method method,
