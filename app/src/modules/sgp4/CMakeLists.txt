@@ -8,6 +8,7 @@ target_sources(app PRIVATE
     sat_prediction.c
     SGP4.c
     celestrak_client.c
+    sgp4_pass_predict.c
 )
 
 target_include_directories(app PRIVATE .)
