@@ -147,6 +147,7 @@ static K_SEM_DEFINE(cloud_module_response_recv_sem, 0, 1);
 static K_SEM_DEFINE(storage_batch_closed, 0, 1);
 static struct cloud_msg last_shadow_response;
 static struct storage_msg last_storage_msg;
+static struct nrf_cloud_gnss_data last_gnss_data;
 
 static nrf_provisioning_event_cb_t handler;
 
@@ -296,6 +297,19 @@ static void cloud_chan_cb(const struct zbus_channel *chan)
 	}
 }
 
+static int nrf_cloud_coap_location_send_custom_fake(const struct nrf_cloud_gnss_data *gnss,
+						     bool confirmable)
+{
+	ARG_UNUSED(confirmable);
+
+	if (gnss != NULL) {
+		/* Copy the GNSS data into persistent storage so it's accessible from the test */
+		memcpy(&last_gnss_data, gnss, sizeof(struct nrf_cloud_gnss_data));
+	}
+
+	return 0;
+}
+
 static int nrf_cloud_coap_shadow_get_empty_fake(char *buffer, size_t *buffer_data_len,
 						 bool delta, enum coap_content_format format)
 {
@@ -409,6 +423,7 @@ void setUp(void)
 	nrf_provisioning_init_fake.custom_fake = nrf_provisioning_init_custom_fake;
 	date_time_uptime_to_unix_time_ms_fake.custom_fake =
 		date_time_uptime_to_unix_time_ms_custom_fake;
+	nrf_cloud_coap_location_send_fake.custom_fake = nrf_cloud_coap_location_send_custom_fake;
 
 	k_sem_reset(&cloud_disconnected);
 	k_sem_reset(&cloud_connected);
@@ -716,11 +731,8 @@ void test_gnss_location_data_handling(void)
 
 	/* Verify the function was called with valid arguments and correct timestamp */
 	if (nrf_cloud_coap_location_send_fake.call_count > 0) {
-		const struct nrf_cloud_gnss_data *gnss_data =
-			nrf_cloud_coap_location_send_fake.arg0_val;
-		TEST_ASSERT_NOT_NULL(gnss_data);
 		TEST_ASSERT_EQUAL(TEST_LOCATION_UPTIME_MS + TEST_UPTIME_TO_UNIX_OFFSET_MS,
-				  gnss_data->ts_ms);
+				  last_gnss_data.ts_ms);
 	}
 }
 
