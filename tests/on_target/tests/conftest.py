@@ -206,3 +206,35 @@ def hex_file_ext_gnss():
             return os.path.join(artifacts_dir, file)
 
     pytest.fail("No matching external GNSS firmware .hex file found in the artifacts directory")
+
+@pytest.fixture(scope="session")
+def hex_file_buffer_ram():
+    # Skip if not thingy91x since buffer RAM build is only available for thingy91x
+    if DUT_DEVICE_TYPE != 'thingy91x':
+        pytest.skip("Buffer RAM build is only available for thingy91x")
+
+    # Search for the firmware hex file in the artifacts folder
+    artifacts_dir = "artifacts/"
+    hex_pattern = f"asset-tracker-template-{r'[0-9a-z\.]+'}-buffer-ram-{DUT_DEVICE_TYPE}-nrf91.hex"
+
+    for file in os.listdir(artifacts_dir):
+        if re.match(hex_pattern, file):
+            return os.path.join(artifacts_dir, file)
+
+    pytest.fail("No matching buffer RAM firmware .hex file found in the artifacts directory")
+
+@pytest.fixture(scope="session")
+def hex_file_buffer_flash():
+    # Skip if not thingy91x since buffer flash build is only available for thingy91x
+    if DUT_DEVICE_TYPE != 'thingy91x':
+        pytest.skip("Buffer flash build is only available for thingy91x")
+
+    # Search for the firmware hex file in the artifacts folder
+    artifacts_dir = "artifacts/"
+    hex_pattern = f"asset-tracker-template-{r'[0-9a-z\.]+'}-buffer-flash-{DUT_DEVICE_TYPE}-nrf91.hex"
+
+    for file in os.listdir(artifacts_dir):
+        if re.match(hex_pattern, file):
+            return os.path.join(artifacts_dir, file)
+
+    pytest.fail("No matching buffer flash firmware .hex file found in the artifacts directory")

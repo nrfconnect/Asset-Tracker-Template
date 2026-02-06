@@ -217,9 +217,6 @@ static int read_storage_file_header(const struct storage_data *type,
 		return ret;
 	}
 
-	LOG_DBG("Read header from %s: read_offset=%u, write_offset=%u", file_path,
-		header->read_offset, header->write_offset);
-
 	ret = fs_close(&file);
 	if (ret < 0) {
 		LOG_ERR("Failed to close header file %s: %d", file_path, ret);
@@ -274,9 +271,6 @@ static int write_storage_file_header(const struct storage_data *type,
 
 		return ret;
 	}
-
-	LOG_DBG("Wrote header to %s: read_offset=%u, write_offset=%u", file_path,
-		header->read_offset, header->write_offset);
 
 	ret = fs_close(&file);
 	if (ret < 0) {
