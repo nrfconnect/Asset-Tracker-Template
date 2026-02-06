@@ -47,6 +47,14 @@ inputs:
     type: boolean
     required: false
     default: false
+  buffer_flash:
+    type: boolean
+    required: false
+    default: false
+  buffer_ram:
+    type: boolean
+    required: false
+    default: false
 
 runs:
   using: "composite"
@@ -75,6 +83,21 @@ runs:
         if [[ "${{ inputs.external_gnss }}" == "true" ]]; then
           echo "CONFIG_MODEM_ANTENNA_GNSS_EXTERNAL=y" > overlay-external-gnss.conf
           params+=("-DEXTRA_CONF_FILE=overlay-external-gnss.conf")
+        fi
+        if [[ "${{ inputs.buffer_flash }}" == "true" ]]; then
+          params+=("-DCONFIG_APP_STORAGE_BACKEND_LITTLEFS=y")
+          params+=("-DCONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y")
+          params+=("-DCONFIG_APP_STORAGE_LOG_LEVEL_DBG=y")
+          params+=("-DCONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS=15")
+          params+=("-DCONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=10")
+          params+=("-DCONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS=180")
+        fi
+        if [[ "${{ inputs.buffer_ram }}" == "true" ]]; then
+          params+=("-DCONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y")
+          params+=("-DCONFIG_APP_STORAGE_LOG_LEVEL_DBG=y")
+          params+=("-DCONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS=15")
+          params+=("-DCONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=10")
+          params+=("-DCONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS=180")
         fi
         west build -b ${{ inputs.board }} \
             -d build \

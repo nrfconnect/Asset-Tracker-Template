@@ -201,6 +201,26 @@ jobs:
           path: asset-tracker-template/app
           mqtt: true
 
+      - name: Build thingy91x firmware with buffered mode flash backend
+        if: ${{ inputs.build_all }}
+        uses: ./asset-tracker-template/.github/actions/build-step
+        with:
+          board: thingy91x/nrf9151/ns
+          short_board: thingy91x
+          version: ${{ env.VERSION }}-buffer-flash
+          path: asset-tracker-template/app
+          buffer_flash: true
+
+      - name: Build thingy91x firmware with buffered mode RAM backend
+        if: ${{ inputs.build_all }}
+        uses: ./asset-tracker-template/.github/actions/build-step
+        with:
+          board: thingy91x/nrf9151/ns
+          short_board: thingy91x
+          version: ${{ env.VERSION }}-buffer-ram
+          path: asset-tracker-template/app
+          buffer_ram: true
+
       - name: Build thingy91x with modem trace on uart
         if: ${{ inputs.build_all }}
         uses: ./asset-tracker-template/.github/actions/build-step
