@@ -196,7 +196,7 @@ static void handle_cloud_location_request(const struct location_cloud_request_da
 	}
 
 	err = nrf_cloud_coap_location_get(&loc_req, &result);
-	if (err == COAP_RESPONSE_CODE_NOT_FOUND) {
+	if ((err == COAP_RESPONSE_CODE_NOT_FOUND) || (err == COAP_RESPONSE_CODE_BAD_REQUEST)) {
 		LOG_WRN("nRF Cloud CoAP location coordinates not found, error: %d", err);
 		location_cloud_location_ext_result_set(LOCATION_EXT_RESULT_ERROR, NULL);
 
