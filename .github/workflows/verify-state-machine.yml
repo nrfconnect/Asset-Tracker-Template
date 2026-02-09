@@ -62,6 +62,7 @@ jobs:
         id: verify
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
         run: |
           python tests/state_machines/verify_machine.py \
             --c-file ${{ matrix.c_file }} \
