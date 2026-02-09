@@ -3,9 +3,26 @@ import os
 import sys
 import json
 import argparse
-from openai import OpenAI
+import logging
+from openai import AzureOpenAI
 
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+def setup_client():
+    """Initialize OpenAI client with Azure OpenAI """
+    try:
+        # Try Azure OpenAI
+        return AzureOpenAI(
+            api_version="2024-02-15-preview",
+            api_key=os.getenv("OPENAI_API_KEY"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+        ), "azure"
+    except Exception as e:
+        logging.warning(f"Failed to initialize Azure OpenAI client: {e}")
+
+        raise ValueError("No valid OpenAI credentials found. Please set either Azure OpenAI environment variables")
+
+# Initialize the client
+client, client_type = setup_client()
+logging.info(f"Using {client_type.upper()} client")
 
 def load_file(path):
     try:
@@ -109,16 +126,21 @@ def compare_state_machines(c_code, plantuml):
         "Return **only** the JSON object (no extra text)."
     )
 
-    # Call OpenAI ChatCompletion
-    response = client.chat.completions.create(
-        model="gpt-5",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        # temperature=1,
-        seed=313,
-    )
+    # Call OpenAI ChatCompletion with appropriate model name based on client type
+    model_name = "gpt-5.2"
+    try:
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            # temperature=1,
+            seed=313,
+        )
+    except Exception as e:
+        logging.error(f"Error calling {client_type.upper()} API: {e}")
+        raise
 
     # Respose is a string in json-like format
     # {"match": "true/false", "details": "...details..."}
@@ -140,6 +162,9 @@ def compare_state_machines(c_code, plantuml):
 
 
 def main():
+    # Configure logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
     parser = argparse.ArgumentParser(
         description="Compare C state machine vs PlantUML definition using OpenAI API",
         allow_abbrev=False,
