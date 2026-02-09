@@ -48,19 +48,27 @@ For pre-built binaries, refer to the latest tag and release artifacts documentai
 
 1. Install nRF Util. Follow the <a href="https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html">nRF Util documentation</a> for installation instructions.
 
-2. Install toolchain:
+2. Install sdk-manager:
+
+   ```bash
+   nrfutil install sdk-manager
+	 ```
+
+3. Install toolchain:
 
    ```bash
    nrfutil sdk-manager install v3.1.0
 	 ```
 
-3. Launch toolchain:
+4. Launch toolchain:
 
    ```bash
    nrfutil sdk-manager toolchain launch --ncs-version v3.1.0 --terminal
 	 ```
 
-4. Initialize workspace:
+   This will launch a new terminal window with the specified toolchain activated, use this terminal in the coming steps.
+
+5. Initialize workspace:
 
    ```bash
    west init -m https://github.com/nrfconnect/Asset-Tracker-Template.git --mr main asset-tracker-template
