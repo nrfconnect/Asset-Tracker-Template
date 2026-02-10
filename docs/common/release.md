@@ -14,10 +14,7 @@ The Asset Tracker Template generates multiple firmware artifacts for different h
 | **Artifact name** | **Hardware platform** | **Description** | **Use case** |
 |-------------------|----------------------|----------------|--------------|
 | `att-thingy91x-{VERSION}.hex` | Thingy:91 X (nRF9151) | Standard production firmware with all core features enabled | Production deployment on Thingy:91 X devices |
-| `att-thingy91-{VERSION}.hex` | Thingy:91 (nRF9160) | Legacy production firmware for older Thingy:91 devices | Production deployment on original Thingy:91 devices |
 | `att-nrf9151dk-{VERSION}.hex` | nRF9151 DK | Development kit firmware with full feature set | Development and testing on nRF9151 DK |
-| `att-nrf9160dk-{VERSION}.hex` | nRF9160 DK | Development kit firmware for nRF9160-based boards | Development and testing on nRF9160 DK |
-| `att-nrf9161dk-{VERSION}.hex` | nRF9161 DK | Development kit firmware for nRF9161-based boards | Development and testing on nRF9161 DK |
 
 #### Debug and development variants
 
@@ -32,7 +29,6 @@ The Asset Tracker Template generates multiple firmware artifacts for different h
 |-------------------|----------------------|----------------|--------------|
 | `att-thingy91x-{VERSION}-mtrace.hex` | Thingy:91 X (nRF9151) | Firmware with modem trace output enabled through UART 1 | Cellular connectivity debugging and analysis |
 | `att-nrf9151dk-{VERSION}-mtrace.hex` | nRF9151 DK | Firmware with modem trace output enabled through UART 1  | Cellular connectivity debugging and analysis |
-| `att-nrf9161dk-{VERSION}-mtrace.hex` | nRF9161 DK | Firmware with modem trace output enabled through UART 1  | Cellular connectivity debugging and analysis |
 | `att-nrf9151dk-{VERSION}-ext-gnss.hex` | nRF9151 DK | Firmware configured for external GNSS antenna | Testing with external GNSS antenna setup |
 
 ### Configuration overlays
@@ -58,6 +54,3 @@ The firmware variants are built using different configuration overlays that modi
 #### Development kits
 
 - **nRF9151 DK**: Primary development platform for nRF9151-based projects
-- **nRF9160 DK**: Legacy development support for nRF9160-based projects
-- **nRF9161 DK**: Latest development platform with enhanced features
-- **Thingy:91**: Legacy compact development platform
