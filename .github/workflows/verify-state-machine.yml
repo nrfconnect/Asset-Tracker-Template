@@ -12,6 +12,7 @@ on:
       - "app/src/modules/fota/fota.c"
       - "app/src/modules/storage/storage.c"
       - "tests/state_machines/**/*"
+      - ".github/workflows/verify-state-machine.yml"
 
 
 jobs:
