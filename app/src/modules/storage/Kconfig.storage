@@ -56,7 +56,7 @@ endif # APP_STORAGE_BACKEND_LITTLEFS
 
 config APP_STORAGE_MAX_TYPES
 	int "Maximum number of data types"
-	default 4
+	default 3
 	help
 	  Maximum number of different data types that can be registered
 	  for storage. Each type requires memory for storing its records,

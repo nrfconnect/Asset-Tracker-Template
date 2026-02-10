@@ -27,11 +27,6 @@ config APP_CLOUD_UPDATE_INTERVAL_SECONDS
 	  In passthrough mode, this option controls both data sampling and the
 	  cloud update frequency.
 
-config APP_REQUEST_NETWORK_QUALITY
-	bool "Request network quality"
-	help
-	  Request network quality on triggers.
-
 config APP_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout"
 	default 180

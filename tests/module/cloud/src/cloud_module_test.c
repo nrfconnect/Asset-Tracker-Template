@@ -94,6 +94,7 @@ FAKE_VALUE_FUNC(int, nrf_cloud_client_id_get, char *, size_t);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_init);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_connect, const char * const);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_disconnect);
+FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_network_info_update);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_device_status_update);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_bytes_send, uint8_t *, size_t, bool);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_sensor_send, const char *, double, int64_t, bool);
@@ -155,7 +156,6 @@ static nrf_provisioning_event_cb_t handler;
 #define TEST_UPTIME_TO_UNIX_OFFSET_MS 1000000LL
 #define TEST_BATTERY_UPTIME_MS 5000LL
 #define TEST_ENVIRONMENTAL_UPTIME_MS 10000LL
-#define TEST_NETWORK_UPTIME_MS 15000LL
 #define TEST_LOCATION_UPTIME_MS 20000LL
 
 static int date_time_uptime_to_unix_time_ms_custom_fake(int64_t *unix_time_ms)
@@ -170,7 +170,6 @@ enum fake_batch_mode {
 	FAKE_BATCH_NONE = 0,
 	FAKE_BATCH_BATTERY,
 	FAKE_BATCH_ENV,
-	FAKE_BATCH_NET,
 };
 
 static enum fake_batch_mode fake_mode;
@@ -197,13 +196,6 @@ static int storage_batch_read_custom(struct storage_data_item *out_item, k_timeo
 			out_item->data.ENVIRONMENTAL.humidity = 40.0;
 			out_item->data.ENVIRONMENTAL.pressure = 1002.3;
 			out_item->data.ENVIRONMENTAL.timestamp = TEST_ENVIRONMENTAL_UPTIME_MS;
-			break;
-		case FAKE_BATCH_NET:
-			out_item->type = STORAGE_TYPE_NETWORK;
-			out_item->data.NETWORK.type = NETWORK_QUALITY_SAMPLE_RESPONSE;
-			out_item->data.NETWORK.conn_eval_params.energy_estimate = 5;
-			out_item->data.NETWORK.conn_eval_params.rsrp = -96;
-			out_item->data.NETWORK.timestamp = TEST_NETWORK_UPTIME_MS;
 			break;
 		default:
 			return -EAGAIN;
@@ -406,6 +398,8 @@ void setUp(void)
 	RESET_FAKE(nrf_cloud_coap_init);
 	RESET_FAKE(nrf_cloud_coap_connect);
 	RESET_FAKE(nrf_cloud_coap_disconnect);
+	RESET_FAKE(nrf_cloud_coap_shadow_network_info_update);
+	RESET_FAKE(nrf_cloud_coap_shadow_device_status_update);
 	RESET_FAKE(nrf_cloud_coap_json_message_send);
 	RESET_FAKE(nrf_cloud_coap_location_send);
 	RESET_FAKE(nrf_cloud_coap_shadow_get);
@@ -794,37 +788,6 @@ void test_storage_data_environmental_sent_to_cloud(void)
 			  nrf_cloud_coap_sensor_send_fake.arg2_history[1]);
 	TEST_ASSERT_EQUAL(TEST_ENVIRONMENTAL_UPTIME_MS + TEST_UPTIME_TO_UNIX_OFFSET_MS,
 			  nrf_cloud_coap_sensor_send_fake.arg2_history[2]);
-}
-
-void test_storage_data_network_conn_eval_sent_to_cloud(void)
-{
-	struct storage_msg batch_available = {
-		.type = STORAGE_BATCH_AVAILABLE,
-		.data_len = 1,
-		.session_id = 0x55667788,
-		.more_data = false,
-	};
-
-	connect_cloud();
-
-	/* Prepare fake to return one network item, then -EAGAIN */
-	fake_mode = FAKE_BATCH_NET;
-	fake_read_calls = 0;
-	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
-
-	publish_and_assert(&STORAGE_CHAN, &batch_available);
-	wait_for_processing();
-
-	/* One successful read + one -EAGAIN drain */
-	TEST_ASSERT_EQUAL(2, storage_batch_read_fake.call_count);
-	/* Expect two sensor publishes: CONEVAL and RSRP */
-	TEST_ASSERT_EQUAL(2, nrf_cloud_coap_sensor_send_fake.call_count);
-
-	/* Verify timestamps were converted correctly for both calls */
-	TEST_ASSERT_EQUAL(TEST_NETWORK_UPTIME_MS + TEST_UPTIME_TO_UNIX_OFFSET_MS,
-			  nrf_cloud_coap_sensor_send_fake.arg2_history[0]);
-	TEST_ASSERT_EQUAL(TEST_NETWORK_UPTIME_MS + TEST_UPTIME_TO_UNIX_OFFSET_MS,
-			  nrf_cloud_coap_sensor_send_fake.arg2_history[1]);
 }
 
 void test_provisioning_failed_with_network_connected_should_go_to_backoff(void)

@@ -244,37 +244,6 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 	}
 }
 
-static void sample_network_quality(void)
-{
-	int ret;
-	struct network_msg msg = {
-		.type = NETWORK_QUALITY_SAMPLE_RESPONSE,
-		.timestamp = k_uptime_get()
-	};
-
-	ret = date_time_now(&msg.timestamp);
-	if (ret != 0 && ret != -ENODATA) {
-		LOG_ERR("date_time_now, error: %d", ret);
-		SEND_FATAL_ERROR();
-		return;
-	}
-
-	ret = lte_lc_conn_eval_params_get(&msg.conn_eval_params);
-	if (ret == -EOPNOTSUPP) {
-		LOG_WRN("Connection evaluation not supported in current functional mode");
-		return;
-	} else if (ret < 0) {
-		LOG_ERR("lte_lc_conn_eval_params_get, error: %d", ret);
-		SEND_FATAL_ERROR();
-		return;
-	} else if (ret > 0) {
-		LOG_WRN("Connection evaluation failed due to a network related reason: %d", ret);
-		return;
-	}
-
-	network_msg_send(&msg);
-}
-
 static void request_system_mode(void)
 {
 	int err;
@@ -351,10 +320,6 @@ static enum smf_state_result state_running_run(void *obj)
 			return SMF_EVENT_HANDLED;
 		case NETWORK_UICC_FAILURE:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_IDLE]);
-
-			return SMF_EVENT_HANDLED;
-		case NETWORK_QUALITY_SAMPLE_REQUEST:
-			sample_network_quality();
 
 			return SMF_EVENT_HANDLED;
 		case NETWORK_SYSTEM_MODE_REQUEST:
@@ -507,18 +472,10 @@ static enum smf_state_result state_connected_run(void *obj)
 	if (&NETWORK_CHAN == state_object->chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-		switch (msg.type) {
-		case NETWORK_QUALITY_SAMPLE_REQUEST:
-			LOG_DBG("Sampling network quality data");
-			sample_network_quality();
-
-			return SMF_EVENT_HANDLED;
-		case NETWORK_DISCONNECT:
+		if (msg.type == NETWORK_DISCONNECT) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTING]);
 
 			return SMF_EVENT_HANDLED;
-		default:
-			break;
 		}
 	}
 

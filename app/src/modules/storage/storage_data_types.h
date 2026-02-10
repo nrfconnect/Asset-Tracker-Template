@@ -70,9 +70,7 @@
 		      environmental_check, environmental_extract)))				\
 	IF_ENABLED(CONFIG_APP_LOCATION,								\
 		   (X(LOCATION, LOCATION_CHAN, struct location_msg,				\
-		      struct location_msg, location_check, location_extract)))			\
-		   X(NETWORK, NETWORK_CHAN, struct network_msg,				\
-		      struct network_msg, network_check, network_extract)
+		      struct location_msg, location_check, location_extract)))
 
 #define STORAGE_DATA_TYPE(_name)								\
 	STORAGE_TYPE_ ## _name

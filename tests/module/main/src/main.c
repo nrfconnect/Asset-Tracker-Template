@@ -330,7 +330,6 @@ void test_init_to_sample_data_state(void)
 	k_sleep(K_SECONDS(1));
 
 	/* In passthrough mode, sensor triggers and cloud polling happen immediately */
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
@@ -353,7 +352,6 @@ void test_button_press_on_connected(void)
 	/* Transition to STATE_WAIT_FOR_TRIGGER */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
@@ -417,7 +415,6 @@ void test_fota_downloading(void)
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
 	expect_fota_event(FOTA_POLL_REQUEST);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
 
@@ -525,7 +522,6 @@ void test_passthrough_mode_initialization(void)
 	expect_location_event(LOCATION_SEARCH_DONE);
 
 	/* In passthrough mode, sensor triggers and cloud polling happen immediately */
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
@@ -549,7 +545,6 @@ void test_passthrough_sampling_and_immediate_send(void)
 	expect_location_event(LOCATION_SEARCH_DONE);
 
 	/* Verify immediate sensor sampling and cloud polling */
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
@@ -600,7 +595,6 @@ void test_passthrough_button_interactions(void)
 	/* Complete initial sampling */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
@@ -612,7 +606,6 @@ void test_passthrough_button_interactions(void)
 	/* Complete sampling */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
@@ -638,7 +631,6 @@ void test_passthrough_timer_cancellation_on_disconnect(void)
 	/* Complete initial sampling to enter waiting state with active timer */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
@@ -663,7 +655,6 @@ void test_passthrough_timer_cancellation_on_disconnect(void)
 	/* Complete sampling and verify normal operation resumes */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
@@ -706,7 +697,6 @@ void test_storage_mode_request_handling(void)
 	/* Complete disconnected sampling before connecting */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	/* Now test normal operation in buffer mode */
@@ -720,7 +710,6 @@ void test_storage_mode_request_handling(void)
 	/* Complete sampling */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	/* Put the module back into passthrough mode */
@@ -763,7 +752,6 @@ void test_cloud_timer_in_buffer_mode(void)
 	/* Complete disconnected sampling before connecting */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	/* Now connect */
@@ -777,7 +765,6 @@ void test_cloud_timer_in_buffer_mode(void)
 	/* Complete sampling */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	/* After CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS, the module should trigger a
@@ -900,7 +887,6 @@ void test_multiple_cloud_data_send_intervals(void)
 	/* Complete initial sampling */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	/* Connect */
@@ -913,7 +899,6 @@ void test_multiple_cloud_data_send_intervals(void)
 
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	/* After CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS, the module should trigger a
@@ -959,7 +944,6 @@ void test_cloud_data_send_with_sampling_interleaved(void)
 	/* Complete initial sampling */
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	/* Connect */
@@ -972,7 +956,6 @@ void test_cloud_data_send_with_sampling_interleaved(void)
 
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	/* After CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS, the module should trigger a
@@ -994,7 +977,6 @@ void test_cloud_data_send_with_sampling_interleaved(void)
 		/* Complete sampling */
 		send_location_search_done();
 		expect_location_event(LOCATION_SEARCH_DONE);
-		expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 		expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 		send_button_press(BUTTON_PRESS_LONG);
@@ -1031,7 +1013,6 @@ void test_trigger_interval_change_in_connected(void)
 
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
@@ -1056,7 +1037,6 @@ void test_trigger_interval_change_in_connected(void)
 
 		send_location_search_done();
 		expect_location_event(LOCATION_SEARCH_DONE);
-		expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 		expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 		expect_fota_event(FOTA_POLL_REQUEST);
 		expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
@@ -1095,7 +1075,6 @@ void test_trigger_disconnect_and_connect_when_sampling(void)
 
 		send_location_search_done();
 		expect_location_event(LOCATION_SEARCH_DONE);
-		expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 		expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 		expect_fota_event(FOTA_POLL_REQUEST);
 		expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
@@ -1140,7 +1119,6 @@ void test_config_change_all_parameters_passthrough_to_buffer(void)
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
@@ -1167,7 +1145,6 @@ void test_config_change_all_parameters_passthrough_to_buffer(void)
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 	/* Test interleaved sampling and cloud updates with new intervals
@@ -1180,7 +1157,6 @@ void test_config_change_all_parameters_passthrough_to_buffer(void)
 			expect_location_event(LOCATION_SEARCH_TRIGGER);
 			send_location_search_done();
 			expect_location_event(LOCATION_SEARCH_DONE);
-			expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 			expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 		}
 
@@ -1189,7 +1165,6 @@ void test_config_change_all_parameters_passthrough_to_buffer(void)
 		expect_location_event(LOCATION_SEARCH_TRIGGER);
 		send_location_search_done();
 		expect_location_event(LOCATION_SEARCH_DONE);
-		expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 		expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
 		/* Cloud update at 300s interval */
@@ -1222,7 +1197,6 @@ void test_config_not_accepted_should_remain_in_current_mode(void)
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_network_event(NETWORK_QUALITY_SAMPLE_REQUEST);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);

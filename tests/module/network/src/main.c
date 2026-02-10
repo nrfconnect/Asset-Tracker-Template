@@ -251,14 +251,6 @@ static void wait_for_and_check_msg(struct network_msg *msg, enum network_msg_typ
 	TEST_FAIL();
 }
 
-static void request_nw_quality(void)
-{
-	struct network_msg msg = { .type = NETWORK_QUALITY_SAMPLE_REQUEST, };
-	int err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
-
-	TEST_ASSERT_EQUAL(0, err);
-}
-
 void setUp(void)
 {
 	RESET_FAKE(task_wdt_feed);
@@ -329,22 +321,6 @@ void test_network_connected(void)
 	/* Now wait for the connected message */
 	wait_for_and_check_msg(&msg_rx, NETWORK_CONNECTED);
 	TEST_ASSERT_EQUAL(NETWORK_CONNECTED, msg_rx.type);
-}
-
-void test_energy_estimate(void)
-{
-	struct network_msg msg;
-
-	lte_lc_conn_eval_params_get_fake.custom_fake = lte_lc_conn_eval_params_get_custom_fake;
-
-	/* Network quality can only be sampled when connected */
-	request_nw_quality();
-
-	wait_for_and_check_msg(&msg, NETWORK_QUALITY_SAMPLE_RESPONSE);
-
-	TEST_ASSERT_EQUAL(NETWORK_QUALITY_SAMPLE_RESPONSE, msg.type);
-	TEST_ASSERT_EQUAL(FAKE_ENERGY_ESTIMATE, msg.conn_eval_params.energy_estimate);
-	TEST_ASSERT_EQUAL(FAKE_RSRP_IDX, msg.conn_eval_params.rsrp);
 }
 
 void test_psm_params_update(void)

@@ -133,9 +133,6 @@ static void state_running_run(void *obj)
 		case NETWORK_UICC_FAILURE:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_IDLE]);
 			break;
-		case NETWORK_QUALITY_SAMPLE_REQUEST:
-			sample_network_quality();
-			break;
 		case NETWORK_SYSTEM_MODE_REQUEST:
 			request_system_mode();
 			break;
@@ -250,10 +247,6 @@ static void state_connected_run(void *obj)
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		switch (msg.type) {
-		case NETWORK_QUALITY_SAMPLE_REQUEST:
-			LOG_DBG("Sampling network quality data");
-			sample_network_quality();
-			break;
 		case NETWORK_DISCONNECT:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTING]);
 			break;

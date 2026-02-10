@@ -18,18 +18,18 @@ It subscribes to messages on the following zbus channels:
 
 The Main module uses the following zbus channels, both for subscribing to incoming data and publishing outbound requests or status updates:
 
-| Zbus Channels       | Description                                                                                   |
-|---------------------|-----------------------------------------------------------------------------------------------|
-| **BUTTON_CHAN**     | Processes user button presses for manually triggering data samples or sending.                |
-| **CLOUD_CHAN**      | Receive connectivity status (connected, disconnected) and cloud response data. Trigger device shadow polling to retrieve configuration updates. |
-| **STORAGE_CHAN**    | Control the storage module and receive control or status responses. |
-| **ENVIRONMENTAL_CHAN** | Request sensor data from the environmental module.                                           |
-| **FOTA_CHAN**       | Poll for FOTA updates and manage the FOTA process. Apply FOTA updates to install the new firmware image. |
-| **LED_CHAN**        | Update LED pattern to indicate system state.                                                  |
-| **LOCATION_CHAN**   | Requests new location data when a sample is due.                                              |
-| **NETWORK_CHAN**    | Control LTE network connection. Track cellular connectivity events. Request network quality samples. |
-| **POWER_CHAN**      | Request battery status. Initiate low-power mode.                                              |
-| **TIMER_CHAN**      | Handle timer events for sampling.                                                         |
+| Zbus Channels          | Description                                                                                |
+|------------------------|--------------------------------------------------------------------------------------------|
+| **BUTTON_CHAN**        | Process user button presses to trigger data samples or sending.                            |
+| **CLOUD_CHAN**         | Receive connectivity status and cloud responses. Trigger device shadow polling.            |
+| **STORAGE_CHAN**       | Control the storage module and receive status responses.                                   |
+| **ENVIRONMENTAL_CHAN** | Request sensor data from the environmental module.                                         |
+| **FOTA_CHAN**          | Poll for FOTA updates, manage the FOTA process, and apply updates.                         |
+| **LED_CHAN**           | Update LED patterns to indicate system state.                                              |
+| **LOCATION_CHAN**      | Request new location data when samples are due.                                            |
+| **NETWORK_CHAN**       | Control LTE network connection and track cellular connectivity events.                     |
+| **POWER_CHAN**         | Request battery status and initiate low-power mode.                                        |
+| **TIMER_CHAN**         | Handle timer events for sampling.                                                          |
 
 ## Configuration
 
@@ -44,9 +44,6 @@ The Main module can be configured using the following Kconfig options:
 * **CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS:**
   Interval for cloud synchronization activities, including polling and data sending. Triggers cloud shadow and FOTA status polling.
   In passthrough mode, this option also controls how often data is sampled and sent to cloud.
-
-* **CONFIG_APP_REQUEST_NETWORK_QUALITY:**
-  When enabled, requests network quality metrics during regular sampling.
 
 * **CONFIG_APP_MSG_PROCESSING_TIMEOUT_SECONDS:**
   Maximum time allowed for processing a single message.
