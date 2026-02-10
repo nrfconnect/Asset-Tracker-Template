@@ -167,39 +167,12 @@ jobs:
               ../artifacts/rom_report_thingy91x.html \
               ../artifacts/ram_report_thingy91x.html
 
-      - name: Build (old) thingy91 firmware
-        if: ${{ inputs.build_all }}
-        uses: ./asset-tracker-template/.github/actions/build-step
-        with:
-          board: thingy91/nrf9160/ns
-          short_board: thingy91
-          version: ${{ env.VERSION }}
-          path: asset-tracker-template/app
-
       - name: Build nrf9151dk firmware
         if: ${{ inputs.build_all }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: nrf9151dk/nrf9151/ns
           short_board: nrf9151dk
-          version: ${{ env.VERSION }}
-          path: asset-tracker-template/app
-
-      - name: Build nrf9160dk firmware
-        if: ${{ inputs.build_all }}
-        uses: ./asset-tracker-template/.github/actions/build-step
-        with:
-          board: nrf9160dk/nrf9160/ns
-          short_board: nrf9160dk
-          version: ${{ env.VERSION }}
-          path: asset-tracker-template/app
-
-      - name: Build nrf9161dk firmware
-        if: ${{ inputs.build_all }}
-        uses: ./asset-tracker-template/.github/actions/build-step
-        with:
-          board: nrf9161dk/nrf9161/ns
-          short_board: nrf9161dk
           version: ${{ env.VERSION }}
           path: asset-tracker-template/app
 
@@ -256,16 +229,6 @@ jobs:
           short_board: nrf9151dk
           external_gnss: true
           version: ${{ env.VERSION }}-ext-gnss
-          path: asset-tracker-template/app
-
-      - name: Build for nRF9161 DK with modem trace on UART 1
-        if: ${{ inputs.build_all }}
-        uses: ./asset-tracker-template/.github/actions/build-step
-        with:
-          board: nrf9161dk/nrf9161/ns
-          short_board: nrf9161dk
-          modem_trace: true
-          version: ${{ env.VERSION }}-mtrace
           path: asset-tracker-template/app
 
       - name: Upload artifacts

@@ -168,13 +168,8 @@ If the requirement is not met, either increase the partition (`CONFIG_PM_PARTITI
 | - | - | - | - |
 | nrf9151 DK (internal flash) | 0x1000 | 5 | 0x5000 |
 | nrf9151 DK (external flash, gd25wb256) | 0x10000 | 5 | 0x50000 |
-| nrf9161 DK (internal flash) | 0x1000 | 5 | 0x5000 |
-| nrf9161 DK (external flash, gd25wb256) | 0x10000 | 5 | 0x50000 |
-| nrf9160 DK (internal flash) | 0x1000 | 5 | 0x5000 |
-| nrf9160 DK (external flash, mx25r64) | 0x10000 | 5 | 0x50000 |
 | thingy91x (internal flash) | 0x1000 | 8 | 0x8000 |
 | thingy91x (external flash) | 0x1000 | 8 | 0x8000 |
-| thingy91 (internal flash) | 0x1000 | 6 | 0x6000 |
 
 #### LittleFS Built-in Wear Leveling
 
