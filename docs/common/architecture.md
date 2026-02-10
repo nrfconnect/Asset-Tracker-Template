@@ -41,9 +41,19 @@ Each module follows a similar pattern:
 - **State machine**: Most modules implement a state machine using SMF to manage their internal state and behavior.
 - **Message channels**: Each module defines its own zbus channels and message types for communication.
 - **Thread**: Modules that need to perform blocking operations have their own thread.
+- **Watchdog**: All module threads are monitored by a task watchdog. Each thread periodically calls `task_wdt_feed()` to feed the watchdog. If a thread fails to feed the watchdog within its configured timeout, the system will reset.
 - **Initialization**: Modules are initialized at system startup, either through `SYS_INIT()` or in their dedicated thread.
 
-Modules in the Asset Tracker Template must be independent of each other whenever possible. This decoupling improves maintainability and extensibility. However, some exceptions exist, such as the Main module, which must interact with other modules to implement the application's business logic.
+Modules in the Asset Tracker Template are designed as independent units with well-defined interfaces, similar to a C API. Each module exposes a set of dedicated input and output messages that control its behavior:
+
+- **Input messages**: Commands or requests sent to a module to trigger actions (e.g., `LOCATION_SEARCH_TRIGGER` to request a location search).
+- **Output messages**: Responses or notifications sent by a module to report status, data, or events (e.g., `LOCATION_GNSS_DATA` when GNSS location data is obtained, or `LOCATION_SEARCH_DONE` when a location search operation completes).
+
+Each module's message types are defined in its public header file located at `app/src/modules/<module_name>/<module_name>.h`. For example, the Location module's messages are defined in `app/src/modules/location/location.h`. The header file contains the message type enumeration (e.g., `enum location_msg_type`) and the message structure (e.g., `struct location_msg`).
+
+This API-like design ensures that modules are self-contained and can be developed, tested, and maintained independently. Modules communicate exclusively through their defined zbus interfaces, without direct knowledge of other modules' internals.
+
+Some exceptions exist, such as the Main module, which must interact with other modules to implement the application's business logic.
 Another example is the cloud module that needs to be aware of the Network module to know when it is connected to the network and when it is not.
 
 ## Zbus
@@ -106,6 +116,31 @@ A message subscriber is defined using `ZBUS_MSG_SUBSCRIBER_DEFINE`, and the subs
 ZBUS_MSG_SUBSCRIBER_DEFINE(network_subscriber);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network_subscriber, 0);
 ```
+
+#### Self-subscription and private channels
+
+Modules often subscribe to their own public channel to handle state transitions based on messages they themselves publish. For example, when the Network module publishes a `NETWORK_CONNECTED` message, it also receives this message in its own state machine, allowing it to transition to the connected state with consistent handling.
+
+When a module needs internal state handling that should not be exposed to other modules, it uses a **private channel**. Private channels are reserved exclusively for the respective module and are not intended for external use. For example, the Location module defines a private channel for internal messaging:
+
+```c
+/* Private channel message types for internal state management. */
+enum priv_location_msg {
+        /* Modem has completed initialization. */
+        LOCATION_PRIV_MODEM_INITIALIZED,
+};
+
+/* Create private location channel for internal messaging that is not intended for external use. */
+ZBUS_CHAN_DEFINE(PRIV_LOCATION_CHAN,
+                 enum priv_location_msg,
+                 NULL,
+                 NULL,
+                 ZBUS_OBSERVERS(location),
+                 ZBUS_MSG_INIT(0)
+);
+```
+
+This pattern allows the module to send messages to itself for internal state management without exposing these details to other modules.
 
 #### Listeners
 
@@ -226,7 +261,7 @@ In this case, the initial state is set to `STATE_RUNNING`. In the state machine 
 From there, transitions follow the arrows according to the messages received and the state machine logic.
 
 > [!IMPORTANT]
-> In a hierarchical state machine, the run function of the current state is executed first, and then the run function of the parent state is executed, unless a state transition happens, or the child state marks the message as handled using `smf_state_handled()`.
+> In SMF, the run function of the current state is executed first, and then the run function of the parent state is executed, unless a state transition happens, or the child state returns `SMF_EVENT_HANDLED` to indicate the event has been fully processed. Run functions return `SMF_EVENT_PROPAGATE` to allow the event to propagate to parent states, or `SMF_EVENT_HANDLED` to stop propagation.
 
 ### State machine context
 
@@ -275,9 +310,14 @@ The state machine is run using `smf_run_state()`, which:
 - Executes the run function of parent states unless:
 
     - A state transition happens.
-    - A child state marks the message as handled using `smf_state_handled()`.
+    - The run function returns `SMF_EVENT_HANDLED` to indicate the event was fully processed.
 
 - Executes the exit function of the current and parent states when leaving a state.
+
+Run functions must return either `SMF_EVENT_HANDLED` or `SMF_EVENT_PROPAGATE`:
+
+- `SMF_EVENT_HANDLED`: The event has been processed and should not propagate to parent states.
+- `SMF_EVENT_PROPAGATE`: The event should propagate to parent states for further processing.
 
 ### State transitions
 
@@ -290,6 +330,48 @@ smf_set_state(SMF_CTX(state_object), &states[NEW_STATE]);
 A transition to another state has to be the last thing happening in a state handler. This is to ensure the correct order of execution of parent state handlers.
 SMF automatically handles the execution of exit and entry functions for all states along the path to the new state.
 
-## Timestamp pattern for sampled Data
+### Module thread and message processing
 
-Modules that sample data (environmental, power, location, and network) follow a consistent timestamp pattern to ensure accurate time information for cloud transmission:
+Modules with state machines typically have a dedicated thread that waits for zbus messages and drives the state machine execution. The following diagram illustrates the relationship between the module thread, zbus, and SMF:
+
+![Module thread, SMF, and zbus relationship](../images/module_thread_smf_zbus.svg)
+
+The following example shows a typical module thread function:
+
+```c
+static void network_module_thread(void)
+{
+        int err;
+        static struct network_state_object network_state;
+
+        /* Initialize the state machine to the initial state */
+        smf_set_initial(SMF_CTX(&network_state), &states[STATE_RUNNING]);
+
+        while (true) {
+                /* Wait for a message on any subscribed channel */
+                err = zbus_sub_wait_msg(&network, &network_state.chan,
+                                        network_state.msg_buf, K_FOREVER);
+                if (err == -ENOMSG) {
+                        continue;
+                } else if (err) {
+                        LOG_ERR("zbus_sub_wait_msg, error: %d", err);
+                        return;
+                }
+
+                /* Run the state machine with the received message */
+                err = smf_run_state(SMF_CTX(&network_state));
+                if (err) {
+                        LOG_ERR("smf_run_state(), error: %d", err);
+                        return;
+                }
+        }
+}
+```
+
+In this pattern:
+
+1. The thread waits for a message using `zbus_sub_wait_msg()`, which blocks until a message is received.
+2. When a message arrives, it is stored in the state object's buffer along with the channel it was received on.
+3. The state machine is then executed with `smf_run_state()`, which calls the appropriate run handler for the current state.
+4. The run handler processes the message based on its type and the current state, potentially triggering state transitions.
+5. The loop continues, waiting for the next message.

@@ -131,3 +131,31 @@ curl 'https://api.provisioning.nrfcloud.com/v1/claimed-devices/YOUR_DEVICE_ID/pr
 ```
 
 For detailed API documentation, see [nRF Cloud REST API](https://api.nrfcloud.com/docs).
+
+## Unclaiming a device
+
+To remove a device from your nRF Cloud account:
+
+Unclaim the device if it is already associated with another nRF Cloud account before you can associate it with a different account.
+
+### Manual
+
+1. Log in to the [nRF Cloud](https://nrfcloud.com/#/) portal.
+1. Select **Security Services** in the left sidebar.
+
+    A panel opens to the right.
+
+1. Select **Claimed Devices**.
+1. Select the device in the list and click **Unclaim Device**.
+
+> [!IMPORTANT]
+> Unclaiming a device also deletes it from Device Management. All device data, including historical messages and configuration, will be removed. The device will need to be claimed again and reprovisioned to reconnect to nRF Cloud.
+
+### REST API alternative
+
+You can also use the REST API as an alternative for unclaiming by running the following command:
+
+```bash
+curl -X DELETE 'https://api.provisioning.nrfcloud.com/v1/claimed-devices/YOUR_DEVICE_ID' \
+-H 'Authorization: Bearer YOUR_API_TOKEN'
+```
