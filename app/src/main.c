@@ -1979,12 +1979,7 @@ int main(void)
 		return -EFAULT;
 	}
 
-	/* Set initial state - the hierarchy will automatically transition to correct mode */
-	if (IS_ENABLED(CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH)) {
-		smf_set_initial(SMF_CTX(&main_state), &states[STATE_PASSTHROUGH_MODE]);
-	} else {
-		smf_set_initial(SMF_CTX(&main_state), &states[STATE_BUFFER_MODE]);
-	}
+	smf_set_initial(SMF_CTX(&main_state), &states[STATE_RUNNING]);
 
 	while (1) {
 		err = task_wdt_feed(task_wdt_id);
