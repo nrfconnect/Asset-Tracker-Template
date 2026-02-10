@@ -9,6 +9,8 @@ manifest:
   remotes:
     - name: ncs
       url-base: https://github.com/nrfconnect
+    - name: memfault
+      url-base: https://github.com/memfault
 
   projects:
     - name: nrf
@@ -16,3 +18,8 @@ manifest:
       repo-path: sdk-nrf
       revision: main
       import: true
+    - name: memfault-firmware-sdk
+      remote: memfault
+      path: modules/lib/memfault-firmware-sdk
+      revision: gminn/1.35.0+coap-conn-id-sharing
+
