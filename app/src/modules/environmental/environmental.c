@@ -75,8 +75,7 @@ static enum smf_state_result state_running_run(void *obj);
 
 /* State machine definition */
 static const struct smf_state states[] = {
-	[STATE_RUNNING] =
-		SMF_CREATE_STATE(NULL, state_running_run, NULL, NULL, NULL),
+	[STATE_RUNNING] = SMF_CREATE_STATE(NULL, state_running_run, NULL, NULL, NULL),
 };
 
 static void sample_sensors(const struct device *const bme680)

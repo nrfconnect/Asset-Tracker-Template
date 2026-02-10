@@ -12,9 +12,9 @@ See `storage.c`, `storage.h`, and `Kconfig.storage` for details.
 
 ## Architecture
 
-### States
+### State diagram
 
-The storage module implements a state machine with the following states and transitions:
+The Storage module implements a state machine with the following states and transitions:
 
 ![Storage module state diagram](../images/storage_module_state_diagram.svg "Storage module state diagram")
 

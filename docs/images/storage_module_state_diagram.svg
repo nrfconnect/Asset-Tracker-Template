@@ -93,12 +93,12 @@
 		</g>
 		<g id="shape14-31" transform="translate(50.6063,-427.752)">
 			<title>Sheet.14</title>
-			<desc>STATE_PASS_THROUGH</desc>
+			<desc>STATE_PASSTHROUGH</desc>
 			<path d="M5.8 581.92 A11.7782 6.70604 -180 0 0 11.78 582.85 L380.82 582.85 A11.7782 6.70604 -180 0 0 386.8 581.92 A8.50394
 						 8.50394 -180 0 0 392.6 573.86 L392.6 570.63 A4.25197 4.25197 -180 0 0 392.16 568.75 A11.7782 6.70604 -180
 						 0 0 380.82 563.85 L11.78 563.85 A11.7782 6.70604 -180 0 0 5.8 564.78 A8.50394 8.50394 -180 0 0 0 572.84
 						 L0 573.86 A8.50394 8.50394 -180 0 0 5.8 581.92 Z" class="st1"/>
-			<text x="4" y="576.35" class="st2">STATE_PASS_THROUGH</text>		</g>
+			<text x="4" y="576.35" class="st2">STATE_PASSTHROUGH</text>		</g>
 		<g id="shape44-34" transform="translate(54.8582,-407.906)">
 			<title>Sheet.44</title>
 			<desc>STORAGE_MODE_PASSTHROUGH_REQUEST / send_mode_confirmed();</desc>

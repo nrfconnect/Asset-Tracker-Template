@@ -7,15 +7,16 @@ on:
   pull_request:
     paths:
       - "app/src/main.c"
+      - "examples/modules/cloud/cloud_mqtt.c"
       - "app/src/modules/network/network.c"
       - "app/src/modules/cloud/cloud.c"
-      - "examples/modules/cloud/cloud_mqtt.c"
       - "app/src/modules/fota/fota.c"
       - "app/src/modules/storage/storage.c"
-      - "app/src//modules/location/location.c"
+      - "app/src/modules/location/location.c"
+      - "app/src/modules/environmental/environmental.c"
+      - "app/src/modules/power/power.c"
       - "tests/state_machines/**/*"
       - ".github/workflows/verify-state-machine.yml"
-
 
 jobs:
   verify-state-machines:
@@ -47,8 +48,14 @@ jobs:
             c_file: app/src/modules/storage/storage.c
             uml_file: tests/state_machines/source_of_truth/storage.puml
           - name: LOCATION
-            c_file: app/src//modules/location/location.c
+            c_file: app/src/modules/location/location.c
             uml_file: tests/state_machines/source_of_truth/location.puml
+          - name: ENVIRONMENTAL
+            c_file: app/src/modules/environmental/environmental.c
+            uml_file: tests/state_machines/source_of_truth/environmental.puml
+          - name: POWER
+            c_file: app/src/modules/power/power.c
+            uml_file: tests/state_machines/source_of_truth/power.puml
       # Don't cancel all jobs if one fails
       fail-fast: false
 

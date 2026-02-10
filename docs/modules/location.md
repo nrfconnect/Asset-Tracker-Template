@@ -16,6 +16,14 @@ It uses the Location library's event handler to process various location-related
 In the following sections, the module's main messages, configurations, and state machine are covered.
 Refer to the source files (`location.c`, `location.h`, and `Kconfig.location`) for implementation details.
 
+## Architecture
+
+### State diagram
+
+The Location module implements a state machine with the following states and transitions:
+
+![Location module state diagram](../images/location_module_state_diagram.svg "Location module state diagram")
+
 ## Messages
 
 The location module publishes and receives messages over the zbus channel `LOCATION_CHAN`. All module message types are defined in `location.h` and used within `location.c`.
@@ -76,7 +84,3 @@ Several Kconfig options in `Kconfig.location` control this module's behavior. Th
   Must be smaller than the value set in the **CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS** Kconfig option.
 
 For more details on these configurations, refer to `Kconfig.location`.
-
-## State machine
-
-The state machine implemented in `location.c`. The module uses a single state (**STATE_RUNNING**) with an entry function (`location_init()`) that initializes the location library and a run function that processes incoming messages.

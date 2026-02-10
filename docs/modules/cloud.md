@@ -14,6 +14,14 @@ nRF Cloud over CoAP utilizes DTLS connection ID, which allows the device to quic
 
 The following sections cover the module’s main messages, configurations, and state machine. Refer to the source files (`cloud.c`, `cloud.h`, and `Kconfig.cloud`) for implementation details.
 
+## Architecture
+
+### State diagram
+
+The Cloud module implements a state machine with the following states and transitions:
+
+![Cloud module state diagram](../images/cloud_module_state_diagram.svg "Cloud module state diagram")
+
 ### Integration with storage module
 
 The cloud module subscribes to the `STORAGE_CHAN` and `STORAGE_DATA_CHAN` channels to support both buffered and passthrough data flows:
@@ -118,9 +126,3 @@ Several Kconfig options in `Kconfig.cloud` control this module’s behavior. The
   Maximum time allowed for processing a single incoming message.
 
 For more details on these and other configurations, refer to `Kconfig.cloud`.
-
-## State diagram
-
-The following is a simplified representation of the state machine implemented in `cloud.c`. The module starts in the `STATE_RUNNING` context, which immediately transitions to `STATE_DISCONNECTED` upon initialization. From there, network events and internal conditions drive state transitions.
-
-![Cloud module state diagram](../images/cloud_module_state_diagram.svg "Cloud module state diagram")
