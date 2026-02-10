@@ -1,6 +1,6 @@
 # Network module
 
-The Network module manages the cellular connectivity for applications running on nRF91 Series devices. It handles network connection states, system mode configuration, power saving configurations, and network quality monitoring. It utilizes the Zephyr network management APIs and the [LTE Link Control](https://docs.nordicsemi.com/bundle/ncs-2.9.0/page/nrf/libraries/modem/lte_lc.html) library from the nRF Connect SDK to control the modem and monitor network events. Internally, the module implements a state machine that uses Zephyr's [State Machine Framework](https://docs.zephyrproject.org/latest/services/smf/index.html).
+The Network module manages the cellular connectivity for applications running on nRF91 Series devices. It handles network connection states, system mode configuration, and power saving configurations. It utilizes the Zephyr network management APIs and the [LTE Link Control](https://docs.nordicsemi.com/bundle/ncs-2.9.0/page/nrf/libraries/modem/lte_lc.html) library from the nRF Connect SDK to control the modem and monitor network events. Internally, the module implements a state machine that uses Zephyr's [State Machine Framework](https://docs.zephyrproject.org/latest/services/smf/index.html).
 
 The module is designed to by default search for a suitable network automatically on startup and then maintain the connection for the lifetime of the application.
 The library can also be configured to be fully controlled by the application instead, giving closer control over the LTE link and current consumption.
@@ -31,7 +31,6 @@ The following messages are supported:
 - **NETWORK_SYSTEM_MODE_SET_LTEM**: Request to set the system mode to only use LTE-M only.
 - **NETWORK_SYSTEM_MODE_SET_NBIOT**: Request to set the system mode to only use NB-IoT only.
 - **NETWORK_SYSTEM_MODE_SET_LTEM_NBIOT**: Request to set the system mode to use both LTE-M and NB-IoT.
-- **NETWORK_QUALITY_SAMPLE_REQUEST**: Request to sample the current network connection quality. The response will be sent as a `NETWORK_QUALITY_SAMPLE_RESPONSE` message.
 
 ### Output messages
 
@@ -44,7 +43,6 @@ The following messages are supported:
 - **NETWORK_PSM_PARAMS**: PSM parameters have been received (in the `.psm_cfg` field of the message).
 - **NETWORK_EDRX_PARAMS**: eDRX parameters have been received (in `.edrx_cfg` field).
 - **NETWORK_SYSTEM_MODE_RESPONSE**: Response to a system mode request (`NETWORK_SYSTEM_MODE_REQUEST`) with current mode in `.system_mode` field.
-- **NETWORK_QUALITY_SAMPLE_RESPONSE**: Response to a quality sample request (`NETWORK_QUALITY_SAMPLE_REQUEST`) with data in `.conn_eval_params` field.
 
 ### Message structure
 
@@ -57,7 +55,6 @@ struct network_msg {
         enum lte_lc_system_mode system_mode;
         struct lte_lc_psm_cfg psm_cfg;
         struct lte_lc_edrx_cfg edrx_cfg;
-        struct lte_lc_conn_eval_params conn_eval_params;
     };
 };
 ```

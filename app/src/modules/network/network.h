@@ -74,11 +74,6 @@ enum network_msg_type {
 	 */
 	NETWORK_SYSTEM_MODE_RESPONSE,
 
-	/* Response message to a request for a network quality sample. The sample is found in the
-	 * .conn_eval_params field of the message.
-	 */
-	NETWORK_QUALITY_SAMPLE_RESPONSE,
-
 	/* Input message types */
 
 	/* Request to connect to the network, which includes searching for a suitable network
@@ -93,11 +88,6 @@ enum network_msg_type {
 	 * and it will not resume before explicitly requested to do so by a NETWORK_CONNECT message.
 	 */
 	NETWORK_SEARCH_STOP,
-
-	/* Request to sample the current network connection quality. The result is sent as a
-	 * NETWORK_QUALITY_SAMPLE_RESPONSE message if possible to obtain.
-	 */
-	NETWORK_QUALITY_SAMPLE_REQUEST,
 
 	/* Request to set the system mode to only use LTE-M access technology.
 	 * Note that the network module must be disconnected and idle, ie. not actively searching
@@ -141,12 +131,6 @@ struct network_msg {
 		 *  edrx_cfg is valid for NETWORK_EDRX_PARAMS events.
 		 */
 		IF_ENABLED(CONFIG_LTE_LC_EDRX_MODULE, (struct lte_lc_edrx_cfg edrx_cfg));
-
-		/** Contains the current connection evaluation information.
-		 *  conn_eval_params is valid for NETWORK_QUALITY_SAMPLE_REQUEST events.
-		 */
-		IF_ENABLED(CONFIG_LTE_LC_CONN_EVAL_MODULE,
-			   (struct lte_lc_conn_eval_params conn_eval_params));
 	};
 
 	/** Timestamp when the sample was taken in milliseconds.

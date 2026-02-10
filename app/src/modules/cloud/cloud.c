@@ -38,9 +38,7 @@
 /* Register log module */
 LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 
-#define CUSTOM_JSON_APPID_VAL_CONEVAL "CONEVAL"
 #define CUSTOM_JSON_APPID_VAL_BATTERY "BATTERY"
-
 #define AGNSS_MAX_DATA_SIZE 3800
 
 /* Prevent nRF Provisioning Shell from being used to trigger provisioning.
@@ -413,45 +411,6 @@ static int handle_data_timestamp(int64_t *timestamp_ms)
 	}
 }
 
-static void handle_network_data_message(const struct network_msg *msg)
-{
-	int err;
-	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
-	int64_t timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
-
-	if (msg->type != NETWORK_QUALITY_SAMPLE_RESPONSE) {
-		return;
-	}
-
-	/* Convert timestamp to unix time */
-	timestamp_ms = msg->timestamp;
-
-	err = handle_data_timestamp(&timestamp_ms);
-	if (err) {
-		return;
-	}
-
-	err = nrf_cloud_coap_sensor_send(CUSTOM_JSON_APPID_VAL_CONEVAL,
-				msg->conn_eval_params.energy_estimate,
-				timestamp_ms,
-				confirmable);
-	if (err) {
-		LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-		send_request_failed();
-
-		return;
-	}
-
-	err = nrf_cloud_coap_sensor_send(NRF_CLOUD_JSON_APPID_VAL_RSRP,
-				msg->conn_eval_params.rsrp,
-				timestamp_ms,
-				confirmable);
-	if (err) {
-		LOG_ERR("nrf_cloud_coap_sensor_send, error: %d", err);
-		send_request_failed();
-	}
-}
-
 /* Storage handling functions */
 
 static int send_storage_data_to_cloud(const struct storage_data_item *item)
@@ -516,14 +475,6 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 	}
 #endif /* CONFIG_APP_LOCATION && CONFIG_LOCATION_METHOD_GNSS */
 
-	if (item->type == STORAGE_TYPE_NETWORK) {
-		const struct network_msg *net = &item->data.NETWORK;
-
-		handle_network_data_message(net);
-
-		return 0;
-	}
-
 	LOG_WRN("Unknown storage data type: %d", item->type);
 
 	/* Unused variables if no data sources are enabled */
@@ -584,7 +535,6 @@ static void handle_storage_batch_available(const struct storage_msg *msg)
 			continue;
 		}
 
-		/* Success: send the data item to cloud */
 		err = send_storage_data_to_cloud(&item);
 		if (err) {
 			LOG_ERR("Failed to send storage data to cloud, error: %d", err);
@@ -601,15 +551,27 @@ static void handle_storage_batch_available(const struct storage_msg *msg)
 		err = request_storage_batch_data(session_id);
 		if (err) {
 			LOG_ERR("Failed to request next storage batch data, error: %d", err);
+			SEND_FATAL_ERROR();
 		}
 
 		return;
+	}
+
+	/* Update shadow with latest network info after sending data buffered data */
+	if (items_processed > 0) {
+		err = nrf_cloud_coap_shadow_network_info_update();
+		if (err) {
+			LOG_ERR("nrf_cloud_coap_shadow_network_info_update, error: %d", err);
+
+			/* Continue despite error to close the batch session */
+		}
 	}
 
 	/* Close the batch session */
 	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("Failed to close storage batch session, error: %d", err);
+		SEND_FATAL_ERROR();
 	}
 }
 
@@ -626,6 +588,7 @@ static void handle_storage_batch_empty(const struct storage_msg *msg)
 	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("Failed to close empty storage batch session, error: %d", err);
+		SEND_FATAL_ERROR();
 	}
 }
 
@@ -642,6 +605,7 @@ static void handle_storage_batch_error(const struct storage_msg *msg)
 	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("Failed to close error storage batch session, error: %d", err);
+		SEND_FATAL_ERROR();
 	}
 }
 
@@ -672,6 +636,7 @@ static void handle_storage_data(const struct storage_msg *msg)
 	err = send_storage_data_to_cloud(&item);
 	if (err) {
 		LOG_ERR("Failed to send real-time storage data to cloud, error: %d", err);
+		return;
 	}
 }
 
@@ -933,8 +898,8 @@ static void state_connecting_provisioning_entry(void *obj)
 	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
-
 		SEND_FATAL_ERROR();
+
 		return;
 	}
 
@@ -943,8 +908,8 @@ static void state_connecting_provisioning_entry(void *obj)
 	err = cloud_provisioning_trigger();
 	if (err) {
 		LOG_ERR("nrf_provisioning_trigger_manually, error: %d", err);
-
 		SEND_FATAL_ERROR();
+
 		return;
 	}
 }

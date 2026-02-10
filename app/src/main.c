@@ -569,20 +569,6 @@ static void sensor_triggers_send(void)
 
 	(void)err;
 
-#if defined(CONFIG_APP_REQUEST_NETWORK_QUALITY)
-	struct network_msg network_msg = {
-		.type = NETWORK_QUALITY_SAMPLE_REQUEST,
-	};
-
-	err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
-	if (err) {
-		LOG_ERR("Failed to publish network quality sample request, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-#endif /* CONFIG_APP_REQUEST_NETWORK_QUALITY */
-
 #if defined(CONFIG_APP_POWER)
 	struct power_msg power_msg = {
 		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST,

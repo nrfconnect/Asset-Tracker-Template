@@ -233,19 +233,10 @@
 						 4.25197 -180 0 0 225.96 523.82 A4.91149 5.89244 -180 0 0 229.2 518.28 L229.2 515.34 A4.91149 5.89244 -180
 						 0 0 225.96 509.8 A4.25197 4.25197 -180 0 0 224.26 509.44 L4.93 509.44 A4.25197 4.25197 -180 0 0 3.24 509.8
 						 A4.91149 5.89244 -180 0 0 0 515.34 L0 518.28 Z" class="st1"/>
-			<text x="4" y="519.81" class="st2" v:langID="1035"><v:paragraph/><v:tabList/>STATE_<tspan class="st9" v:langID="1044">CONNECTED</tspan></text>		</g>
-		<g id="shape41-101" v:mID="41" v:groupContext="shape" transform="translate(201.059,-134.93)">
-			<title>Sheet.41</title>
-			<desc>NETWORK_QUALITY_SAMPLE / sample.network_quality();</desc>
-			<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
-			<v:textRect cx="108.713" cy="520.056" width="217.43" height="8.23585"/>
-			<rect x="0" y="515.938" width="217.426" height="8.23585" class="st6"/>
-			<text x="0" y="522.46" class="st7" v:langID="1044"><v:paragraph/><v:tabList/>NETWORK_QUALITY_SAMPLE / sample.network_quality();</text>		</g>
-		<g id="shape42-104" v:mID="42" v:groupContext="shape" v:layerMember="0" transform="translate(302.939,-115.16)">
-			<title>Dynamic connector.1008</title>
-			<path d="M7.09 524.17 L7.09 553.42" class="st4"/>
-		</g>
-		<g id="shape43-109" v:mID="43" v:groupContext="shape" transform="translate(217.417,-53.0484)">
+			<text x="4" y="519.81" class="st2" v:langID="1035"><v:paragraph/><v:tabList/>STATE_<tspan class="st9" v:langID="1044">CONNECTED</tspan></text>		</g>	<g id="shape42-104" v:mID="42" v:groupContext="shape" v:layerMember="0" transform="translate(302.939,-115.16)">
+		<title>Dynamic connector.42</title>
+		<path d="M7.09 524.17 L7.09 553.42" class="st4"/>
+	</g>		<g id="shape43-109" v:mID="43" v:groupContext="shape" transform="translate(217.417,-53.0484)">
 			<title>Sheet.43</title>
 			<desc>Do nothing</desc>
 			<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
