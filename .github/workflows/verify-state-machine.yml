@@ -18,7 +18,6 @@ jobs:
   verify-state-machines:
     name: Verify State Machines
     runs-on: ubuntu-latest
-    if: github.event.pull_request.head.repo.full_name == github.repository
     timeout-minutes: 15  # Prevent hanging jobs
     container:
       image: python:3.12.5-slim-bookworm

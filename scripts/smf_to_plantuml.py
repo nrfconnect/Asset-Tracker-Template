@@ -3,9 +3,23 @@
 import os
 import sys
 from pathlib import Path
-from openai import OpenAI
+from openai import AzureOpenAI
 
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+def setup_client():
+    """Initialize OpenAI client with Azure OpenAI """
+    try:
+        # Try Azure OpenAI
+        return AzureOpenAI(
+            api_version="2024-02-15-preview",
+            api_key=os.getenv("OPENAI_API_KEY"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+        )
+    except Exception as e:
+        print(f"Failed to initialize Azure OpenAI client: {e}")
+        raise ValueError("No valid OpenAI credentials found. Please set Azure OpenAI environment variables")
+
+# Initialize the client
+client = setup_client()
 
 def read_c_file(file_path):
     with open(file_path, 'r') as f:
@@ -310,13 +324,13 @@ state STATE_RUNNING {
     user_prompt = f"Create a PlantUML state diagram from this C code:\n\n{c_code}"
 
     try:
-        response = client.chat.completions.create(model="o4-mini",
+        response = client.chat.completions.create(model="gpt-5.2",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ],
         # temperature=0.2,  # For consistent results
-        max_completion_tokens=4000,
+        # max_completion_tokens=4000,
         # seed=42,   # For consistent results
 	)
 
@@ -340,9 +354,10 @@ def main():
         print("Example: ./smf_to_plantuml.py src/modules/network/network_module.c")
         sys.exit(1)
 
-    if 'OPENAI_API_KEY' not in os.environ:
-        print("\nError: OPENAI_API_KEY environment variable not set")
+    if 'OPENAI_API_KEY' not in os.environ or 'AZURE_OPENAI_ENDPOINT' not in os.environ:
+        print("\nError: Required environment variables not set")
         print("Set with: export OPENAI_API_KEY='your-api-key'")
+        print("         export AZURE_OPENAI_ENDPOINT='your-azure-endpoint'")
         sys.exit(1)
 
     # Get the input C file path
