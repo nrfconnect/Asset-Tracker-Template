@@ -3,6 +3,14 @@
 The Main module serves as the central control unit of the Asset Tracker Template. It implements a hierarchical state machine that coordinates the activities of all other modules through [zbus](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) messages.
 This module handles the application's business logic, including cloud connectivity, data sampling, firmware updates, configuration updates, and user interactions.
 
+## Architecture
+
+### State diagram
+
+The Main module implements a state machine with the following states and transitions:
+
+![Main module state diagram](../images/main_module_state_diagram.svg "Main module state diagram")
+
 ## Messages
 
 The main module does not implement messages available to other modules. Instead, it processes messages from other modules to control the application's behavior.
@@ -45,10 +53,3 @@ The Main module can be configured using the following Kconfig options:
 
 * **CONFIG_APP_WATCHDOG_TIMEOUT_SECONDS:**
   Defines the watchdog timeout for the main module.
-
-
-## State diagram
-
-The Main module implements a hierarchical state machine with the following states:
-
-![Main module state diagram](../images/main_module_state_diagram.svg "Main module state diagram")

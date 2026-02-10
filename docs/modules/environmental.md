@@ -5,6 +5,14 @@ The module provides temperature, pressure, and humidity readings to other module
 
 To initiate a sensor reading, the main module sends an `ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST` message to the environmental module. The environmental module then reads the sensor data and sends an `ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE` message with the collected data asynchronously.
 
+## Architecture
+
+### State diagram
+
+The Environmental module implements a state machine with the following states and transitions:
+
+![Environmental module state diagram](../images/environmental_module_state_diagram.svg "Environmental module state diagram")
+
 ## Messages
 
 The Environmental module communicates via the zbus channel `ENVIRONMENTAL_CHAN`, using message types defined in `environmental.h`.
@@ -54,7 +62,3 @@ The Environmental module can be configured using the following Kconfig options:
   Controls logging level for the environmental module.
 
 For more details on Kconfig options, see the `Kconfig.environmental` file in the module's directory.
-
-## State machine
-
-The environmental module implements a very simple state machine with only one state, `STATE_RUNNING`.

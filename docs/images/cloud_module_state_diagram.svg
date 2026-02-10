@@ -167,7 +167,7 @@
 			<v:textRect cx="51.8603" cy="522.042" width="103.73" height="8.23585"/>
 			<rect x="0" y="517.924" width="103.721" height="8.23585" class="st2"/>
 			<text x="0" y="524.44" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>CLOUD_CONN_SUCCESS</text>		</g>
-		<g id="shape72-52" v:mID="72" v:groupContext="shape" transform="translate(95.3694,-386.646)">
+		<g id="shape72-52" v:mID="72" v:groupContext="shape" transform="translate(65,-380)">
 			<title>Sheet.72</title>
 			<desc>NETWORK_DISCONNECTED</desc>
 			<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
@@ -190,9 +190,9 @@
 			<title>Dynamic connector.46</title>
 			<path d="M7.09 526.16 L7.09 554.73" class="st8"/>
 		</g>
-		<g id="shape83-73" v:mID="83" v:groupContext="shape" v:layerMember="0" transform="translate(250.041,-385.094)">
+		<g id="shape83-73" v:mID="83" v:groupContext="shape" v:layerMember="0" transform="translate(175,-348.616)">
 			<title>Dynamic connector.83</title>
-			<path d="M-5.24 526.16 L-5.6 526.16 L-201.26 526.16 L-201.26 487.47 L-243.78 487.47" class="st10"/>
+			<path d="M0 510.47 L0 477.5" class="st8"/>
 		</g>
 		<g id="shape84-79" v:mID="84" v:groupContext="shape" v:layerMember="0" transform="translate(187.907,-331.048)">
 			<title>Dynamic connector.84</title>
@@ -274,11 +274,11 @@
 		</g>
 		<g id="shape122-122" v:mID="122" v:groupContext="shape" transform="translate(35.3161,-136.829)">
 			<title>Sheet.122</title>
-			<desc>STATE_CONNECTED_READY_TO_SEND</desc>
+			<desc>STATE_CONNECTED_READY</desc>
 			<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
 			<v:textRect cx="97.4409" cy="520.865" width="194.89" height="10.5889"/>
 			<rect x="0" y="515.571" width="194.882" height="10.5889" class="st5"/>
-			<text x="0" y="523.86" class="st3" v:langID="1035"><v:paragraph/><v:tabList/>STATE_CONNECTED_READY_TO_SEND</text>		</g>
+			<text x="0" y="523.86" class="st3" v:langID="1035"><v:paragraph/><v:tabList/>STATE_CONNECTED_READY</text>		</g>
 		<g id="shape123-125" v:mID="123" v:groupContext="shape" transform="translate(38.5805,-86.0394)">
 			<title>Sheet.123</title>
 			<desc>entry / send CLOUD_CONNECTED; shadow_get(); PAYLOAD_CHAN / se...</desc>
@@ -371,5 +371,17 @@
 			<v:textRect cx="11.9394" cy="522.042" width="23.88" height="8.23585"/>
 			<rect x="0" y="517.924" width="23.8787" height="8.23585" class="st2"/>
 			<text x="0" y="524.44" class="st6" v:langID="1033"><v:paragraph/><v:tabList/>Start</text>		</g>
+		<g id="shape140-181" v:mID="140" v:groupContext="shape" v:layerMember="0" transform="translate(232.5,-151)">
+			<title>Dynamic connector.140</title>
+			<desc>CLOUD_SEND_REQUEST_FAILED transition from STATE_CONNECTED_READY to STATE_CONNECTING</desc>
+			<path d="M0 526 L0 437.06" class="st8"/>
+		</g>
+		<g id="shape141-182" v:mID="141" v:groupContext="shape" transform="translate(85,-220)">
+			<title>Sheet.141</title>
+			<desc>CLOUD_SEND_REQUEST_FAILED</desc>
+			<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+			<v:textRect cx="60.5014" cy="522.042" width="121.01" height="8.23585"/>
+			<rect x="0" y="517.924" width="121.003" height="8.23585" class="st2"/>
+			<text x="0" y="524.44" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>CLOUD_SEND_REQUEST_FAILED</text>		</g>
 	</g>
 </svg>

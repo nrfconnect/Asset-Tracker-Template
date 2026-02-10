@@ -6,6 +6,14 @@ The module is designed to by default search for a suitable network automatically
 The library can also be configured to be fully controlled by the application instead, giving closer control over the LTE link and current consumption.
 See the [Configurations](#configurations) section for more information.
 
+## Architecture
+
+### State diagram
+
+The Network module implements a state machine with the following states and transitions:
+
+![Network module state diagram](../images/network_module_state_diagram.svg "Network module state diagram")
+
 ## Messages
 
 The network module communicates through the zbus channel ``NETWORK_CHAN``.
@@ -67,9 +75,3 @@ The Network module can be configured using the following Kconfig options:
 - **CONFIG_APP_NETWORK_SEARCH_NETWORK_ON_STARTUP**: When enabled, the module will automatically search for a network on startup. If disabled, network search must be triggered by a NETWORK_CONNECT message.
 
 - **CONFIG_APP_NETWORK_LOG_LEVEL_***: Controls the logging level for the network module. This follows Zephyr's standard logging configuration pattern.
-
-## State Diagram
-
-The Network module implements a state machine with the following states and transitions:
-
-![Network module state diagram](../images/network_module_state_diagram.svg "Network module state diagram")

@@ -6,6 +6,14 @@ The power module manages power-related functionality for devices with nPM1300, l
 - Handling VBUS (USB) connect and disconnect events to enable or disable UART peripherals.
 - Publishing battery percentage updates via zbus messages.
 
+## Architecture
+
+### State diagram
+
+The Power module implements a state machine with the following states and transitions:
+
+![Power module state diagram](../images/power_module_state_diagram.svg "Power module state diagram")
+
 ## Messages
 
 The Power module defines and communicates on the `POWER_CHAN` channel.
@@ -56,12 +64,3 @@ See the `Kconfig.power` file in the module's directory for more details on the a
 
 - The Power module uses `npm1300_charger` as specified by device tree.
 - The two UART devices `uart0_dev` and `uart1_dev` defined in device tree will be enabled or disabled based on VBUS events.
-
-## State machine
-
-The Power module uses a minimal state machine with a single state, **STATE_RUNNING**. In this state, the module:
-
-1. Initializes the charger and optional fuel gauge in the state entry function.
-1. Waits for messages to arrive via zbus.
-1. Handles battery sample requests and publishes results.
-1. Monitors for VBUS events to enable or disable UART devices.

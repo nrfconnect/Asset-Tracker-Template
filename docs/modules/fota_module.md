@@ -24,6 +24,14 @@ Full modem updates require that the device disconnects from the network before a
 
 All update operations feature error handling with appropriate status messages, allowing the application to recover gracefully from download failures or interruptions.
 
+## Architecture
+
+### State diagram
+
+The FOTA module implements a state machine with the following states and transitions:
+
+![FOTA module state diagram](../images/fota_module_state_diagram.svg "FOTA module state diagram")
+
 ## Storage Clearing on Reboot
 
 > [!IMPORTANT]
@@ -75,9 +83,3 @@ The following Kconfig options can be used to customize the FOTA module's behavio
   Maximum time allowed for processing individual FOTA messages.
 - **CONFIG_APP_FOTA_WATCHDOG_TIMEOUT_SECONDS:**
   Watchdog timeout for the FOTA operation to ensure timely completion.
-
-## State diagram
-
-The following is a simplified representation of the state machine implemented in the FOTA module:
-
-![FOTA module state diagram](../images/fota_module_state_diagram.svg "FOTA module state diagram")
