@@ -69,9 +69,8 @@ def compare_state_machines(c_code, plantuml):
         1. Extract all state identifiers from both C and PlantUML.
         2. Extract all transition pairs (source → target) from both.
         3. Extract the parent-child (hierarchy) relationships among states from both.
-        4. Verify initial transitions exist in both - see equivalence rules below.
+        4. Verify initial transitions exist in both.
         5. Ensure that every state, transition, and hierarchical relationship appears in both representations.
-        6. Ensure that the UML input is syntactically valid.
 
         Output:
         A single JSON object with two fields:
@@ -90,15 +89,7 @@ def compare_state_machines(c_code, plantuml):
            - The combination means: "system starts in PARENT, which immediately enters CHILD"
            - This is functionally identical to C directly starting in CHILD with PARENT as its parent.
 
-        2. CHOICE PSEUDOSTATES FOR INITIAL ROUTING:
-           - PlantUML: `[*] --> CHOOSE_INITIAL` followed by conditional transitions to different children
-             (e.g., `CHOOSE_INITIAL --> CHILD_A: config_a` and `CHOOSE_INITIAL --> CHILD_B: otherwise`)
-           - C: `initial_child = &states[INITIAL_MODE]` where INITIAL_MODE is a preprocessor conditional
-             (e.g., `#if CONFIG_X ... #define INITIAL_MODE STATE_A #else ... #define INITIAL_MODE STATE_B`)
-           - These are semantically equivalent: both select the initial child conditionally.
-           - If any of the choice targets matches the C initial child, consider it a match.
-
-        3. DEEP HISTORY:
+        2. DEEP HISTORY:
            - PlantUML `[H*]` inside a composite state, with transitions targeting that composite
            - C implementation: tracking last active leaf state and restoring it on re-entry
            - These are semantically equivalent.
@@ -106,10 +97,8 @@ def compare_state_machines(c_code, plantuml):
 
         IMPORTANT:
         - Focus on semantic equivalence, not syntactic exactness.
-        - If the STATE MACHINES would behave identically at runtime, they match.
         - Only flag genuine mismatches (missing states, wrong targets, missing transitions).
         - If in doubt about equivalence, default `match` to `true` and note the equivalence in `details`.
-        - Be permissive: the goal is to verify behavior, not syntax.
         """
 
 
@@ -127,7 +116,7 @@ def compare_state_machines(c_code, plantuml):
     )
 
     # Call OpenAI ChatCompletion with appropriate model name based on client type
-    model_name = "gpt-5.2"
+    model_name = "gpt-5.1"
     try:
         response = client.chat.completions.create(
             model=model_name,
@@ -135,7 +124,7 @@ def compare_state_machines(c_code, plantuml):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            # temperature=1,
+            temperature=0.1,
             seed=313,
         )
     except Exception as e:
