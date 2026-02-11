@@ -124,6 +124,7 @@ FAKE_VALUE_FUNC(int, storage_batch_read, struct storage_data_item *, k_timeout_t
 /* Forward declarations */
 static void dummy_cb(const struct zbus_channel *chan);
 static void cloud_chan_cb(const struct zbus_channel *chan);
+static void wait_for_storage_batch_close(k_timeout_t timeout);
 
 /* Define unused subscribers */
 ZBUS_SUBSCRIBER_DEFINE(app, 1);
@@ -756,6 +757,9 @@ void test_storage_data_battery_sent_to_cloud(void)
 	/* Verify the timestamp was converted correctly */
 	TEST_ASSERT_EQUAL(TEST_BATTERY_UPTIME_MS + TEST_UPTIME_TO_UNIX_OFFSET_MS,
 			  nrf_cloud_coap_sensor_send_fake.arg2_val);
+
+	/* Verify shadow network info was updated after processing batch data */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_network_info_update_fake.call_count);
 }
 
 void test_storage_data_environmental_sent_to_cloud(void)
@@ -788,6 +792,69 @@ void test_storage_data_environmental_sent_to_cloud(void)
 			  nrf_cloud_coap_sensor_send_fake.arg2_history[1]);
 	TEST_ASSERT_EQUAL(TEST_ENVIRONMENTAL_UPTIME_MS + TEST_UPTIME_TO_UNIX_OFFSET_MS,
 			  nrf_cloud_coap_sensor_send_fake.arg2_history[2]);
+
+	/* Verify shadow network info was updated after processing batch data */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_network_info_update_fake.call_count);
+}
+
+void test_storage_batch_no_items_should_not_update_shadow_network_info(void)
+{
+	struct storage_msg batch_available = {
+		.type = STORAGE_BATCH_AVAILABLE,
+		.data_len = 1,
+		.session_id = 0x55667788,
+		.more_data = false,
+	};
+
+	connect_cloud();
+
+	/* Configure fake to return -EAGAIN immediately (no items available) */
+	fake_mode = FAKE_BATCH_NONE;
+	fake_read_calls = 0;
+	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+
+	publish_and_assert(&STORAGE_CHAN, &batch_available);
+	wait_for_processing();
+
+	/* Verify storage_batch_read was called but returned -EAGAIN */
+	TEST_ASSERT_EQUAL(1, storage_batch_read_fake.call_count);
+
+	/* No items were processed, so shadow network info should NOT be updated */
+	TEST_ASSERT_EQUAL(0, nrf_cloud_coap_shadow_network_info_update_fake.call_count);
+}
+
+void test_storage_batch_shadow_network_info_update_error_should_still_close_session(void)
+{
+	struct storage_msg batch_available = {
+		.type = STORAGE_BATCH_AVAILABLE,
+		.data_len = 1,
+		.session_id = 0x99AABBCC,
+		.more_data = false,
+	};
+
+	connect_cloud();
+
+	/* Prepare fake to return one battery item */
+	fake_mode = FAKE_BATCH_BATTERY;
+	fake_read_calls = 0;
+	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+
+	/* Configure shadow network info update to fail */
+	nrf_cloud_coap_shadow_network_info_update_fake.return_val = -EIO;
+
+	publish_and_assert(&STORAGE_CHAN, &batch_available);
+	wait_for_processing();
+
+	/* Verify data was sent to cloud */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_sensor_send_fake.call_count);
+
+	/* Verify shadow network info update was attempted */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_network_info_update_fake.call_count);
+
+	/* Verify session was closed despite shadow update error */
+	wait_for_storage_batch_close(K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_CLOSE, last_storage_msg.type);
+	TEST_ASSERT_EQUAL(batch_available.session_id, last_storage_msg.session_id);
 }
 
 void test_provisioning_failed_with_network_connected_should_go_to_backoff(void)

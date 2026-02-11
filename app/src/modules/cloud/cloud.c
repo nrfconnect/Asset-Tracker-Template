@@ -557,7 +557,6 @@ static void handle_storage_batch_available(const struct storage_msg *msg)
 		return;
 	}
 
-	/* Update shadow with latest network info after sending data buffered data */
 	if (items_processed > 0) {
 		err = nrf_cloud_coap_shadow_network_info_update();
 		if (err) {
