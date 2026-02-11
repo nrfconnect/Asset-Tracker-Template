@@ -32,6 +32,13 @@ enum storage_msg_type {
 	 */
 	STORAGE_MODE_BUFFER_REQUEST,
 
+	/* Request to set buffer trigger limit.
+	 * Sets the number of items in storage that will trigger a STORAGE_THRESHOLD_REACHED
+	 * message.
+	 * The message must contain the new trigger limit in the `data_len` field.
+	 */
+	STORAGE_SET_THRESHOLD,
+
 	/* Command to flush stored data one stored item at the time.
 	 * The data will be pushed out as a STORAGE_DATA message on STORAGE_DATA_CHAN.
 	 */
@@ -77,6 +84,12 @@ enum storage_msg_type {
 	 * Contains reject_reason field with details.
 	 */
 	STORAGE_MODE_CHANGE_REJECTED,
+
+	/* Number of items in storage >= trigger limit.
+	 * The `data_len` field contains the total number of items in storage.
+	 * This message is sent when the trigger limit is reached or exceeded.
+	 */
+	STORAGE_THRESHOLD_REACHED,
 
 	/* Stored data being flushed as response to a STORAGE_FLUSH message */
 	STORAGE_DATA,

@@ -128,6 +128,15 @@ config APP_STORAGE_INITIAL_MODE_BUFFER
 
 endchoice
 
+config APP_STORAGE_INITIAL_THRESHOLD
+	int "Initial trigger limit for buffered mode"
+	default 0
+	help
+	  Initial threshold limit for storage buffer.
+	  0 means that the buffer threshold is disabled, and the STORAGE_THRESHOLD_REACHED message
+	  will not be sent.
+	  Will be overridden by the value set by STORAGE_SET_THRESHOLD msg.
+
 config APP_STORAGE_SHELL
 	bool "Enable storage shell commands"
 	default y if SHELL
