@@ -175,6 +175,9 @@ struct storage_state {
 
 	/* Session timeout work */
 	struct k_work_delayable session_timeout_work;
+
+	/* Buffer threshold limit */
+	uint32_t buffer_threshold_limit;
 };
 
 /* Delayable work for session timeout */
@@ -313,7 +316,46 @@ static int pipe_read_exact(struct k_pipe *pipe,
 	return (int)read_total;
 }
 
-static void handle_data_message(const struct storage_data *type,
+static void check_and_notify_buffer_threshold(const struct storage_state *state_object,
+					     const struct storage_data *type)
+{
+	int err;
+	int count;
+	const struct storage_backend *backend = storage_backend_get();
+
+	if (state_object->buffer_threshold_limit == 0) {
+		/* Threshold limit of 0 means threshold is disabled */
+		return;
+	}
+
+	count = backend->count(type);
+
+	if (count < 0) {
+		LOG_ERR("Failed to get count for %p, error: %d", type->name, count);
+		return;
+	}
+
+	if ((uint32_t)count >= state_object->buffer_threshold_limit) {
+		LOG_DBG("Buffer threshold limit reached for %s: count=%d, limit=%u",
+			type->name, count, state_object->buffer_threshold_limit);
+
+		struct storage_msg threshold_msg = {
+			.type = STORAGE_THRESHOLD_REACHED,
+			.data_type = type->data_type,
+			.data_len = (uint16_t)count,
+		};
+
+		err = zbus_chan_pub(&STORAGE_CHAN, &threshold_msg,
+				    K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
+		if (err) {
+			LOG_ERR("Failed to publish buffer threshold message, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
+	}
+}
+
+static void handle_data_message(const struct storage_state *state_object,
+				const struct storage_data *type,
 				const uint8_t *buf)
 {
 	int err;
@@ -332,6 +374,8 @@ static void handle_data_message(const struct storage_data *type,
 	if (err) {
 		LOG_ERR("Failed to store %s data, error: %d", type->name, err);
 	}
+
+	check_and_notify_buffer_threshold(state_object, type);
 }
 
 static void passthrough_data_msg(const struct storage_data *type,
@@ -791,12 +835,14 @@ static void state_running_entry(void *o)
 		return;
 	}
 
+	storage_state->buffer_threshold_limit = CONFIG_APP_STORAGE_INITIAL_THRESHOLD;
+
 	k_work_init_delayable(&storage_state->session_timeout_work, session_timeout_work_fn);
 }
 
 static enum smf_state_result state_running_run(void *o)
 {
-	const struct storage_state *state_object = (const struct storage_state *)o;
+	struct storage_state *state_object = (struct storage_state *)o;
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 	LOG_DBG("%s", __func__);
@@ -811,6 +857,13 @@ static enum smf_state_result state_running_run(void *o)
 		case STORAGE_FLUSH:
 			flush_stored_data();
 			break;
+
+		case STORAGE_SET_THRESHOLD:
+			/* Update buffer threshold limit */
+			state_object->buffer_threshold_limit = msg->data_len;
+			return SMF_EVENT_HANDLED;
+			break;
+
 #ifdef CONFIG_APP_STORAGE_SHELL_STATS
 		case STORAGE_STATS:
 			/* Show storage statistics */
@@ -872,7 +925,7 @@ static enum smf_state_result state_buffer_run(void *o)
 	/* Check if message is from a registered data type */
 	STRUCT_SECTION_FOREACH(storage_data, type) {
 		if (state_object->chan == type->chan) {
-			handle_data_message(type, state_object->msg_buf);
+			handle_data_message(state_object, type, state_object->msg_buf);
 
 			return SMF_EVENT_HANDLED;
 		}
