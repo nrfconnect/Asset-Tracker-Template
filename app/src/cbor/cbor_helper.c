@@ -16,14 +16,12 @@
 
 LOG_MODULE_REGISTER(cbor_helper, CONFIG_APP_LOG_LEVEL);
 
-int decode_shadow_parameters_from_cbor(const uint8_t *cbor,
-				       size_t len,
-				       struct config_params *config,
-				       uint32_t *command_type,
+int decode_shadow_parameters_from_cbor(const uint8_t *cbor, size_t len,
+				       struct config_params *config, uint32_t *command_type,
 				       uint32_t *command_id)
 {
 	int err;
-	struct shadow_object shadow = { 0 };
+	struct shadow_object shadow = {0};
 	size_t decode_len = len;
 
 	if (!cbor || !config || !command_type || len == 0) {
@@ -57,29 +55,32 @@ int decode_shadow_parameters_from_cbor(const uint8_t *cbor,
 			LOG_DBG("Configuration: Decoded buffer_mode = %s",
 				config->buffer_mode ? "enabled" : "disabled");
 		}
+
+		if (shadow.config.storage_threshold_present) {
+			config->storage_threshold =
+				shadow.config.storage_threshold.storage_threshold;
+			config->storage_threshold_valid = true;
+			LOG_DBG("Configuration: Decoded storage_threshold = %d",
+				config->storage_threshold);
+		}
 	}
 
 	if (shadow.command_present) {
 		*command_type = shadow.command.type;
 		*command_id = shadow.command.id;
 
-		LOG_DBG("Command parameter present: type=%u, id=%u",
-			*command_type, *command_id);
-
+		LOG_DBG("Command parameter present: type=%u, id=%u", *command_type, *command_id);
 	}
 
 	return 0;
 }
 
-int encode_shadow_parameters_to_cbor(const struct config_params *config,
-				     uint32_t command_type,
-				     uint32_t command_id,
-				     uint8_t *buffer,
-				     size_t buffer_size,
+int encode_shadow_parameters_to_cbor(const struct config_params *config, uint32_t command_type,
+				     uint32_t command_id, uint8_t *buffer, size_t buffer_size,
 				     size_t *encoded_len)
 {
 	int err;
-	struct shadow_object shadow = { 0 };
+	struct shadow_object shadow = {0};
 	size_t encode_len;
 
 	if (!config || !buffer || !encoded_len || buffer_size == 0) {
@@ -103,6 +104,12 @@ int encode_shadow_parameters_to_cbor(const struct config_params *config,
 		shadow.config_present = true;
 		shadow.config.buffer_mode_present = true;
 		shadow.config.buffer_mode.buffer_mode = config->buffer_mode;
+	}
+
+	if (config->storage_threshold_valid) {
+		shadow.config_present = true;
+		shadow.config.storage_threshold_present = true;
+		shadow.config.storage_threshold.storage_threshold = config->storage_threshold;
 	}
 
 	/* Build shadow object with command section */
