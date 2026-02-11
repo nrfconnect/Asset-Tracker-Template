@@ -74,7 +74,11 @@ jobs:
       - name: Extract coverage into sonarqube xml format
         working-directory: asset-tracker-template
         run: |
-          gcovr twister-out -v --merge-mode-functions=separate --exclude='twister-out|drivers' --sonarqube coverage.xml
+          gcovr twister-out -v \
+            --merge-mode-functions=separate \
+            --filter=".*app/src/.*" \
+            --exclude=".*tests/.*" \
+            --sonarqube coverage.xml
 
       - name: Upload Twister Test Results
         if: always()
@@ -98,8 +102,8 @@ jobs:
             --define sonar.organization=nrfconnect
             --define sonar.host.url=https://sonarcloud.io
             --define sonar.coverageReportPaths=coverage.xml
-            --define sonar.inclusions=**/*.c,**/*.h
-            --define sonar.exclusions=tests/,drivers/sensor/*_dummy/
+            --define sonar.inclusions=app/src/**/*.c,app/src/**/*.h
+            --define sonar.exclusions=tests/**/*
           projectBaseDir: asset-tracker-template
 
       - name: SonarQube Scan on PR
@@ -119,8 +123,8 @@ jobs:
             --define sonar.organization=nrfconnect
             --define sonar.host.url=https://sonarcloud.io
             --define sonar.coverageReportPaths=coverage.xml
-            --define sonar.inclusions=**/*.c,**/*.h
-            --define sonar.exclusions=tests/,drivers/sensor/*_dummy/
+            --define sonar.inclusions=app/src/**/*.c,app/src/**/*.h
+            --define sonar.exclusions=tests/**/*
             --define sonar.scm.revision=${{ env.HEAD_SHA }}
             --define sonar.pullrequest.key=${{ env.PR_NUMBER }}
             --define sonar.pullrequest.branch=${{ env.PR_BRANCH }}
