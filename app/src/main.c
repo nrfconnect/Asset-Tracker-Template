@@ -1012,7 +1012,7 @@ static enum smf_state_result buffer_disconnected_run(void *o)
 	}
 
 	if (state_object->chan == &STORAGE_CHAN) {
-		const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
 
 		if (msg->type == STORAGE_MODE_PASSTHROUGH) {
 			smf_set_state(SMF_CTX(state_object),
@@ -1099,7 +1099,7 @@ static enum smf_state_result buffer_connected_run(void *o)
 	}
 
 	if (state_object->chan == &STORAGE_CHAN) {
-		const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
 
 		if (msg->type == STORAGE_MODE_PASSTHROUGH) {
 			smf_set_state(SMF_CTX(state_object),
@@ -1424,7 +1424,7 @@ static enum smf_state_result passthrough_disconnected_run(void *o)
 	}
 
 	if (state_object->chan == &STORAGE_CHAN) {
-		const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
 
 		if (msg->type == STORAGE_MODE_BUFFER) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_DISCONNECTED]);
@@ -1487,7 +1487,7 @@ static enum smf_state_result passthrough_connected_run(void *o)
 	}
 
 	if (state_object->chan == &STORAGE_CHAN) {
-		const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
 
 		if (msg->type == STORAGE_MODE_BUFFER) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_CONNECTED]);

@@ -199,7 +199,7 @@ int storage_batch_read(struct storage_data_item *out_item,
 		       k_timeout_t timeout);
 
 /* Helper macro to convert message pointer */
-#define MSG_TO_STORAGE_MSG(_msg)	(const struct storage_msg *)_msg
+#define MSG_TO_STORAGE_MSG_PTR(_msg)	(const struct storage_msg *)_msg
 
 /* Declare the storage channels */
 ZBUS_CHAN_DECLARE(STORAGE_CHAN);
