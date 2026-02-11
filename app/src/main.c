@@ -149,6 +149,8 @@ static enum smf_state_result buffer_connected_sampling_run(void *o);
 static void buffer_connected_waiting_entry(void *o);
 static enum smf_state_result buffer_connected_waiting_run(void *o);
 static void buffer_connected_waiting_exit(void *o);
+static void buffer_connected_sending_entry(void *o);
+static enum smf_state_result buffer_connected_sending_run(void *o);
 
 /* Passthrough mode connectivity handlers */
 static void passthrough_disconnected_entry(void *o);
@@ -197,6 +199,8 @@ enum state {
 				STATE_BUFFER_CONNECTED_SAMPLING,
 				/* Waiting for next sample or data send trigger */
 				STATE_BUFFER_CONNECTED_WAITING,
+				/* Sending buffered data to the cloud */
+				STATE_BUFFER_CONNECTED_SENDING,
 		/* Application is in passthrough storage mode */
 		STATE_PASSTHROUGH_MODE,
 			/* Passthrough mode with no cloud connectivity */
@@ -242,6 +246,8 @@ struct main_state {
 
 	/* Update interval, how often the device synchronizes with the cloud */
 	uint32_t update_interval_sec;
+
+	uint32_t storage_threshold;
 
 	/* Start time of the most recent sampling. This is used to calculate the correct
 	 * time when scheduling the next sampling trigger.
@@ -329,6 +335,14 @@ static const struct smf_state states[] = {
 		&states[STATE_BUFFER_CONNECTED],
 		NULL
 	),
+	[STATE_BUFFER_CONNECTED_SENDING] = SMF_CREATE_STATE(
+		buffer_connected_sending_entry,
+		buffer_connected_sending_run,
+		NULL,
+		&states[STATE_BUFFER_CONNECTED],
+		NULL
+	),
+	/* Passthrough mode */
 	[STATE_PASSTHROUGH_MODE] = SMF_CREATE_STATE(
 		passthrough_mode_entry,
 		passthrough_mode_run,
@@ -737,9 +751,10 @@ static void update_shadow_reported_section(const struct config_params *config,
 		return;
 	}
 
-	LOG_DBG("Configuration reported: update_interval=%d, sample_interval=%d, mode=%s",
+	LOG_DBG("Configuration reported: update_interval=%d, sample_interval=%d, mode=%s, storage_threshold=%d",
 		config->update_interval, config->sample_interval,
-		config->buffer_mode ? "buffer" : "passthrough");
+		config->buffer_mode ? "buffer" : "passthrough",
+		config->storage_threshold);
 }
 
 static void config_apply(struct main_state *state_object, const struct config_params *config)
@@ -752,7 +767,8 @@ static void config_apply(struct main_state *state_object, const struct config_pa
 
 	if (!config->sample_interval &&
 	    !config->update_interval &&
-	    !config->buffer_mode_valid) {
+	    !config->buffer_mode_valid &&
+	    !config->storage_threshold_valid) {
 		LOG_DBG("No configuration parameters to update");
 		return;
 	}
@@ -782,6 +798,22 @@ static void config_apply(struct main_state *state_object, const struct config_pa
 		SEND_FATAL_ERROR();
 
 		return;
+	}
+
+	if (config->storage_threshold_valid &&
+	    config->storage_threshold != state_object->storage_threshold) {
+		LOG_DBG("Updating storage threshold to %d bytes", config->storage_threshold);
+		state_object->storage_threshold = config->storage_threshold;
+		storage_msg.data_len = config->storage_threshold;
+		storage_msg.type = STORAGE_SET_THRESHOLD;
+
+		err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+		if (err) {
+			LOG_ERR("Failed to publish storage threshold update, error: %d", err);
+			SEND_FATAL_ERROR();
+
+			return;
+		}
 	}
 
 	/* Notify waiting states that configuration has changed and timers need restart */
@@ -851,6 +883,8 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 	 */
 	config.sample_interval = state_object->sample_interval_sec;
 	config.update_interval = state_object->update_interval_sec;
+	config.storage_threshold = state_object->storage_threshold;
+	config.storage_threshold_valid = true;
 
 	/* Set buffer_mode based on what was applied or current state.
 	 * If the cloud sent a mode change request (buffer_mode_valid is true), report that.
@@ -1053,6 +1087,7 @@ static enum smf_state_result buffer_connected_run(void *o)
 			struct config_params config = {
 				.update_interval = state_object->update_interval_sec,
 				.sample_interval = state_object->sample_interval_sec,
+				.storage_threshold = state_object->storage_threshold,
 				.buffer_mode = true,
 				.buffer_mode_valid = true,
 			};
@@ -1213,7 +1248,13 @@ static enum smf_state_result buffer_connected_sampling_run(void *o)
 
 		/* In buffer mode when connected, sample all sensors */
 		sensor_triggers_send();
-		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_CONNECTED_WAITING]);
+
+		if (SMF_CTX(state_object)->previous == &states[STATE_BUFFER_CONNECTED_SENDING]) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_CONNECTED_SENDING]);
+		} else {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_CONNECTED_WAITING]);
+		}
+
 
 		return SMF_EVENT_HANDLED;
 	}
@@ -1227,11 +1268,22 @@ static enum smf_state_result buffer_connected_sampling_run(void *o)
 	/* Handle cloud timer */
 	if (state_object->chan == &TIMER_CHAN &&
 	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_CLOUD) {
-		timer_send_data_start(state_object->update_interval_sec);
-		storage_send_data(state_object);
-		poll_triggers_send();
+		smf_set_state(SMF_CTX(state_object),
+			      &states[STATE_BUFFER_CONNECTED_SENDING]);
 
 		return SMF_EVENT_HANDLED;
+	}
+
+	/* Handle buffer limit reached to send immediately */
+	if (state_object->chan == &STORAGE_CHAN) {
+		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
+
+		if (msg->type == STORAGE_THRESHOLD_REACHED) {
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_BUFFER_CONNECTED_SENDING]);
+
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	return SMF_EVENT_PROPAGATE;
@@ -1262,9 +1314,8 @@ static enum smf_state_result buffer_connected_waiting_run(void *o)
 		}
 
 		if (timer_type == TIMER_EXPIRED_CLOUD) {
-			storage_send_data(state_object);
-			poll_triggers_send();
-			timer_send_data_start(state_object->update_interval_sec);
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_BUFFER_CONNECTED_SENDING]);
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -1289,8 +1340,20 @@ static enum smf_state_result buffer_connected_waiting_run(void *o)
 		}
 
 		if (button_msg.type == BUTTON_PRESS_LONG) {
-			storage_send_data(state_object);
-			poll_triggers_send();
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_BUFFER_CONNECTED_SENDING]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	/* Handle buffer limit reached to send immediately */
+	if (state_object->chan == &STORAGE_CHAN) {
+		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
+
+		if (msg->type == STORAGE_THRESHOLD_REACHED) {
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_BUFFER_CONNECTED_SENDING]);
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -1305,6 +1368,57 @@ static void buffer_connected_waiting_exit(void *o)
 
 	LOG_DBG("%s", __func__);
 	waiting_exit_common();
+}
+
+static void buffer_connected_sending_entry(void *o)
+{
+	struct main_state *state_object = (struct main_state *)o;
+
+	LOG_DBG("%s", __func__);
+
+	/* Send data immediately when entering this state */
+	cloud_send_now(state_object);
+}
+
+static enum smf_state_result buffer_connected_sending_run(void *o)
+{
+	struct main_state *state_object = (struct main_state *)o;
+
+	if (state_object->chan == &TIMER_CHAN) {
+		enum timer_msg_type timer_type = MSG_TO_TIMER_TYPE(state_object->msg_buf);
+
+		if (timer_type == TIMER_EXPIRED_SAMPLE_DATA) {
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_BUFFER_CONNECTED_SAMPLING]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	if (state_object->chan == &BUTTON_CHAN) {
+		struct button_msg button_msg = MSG_TO_BUTTON_MSG(state_object->msg_buf);
+
+		if (button_msg.type == BUTTON_PRESS_SHORT) {
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_BUFFER_CONNECTED_SAMPLING]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	if (state_object->chan == &STORAGE_CHAN) {
+		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
+
+		/* Storage batch closed indicates sending is done, go back to waiting */
+		if (msg->type == STORAGE_BATCH_CLOSE) {
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_BUFFER_CONNECTED_WAITING]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 /* STATE_PASSTHROUGH_MODE */
@@ -1460,6 +1574,7 @@ static enum smf_state_result passthrough_connected_run(void *o)
 			struct config_params config = {
 				.update_interval = state_object->update_interval_sec,
 				.sample_interval = state_object->sample_interval_sec,
+				.storage_threshold = state_object->storage_threshold,
 				.buffer_mode = false,
 				.buffer_mode_valid = true,
 			};
@@ -1954,6 +2069,7 @@ int main(void)
 
 	main_state.sample_interval_sec = CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS;
 	main_state.update_interval_sec = CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS;
+	main_state.storage_threshold = CONFIG_APP_STORAGE_INITIAL_THRESHOLD;
 
 	LOG_DBG("Main has started");
 

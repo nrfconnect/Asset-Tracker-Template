@@ -21,6 +21,12 @@ struct config_params {
 
 	/** Buffer mode validity flag */
 	bool buffer_mode_valid;
+
+	/** Storage buffer threshold amount */
+	uint32_t storage_threshold;
+
+	/** Seperate validity flag as 0 is a valid option for storage_threshold */
+	bool storage_threshold_valid;
 };
 
 /**

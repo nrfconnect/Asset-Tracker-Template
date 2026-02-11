@@ -36,6 +36,7 @@ shadow-object = {
         ? "update_interval": uint .size 4,
         ? "sample_interval": uint .size 4,
         ? "buffer_mode": bool,
+        ? "storage_threshold": uint .size 4,
         * tstr => any
     },
     ? "command": [type: uint .size 4 .ge 1 .le 1, id: uint .size 4 .ge 1 .le 4294967295],
