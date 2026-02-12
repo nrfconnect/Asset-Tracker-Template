@@ -42,7 +42,7 @@ Cloud updates include sending data, checking for FOTA jobs, and retrieving confi
 | Parameter | Description | Unit | Valid Range | Static Configuration
 |-----------|-------------|------|-------------|---------------------
 | **`update_interval`** | <ul><li>**In passthrough mode**: Sampling and cloud update interval.</li><li>**In buffer mode**: Cloud update interval</li></ul> | Seconds | 1 to 4294967295 | `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` (default: 600)
-| **`sample_interval`** | <ul><li>**In passthrough mode**: Not valid.</li><li>**In buffer mode**: Sample interval.</li></ul> | Seconds | 1 to 4294967295 | `CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS` (default: 150)
+| **`sample_interval`** | <ul><li>**In passthrough mode**: Not valid.</li><li>**In buffer mode**: Sample interval.</li></ul> | Seconds | 1 to 4294967295 | `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` (default: 150)
 | **`buffer_mode`** | Storage mode control. Set to `true` for buffer mode or `false` for passthrough mode. | Boolean | true or false | `CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH` (default) / `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER`
 
 You can set the runtime configurations through the cloud device shadow and they will override the compile-time Kconfig defaults shown in the Static Configuration column.
@@ -169,7 +169,7 @@ For shadow structure details, see `Asset-Tracker-Template/app/src/cbor/device_sh
 
 ### Configuration Flow
 
-The device starts in **passthrough mode** by default (you can configure it using the `CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH` Kconfig option). To start in buffer mode instead, use `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER`. Default intervals are set from the `CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS` and `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig options.
+The device starts in **passthrough mode** by default (you can configure it using the `CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH` Kconfig option). To start in buffer mode instead, use `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER`. Default intervals are set from the `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` and `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig options.
 
 The following diagrams illustrate what happens in the various scenarios where the device polls the shadow:
 
@@ -367,10 +367,10 @@ Common scenarios for APN configuration:
 
 The Asset Tracker Template uses LED colors to indicate different device states:
 
-- **Yellow** (Blinking, 10 repetitions): Device is idle and disconnected from cloud.
-- **Green** (Blinking, 10 repetitions): Device is connected to cloud and actively sampling data.
-- **Blue** (Blinking, 10 repetitions): Device is in lower power mode state between samples.
-- **Purple** (Blinking, 10 repetitions): FOTA download in progress.
+- **Red** (Blinking, 10 repetitions): Device is idle and disconnected from cloud.
+- **Blue** (Blinking, 10 repetitions): Device is actively sampling data.
+- **Green** (Blinking, 10 repetitions): Device is sending data to cloud.
+- **Purple** (Blinking): FOTA download in progress.
 
 ### Example: Setting LED colors
 
