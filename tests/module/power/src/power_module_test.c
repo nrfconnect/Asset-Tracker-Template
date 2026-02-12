@@ -8,6 +8,9 @@
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/logging/log.h>
+#include <errno.h>
+#include <string.h>
+#include <nrf_fuel_gauge.h>
 
 #include "app_common.h"
 #include "power.h"
@@ -16,12 +19,17 @@ DEFINE_FFF_GLOBALS;
 
 FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
-FAKE_VALUE_FUNC(float, nrf_fuel_gauge_process, float, float, float, float, bool, void *);
+FAKE_VALUE_FUNC(float, nrf_fuel_gauge_process, float, float, float, float,
+		struct nrf_fuel_gauge_state_info *);
 FAKE_VALUE_FUNC(int, charger_read_sensors, float *, float *, float *, int32_t *);
-FAKE_VALUE_FUNC(int, nrf_fuel_gauge_init, const struct nrf_fuel_gauge_init_parameters *, void *);
+FAKE_VALUE_FUNC(int, nrf_fuel_gauge_init, const struct nrf_fuel_gauge_init_parameters *, float *);
 FAKE_VALUE_FUNC(int, mfd_npm13xx_add_callback, const struct device *, struct gpio_callback *);
 FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
 FAKE_VALUE_FUNC(int, nrf_modem_lib_trace_level_set, int);
+FAKE_VALUE_FUNC(int, nrf_fuel_gauge_state_get, void *, size_t);
+
+/* Define nrf_fuel_gauge_state_size for tests (normally provided by the library) */
+const size_t nrf_fuel_gauge_state_size = 128;
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(power_subscriber);
 ZBUS_CHAN_ADD_OBS(POWER_CHAN, power_subscriber, 0);
@@ -44,9 +52,15 @@ void setUp(void)
 	RESET_FAKE(task_wdt_add);
 	RESET_FAKE(date_time_now);
 	RESET_FAKE(nrf_modem_lib_trace_level_set);
+	RESET_FAKE(nrf_fuel_gauge_state_get);
+	RESET_FAKE(nrf_fuel_gauge_init);
+	RESET_FAKE(nrf_fuel_gauge_process);
+	RESET_FAKE(charger_read_sensors);
+	RESET_FAKE(mfd_npm13xx_add_callback);
 
 	/* Set default return values */
 	nrf_modem_lib_trace_level_set_fake.return_val = 0;
+	nrf_fuel_gauge_state_get_fake.return_val = 0;
 
 	const struct zbus_channel *chan;
 	struct power_msg received_msg;
@@ -143,6 +157,51 @@ void test_power_percentage_sample(void)
 		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE);
 		check_no_power_events(3600);
 	}
+}
+
+void test_fuel_gauge_state_saved_after_sample(void)
+{
+	/* When - Request battery percentage sample */
+	send_power_battery_percentage_sample_request();
+	k_sleep(K_SECONDS(1));
+
+	/* Then - Verify fuel gauge state was saved */
+	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE);
+
+	/* State should be saved exactly once after the sample */
+	TEST_ASSERT_EQUAL(1, nrf_fuel_gauge_state_get_fake.call_count);
+}
+
+void test_fuel_gauge_state_save_error_handling(void)
+{
+	/* Given - Set nrf_fuel_gauge_state_get to fail */
+	nrf_fuel_gauge_state_get_fake.return_val = -EIO;
+
+	/* When - Request battery percentage sample */
+	send_power_battery_percentage_sample_request();
+	k_sleep(K_SECONDS(1));
+
+	/* Then - Module should still produce response even if state save fails */
+	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE);
+
+	/* Verify state_get was attempted exactly once */
+	TEST_ASSERT_EQUAL(1, nrf_fuel_gauge_state_get_fake.call_count);
+}
+
+void test_fuel_gauge_state_multiple_samples_save_state(void)
+{
+	/* When - Request multiple battery samples */
+	for (int i = 0; i < 5; i++) {
+		send_power_battery_percentage_sample_request();
+		k_sleep(K_SECONDS(1));
+		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE);
+	}
+
+	/* Then - State should be saved exactly once per sample (5 calls total) */
+	TEST_ASSERT_EQUAL(5, nrf_fuel_gauge_state_get_fake.call_count);
 }
 
 /* This is required to be added to each test. That is because unity's

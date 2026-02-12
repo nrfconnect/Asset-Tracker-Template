@@ -18,6 +18,7 @@ target_sources(app
   src/power_module_test.c
   src/redef.c
   ${ASSET_TRACKER_TEMPLATE_DIR}/app/src/modules/power/power.c
+  ${ASSET_TRACKER_TEMPLATE_DIR}/app/src/modules/power/fuel_gauge_state.c
 )
 
 target_include_directories(app PRIVATE src)
