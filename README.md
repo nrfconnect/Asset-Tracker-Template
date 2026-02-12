@@ -83,6 +83,8 @@ west flash --erase
 ```
 </details>
 
+test test
+
 <details>
 <summary>3. <strong>Provision device:</strong></summary>
 
