@@ -133,8 +133,6 @@ ZBUS_CHAN_DEFINE(PRIV_STORAGE_CHAN,
 static void state_running_entry(void *o);
 static enum smf_state_result state_running_run(void *o);
 
-static enum smf_state_result state_passthrough_run(void *o);
-
 static enum smf_state_result state_buffer_run(void *o);
 static enum smf_state_result state_buffer_idle_run(void *o);
 
@@ -186,7 +184,6 @@ static void session_timeout_work_fn(struct k_work *work);
 /* Defining the storage module states */
 enum storage_module_state {
 	STATE_RUNNING,
-	STATE_PASSTHROUGH,
 	STATE_BUFFER,
 	STATE_BUFFER_IDLE,
 	STATE_BUFFER_PIPE_ACTIVE,
@@ -195,19 +192,9 @@ enum storage_module_state {
 /* Construct state table */
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
-#ifdef CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH
-		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
-				 NULL, /* No parent state */
-				 &states[STATE_PASSTHROUGH]), /* Initial transition */
-#elif IS_ENABLED(CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER)
 		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
 				 NULL, /* No parent state */
 				 &states[STATE_BUFFER]), /* Initial transition */
-#endif /* CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER */
-	[STATE_PASSTHROUGH] =
-		SMF_CREATE_STATE(NULL, state_passthrough_run, NULL,
-				 &states[STATE_RUNNING],
-				 NULL),
 	[STATE_BUFFER] =
 		SMF_CREATE_STATE(NULL, state_buffer_run, NULL,
 				 &states[STATE_RUNNING],
@@ -378,32 +365,6 @@ static void handle_data_message(const struct storage_state *state_object,
 	check_and_notify_buffer_threshold(state_object, type);
 }
 
-static void passthrough_data_msg(const struct storage_data *type,
-				  const uint8_t *buf)
-{
-	int err;
-	struct storage_msg msg = {
-		.type = STORAGE_DATA,
-		.data_type = type->data_type,
-		.data_len = (uint16_t)MIN(type->data_size, (size_t)UINT16_MAX),
-	};
-
-	LOG_DBG("Passthrough data message for %s", type->name);
-
-	/* Passthrough only relevant data */
-	if (!type->should_store(buf)) {
-		return;
-	}
-
-	type->extract_data(buf, (void *)msg.buffer);
-
-	err = zbus_chan_pub(&STORAGE_DATA_CHAN, &msg, K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
-	if (err) {
-		LOG_ERR("Failed to publish %s data, error: %d", type->name, err);
-		SEND_FATAL_ERROR();
-	}
-}
-
 static void flush_stored_data(void)
 {
 	int count;
@@ -516,37 +477,6 @@ static void send_batch_available_response(uint32_t session_id, size_t item_count
 					  bool more_available)
 {
 	send_batch_response(STORAGE_BATCH_AVAILABLE, session_id, item_count, more_available);
-}
-
-/* Send mode confirmation */
-static void send_mode_confirmed(enum storage_msg_type confirmed_type)
-{
-	int err;
-	struct storage_msg confirm_msg = {
-		.type = confirmed_type,
-	};
-
-	err = zbus_chan_pub(&STORAGE_CHAN, &confirm_msg, K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
-	if (err) {
-		LOG_ERR("Failed to send mode confirmation: %d", err);
-		SEND_FATAL_ERROR();
-	}
-}
-
-/* Send mode rejection */
-static void send_mode_rejected(enum storage_reject_reason reason)
-{
-	int err;
-	struct storage_msg reject_msg = {
-		.type = STORAGE_MODE_CHANGE_REJECTED,
-		.reject_reason = reason,
-	};
-
-	err = zbus_chan_pub(&STORAGE_CHAN, &reject_msg, K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
-	if (err) {
-		LOG_ERR("Failed to send mode rejection: %d", err);
-		SEND_FATAL_ERROR();
-	}
 }
 
 /* Populate the pipe with all stored data
@@ -878,64 +808,14 @@ static enum smf_state_result state_running_run(void *o)
 	return SMF_EVENT_PROPAGATE;
 }
 
-static enum smf_state_result state_passthrough_run(void *o)
-{
-	const struct storage_state *state_object = (const struct storage_state *)o;
-	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
-
-	/* Check if message is from a registered data type */
-	STRUCT_SECTION_FOREACH(storage_data, type) {
-		if (state_object->chan == type->chan) {
-			passthrough_data_msg(type, state_object->msg_buf);
-
-			return SMF_EVENT_HANDLED;
-		}
-	}
-
-	if (state_object->chan == &STORAGE_CHAN) {
-		switch (msg->type) {
-		case STORAGE_MODE_PASSTHROUGH_REQUEST:
-			LOG_DBG("Already in passthrough mode, sending confirmation");
-			send_mode_confirmed(STORAGE_MODE_PASSTHROUGH);
-
-			return SMF_EVENT_HANDLED;
-		case STORAGE_MODE_BUFFER_REQUEST:
-			LOG_DBG("Switching to buffer mode (with confirmation)");
-			send_mode_confirmed(STORAGE_MODE_BUFFER);
-			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
-
-			return SMF_EVENT_HANDLED;
-		case STORAGE_BATCH_REQUEST:
-			send_batch_error_response(msg->session_id);
-
-			break;
-		default:
-			break;
-		}
-	}
-
-	return SMF_EVENT_PROPAGATE;
-}
-
 static enum smf_state_result state_buffer_run(void *o)
 {
 	struct storage_state *state_object = (struct storage_state *)o;
-	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 	/* Check if message is from a registered data type */
 	STRUCT_SECTION_FOREACH(storage_data, type) {
 		if (state_object->chan == type->chan) {
 			handle_data_message(state_object, type, state_object->msg_buf);
-
-			return SMF_EVENT_HANDLED;
-		}
-	}
-
-	/* Handle common buffer state messages */
-	if (state_object->chan == &STORAGE_CHAN) {
-		if (msg->type == STORAGE_MODE_BUFFER_REQUEST) {
-			LOG_DBG("Already in buffer mode, sending confirmation");
-			send_mode_confirmed(STORAGE_MODE_BUFFER);
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -953,12 +833,6 @@ static enum smf_state_result state_buffer_idle_run(void *o)
 
 	if (state_object->chan == &STORAGE_CHAN) {
 		switch (msg->type) {
-		case STORAGE_MODE_PASSTHROUGH_REQUEST:
-			LOG_DBG("Switching to passthrough mode (with confirmation)");
-			send_mode_confirmed(STORAGE_MODE_PASSTHROUGH);
-			smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH]);
-
-			return SMF_EVENT_HANDLED;
 		case STORAGE_BATCH_REQUEST:
 			LOG_DBG("Batch request received, switching to batch active state");
 			/* Set up session ID for the upcoming batch session */
@@ -1047,12 +921,6 @@ static enum smf_state_result state_buffer_pipe_active_run(void *o)
 			/* Reset session timeout on activity */
 			k_work_reschedule(&state_object->session_timeout_work,
 					  K_SECONDS(STORAGE_SESSION_TIMEOUT_SECONDS));
-
-			return SMF_EVENT_HANDLED;
-
-		case STORAGE_MODE_PASSTHROUGH_REQUEST:
-			LOG_WRN("Cannot change to passthrough mode while batch session is active");
-			send_mode_rejected(STORAGE_REJECT_BATCH_ACTIVE);
 
 			return SMF_EVENT_HANDLED;
 

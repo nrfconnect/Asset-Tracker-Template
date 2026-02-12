@@ -108,26 +108,6 @@ config APP_STORAGE_MSG_PROCESSING_TIMEOUT_SECONDS
 	  Maximum time allowed for processing a single message in the storage module.
 	  Must be less than APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS.
 
-choice APP_STORAGE_INITIAL_MODE
-	prompt "Storage module initial mode"
-	default APP_STORAGE_INITIAL_MODE_PASSTHROUGH
-	help
-	  Select the initial mode of the storage module.
-
-config APP_STORAGE_INITIAL_MODE_PASSTHROUGH
-	bool "Passthrough mode"
-	help
-	  In this mode, the storage module will pass messages directly to STORAGE_DATA messages
-	  without any buffering of data.
-
-config APP_STORAGE_INITIAL_MODE_BUFFER
-	bool "Buffer mode"
-	help
-	  In this mode, the storage module will buffer data samples in the configured backend.
-	  Data is sent from the storage module upon request from other modules.
-
-endchoice
-
 config APP_STORAGE_INITIAL_THRESHOLD
 	int "Initial trigger limit for buffered mode"
 	default 0
