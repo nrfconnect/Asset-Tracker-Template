@@ -620,7 +620,7 @@ static void handle_storage_batch_busy(const struct storage_msg *msg)
 static void handle_storage_data(const struct storage_msg *msg)
 {
 	int err;
-	/* Handle real-time storage data (from flush or passthrough mode) */
+	/* Handle real-time storage data */
 	struct storage_data_item item;
 
 	/* Extract data from the storage message buffer */

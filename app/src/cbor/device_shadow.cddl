@@ -6,17 +6,16 @@
 ;
 ; Sections:
 ; 1. "config": Device configuration parameters.
-;    - "update_interval": (optional) A 4-byte unsigned integer (in seconds) specifying:
-;                         - In passthrough mode: How often the device samples sensors and sends data to cloud.
-;                         - In buffer mode: How often the device sends buffered data to cloud, polls shadow, and checks for FOTA updates.
-;                         Valid range: 1 to 4294967295. Values outside this range are decoded but rejected by application.
+;    - "update_interval": (optional) A 4-byte unsigned integer (in seconds) specifying how often the
+;                         device sends buffered data to cloud, polls shadow, and checks for FOTA updates.
+;                         Valid range: 1 to 4294967295. Values outside this range are rejected by CBOR decoder.
 ;    - "sample_interval": (optional) A 4-byte unsigned integer (in seconds) specifying how often the device
-;                         samples sensor data in buffer mode. This parameter is ignored in passthrough mode.
-;                         Valid range: 1 to 4294967295. Values outside this range are decoded but rejected by application.
-;    - "buffer_mode": (optional) A boolean value that controls the storage mode.
-;                     true = Buffer mode: Device samples at "sample_interval" and sends data at "update_interval".
-;                     false = Passthrough mode: Device samples and sends data at "update_interval" (sample_interval is ignored).
-;                     When not present, the device uses the default passthrough mode.
+;                         samples sensor data.
+;                         Valid range: 1 to 4294967295. Values outside this range are rejected by CBOR decoder.
+;    - "storage_threshold": (optional) A 4-byte unsigned initeger (in samples) specifying the number
+;                         of samples to store before sending a STORAGE_THRESHOLD_REACHED message.
+;                         Valid range: 0 to CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE. Values outside this range are rejected by CBOR decoder.
+;                         A value of 0 means that the threshold is disabled.
 ;    - Additional configuration parameters may be included as key-value pairs (tstr => any).
 ;
 ; 2. "command": (optional) An array specifying a command for the device to execute.
@@ -33,10 +32,9 @@
 
 shadow-object = {
     ? "config": {
-        ? "update_interval": uint .size 4,
-        ? "sample_interval": uint .size 4,
-        ? "buffer_mode": bool,
-        ? "storage_threshold": uint .size 4,
+        ? "update_interval": uint .size 4 .ge 1 .le 4294967295,
+        ? "sample_interval": uint .size 4 .ge 1 .le 4294967295,
+        ? "storage_threshold": uint .size 4 .ge 0 .le @CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE@,
         * tstr => any
     },
     ? "command": [type: uint .size 4 .ge 1 .le 1, id: uint .size 4 .ge 1 .le 4294967295],

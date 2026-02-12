@@ -16,12 +16,6 @@ struct config_params {
 	/** Sample interval in seconds. */
 	uint32_t sample_interval;
 
-	/** Buffer mode flag */
-	bool buffer_mode;
-
-	/** Buffer mode validity flag */
-	bool buffer_mode_valid;
-
 	/** Storage buffer threshold amount */
 	uint32_t storage_threshold;
 

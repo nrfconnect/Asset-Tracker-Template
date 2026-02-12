@@ -7,10 +7,18 @@
 target_sources(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cbor_helper.c)
 target_include_directories(app PRIVATE .)
 
+# Preprocess CDDL file to substitute Kconfig values
+# Replaces @VARIABLE_NAME@ with the value of VARIABLE_NAME from CMake.
+configure_file(
+	${CMAKE_CURRENT_SOURCE_DIR}/device_shadow.cddl
+	${CMAKE_CURRENT_BINARY_DIR}/device_shadow.cddl
+	@ONLY
+)
+
 # Generate encoder and decoder code using zcbor
 set(zcbor_command
         zcbor code # Invoke code generation
-	--cddl ${CMAKE_CURRENT_SOURCE_DIR}/device_shadow.cddl
+	--cddl ${CMAKE_CURRENT_BINARY_DIR}/device_shadow.cddl
 	--decode # Generate decoding functions
 	--encode # Generate encoding functions
 	--short-names # Attempt to make generated symbol names shorter (at the risk of collision)

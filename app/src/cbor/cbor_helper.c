@@ -51,13 +51,6 @@ int decode_shadow_parameters_from_cbor(const uint8_t *cbor,
 				config->sample_interval);
 		}
 
-		if (shadow.config.buffer_mode_present) {
-			config->buffer_mode = shadow.config.buffer_mode.buffer_mode;
-			config->buffer_mode_valid = true;
-			LOG_DBG("Configuration: Decoded buffer_mode = %s",
-				config->buffer_mode ? "enabled" : "disabled");
-		}
-
 		if (shadow.config.storage_threshold_present) {
 			config->storage_threshold = shadow.config.storage_threshold.storage_threshold;
 			config->storage_threshold_valid = true;
@@ -104,12 +97,6 @@ int encode_shadow_parameters_to_cbor(const struct config_params *config,
 		shadow.config_present = true;
 		shadow.config.sample_interval_present = true;
 		shadow.config.sample_interval.sample_interval = config->sample_interval;
-	}
-
-	if (config->buffer_mode_valid) {
-		shadow.config_present = true;
-		shadow.config.buffer_mode_present = true;
-		shadow.config.buffer_mode.buffer_mode = config->buffer_mode;
 	}
 
 	if (config->storage_threshold_valid) {

@@ -20,18 +20,6 @@ extern "C" {
 enum storage_msg_type {
 	/* Input messages */
 
-	/* Request to enable passthrough mode.
-	 * Storage module will respond with STORAGE_MODE_PASSTHROUGH (confirmation) or
-	 * STORAGE_MODE_CHANGE_REJECTED (if request cannot be fulfilled).
-	 */
-	STORAGE_MODE_PASSTHROUGH_REQUEST,
-
-	/* Request to enable buffer mode.
-	 * Storage module will respond with STORAGE_MODE_BUFFER (confirmation) or
-	 * STORAGE_MODE_CHANGE_REJECTED (if request cannot be fulfilled).
-	 */
-	STORAGE_MODE_BUFFER_REQUEST,
-
 	/* Request to set buffer trigger limit.
 	 * Sets the number of items in storage that will trigger a STORAGE_THRESHOLD_REACHED
 	 * message.
@@ -66,25 +54,6 @@ enum storage_msg_type {
 
 	/* Output messages */
 
-	/* Storage module is in passthrough mode.
-	 * In this mode, the storage module will not store any data, but push it
-	 * directly out as a STORAGE_DATA message on STORAGE_DATA_CHAN.
-	 */
-	STORAGE_MODE_PASSTHROUGH,
-
-	/* Storage module is in buffer mode.
-	 * In this mode, the storage module will store data in the configured storage backend.
-	 * If the backend is not available, the data will be lost.
-	 * If the storage is full, the oldest data will be removed to make space for new data.
-	 */
-	STORAGE_MODE_BUFFER,
-
-	/* Mode change request was rejected due to safety constraints.
-	 * For example, cannot switch to passthrough while batch session is active.
-	 * Contains reject_reason field with details.
-	 */
-	STORAGE_MODE_CHANGE_REJECTED,
-
 	/* Number of items in storage >= trigger limit.
 	 * The `data_len` field contains the total number of items in storage.
 	 * This message is sent when the trigger limit is reached or exceeded.
@@ -116,24 +85,6 @@ enum storage_msg_type {
 };
 
 /**
- * @brief Reasons why a mode change request might be rejected
- */
-enum storage_reject_reason {
-	STORAGE_REJECT_UNKNOWN = 0,
-
-	/* Cannot change to passthrough mode while batch session is active */
-	STORAGE_REJECT_BATCH_ACTIVE,
-
-	/* Cannot change mode due to internal error */
-	STORAGE_REJECT_INTERNAL_ERROR,
-
-	/* Request is invalid or malformed.
-	 * This message is sent if the request is received while the module is in passthrough mode.
-	 */
-	STORAGE_REJECT_INVALID_REQUEST,
-};
-
-/**
  * @brief Message structure for the storage channel
  *
  * This structure is used to define a message that is sent over the storage channels.
@@ -153,9 +104,6 @@ struct storage_msg {
 
 		/* Session ID for batch operations */
 		uint32_t session_id;
-
-		/* Reason for mode change rejection (for STORAGE_MODE_CHANGE_REJECTED) */
-		enum storage_reject_reason reject_reason;
 	};
 
 	/* Length/count field used by various message types:
