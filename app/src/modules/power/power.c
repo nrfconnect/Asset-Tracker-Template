@@ -20,10 +20,14 @@
 #include <date_time.h>
 #include <modem/nrf_modem_lib_trace.h>
 #include <modem/nrf_modem_lib.h>
+#if defined(CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX)
+#include "memfault/metrics/platform/battery.h"
+#endif /* CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
 
 #include "lp803448_model.h"
 #include "app_common.h"
 #include "power.h"
+#include "fuel_gauge_state.h"
 
 /* Register log module */
 LOG_MODULE_REGISTER(power, CONFIG_APP_POWER_LOG_LEVEL);
@@ -229,6 +233,14 @@ static void state_running_entry(void *obj)
 		LOG_ERR("charger_read_sensors, error: %d", err);
 		SEND_FATAL_ERROR();
 		return;
+	}
+
+	parameters.state = fuel_gauge_state_get();
+	if (parameters.state) {
+		LOG_DBG("Restoring fuel gauge from saved state (%zu bytes)",
+			fuel_gauge_state_size_get());
+	} else {
+		LOG_DBG("No saved fuel gauge state found, initializing from scratch");
 	}
 
 	err = nrf_fuel_gauge_init(&parameters, NULL);
@@ -466,10 +478,6 @@ static int charger_read_sensors(float *voltage, float *current, float *temp, int
 	return 0;
 }
 
-#if defined(CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX)
-#include "memfault/metrics/platform/battery.h"
-#endif /* CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
-
 static void sample(int64_t *ref_time)
 {
 	int err;
@@ -514,7 +522,14 @@ static void sample(int64_t *ref_time)
 				  NPM13XX_CHG_STATUS_CV_MASK)) != 0;
 
 	state_of_charge = nrf_fuel_gauge_process(voltage, current, temp, delta, NULL);
+
 #endif /* CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
+
+	/* Save fuel gauge state to no-init RAM after each query */
+	err = fuel_gauge_state_save();
+	if (err) {
+		LOG_WRN("Failed to save fuel gauge state: %d", err);
+	}
 
 	LOG_DBG("State of charge: %f", (double)roundf(state_of_charge));
 	LOG_DBG("The battery is %s", charging ? "charging" : "not charging");
