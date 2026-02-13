@@ -376,6 +376,7 @@ static inline int attempt_timestamp_to_unix_ms(int64_t *uptime_ms)
 	return 0;
 }
 
+#if defined(CONFIG_APP_POWER)
 static int handle_data_timestamp(int64_t *timestamp_ms)
 {
 	int err;
@@ -410,6 +411,7 @@ static int handle_data_timestamp(int64_t *timestamp_ms)
 		return err;
 	}
 }
+#endif /* CONFIG_APP_POWER */
 
 /* Storage handling functions */
 
