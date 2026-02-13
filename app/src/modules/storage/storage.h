@@ -20,17 +20,12 @@ extern "C" {
 enum storage_msg_type {
 	/* Input messages */
 
-	/* Request to enable passthrough mode.
-	 * Storage module will respond with STORAGE_MODE_PASSTHROUGH (confirmation) or
-	 * STORAGE_MODE_CHANGE_REJECTED (if request cannot be fulfilled).
+	/* Request to set buffer trigger limit.
+	 * Sets the number of items in storage that will trigger a STORAGE_THRESHOLD_REACHED
+	 * message.
+	 * The message must contain the new trigger limit in the `data_len` field.
 	 */
-	STORAGE_MODE_PASSTHROUGH_REQUEST,
-
-	/* Request to enable buffer mode.
-	 * Storage module will respond with STORAGE_MODE_BUFFER (confirmation) or
-	 * STORAGE_MODE_CHANGE_REJECTED (if request cannot be fulfilled).
-	 */
-	STORAGE_MODE_BUFFER_REQUEST,
+	STORAGE_SET_THRESHOLD,
 
 	/* Command to flush stored data one stored item at the time.
 	 * The data will be pushed out as a STORAGE_DATA message on STORAGE_DATA_CHAN.
@@ -59,24 +54,11 @@ enum storage_msg_type {
 
 	/* Output messages */
 
-	/* Storage module is in passthrough mode.
-	 * In this mode, the storage module will not store any data, but push it
-	 * directly out as a STORAGE_DATA message on STORAGE_DATA_CHAN.
+	/* Number of items in storage >= trigger limit.
+	 * The `data_len` field contains the total number of items in storage.
+	 * This message is sent when the trigger limit is reached or exceeded.
 	 */
-	STORAGE_MODE_PASSTHROUGH,
-
-	/* Storage module is in buffer mode.
-	 * In this mode, the storage module will store data in the configured storage backend.
-	 * If the backend is not available, the data will be lost.
-	 * If the storage is full, the oldest data will be removed to make space for new data.
-	 */
-	STORAGE_MODE_BUFFER,
-
-	/* Mode change request was rejected due to safety constraints.
-	 * For example, cannot switch to passthrough while batch session is active.
-	 * Contains reject_reason field with details.
-	 */
-	STORAGE_MODE_CHANGE_REJECTED,
+	STORAGE_THRESHOLD_REACHED,
 
 	/* Stored data being flushed as response to a STORAGE_FLUSH message */
 	STORAGE_DATA,
@@ -103,24 +85,6 @@ enum storage_msg_type {
 };
 
 /**
- * @brief Reasons why a mode change request might be rejected
- */
-enum storage_reject_reason {
-	STORAGE_REJECT_UNKNOWN = 0,
-
-	/* Cannot change to passthrough mode while batch session is active */
-	STORAGE_REJECT_BATCH_ACTIVE,
-
-	/* Cannot change mode due to internal error */
-	STORAGE_REJECT_INTERNAL_ERROR,
-
-	/* Request is invalid or malformed.
-	 * This message is sent if the request is received while the module is in passthrough mode.
-	 */
-	STORAGE_REJECT_INVALID_REQUEST,
-};
-
-/**
  * @brief Message structure for the storage channel
  *
  * This structure is used to define a message that is sent over the storage channels.
@@ -140,9 +104,6 @@ struct storage_msg {
 
 		/* Session ID for batch operations */
 		uint32_t session_id;
-
-		/* Reason for mode change rejection (for STORAGE_MODE_CHANGE_REJECTED) */
-		enum storage_reject_reason reject_reason;
 	};
 
 	/* Length/count field used by various message types:
@@ -199,7 +160,7 @@ int storage_batch_read(struct storage_data_item *out_item,
 		       k_timeout_t timeout);
 
 /* Helper macro to convert message pointer */
-#define MSG_TO_STORAGE_MSG(_msg)	(const struct storage_msg *)_msg
+#define MSG_TO_STORAGE_MSG_PTR(_msg)	(const struct storage_msg *)_msg
 
 /* Declare the storage channels */
 ZBUS_CHAN_DECLARE(STORAGE_CHAN);

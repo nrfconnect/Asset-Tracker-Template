@@ -110,58 +110,12 @@ static int cmd_storage_stats(const struct shell *sh, size_t argc, char **argv)
 	return 0;
 }
 
-static int cmd_storage_mode_passthrough(const struct shell *sh, size_t argc, char **argv)
-{
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-
-	struct storage_msg msg = { .type = STORAGE_MODE_PASSTHROUGH_REQUEST };
-	int err;
-
-	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
-	if (err) {
-		shell_error(sh, "Failed to publish STORAGE_MODE_PASSTHROUGH: %d", err);
-		return err;
-	}
-
-	shell_print(sh, "Storage mode set to passthrough.");
-
-	return 0;
-}
-
-static int cmd_storage_mode_buffer(const struct shell *sh, size_t argc, char **argv)
-{
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-
-	struct storage_msg msg = { .type = STORAGE_MODE_BUFFER_REQUEST };
-	int err;
-
-	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
-	if (err) {
-		shell_error(sh, "Failed to publish STORAGE_MODE_BUFFER: %d", err);
-		return err;
-	}
-
-	shell_print(sh, "Storage mode set to buffer.");
-
-	return 0;
-}
-
-SHELL_STATIC_SUBCMD_SET_CREATE(storage_mode_sub_cmds,
-	SHELL_CMD(passthrough, NULL, "Set storage to passthrough mode",
-		  cmd_storage_mode_passthrough),
-	SHELL_CMD(buffer, NULL, "Set storage to buffer mode", cmd_storage_mode_buffer),
-	SHELL_SUBCMD_SET_END
-);
-
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_cmds,
 	SHELL_CMD(flush, NULL, "Flush stored data", cmd_storage_flush),
 	SHELL_CMD(batch_request, NULL, "Request data from batch", cmd_storage_batch_request),
 	SHELL_CMD(clear, NULL, "Clear all stored data", cmd_storage_clear),
 	SHELL_CMD(batch_close, NULL, "Close batch session", cmd_storage_batch_close),
 	SHELL_CMD(stats, NULL, "Show storage statistics", cmd_storage_stats),
-	SHELL_CMD(mode, &storage_mode_sub_cmds, "Set storage mode", NULL),
 	SHELL_SUBCMD_SET_END
 );
 

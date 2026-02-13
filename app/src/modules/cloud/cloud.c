@@ -620,7 +620,7 @@ static void handle_storage_batch_busy(const struct storage_msg *msg)
 static void handle_storage_data(const struct storage_msg *msg)
 {
 	int err;
-	/* Handle real-time storage data (from flush or passthrough mode) */
+	/* Handle real-time storage data */
 	struct storage_data_item item;
 
 	/* Extract data from the storage message buffer */
@@ -700,7 +700,7 @@ static void handle_priv_cloud_message(struct cloud_state_object const *state_obj
 
 static void handle_storage_channel_message(struct cloud_state_object const *state_object)
 {
-	const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+	const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
 
 	switch (msg->type) {
 	case STORAGE_BATCH_AVAILABLE:
@@ -727,7 +727,7 @@ static void handle_storage_channel_message(struct cloud_state_object const *stat
 
 static void handle_storage_data_message(struct cloud_state_object const *state_object)
 {
-	const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+	const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
 
 	if (msg->type == STORAGE_DATA) {
 		LOG_DBG("Storage data received, type: %d, size: %d",
@@ -1157,7 +1157,7 @@ static enum smf_state_result state_connected_paused_run(void *obj)
 	}
 
 	if (state_object->chan == &STORAGE_CHAN) {
-		const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
 
 		switch (msg->type) {
 		case STORAGE_BATCH_AVAILABLE:

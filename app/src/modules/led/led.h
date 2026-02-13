@@ -45,7 +45,7 @@ struct led_msg {
 	int repetitions;
 };
 
-#define MSG_TO_LED_MSG(_msg) ((const struct led_msg *)_msg)
+#define MSG_TO_LED_MSG(_msg) (*(const struct led_msg *)_msg)
 
 #ifdef __cplusplus
 }
