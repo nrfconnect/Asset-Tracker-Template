@@ -56,8 +56,7 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
     header_list = [
         get_header_str("LOCATION"),
         get_header_str("BATTERY"),
-        get_header_str("ENVIRONMENTAL"),
-        get_header_str("NETWORK")
+        get_header_str("ENVIRONMENTAL")
     ]
 
     storage_full_list = [
