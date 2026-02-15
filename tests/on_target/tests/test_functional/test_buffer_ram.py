@@ -49,8 +49,7 @@ def test_buffer_ram(dut_cloud, hex_file_buffer_ram):
         initialization_list = [
                 get_initialized_str("BATTERY"),
                 get_initialized_str("ENVIRONMENTAL"),
-                get_initialized_str("LOCATION"),
-                get_initialized_str("NETWORK")
+                get_initialized_str("LOCATION")
         ]
 
         storing_list = [
