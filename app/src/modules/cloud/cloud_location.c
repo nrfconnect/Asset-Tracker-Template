@@ -158,7 +158,7 @@ static void handle_cloud_location_request(const struct location_cloud_request_da
 	struct lte_lc_cell gci_cells[CONFIG_LTE_NEIGHBOR_CELLS_MAX];
 
 	if ((request->current_cell.id != LTE_LC_CELL_EUTRAN_ID_INVALID) &&
-	    (request->ncells_count > 0)) {
+	    ((request->ncells_count > 0) || (request->gci_cells_count > 0))) {
 		err = cellular_cell_data_construct(&cell_info, neighbor_cells,
 						   ARRAY_SIZE(neighbor_cells),
 						   gci_cells,
