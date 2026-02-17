@@ -246,11 +246,11 @@ static void gnss_location_send(const struct location_data *location_data)
 	}
 }
 
-static void status_send(enum location_msg_type status)
+static void message_send(enum location_msg_type msg_type)
 {
 	int err;
 	struct location_msg location_msg = {
-		.type = status
+		.type = msg_type
 	};
 
 	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
@@ -363,7 +363,6 @@ static enum smf_state_result state_location_search_active_run(void *obj)
 				LOG_DBG("Location request cancelled successfully");
 			}
 
-			status_send(LOCATION_SEARCH_DONE);
 		} else if (location_msg->type == LOCATION_SEARCH_DONE) {
 			LOG_DBG("Location search done message received, going to inactive state");
 
@@ -448,14 +447,14 @@ static void location_event_handler(const struct location_event_data *event_data)
 		}
 #endif /* CONFIG_LOCATION_METHOD_GNSS */
 
-		status_send(LOCATION_SEARCH_DONE);
+		message_send(LOCATION_SEARCH_DONE);
 		break;
 	case LOCATION_EVT_STARTED:
-		status_send(LOCATION_SEARCH_STARTED);
+		message_send(LOCATION_SEARCH_STARTED);
 		break;
 	case LOCATION_EVT_TIMEOUT:
 		LOG_DBG("Getting location timed out");
-		status_send(LOCATION_SEARCH_DONE);
+		message_send(LOCATION_SEARCH_DONE);
 		break;
 	case LOCATION_EVT_ERROR:
 		LOG_WRN("Location request failed:");
@@ -464,7 +463,7 @@ static void location_event_handler(const struct location_event_data *event_data)
 
 		location_print_data_details(event_data->method, &event_data->error.details);
 
-		status_send(LOCATION_SEARCH_DONE);
+		message_send(LOCATION_SEARCH_DONE);
 		break;
 	case LOCATION_EVT_FALLBACK:
 		LOG_DBG("Location request fallback has occurred:");
@@ -484,19 +483,14 @@ static void location_event_handler(const struct location_event_data *event_data)
 	case LOCATION_EVT_CLOUD_LOCATION_EXT_REQUEST:
 		LOG_DBG("Cloud location request received from location library");
 
+		cloud_request_send(&event_data->cloud_location_request);
+
 		/* Cancel the current location request to avoid falling back to the next
 		 * location source. Treat the fact that we have found Wi-Fi APs and/or cellular data
 		 * as a successful location request, even if we don't know whether the
 		 * cloud is able to resolve data to a location or not.
 		 */
-		int err = location_request_cancel();
-
-		if (err) {
-			LOG_ERR("Unable to cancel location request: %d", err);
-		}
-
-		cloud_request_send(&event_data->cloud_location_request);
-		status_send(LOCATION_SEARCH_DONE);
+		message_send(LOCATION_SEARCH_CANCEL);
 		break;
 #endif /* CONFIG_LOCATION_METHOD_WIFI || CONFIG_LOCATION_METHOD_CELLULAR */
 #if defined(CONFIG_NRF_CLOUD_AGNSS)
@@ -507,7 +501,11 @@ static void location_event_handler(const struct location_event_data *event_data)
 #endif /* CONFIG_NRF_CLOUD_AGNSS */
 	case LOCATION_EVT_RESULT_UNKNOWN:
 		LOG_DBG("Location result unknown");
-		status_send(LOCATION_SEARCH_DONE);
+		message_send(LOCATION_SEARCH_DONE);
+		break;
+	case LOCATION_EVT_CANCELLED:
+		LOG_DBG("Location request cancelled");
+		message_send(LOCATION_SEARCH_DONE);
 		break;
 	default:
 		LOG_DBG("Getting location: Unknown event %d", event_data->id);
