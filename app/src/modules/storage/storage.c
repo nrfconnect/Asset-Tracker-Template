@@ -849,7 +849,7 @@ static enum smf_state_result state_passthrough_run(void *o)
 		case STORAGE_MODE_BUFFER_REQUEST:
 			LOG_DBG("Switching to buffer mode (with confirmation)");
 			send_mode_confirmed(STORAGE_MODE_BUFFER);
-			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER]);
 
 			return SMF_EVENT_HANDLED;
 		case STORAGE_BATCH_REQUEST:
