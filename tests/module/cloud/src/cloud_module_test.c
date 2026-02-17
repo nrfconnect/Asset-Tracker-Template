@@ -1381,6 +1381,167 @@ void test_location_cloud_request_wifi_data_excessive_ap_count(void)
 	k_sleep(K_SECONDS(10));
 }
 
+/* Test that cloud module correctly handles LOCATION_CLOUD_REQUEST with only GCI cells
+ * (no neighbor cells).
+ */
+void test_location_cloud_request_gci_cells_only(void)
+{
+	/* Prepare location cloud request with only GCI cells */
+	struct location_msg location_msg = {
+		.type = LOCATION_CLOUD_REQUEST,
+		.cloud_request = {
+			.current_cell = {
+				.id = 0x12345678,
+				.mcc = 242,
+				.mnc = 1,
+				.tac = 0x1234,
+				.timing_advance = 100,
+				.earfcn = 6200,
+				.rsrp = -85,
+				.rsrq = -12
+			},
+			.ncells_count = 0,	/* No neighbor cells */
+			.gci_cells_count = 4,	/* Only GCI cells */
+			.gci_cells = {
+				{
+					.id = 0x11111111,
+					.mcc = 242,
+					.mnc = 1,
+					.tac = 0x5555,
+					.timing_advance = 50,
+					.earfcn = 6201,
+					.rsrp = -90,
+					.rsrq = -15
+				},
+				{
+					.id = 0x22222222,
+					.mcc = 242,
+					.mnc = 1,
+					.tac = 0x6666,
+					.timing_advance = 75,
+					.earfcn = 6202,
+					.rsrp = -95,
+					.rsrq = -18
+				},
+				{
+					.id = 0x33333333,
+					.mcc = 242,
+					.mnc = 1,
+					.tac = 0x7777,
+					.timing_advance = 100,
+					.earfcn = 6203,
+					.rsrp = -92,
+					.rsrq = -16
+				},
+				{
+					.id = 0x44444444,
+					.mcc = 242,
+					.mnc = 1,
+					.tac = 0x8888,
+					.timing_advance = 125,
+					.earfcn = 6204,
+					.rsrp = -88,
+					.rsrq = -14
+				}
+			},
+			.wifi_cnt = 0
+		}
+	};
+
+	struct storage_msg storage_data_msg = {
+		.type = STORAGE_DATA,
+		.data_type = STORAGE_TYPE_LOCATION,
+		.data_len = sizeof(location_msg)
+	};
+
+	/* Copy location message into storage message buffer */
+	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
+
+	setup_cloud_and_passthrough();
+
+	/* Send location cloud request via storage data channel */
+	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	wait_for_processing();
+
+	/* Verify that nrf_cloud_coap_location_get was called with GCI cells. */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
+}
+
+/* Test that cloud module correctly handles LOCATION_CLOUD_REQUEST with both
+ * neighbor cells and GCI cells.
+ */
+void test_location_cloud_request_neighbor_and_gci_cells(void)
+{
+	/* Prepare location cloud request with both neighbor cells and GCI cells */
+	struct location_msg location_msg = {
+		.type = LOCATION_CLOUD_REQUEST,
+		.cloud_request = {
+			.current_cell = {
+				.id = 0xABCDEF00,
+				.mcc = 242,
+				.mnc = 2,
+				.tac = 0xABCD,
+				.timing_advance = 150,
+				.earfcn = 5230,
+				.rsrp = -80,
+				.rsrq = -10
+			},
+			.ncells_count = 1,	/* Has neighbor cells */
+			.neighbor_cells = {
+				{
+					.earfcn = 5231,
+					.phys_cell_id = 50,
+					.rsrp = -85,
+					.rsrq = -13,
+					.time_diff = 75
+				}
+			},
+			.gci_cells_count = 2,	/* Also has GCI cells */
+			.gci_cells = {
+				{
+					.id = 0x99999999,
+					.mcc = 242,
+					.mnc = 2,
+					.tac = 0x9999,
+					.timing_advance = 60,
+					.earfcn = 5232,
+					.rsrp = -87,
+					.rsrq = -14
+				},
+				{
+					.id = 0xAAAAAAAA,
+					.mcc = 242,
+					.mnc = 2,
+					.tac = 0xAAA0,
+					.timing_advance = 90,
+					.earfcn = 5233,
+					.rsrp = -89,
+					.rsrq = -16
+				}
+			},
+			.wifi_cnt = 0
+		}
+	};
+
+	struct storage_msg storage_data_msg = {
+		.type = STORAGE_DATA,
+		.data_type = STORAGE_TYPE_LOCATION,
+		.data_len = sizeof(location_msg)
+	};
+
+	/* Copy location message into storage message buffer */
+	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
+
+	setup_cloud_and_passthrough();
+
+	/* Send location cloud request via storage data channel */
+	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	wait_for_processing();
+
+	/* Verify that nrf_cloud_coap_location_get was called with both cell types. */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_location_get_fake.call_count);
+}
+
 /* Helper to get cloud into paused state (connected but network disconnected) */
 static void setup_cloud_paused(void)
 {
