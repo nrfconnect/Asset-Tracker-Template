@@ -174,9 +174,6 @@ static void verify_cellular_cloud_request(const struct lte_lc_cells_info *expect
 		TEST_ASSERT_EQUAL(expected_cells->gci_cells[i].timing_advance,
 			received_msg.cloud_request.gci_cells[i].timing_advance);
 	}
-
-	/* Verify that search done message follows */
-	verify_search_done_follows();
 }
 
 /* Helper function to verify Wi-Fi cloud request payload */
@@ -198,9 +195,6 @@ static void verify_wifi_cloud_request(const struct wifi_scan_info *expected_wifi
 		TEST_ASSERT_EQUAL(expected_wifi->ap_info[i].mac_length,
 				  received_msg.cloud_request.wifi_aps[i].mac_length);
 	}
-
-	/* Verify that search done message follows */
-	verify_search_done_follows();
 }
 
 /* Helper function to verify combined cellular and Wi-Fi cloud request payload */
@@ -223,9 +217,6 @@ static void verify_combined_cloud_request(const struct lte_lc_cells_info *expect
 	TEST_ASSERT_EQUAL_HEX8_ARRAY(expected_wifi->ap_info[0].mac,
 				     received_msg.cloud_request.wifi_aps[0].mac,
 				     expected_wifi->ap_info[0].mac_length);
-
-	/* Verify that search done message follows */
-	verify_search_done_follows();
 }
 
 /* Helper function to verify A-GNSS request payload */
@@ -291,9 +282,18 @@ static void verify_gnss_location_data(const struct location_data *expected_locat
 }
 
 /* Helper function to simulate location events through the registered handler */
-static void simulate_location_event(const struct location_event_data *event_data)
+static void simulate_location_event(struct location_event_data *event_data)
 {
 	registered_handler(event_data);
+}
+
+/* Helper function to simulate the CANCELLED event from the location library */
+static void simulate_location_cancelled(void)
+{
+	struct location_event_data cancelled_event = {
+		.id = LOCATION_EVT_CANCELLED
+	};
+	simulate_location_event(&cancelled_event);
 }
 
 void setUp(void)
@@ -489,13 +489,29 @@ void test_cloud_location_request(void)
 
 	wait_for_initialization();
 
+	/* Start location search to put module in ACTIVE state */
+	publish_and_consume_message(LOCATION_SEARCH_TRIGGER);
+
 	/* Simulate cloud location request event */
 	simulate_location_event(&mock_event);
 
 	wait_for_processing();
 
-	/* Verify cloud location request message was published */
+	/* Verify cloud location request message was published first */
 	verify_cellular_cloud_request(&mock_cells_info);
+
+	/* Consume the cancel message that was published after cloud request */
+	consume_published_message(LOCATION_SEARCH_CANCEL);
+
+	/* Verify location_request_cancel was called */
+	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
+
+	/* Simulate the CANCELLED event from the location library (since cancel is mocked) */
+	simulate_location_cancelled();
+	wait_for_processing();
+
+	/* Verify that search done message follows */
+	verify_search_done_follows();
 }
 
 /* Test cellular location with multiple neighbor cells */
@@ -554,14 +570,30 @@ void test_cloud_location_request_multiple_cells(void)
 
 	wait_for_initialization();
 
+	/* Start location search to put module in ACTIVE state */
+	publish_and_consume_message(LOCATION_SEARCH_TRIGGER);
+
 	/* Simulate cloud location request event with multiple cells */
 	simulate_location_event(&mock_event);
 
 	/* Give the module time to process */
 	wait_for_processing();
 
-	/* Verify cloud location request message was published */
+	/* Verify cloud location request message was published first */
 	verify_cellular_cloud_request(&mock_cells_info);
+
+	/* Consume the cancel message that was published after cloud request */
+	consume_published_message(LOCATION_SEARCH_CANCEL);
+
+	/* Verify location_request_cancel was called */
+	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
+
+	/* Simulate the CANCELLED event from the location library (since cancel is mocked) */
+	simulate_location_cancelled();
+	wait_for_processing();
+
+	/* Verify that search done message follows */
+	verify_search_done_follows();
 }
 
 /* Test cellular location with GCI cells */
@@ -638,13 +670,29 @@ void test_cloud_location_request_with_gci_cells(void)
 
 	wait_for_initialization();
 
+	/* Start location search to put module in ACTIVE state */
+	publish_and_consume_message(LOCATION_SEARCH_TRIGGER);
+
 	/* Simulate cloud location request event with GCI cells */
 	simulate_location_event(&mock_event);
 
 	wait_for_processing();
 
-	/* Verify cloud location request message was published */
+	/* Verify cloud location request message was published first */
 	verify_cellular_cloud_request(&mock_cells_info);
+
+	/* Consume the cancel message that was published after cloud request */
+	consume_published_message(LOCATION_SEARCH_CANCEL);
+
+	/* Verify location_request_cancel was called */
+	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
+
+	/* Simulate the CANCELLED event from the location library (since cancel is mocked) */
+	simulate_location_cancelled();
+	wait_for_processing();
+
+	/* Verify that search done message follows */
+	verify_search_done_follows();
 }
 
 /* Test Wi-Fi location request handling */
@@ -707,13 +755,29 @@ void test_wifi_location_request(void)
 
 	wait_for_initialization();
 
+	/* Start location search to put module in ACTIVE state */
+	publish_and_consume_message(LOCATION_SEARCH_TRIGGER);
+
 	/* Simulate Wi-Fi location request event */
 	simulate_location_event(&mock_event);
 
 	wait_for_processing();
 
-	/* Verify cloud location request message was published */
+	/* Verify cloud location request message was published first */
 	verify_wifi_cloud_request(&mock_wifi_info);
+
+	/* Consume the cancel message that was published after cloud request */
+	consume_published_message(LOCATION_SEARCH_CANCEL);
+
+	/* Verify location_request_cancel was called */
+	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
+
+	/* Simulate the CANCELLED event from the location library (since cancel is mocked) */
+	simulate_location_cancelled();
+	wait_for_processing();
+
+	/* Verify that search done message follows */
+	verify_search_done_follows();
 }
 
 /* Test combined cellular and Wi-Fi location request */
@@ -792,13 +856,29 @@ void test_combined_location_request(void)
 
 	wait_for_initialization();
 
+	/* Start location search to put module in ACTIVE state */
+	publish_and_consume_message(LOCATION_SEARCH_TRIGGER);
+
 	/* Simulate combined location request event */
 	simulate_location_event(&mock_event);
 
 	wait_for_processing();
 
-	/* Verify cloud location request message was published */
+	/* Verify cloud location request message was published first */
 	verify_combined_cloud_request(&mock_cells_info, &mock_wifi_info);
+
+	/* Consume the cancel message that was published after cloud request */
+	consume_published_message(LOCATION_SEARCH_CANCEL);
+
+	/* Verify location_request_cancel was called */
+	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
+
+	/* Simulate the CANCELLED event from the location library (since cancel is mocked) */
+	simulate_location_cancelled();
+	wait_for_processing();
+
+	/* Verify that search done message follows */
+	verify_search_done_follows();
 }
 
 /* Test A-GNSS assistance request handling */
@@ -969,8 +1049,12 @@ void test_location_cancel_when_active(void)
 	/* Verify location_request_cancel was called */
 	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
 
-	/* Verify location search done status was sent */
-	verify_location_status(LOCATION_SEARCH_DONE);
+	/* Simulate the CANCELLED event from the location library (since cancel is mocked) */
+	simulate_location_cancelled();
+	wait_for_processing();
+
+	/* Verify LOCATION_SEARCH_DONE is sent after cancellation (from library event) */
+	consume_published_message(LOCATION_SEARCH_DONE);
 }
 
 /* Test multiple cancel requests during active search */
@@ -984,7 +1068,13 @@ void test_location_multiple_cancel_requests(void)
 
 	/* Verify first cancel was processed */
 	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
-	verify_location_status(LOCATION_SEARCH_DONE);
+
+	/* Simulate the CANCELLED event from the location library (since cancel is mocked) */
+	simulate_location_cancelled();
+	wait_for_processing();
+
+	/* Consume the LOCATION_SEARCH_DONE that is sent after cancellation */
+	consume_published_message(LOCATION_SEARCH_DONE);
 
 	/* Send second cancel (should be ignored as we're now inactive) */
 	publish_and_consume_message(LOCATION_SEARCH_CANCEL);
@@ -1003,7 +1093,13 @@ void test_location_cancel_then_new_search(void)
 	/* Cancel location search */
 	publish_and_consume_message(LOCATION_SEARCH_CANCEL);
 	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
-	verify_location_status(LOCATION_SEARCH_DONE);
+
+	/* Simulate the CANCELLED event from the location library (since cancel is mocked) */
+	simulate_location_cancelled();
+	wait_for_processing();
+
+	/* Consume the LOCATION_SEARCH_DONE that is sent after cancellation */
+	consume_published_message(LOCATION_SEARCH_DONE);
 
 	/* Start new location search after cancellation */
 	publish_and_consume_message(LOCATION_SEARCH_TRIGGER);
@@ -1062,12 +1158,15 @@ void test_cloud_location_ext_request_cellular_only(void)
 
 	wait_for_initialization();
 
+	/* Start location search to put module in ACTIVE state */
+	publish_and_consume_message(LOCATION_SEARCH_TRIGGER);
+
 	/* Simulate cloud location external request event with cellular data only */
 	simulate_location_event(&mock_event);
 
 	wait_for_processing();
 
-	/* Verify cloud location request message was published with correct cellular data */
+	/* Verify cloud location request message was published first with correct cellular data */
 	struct location_msg received_msg;
 	wait_for_message(LOCATION_CLOUD_REQUEST, &received_msg);
 
@@ -1102,6 +1201,16 @@ void test_cloud_location_ext_request_cellular_only(void)
 	/* Verify no Wi-Fi data */
 	TEST_ASSERT_EQUAL(0, received_msg.cloud_request.wifi_cnt);
 	TEST_ASSERT_EQUAL(0, received_msg.cloud_request.gci_cells_count);
+
+	/* Consume the cancel message that was published after cloud request */
+	consume_published_message(LOCATION_SEARCH_CANCEL);
+
+	/* Verify location_request_cancel was called */
+	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
+
+	/* Simulate the CANCELLED event from the location library (since cancel is mocked) */
+	simulate_location_cancelled();
+	wait_for_processing();
 
 	/* Verify that search done message follows */
 	verify_search_done_follows();
@@ -1158,12 +1267,15 @@ void test_cloud_location_ext_request_wifi_only(void)
 
 	wait_for_initialization();
 
+	/* Start location search to put module in ACTIVE state */
+	publish_and_consume_message(LOCATION_SEARCH_TRIGGER);
+
 	/* Simulate cloud location external request event with Wi-Fi data only */
 	simulate_location_event(&mock_event);
 
 	wait_for_processing();
 
-	/* Verify cloud location request message was published with correct Wi-Fi data */
+	/* Verify cloud location request message was published first with correct Wi-Fi data */
 	struct location_msg received_msg;
 	wait_for_message(LOCATION_CLOUD_REQUEST, &received_msg);
 
@@ -1184,6 +1296,16 @@ void test_cloud_location_ext_request_wifi_only(void)
 	/* Verify no cellular data */
 	TEST_ASSERT_EQUAL(0, received_msg.cloud_request.ncells_count);
 	TEST_ASSERT_EQUAL(0, received_msg.cloud_request.gci_cells_count);
+
+	/* Consume the cancel message that was published after cloud request */
+	consume_published_message(LOCATION_SEARCH_CANCEL);
+
+	/* Verify location_request_cancel was called */
+	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
+
+	/* Simulate the CANCELLED event from the location library (since cancel is mocked) */
+	simulate_location_cancelled();
+	wait_for_processing();
 
 	/* Verify that search done message follows */
 	verify_search_done_follows();
@@ -1258,12 +1380,15 @@ void test_cloud_location_ext_request_cellular_and_wifi(void)
 
 	wait_for_initialization();
 
+	/* Start location search to put module in ACTIVE state */
+	publish_and_consume_message(LOCATION_SEARCH_TRIGGER);
+
 	/* Simulate cloud location external request event with both cellular and Wi-Fi data */
 	simulate_location_event(&mock_event);
 
 	wait_for_processing();
 
-	/* Verify cloud location request message was published with both data types */
+	/* Verify cloud location request message was published first with both data types */
 	struct location_msg received_msg;
 	wait_for_message(LOCATION_CLOUD_REQUEST, &received_msg);
 
@@ -1304,6 +1429,16 @@ void test_cloud_location_ext_request_cellular_and_wifi(void)
 
 	/* Verify GCI cells count */
 	TEST_ASSERT_EQUAL(0, received_msg.cloud_request.gci_cells_count);
+
+	/* Consume the cancel message that was published after cloud request */
+	consume_published_message(LOCATION_SEARCH_CANCEL);
+
+	/* Verify location_request_cancel was called */
+	TEST_ASSERT_EQUAL(1, location_request_cancel_fake.call_count);
+
+	/* Simulate the CANCELLED event from the location library (since cancel is mocked) */
+	simulate_location_cancelled();
+	wait_for_processing();
 
 	/* Verify that search done message follows */
 	verify_search_done_follows();
