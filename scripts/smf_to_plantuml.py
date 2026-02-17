@@ -49,7 +49,25 @@ def generate_state_diagram(c_code):
        - Multiple conditions joined by && or ||
        - Channel checks (e.g., user_object->chan comparisons)
        - Status checks (e.g., user_object->status comparisons)
-    4. Ignore transitions that return to the same state
+    3. CRITICAL: Only events that call smf_set_state() cause state TRANSITIONS
+    4. Ignore transitions that return to the same state (self-loops without smf_set_state)
+
+    INTERNAL ACTIONS VS TRANSITIONS:
+    1. Event handlers that call external APIs but do NOT call smf_set_state() are INTERNAL ACTIONS
+    2. Document internal actions using PlantUML state activity notation:
+       state STATE_NAME {
+           STATE_NAME : on EVENT_NAME / call_some_api()
+       }
+       Or as notes attached to the state
+    3. DO NOT create transition arrows for events that don't call smf_set_state()
+    4. Example: If SEARCH_CANCEL calls location_request_cancel() but no smf_set_state(),
+       document it as an internal activity, not as a transition
+
+    ASYNCHRONOUS CALLBACK PATTERNS:
+    1. When external APIs trigger callbacks that publish messages back to the state machine,
+       the transition should be documented on the MESSAGE that causes smf_set_state()
+    2. Example: CANCEL event calls cancel API (internal action) → callback publishes DONE →
+       DONE event causes transition. Document transition on DONE, not CANCEL.
 
     HIERARCHY MAPPING:
     1. Build parent-child relationships from:
@@ -72,7 +90,8 @@ def generate_state_diagram(c_code):
     6. Do not include any markdown code block markers (```) or other formatting
 
     CRITICAL RULES:
-    1. Never invent or assume transitions - only use explicit STATE_SET calls
+    1. Never invent or assume transitions - only use explicit smf_set_state() calls
+    2. Internal actions (no smf_set_state) must NOT be shown as transition arrows
     3. Maintain precise parent-child relationships
     4. Include all state hierarchy levels
     5. Show all valid transitions between different states

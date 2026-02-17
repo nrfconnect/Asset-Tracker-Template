@@ -95,6 +95,28 @@ def compare_state_machines(c_code, plantuml):
            - These are semantically equivalent.
            - It is allowed to re-enter into a parent state if the parent state has an initial transition to a child leaf state.
 
+        3. INTERNAL ACTIONS VS STATE TRANSITIONS:
+           - An event handler in a run function that does NOT call smf_set_state() is an INTERNAL ACTION,
+             not a state transition, even if it calls external APIs.
+           - Example: handling LOCATION_SEARCH_CANCEL by calling location_request_cancel() without
+             smf_set_state() means the state machine STAYS in the current state.
+           - PlantUML correctly documents this as an internal activity (using : notation or note),
+             NOT as a transition arrow.
+           - The actual state transition happens later when an asynchronous callback publishes a
+             different message (e.g., LOCATION_SEARCH_DONE) that IS handled with smf_set_state().
+
+        4. ASYNCHRONOUS CALLBACK PATTERNS:
+           - When C code handles an event by calling an external API (e.g., location_request_cancel()),
+             and that API eventually triggers a callback that publishes a message back to the state machine,
+             the STATE TRANSITION is documented on the message that actually causes smf_set_state(),
+             not on the original triggering event.
+           - Example flow:
+             * STATE_ACTIVE receives SEARCH_CANCEL → calls cancel API (no smf_set_state) → stays in STATE_ACTIVE
+             * External library fires CANCELLED callback → publishes SEARCH_DONE message
+             * STATE_ACTIVE receives SEARCH_DONE → calls smf_set_state(INACTIVE) → transition occurs
+           - PlantUML should show: STATE_ACTIVE --> STATE_INACTIVE : SEARCH_DONE
+           - NOT: STATE_ACTIVE --> STATE_INACTIVE : SEARCH_CANCEL (this would be incorrect)
+
         IMPORTANT:
         - Focus on semantic equivalence, not syntactic exactness.
         - Only flag genuine mismatches (missing states, wrong targets, missing transitions).
