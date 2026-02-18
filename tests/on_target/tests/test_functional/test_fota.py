@@ -15,16 +15,16 @@ from utils.logger import get_logger
 
 logger = get_logger()
 
-MFW_FILEPATH = "artifacts/mfw_nrf91x1_2.0.3.zip"
+MFW_FILEPATH = "artifacts/mfw_nrf91x1_2.0.4.zip"
 
 # Stable version used for testing
 TEST_APP_VERSION = "1.0.2"
 
-DELTA_MFW_BUNDLEID_20X_TO_FOTA_TEST = "c8443b86-d295-4305-8e39-0ae2731178e1"
-DELTA_MFW_BUNDLEID_FOTA_TEST_TO_20X = "fcefc1f6-ee51-469a-9c06-8237a42acf95"
-FULL_MFW_BUNDLEID = "61cedb8d-0b6f-4684-9150-5aa782c6c8d5"
-MFW_DELTA_VERSION_FOTA_TEST = "mfw_nrf91x1_2.0.3-FOTA-TEST"
-MFW_VERSION = "mfw_nrf91x1_2.0.3"
+DELTA_MFW_BUNDLEID_20X_TO_FOTA_TEST = "5060efda-fcae-48d1-ab2d-7cfeb7dde8a9"
+DELTA_MFW_BUNDLEID_FOTA_TEST_TO_20X = "c1e5d090-1217-47ef-ac4e-b74339c50a06"
+FULL_MFW_BUNDLEID = "02fd1b8f-5c06-43e7-8c9c-173a50259456"
+MFW_DELTA_VERSION_FOTA_TEST = "mfw_nrf91x1_2.0.4-FOTA-TEST"
+MFW_VERSION = "mfw_nrf91x1_2.0.4"
 
 APP_BUNDLEID = os.getenv("APP_BUNDLEID")
 
