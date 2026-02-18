@@ -83,7 +83,7 @@ ZBUS_CHAN_DEFINE(CLOUD_CHAN,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(.type = CLOUD_DISCONNECTED)
+		 ZBUS_MSG_INIT(0)
 );
 
 /* Create private cloud channel for internal messaging that is not intended for external use.
