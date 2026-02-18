@@ -97,7 +97,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: |
-            --define sonar.cfamily.build-wrapper-output=asset-tracker-template/${{ env.BUILD_WRAPPER_OUT_DIR }}
+            --define sonar.cfamily.compile-commands=asset-tracker-template/${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
             --define sonar.projectKey=nrfconnect_Asset-Tracker-Template
             --define sonar.organization=nrfconnect
             --define sonar.host.url=https://sonarcloud.io
@@ -118,7 +118,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         with:
           args: |
-            --define sonar.cfamily.build-wrapper-output=asset-tracker-template/${{ env.BUILD_WRAPPER_OUT_DIR }}
+            --define sonar.cfamily.compile-commands=asset-tracker-template/${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
             --define sonar.projectKey=nrfconnect_Asset-Tracker-Template
             --define sonar.organization=nrfconnect
             --define sonar.host.url=https://sonarcloud.io
