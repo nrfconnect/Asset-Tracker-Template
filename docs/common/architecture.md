@@ -1,183 +1,242 @@
 # Architecture
 
-The Asset Tracker Template leverages Zephyr features to create a modular, event-driven system. The key to the template architecture is [Zephyr bus (zbus)](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) for inter-module communication and the [State Machine Framework](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html) (SMF) for managing module behavior.
+The Asset Tracker Template is built on a modular, event-driven architecture. The modules interact via messages that are processed as events by the modules' state machines.
 
-This document provides an overview of the architecture and explains how the different modules interact with each other, with a focus on the zbus messaging and the State Machine Framework.
+The architecture is implemented using [Zephyr bus (zbus)](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) for inter-module communication and the [State Machine Framework](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html) (SMF) for managing module behavior.
 
-- [System overview](#system-overview)
-- [Zbus](#zbus)
-- [State Machine Framework](#state-machine-framework)
+This document provides an overview of the architecture, with a focus on the zbus message passing and the modules' state machines.
 
 ## System overview
 
-The Asset Tracker Template is built around a modular architecture where each module is responsible for a specific functionality. The template consists of the following modules:
+The template consists of the following modules:
 
-- **[Main module](../modules/main.md)**: The central coordinator that implements the business logic and controls the overall application flow.
+- **[Main module](../modules/main.md)**: Implements the business logic and controls the overall application behaviour. Uniquely, it is not in the `modules` folder.
 - **[Storage module](../modules/storage.md)**: Stores data from enabled modules.
 - **[Network module](../modules/network.md)**: Manages LTE connectivity and tracks network status.
 - **[Cloud module](../modules/cloud.md)**: Handles communication with nRF Cloud using CoAP.
 - **[Location module](../modules/location.md)**: Provides location services using GNSS, Wi-Fi, and cellular positioning.
-- **[LED module](../modules/led.md)**: Controls RGB LED for visual feedback.
-- **[Button module](../modules/button.md)**: Handles button input for user interaction.
+- **[LED module](../modules/led.md)**: Controls an RGB LED for visual indication.
+- **[Button module](../modules/button.md)**: Reports button press events for user input.
 - **[FOTA module](../modules/fota_module.md)**: Manages firmware over-the-air updates.
 - **[Environmental module](../modules/environmental.md)**: Collects environmental sensor data (temperature, humidity, pressure).
 - **[Power module](../modules/power.md)**: Monitors battery status and provides power management.
 
-The following diagram shows the system architecture and how the modules interact with each other. The modules are connected through a zbus messaging bus, which allows them to communicate with each other without being directly aware of each other. This decouples the modules and allows for easier maintenance and extensibility.
+The following diagram shows the system architecture and how the modules interact with each other. The modules communicate through zbus channels.
 
 ![System overview](../images/system_overview.svg)
 
 The following steps show the simplified flow of a typical operation:
 
-1. The Main module schedules periodic triggers or responds to a short button presses reported on the `BUTTON_CHAN` channel.
+1. The Main module schedules periodic triggers or responds to a short button press reported on the `BUTTON_CHAN` channel.
 2. When triggered either by timeout or button press, it requests location data from the Location module on the `LOCATION_CHAN` channel.
-3. After the location search is completed and reported on the `LOCATION_CHAN`, the Main module requests sensor data from the Environmental module on the `ENVIRONMENTAL_CHAN` channel.
+3. After the location search is completed and reported on the `LOCATION_CHAN` channel, the Main module requests sensor data from the Environmental module on the `ENVIRONMENTAL_CHAN` channel.
 4. Throughout the operation, the Main module controls the LED module over the `LED_CHAN` channel to provide visual feedback about the system state.
 
-### Module architecture
+## Module design
 
-Each module follows a similar pattern:
+Each module follows a similar design:
 
 - **State machine**: Most modules implement a state machine using SMF to manage their internal state and behavior.
-- **Message channels**: Each module defines its own zbus channels and message types for communication.
-- **Thread**: Modules that need to perform blocking operations have their own thread.
-- **Watchdog**: All module threads are monitored by a task watchdog. Each thread periodically calls `task_wdt_feed()` to feed the watchdog. If a thread fails to feed the watchdog within its configured timeout, the system will reset.
+- **Message channel**: Each module defines its own zbus channel. With some exceptions, a single channel is used for all messages that are specific to a module.
+- **Message types**: Each module exposes a set of input and output message types. These can be considered events in the state machine sense, and may have associated data.
+- **Thread**: Each module that needs to perform blocking operations has its own thread.
+- **Watchdog**: Each module thread is monitored by a task watchdog. Each thread periodically calls `task_wdt_feed()` to feed the watchdog. If a thread fails to feed its watchdog within its configured timeout, the system will reset.
 - **Initialization**: Modules are initialized at system startup, either through `SYS_INIT()` or in their dedicated thread.
 
-Modules in the Asset Tracker Template are designed as independent units with well-defined interfaces, similar to a C API. Each module exposes a set of dedicated input and output messages that control its behavior:
+Modules in the Asset Tracker Template are designed as loosely coupled units with well-defined message-based interfaces.
+Modules communicate exclusively through their defined zbus interfaces, without reference to other modules' internals. This design ensures that modules are self-contained and can be developed, tested, and maintained independently. Most modules except the Main module can also be reused in other applications.
 
-- **Input messages**: Commands or requests sent to a module to trigger actions (e.g., `LOCATION_SEARCH_TRIGGER` to request a location search).
-- **Output messages**: Responses or notifications sent by a module to report status, data, or events (e.g., `LOCATION_GNSS_DATA` when GNSS location data is obtained, or `LOCATION_SEARCH_DONE` when a location search operation completes).
+Modules often handle state transitions based on messages they themselves publish. For example, when the Network module publishes a `NETWORK_CONNECTED` message, it also receives this message in its own state machine, allowing it to transition to the connected state with consistent handling.
 
-Each module's message types are defined in its public header file located at `app/src/modules/<module_name>/<module_name>.h`. For example, the Location module's messages are defined in `app/src/modules/location/location.h`. The header file contains the message type enumeration (e.g., `enum location_msg_type`) and the message structure (e.g., `struct location_msg`).
+Most modules in the Asset Tracker Template have their own threads. If a module uses blocking calls while processing messages, this is a requirement. For example, the Network module may react to a message by sending some AT command to the modem, which may block until some signaling with the network is done and a response is received. Separate threads also help to keep the required stack size for each module more predictable.
 
-This API-like design ensures that modules are self-contained and can be developed, tested, and maintained independently. Modules communicate exclusively through their defined zbus interfaces, without direct knowledge of other modules' internals.
+## Message passing with zbus
 
-Some exceptions exist, such as the Main module, which must interact with other modules to implement the application's business logic.
-Another example is the cloud module that needs to be aware of the Network module to know when it is connected to the network and when it is not.
+Zbus is part of Zephyr and implements channel-based message-passing between threads. This section covers how zbus is used in the Asset Tracker Template. See the [zbus documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) for a more comprehensive introduction to zbus.
 
-## Zbus
+### Channels
 
-The [zbus documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) provides a good introduction to the zbus library, and this section only covers the parts that are relevant for the Asset Tracker Template:
-
-- Channels and messages
-- Channel observers: Message subscribers and listeners
-- Message sending and receiving
-
-### Channels and messages
-
-In the Asset Tracker Template, each module defines channels and message types in their own header file. For example, in the `modules/network/network.h` file, the Network module defines the `NETWORK_CHAN` channel and the `struct network_msg` message type.
-Channels are defined using `ZBUS_CHAN_DEFINE`, specifying the channel name, message type, and more. For example:
+In the Asset Tracker Template, each module declares and defines a channel using zbus macros. For example, in the `app/src/modules/network/network.h` file, the Network module declares the `NETWORK_CHAN` channel:
 
 ```c
-ZBUS_CHAN_DEFINE(NETWORK_CHAN,                          /* Channel name */
-        struct network_msg,                             /* Message type */
-        NULL,                                           /* Optional validator function */
-        NULL,                                           /* Optional pointer to user data */
-        ZBUS_OBSERVERS_EMPTY,                           /* Initial observers */
-        ZBUS_MSG_INIT(.type = NETWORK_DISCONNECTED)     /* Message initialization */
+/* Channels provided by this module */
+ZBUS_CHAN_DECLARE(
+	NETWORK_CHAN
 );
 ```
 
-In the above example, initial observers are set to `ZBUS_OBSERVERS_EMPTY` to indicate that no observers are initially listening on the channel. However, observers can still be added at compile time using `ZBUS_CHAN_ADD_OBS`. It is also possible to add observers at runtime using `ZBUS_CHAN_ADD_OBS`. The reason that you need to set the initial observers to `ZBUS_OBSERVERS_EMPTY` is that the network module is not aware of any other modules in the system, and this avoids coupling between modules.
+The channel is defined in `app/src/modules/network/network.c`:
 
-Message data types may be any valid C type, and their content is specific to the needs of the module. For example, from the Network module header file:
+```c
+/* Define channels provided by this module */
+ZBUS_CHAN_DEFINE(NETWORK_CHAN, /* Channel name, derived from module name */
+        struct network_msg,    /* Message data type */
+        NULL,                  /* Optional validator function */
+        NULL,                  /* Optional pointer to user data */
+        ZBUS_OBSERVERS_EMPTY,  /* Initial observers */
+        ZBUS_MSG_INIT(0)       /* Message initialization */
+);
+```
+
+In the Asset Tracker Template, the fields of the `ZBUS_CHAN_DEFINE` macro are populated in a similar way across modules:
+- **Channel name**: the name of the channel, derived from the module name.
+- **Message data type**: the data type used to hold message data. The name comes from the channel name.
+- **Validator function** and **User data**: Not used
+- **Initial observers**: The initial observer list is empty. Observers are added in the relevant modules later.
+- **Message initialization**: The initial value stored in the channel. Not used, and therefore set to `ZBUS_MSG_INIT(0)`.
+
+> [!IMPORTANT]
+> In the context of zbus, the term "message type" can be used to refer to the data type or structure containing the message data for a given channel, in this case `struct network_msg`. In the Asset Tracker Template architecture, "message type" is used to mean the enumerated value that distinguishes different kinds of messages sent on the same channel, in this case the `type` field of `struct network_msg`.
+
+### Message types and the message structure
+
+Each module exposes a set of message types through an enumeration. The message types can be considered events in the state machine sense. The message type is typically used within a switch-case statement by the subscriber to determine what actions to take and whether to trigger a state transition.
+
+The message types can be divided into two categories:
+
+- **Input message types**: Commands or requests sent by other modules to the defining module to trigger actions (e.g., `NETWORK_CONNECT` to request the network module to establish a network connection).
+- **Output message types**: Responses or notifications sent by the defining module to other modules to report status, data, or events (e.g., `NETWORK_CONNECTED` when a network connection has been established).
+
+Each module's message types are defined in its public header file located at `app/src/modules/<module_name>/<module_name>.h`. For example, the network module's messages are defined in `app/src/modules/network/network.h` in the `enum network_msg_type` enumeration:
+
+```c
+enum network_msg_type {
+        /* Output message types */
+        NETWORK_DISCONNECTED = 0x1,
+
+        /* The device is connected to the network and has an IP address */
+        NETWORK_CONNECTED,
+
+        /* ... */
+
+        /* Response message to a request for the current system mode. The current system mode is
+         * found in the .system_mode field of the message.
+         */
+        NETWORK_SYSTEM_MODE_RESPONSE,
+
+        /* ... */
+
+        /* Input message types */
+
+        /* Request to connect to the network, which includes searching for a suitable network
+         * and attempting to attach to it if a usable cell is found.
+         */
+        NETWORK_CONNECT,
+
+        /* Request to disconnect from the network */
+        NETWORK_DISCONNECT,
+
+        /* ... */
+
+        /* Request to retrieve the current system mode. The response is sent as a
+         * NETWORK_SYSTEM_MODE_RESPONSE message.
+         */
+        NETWORK_SYSTEM_MODE_REQUEST,
+};
+```
+
+The message type forms the first part of the message structure. For some message types, associated data is present in the message. When the associated data varies based on the message type, a union is used to save memory. The message type determines which fields are valid. For optional features, `IF_ENABLED` macros are used to optionally include the fields.
+The complete message structure for the network module is also defined in `app/src/modules/network/network.h`:
 
 ```c
 struct network_msg {
         enum network_msg_type type;
         union {
+                /** Contains the currently configured system mode.
+                 *  system_mode is set for NETWORK_SYSTEM_MODE_RESPONSE events
+                 */
                 enum lte_lc_system_mode system_mode;
-                /* Other message-specific fields */
+
+                /** Contains the current PSM configuration.
+                 *  psm_cfg is valid for NETWORK_PSM_PARAMS events.
+                 */
+                IF_ENABLED(CONFIG_LTE_LC_PSM_MODULE, (struct lte_lc_psm_cfg psm_cfg));
+
+                /* ... */
         };
+        /** Timestamp when the sample was taken in milliseconds.
+         *  This is either:
+         * - Unix time in milliseconds if the system clock was synchronized at sampling time, or
+         * - Uptime in milliseconds if the system clock was not synchronized at sampling time.
+         */
+        int64_t timestamp;
 };
 ```
 
-The following are a few key points from the above example regarding how message types are defined in the Asset Tracker Template:
+In the above example, a module receiving a `NETWORK_SYSTEM_MODE_RESPONSE` message can read the current system mode from the `system_mode` field in the message.
 
-- The message type is an enumerator that is specific to the Network module. The message type is typically used within a switch-case statement by the subscriber to determine what action to take and what, if any, additional fields in the message to use.
+### Sending messages
 
-- When there are multiple message types in a message, it is a good practice to use a union to save memory. This is because the message will be allocated on the stack when it is sent, and it is good to keep the message size as small as possible. In the Asset Tracker Template, anonymous unions are used to avoid the need to specify the union name when accessing its members.
+Messages are sent on a channel using `zbus_chan_pub()`. For example, to send a message to the `NETWORK` channel:
 
-### Observers
+```c
+        struct network_msg msg = {
+                .type = NETWORK_DISCONNECT
+        };
 
-A zbus observer is an entity that can receive messages on one or more zbus channel. There are multiple types of observers, including message subscribers and listeners, which are the only ones used in the Asset Tracker template. These observer types offer message delivery guarantees and are used in different scenarios.
+        err = zbus_chan_pub(&NETWORK_CHAN, &msg, PUB_TIMEOUT);
+```
+
+Zbus will copy the message, so the original message struct is no longer needed after calling `zbus_chan_pub()`.
+
+### Receiving messages
+
+In zbus, structures called _observers_ are used to receive messages on one or more zbus channels. There are multiple types of observers, but the Asset Tracker Template only uses two: message subscribers and listeners.
 
 #### Message subscribers
 
-The message subscribers are used by modules that have their own thread and that perform actions that may block in response to messages.
-For example, the Network module subscribes to its own `NETWORK_CHAN` channel to receive messages about network events. The module may react to a message by sending some AT command to the modem, which may block until some signaling with the network is done and a response is received. This is why the module has its own thread and needs to be a message subscriber.
+The message subscriber is the most common observer in the Asset Tracker Template. A message subscriber will receive messages asynchronously. It is used by any module that has its own thread.
 
-A message subscriber will queue up messages that are received while the module is busy processing another message. The module can then process the messages in the order they were received. An incoming message can never interrupt the processing of another message.
+A message subscriber will queue up messages that are received while the module is busy processing another message. The module will then process the messages in the order they were received. An incoming message can never interrupt the processing of another message.
 
-A message subscriber is defined using `ZBUS_MSG_SUBSCRIBER_DEFINE`, and the subscriber is added to a channel using `ZBUS_CHAN_ADD_OBS`. For example, in the Network module it subscribes to its own channel like this:
-
-```c
-ZBUS_MSG_SUBSCRIBER_DEFINE(network_subscriber);
-ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network_subscriber, 0);
-```
-
-#### Self-subscription and private channels
-
-Modules often subscribe to their own public channel to handle state transitions based on messages they themselves publish. For example, when the Network module publishes a `NETWORK_CONNECTED` message, it also receives this message in its own state machine, allowing it to transition to the connected state with consistent handling.
-
-When a module needs internal state handling that should not be exposed to other modules, it uses a **private channel**. Private channels are reserved exclusively for the respective module and are not intended for external use. For example, the Location module defines a private channel for internal messaging:
+A message subscriber is defined using `ZBUS_MSG_SUBSCRIBER_DEFINE`, and the subscriber is added to a channel using `ZBUS_CHAN_ADD_OBS`. For example, in the Network module:
 
 ```c
-/* Private channel message types for internal state management. */
-enum priv_location_msg {
-        /* Modem has completed initialization. */
-        LOCATION_PRIV_MODEM_INITIALIZED,
-};
-
-/* Create private location channel for internal messaging that is not intended for external use. */
-ZBUS_CHAN_DEFINE(PRIV_LOCATION_CHAN,
-                 enum priv_location_msg,
-                 NULL,
-                 NULL,
-                 ZBUS_OBSERVERS(location),
-                 ZBUS_MSG_INIT(0)
-);
+ZBUS_MSG_SUBSCRIBER_DEFINE(network);
+ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network, 0);
 ```
 
-This pattern allows the module to send messages to itself for internal state management without exposing these details to other modules.
+The messages are received in the module's thread loop by calling `zbus_sub_wait_msg()`:
+
+```c
+err = zbus_sub_wait_msg(&network, &network_state.chan,
+                        network_state.msg_buf, zbus_wait_ms);
+```
+
+As with all the modules in the Asset Tracker Template with a state machine, the channel and the message contents are stored in the module's [state machine context](#state-machine-context) in preparation to run the state handler, where the message will be processed.
 
 #### Listeners
 
-The listeners are used by modules that do not have their own thread and that do not block when processing messages. A listener receives a message synchronously in the sender's context. For example, the LED module listens for messages on the `LED_CHAN` channel. When it receives an `LED_RGB_SET` message from the Main module, it immediately sets the RGB LED color without blocking. This happens in the Main module's context. The LED module does not have its own thread and does not block when processing messages, so it can be a listener.
+The listener is the simplest kind of observer. A listener receives a message synchronously and executes a callback in the sender's context. Listeners are only used by modules that do not have their own thread and that do not block when processing messages. When using a listener, care should also be taken to ensure that any callback does not add significantly to the stack size by using large local variables.
 
-A listener is defined using `ZBUS_LISTENER_DEFINE`, and the listener is added to a channel using `ZBUS_CHAN_ADD_LISTENER`. For example, in the LED module it listens for messages on its own channel like this:
+For example, the LED module will react to a message by setting the RGB LED color immediately. No function call during the handling of the message can block, so the LED module uses a listener.
+
+A listener is defined using `ZBUS_LISTENER_DEFINE`, and the listener is added to a channel using `ZBUS_CHAN_ADD_OBS`. For example, the LED module sets up a listener in `app/src/modules/led/led.c`:
 
 ```c
 ZBUS_LISTENER_DEFINE(led, led_callback);
-ZBUS_CHAN_ADD_LISTENER(LED_CHAN, led, 0);
+ZBUS_CHAN_ADD_OBS(LED_CHAN, led, 0);
 ```
 
-### Message sending
-
-Messages are sent on a channel using `zbus_chan_pub()`. For example, to send a message to the `LED_CHAN` channel:
+When a message is available, the callback function will process the message:
 
 ```c
-struct led_msg msg = {
-        .type = LED_RGB_SET,
-        .red = 255,
-        .green = 0,
-        .blue = 0,
-        .duration_on_msec = 1000,
-        .duration_off_msec = 1000,
-        .repetitions = 10,
-};
-
-err = zbus_chan_pub(LED_CHAN, &msg);
-
+static void led_callback(const struct zbus_channel *chan)
+{
+	if (&LED_CHAN == chan) {
+		int err;
+		const struct led_msg *led_msg = zbus_chan_const_msg(chan);
+		/* ... */
+	}
+}
 ```
 
-The LED module receives the message and calls the `led_callback` function with the message data, as described in [Listeners](#listeners).
-If the LED module observer were a message subscriber, the message would be queued up until the module is ready to process it.
+### Private channels
+When a module needs internal state handling that should not be exposed to other modules, it uses a **private channel**. Private channels are reserved exclusively for the respective module and are not intended for external use. Otherwise, they are defined, published to and subscribed to just like public channels. For example, the Location module uses the `PRIV_LOCATION_CHAN` channel for internal messaging.
 
 ## State machine framework
 
-The State Machine Framework (SMF) is a Zephyr library that provides a way to implement hierarchical state machines in a structured manner. The Asset Tracker Template uses SMF extensively to manage module behavior and state transitions. Several key modules, including Network, Cloud, FOTA, and the Main module, implement state machines using SMF.
+The State Machine Framework (SMF) is a Zephyr library that provides a way to implement hierarchical state machines in a structured manner. The Asset Tracker Template uses SMF extensively to manage module behavior and state transitions. Most modules, including Network, Cloud, FOTA, and the Main module, implement state machines using SMF.
 
 The [documentation on SMF](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html) provides a good introduction, and this section will only cover the parts that are relevant for the Asset Tracker Template.
 
@@ -196,7 +255,7 @@ This ensures predictable behavior and proper state cleanup during transitions, a
 States are defined using the `SMF_CREATE_STATE` macro, which allows specifying:
 
 - **Entry function:** Called when entering the state.
-- **Run function:** Called while in the state.
+- **Run function:** Called when processing a message while in the state.
 - **Exit function:** Called when leaving the state.
 - **Parent state:** For hierarchical state machines.
 - **Initial transition:** A state may transition to a sub-state upon entry.
