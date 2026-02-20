@@ -55,7 +55,7 @@ ZBUS_CHAN_DEFINE(PRIV_POWER_CHAN,
 		 enum priv_power_msg,
 		 NULL,
 		 NULL,
-		 ZBUS_OBSERVERS(power),
+		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0)
 );
 
