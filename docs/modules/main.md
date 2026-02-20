@@ -38,7 +38,7 @@ The Main module can be configured using the following Kconfig options:
 * **CONFIG_APP_LOG_LEVEL:**
   Controls logging level for the main module.
 
-* **CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS:**
+* **CONFIG_APP_SAMPLING_INTERVAL_SECONDS:**
   Default sensor data sampling interval in buffer mode. Triggers sensor sampling and location search.
 
 * **CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS:**

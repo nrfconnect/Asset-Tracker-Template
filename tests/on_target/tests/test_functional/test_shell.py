@@ -22,10 +22,13 @@ def test_shell(dut_cloud, hex_file):
     dut_cloud.uart.xfactoryreset()
 
     patterns_boot = [
-        "main: passthrough_connected_waiting_entry: Passthrough mode: next trigger in",
+        "main: waiting_entry_common: Next sample trigger in",
+    ]
+    patters_boot_idle = [
+        "main: connected_waiting_entry: connected_waiting_entry",
     ]
     patterns_button_press = [
-        "main: passthrough_connected_sampling_entry: passthrough_connected_sampling_entry",
+        "main: connected_sampling_entry: connected_sampling_entry",
     ]
     patterns_cloud_publish = [
         'Sending on payload channel: {"messageType":"DATA","appId":"donald","data":"duck"',
@@ -42,6 +45,8 @@ def test_shell(dut_cloud, hex_file):
     reset_device()
     dut_cloud.uart.wait_for_str_with_retries("Connected to Cloud", max_retries=3, timeout=240, reset_func=reset_device)
     dut_cloud.uart.wait_for_str(patterns_boot, timeout=120)
+    dut_cloud.uart.flush()
+    dut_cloud.uart.wait_for_str(patters_boot_idle, timeout=20)
 
     # Button press
     dut_cloud.uart.flush()

@@ -77,7 +77,7 @@ ZBUS_CHAN_DEFINE(STORAGE_CHAN,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(.type = STORAGE_MODE_PASSTHROUGH)
+		 ZBUS_MSG_INIT(0)
 );
 
 ZBUS_CHAN_DEFINE(STORAGE_DATA_CHAN,
@@ -234,14 +234,11 @@ static void connect_cloud(void)
 	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 }
 
-static void setup_cloud_and_passthrough(void)
+static void setup_cloud(void)
 {
 	int err;
 	struct network_msg network_msg = {
 		.type = NETWORK_CONNECTED
-	};
-	struct storage_msg passthrough_msg = {
-		.type = STORAGE_MODE_PASSTHROUGH
 	};
 
 	/* Connect to cloud */
@@ -249,11 +246,6 @@ static void setup_cloud_and_passthrough(void)
 	TEST_ASSERT_EQUAL(0, err);
 	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
 	TEST_ASSERT_EQUAL(0, err);
-
-	/* Enable passthrough mode */
-	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
 }
 
 static void dummy_cb(const struct zbus_channel *chan)
@@ -673,14 +665,11 @@ void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 	wait_for_cloud_disconnected(K_SECONDS(1));
 }
 
-/* Test GNSS location data handling via storage module in passthrough mode */
+/* Test GNSS location data handling via storage module */
 void test_gnss_location_data_handling(void)
 {
 	struct network_msg network_msg = {
 		.type = NETWORK_CONNECTED
-	};
-	struct storage_msg passthrough_msg = {
-		.type = STORAGE_MODE_PASSTHROUGH
 	};
 	struct location_data mock_location = {
 		.latitude = 63.421,
@@ -712,12 +701,11 @@ void test_gnss_location_data_handling(void)
 	/* Connect to cloud */
 	publish_and_assert(&NETWORK_CHAN, &network_msg);
 	wait_for_cloud_connected(K_SECONDS(1));
-	publish_and_assert(&STORAGE_CHAN, &passthrough_msg);
 
 	/* Give the module time to process mode change */
 	k_sleep(K_MSEC(10));
 
-	/* Send GNSS location data via storage data channel (passthrough mode) */
+	/* Send GNSS location data via storage data channel */
 	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
 	wait_for_processing();
 
@@ -1132,7 +1120,7 @@ void test_location_cloud_request_cellular_data(void)
 	/* Copy location message into storage message buffer */
 	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
 
-	setup_cloud_and_passthrough();
+	setup_cloud();
 
 	/* Send location cloud request via storage data channel */
 	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
@@ -1184,7 +1172,7 @@ void test_location_cloud_request_wifi_data(void)
 	/* Copy location message into storage message buffer */
 	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
 
-	setup_cloud_and_passthrough();
+	setup_cloud();
 
 	/* Send location cloud request via storage data channel */
 	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
@@ -1249,7 +1237,7 @@ void test_location_cloud_request_combined_data(void)
 	/* Copy location message into storage message buffer */
 	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
 
-	setup_cloud_and_passthrough();
+	setup_cloud();
 
 	/* Send location cloud request via storage data channel */
 	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
@@ -1313,7 +1301,7 @@ void test_location_cloud_request_wifi_data_partial_ap_list(void)
 	location_msg->cloud_request.wifi_aps[1].mac[5] = 0x02;
 	location_msg->cloud_request.wifi_aps[1].mac_length = 6;
 
-	setup_cloud_and_passthrough();
+	setup_cloud();
 
 	/* Set custom fake to verify data within the call */
 	nrf_cloud_coap_location_get_fake.custom_fake = nrf_cloud_coap_location_get_custom_fake;
@@ -1368,7 +1356,7 @@ void test_location_cloud_request_wifi_data_excessive_ap_count(void)
 	/* Copy location message into storage message buffer */
 	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
 
-	setup_cloud_and_passthrough();
+	setup_cloud();
 
 	/* Send location cloud request via storage data channel */
 	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);

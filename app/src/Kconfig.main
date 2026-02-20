@@ -5,7 +5,7 @@
 #
 menu "App"
 
-config APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS
+config APP_SAMPLING_INTERVAL_SECONDS
 	int "Sampling interval in buffer mode"
 	default 150
 	help
@@ -21,11 +21,9 @@ config APP_CLOUD_UPDATE_INTERVAL_SECONDS
 		* Polling the device shadow
 		* Checking for FOTA updates
 		* Transmitting buffered data to the cloud
-	  In buffer mode, this option is typically set to a longer interval
-	  than CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS to reduce
+	  This option is typically set to a longer interval than
+	  CONFIG_APP_SAMPLING_INTERVAL_SECONDS to reduce
 	  power consumption while allowing data aggregation.
-	  In passthrough mode, this option controls both data sampling and the
-	  cloud update frequency.
 
 config APP_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout"

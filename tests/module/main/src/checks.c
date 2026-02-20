@@ -16,18 +16,23 @@
 #include "storage.h"
 #include "cloud.h"
 
+
+ZBUS_CHAN_DECLARE(TIMER_CHAN);
+
 ZBUS_MSG_SUBSCRIBER_DEFINE(fota_subscriber);
 ZBUS_MSG_SUBSCRIBER_DEFINE(location_subscriber);
 ZBUS_MSG_SUBSCRIBER_DEFINE(network_subscriber);
 ZBUS_MSG_SUBSCRIBER_DEFINE(power_subscriber);
 ZBUS_MSG_SUBSCRIBER_DEFINE(storage_subscriber);
 ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
+ZBUS_MSG_SUBSCRIBER_DEFINE(timer_subscriber);
 ZBUS_CHAN_ADD_OBS(FOTA_CHAN, fota_subscriber, 0);
 ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, location_subscriber, 0);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network_subscriber, 0);
 ZBUS_CHAN_ADD_OBS(POWER_CHAN, power_subscriber, 0);
 ZBUS_CHAN_ADD_OBS(STORAGE_CHAN, storage_subscriber, 0);
 ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, cloud_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(TIMER_CHAN, timer_subscriber, 0);
 
 LOG_MODULE_REGISTER(main_module_checks, 1);
 
@@ -193,6 +198,33 @@ int priv_expect_cloud_event(void)
 	return cloud_msg.type;
 }
 
+int priv_expect_timer_event(void)
+{
+	int err;
+	const struct zbus_channel *chan;
+	enum timer_msg_type timer_msg_type;
+
+	/* Allow the test thread to sleep so that the DUT's thread is allowed to run. */
+	k_sleep(K_MSEC(100));
+
+	err = zbus_sub_wait_msg(&timer_subscriber, &chan, &timer_msg_type, K_MSEC(10000));
+	if (err == -ENOMSG) {
+		LOG_ERR("No timer event received");
+		return -1;
+	} else if (err) {
+		LOG_ERR("zbus_sub_wait, error: %d", err);
+		return -2;
+	}
+
+	if (chan != &TIMER_CHAN) {
+		LOG_ERR("Received message from wrong channel, expected %s, got %s",
+			zbus_chan_name(&TIMER_CHAN), zbus_chan_name(chan));
+		return -3;
+	}
+
+	return timer_msg_type;
+}
+
 static void expect_no_location_events(void)
 {
 	int err;
@@ -313,6 +345,26 @@ static void expect_no_cloud_events(void)
 	TEST_FAIL();
 }
 
+static void expect_no_timer_events(void)
+{
+	int err;
+	const struct zbus_channel *chan;
+	enum timer_msg_type timer_msg_type;
+
+	err = zbus_sub_wait_msg(&timer_subscriber, &chan, &timer_msg_type, K_MSEC(10000));
+	if (err == -ENOMSG) {
+		return;
+	} else if (err) {
+		LOG_ERR("zbus_sub_wait, error: %d", err);
+		TEST_FAIL();
+
+		return;
+	}
+
+	LOG_ERR("Received unexpected timer event: %d", timer_msg_type);
+	TEST_FAIL();
+}
+
 void expect_no_events(uint32_t timeout_sec)
 {
 	k_sleep(K_SECONDS(timeout_sec));
@@ -323,6 +375,7 @@ void expect_no_events(uint32_t timeout_sec)
 	expect_no_fota_events();
 	expect_no_cloud_events();
 	expect_no_storage_events();
+	expect_no_timer_events();
 }
 
 void purge_location_events(void)
@@ -439,6 +492,25 @@ void purge_cloud_events(void)
 	}
 }
 
+void purge_timer_events(void)
+{
+	while (true) {
+		int err;
+		const struct zbus_channel *chan;
+		enum timer_msg_type timer_msg_type;
+
+		err = zbus_sub_wait_msg(&timer_subscriber, &chan, &timer_msg_type, K_NO_WAIT);
+		if (err == -ENOMSG) {
+			break;
+		} else if (err) {
+			LOG_ERR("zbus_sub_wait, error: %d", err);
+			TEST_FAIL();
+
+			return;
+		}
+	}
+}
+
 void purge_all_events(void)
 {
 	purge_location_events();
@@ -447,6 +519,7 @@ void purge_all_events(void)
 	purge_fota_events();
 	purge_storage_events();
 	purge_cloud_events();
+	purge_timer_events();
 }
 
 int wait_for_location_event(enum location_msg_type expected_type, uint32_t timeout_sec)

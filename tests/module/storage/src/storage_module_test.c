@@ -706,9 +706,7 @@ void test_store_retrieve_location(void)
 	struct location_msg msg = {
 		.type = LOCATION_GNSS_DATA,
 	};
-	struct storage_msg buffer_msg = {
-		.type = STORAGE_MODE_BUFFER
-	};
+
 	struct storage_msg flush_msg = {
 		.type = STORAGE_FLUSH
 	};
@@ -720,11 +718,6 @@ void test_store_retrieve_location(void)
 			(ARRAY_SIZE(location_samples) - CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE) :
 			0;
 	size_t samples_to_check;
-
-	/* Ensure we're in buffer mode */
-	err = zbus_chan_pub(&STORAGE_CHAN, &buffer_msg, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(100));
 
 	for (size_t i = 0; i < ARRAY_SIZE(location_samples); i++) {
 		msg = location_samples[i];
@@ -757,119 +750,10 @@ void test_store_retrieve_location(void)
 	}
 }
 
-void test_storage_set_passthrough_mode(void)
-{
-	int err;
-	struct storage_msg passthrough_request = {
-		.type = STORAGE_MODE_PASSTHROUGH_REQUEST,
-	};
-
-	/* Publish the passthrough request */
-	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_request, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	k_sleep(K_SECONDS(1));
-
-	/* Should get explicit confirmation */
-	TEST_ASSERT_EQUAL(STORAGE_MODE_PASSTHROUGH, received_msg.type);
-}
-
-void test_storage_passthrough_data(void)
-{
-	int err;
-	struct storage_msg passthrough_request = {
-		.type = STORAGE_MODE_PASSTHROUGH_REQUEST,
-	};
-	struct power_msg power_msg = {
-		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE,
-	};
-	struct environmental_msg env_msg = {
-		.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE,
-		.temperature = 25.0,
-		.humidity = 50.0,
-		.pressure = 1013.25
-	};
-
-	/* Set storage to passthrough mode */
-	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_request, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	/* Wait for mode change confirmation */
-	k_sleep(K_SECONDS(1));
-
-	/* Should get explicit confirmation */
-	TEST_ASSERT_EQUAL(STORAGE_MODE_PASSTHROUGH, received_msg.type);
-
-	for (int i = 0; i < 10; i++) {
-		power_msg.percentage = battery_samples[i];
-
-		err = zbus_chan_pub(&POWER_CHAN, &power_msg, K_SECONDS(1));
-		TEST_ASSERT_EQUAL(0, err);
-
-		/* Wait for the message to be processed */
-		k_sleep(K_SECONDS(1));
-
-		/* Verify that the received message is of type STORAGE_DATA */
-		TEST_ASSERT_EQUAL(STORAGE_DATA, received_msg.type);
-		TEST_ASSERT_EQUAL(STORAGE_TYPE_BATTERY, received_msg.data_type);
-		TEST_ASSERT_EQUAL_DOUBLE(power_msg.percentage,
-					 ((struct power_msg *)received_msg.buffer)->percentage);
-
-		env_msg = env_samples[i];
-		env_msg.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE;
-
-		err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &env_msg, K_SECONDS(1));
-		TEST_ASSERT_EQUAL(0, err);
-
-		/* Wait for the message to be processed */
-		k_sleep(K_SECONDS(1));
-
-		/* Verify that the received message is of type STORAGE_DATA */
-		TEST_ASSERT_EQUAL(STORAGE_DATA, received_msg.type);
-		TEST_ASSERT_EQUAL(STORAGE_TYPE_ENVIRONMENTAL, received_msg.data_type);
-		TEST_ASSERT_EQUAL_DOUBLE(env_msg.temperature,
-			((struct environmental_msg *)received_msg.buffer)->temperature);
-		TEST_ASSERT_EQUAL_DOUBLE(env_msg.humidity,
-			((struct environmental_msg *)received_msg.buffer)->humidity);
-		TEST_ASSERT_EQUAL_DOUBLE(env_msg.pressure,
-			((struct environmental_msg *)received_msg.buffer)->pressure);
-	}
-}
-
-void test_storage_batch_error_in_passthrough_mode(void)
-{
-	int err;
-	struct storage_msg passthrough_request = { .type = STORAGE_MODE_PASSTHROUGH_REQUEST };
-	struct storage_msg batch_request = {
-		.type = STORAGE_BATCH_REQUEST,
-		.session_id = 0x44444444
-	};
-
-	/* Set storage to passthrough mode */
-	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_request, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	/* Wait for mode change confirmation */
-	k_sleep(K_MSEC(100));
-	TEST_ASSERT_EQUAL(STORAGE_MODE_PASSTHROUGH, received_msg.type);
-
-	/* Request batch while in passthrough mode - should get ERROR response */
-	err = zbus_chan_pub(&STORAGE_CHAN, &batch_request, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	/* Wait for response */
-	k_sleep(K_MSEC(100));
-
-	/* Verify we got STORAGE_BATCH_ERROR with correct session_id */
-	TEST_ASSERT_EQUAL(STORAGE_BATCH_ERROR, received_msg.type);
-	TEST_ASSERT_EQUAL(0x44444444, received_msg.session_id);
-}
-
 void test_storage_batch_busy_when_batch_active(void)
 {
 	int err;
 	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
-	struct storage_msg buffer_msg = { .type = STORAGE_MODE_BUFFER_REQUEST };
 	struct storage_msg first_request = {
 		.type = STORAGE_BATCH_REQUEST,
 		.session_id = 0x55555555
@@ -882,11 +766,6 @@ void test_storage_batch_busy_when_batch_active(void)
 		.type = STORAGE_BATCH_CLOSE,
 		.session_id = 0x55555555
 	};
-
-	/* Ensure we're in buffer mode */
-	err = zbus_chan_pub(&STORAGE_CHAN, &buffer_msg, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(100));
 
 	/* Add some data to storage */
 	for (size_t i = 0; i < 5; i++) {
@@ -920,89 +799,11 @@ void test_storage_batch_busy_when_batch_active(void)
 	k_sleep(K_MSEC(100));
 }
 
-void test_storage_cannot_change_to_passthrough_while_batch_active(void)
-{
-	int err;
-	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
-	struct storage_msg buffer_msg = { .type = STORAGE_MODE_BUFFER_REQUEST };
-	struct storage_msg passthrough_msg = { .type = STORAGE_MODE_PASSTHROUGH_REQUEST };
-	struct storage_msg batch_request = {
-		.type = STORAGE_BATCH_REQUEST,
-		.session_id = 0x77777777
-	};
-	struct storage_msg close_msg = {
-		.type = STORAGE_BATCH_CLOSE,
-		.session_id = 0x77777777
-	};
-	struct storage_msg passthrough_request = {
-		.type = STORAGE_MODE_PASSTHROUGH_REQUEST
-	};
-
-	/* Ensure we're in buffer mode */
-	err = zbus_chan_pub(&STORAGE_CHAN, &buffer_msg, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	k_sleep(K_MSEC(100));
-
-	/* Add some data to storage */
-	for (size_t i = 0; i < 5; i++) {
-		populate_env_message(i, &env_msg);
-		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
-	}
-
-	/* Start a batch session */
-	err = zbus_chan_pub(&STORAGE_CHAN, &batch_request, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	/* Wait for response */
-	k_sleep(K_SECONDS(1));
-
-	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
-	TEST_ASSERT_EQUAL(0x77777777, received_msg.session_id);
-
-	/* Try to change to passthrough mode while batch is active - should be rejected */
-	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_request, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	/* Wait for explicit rejection response */
-	k_sleep(K_MSEC(100));
-
-	/* Should get explicit rejection with reason */
-	TEST_ASSERT_EQUAL(STORAGE_MODE_CHANGE_REJECTED, received_msg.type);
-	TEST_ASSERT_EQUAL(STORAGE_REJECT_BATCH_ACTIVE, received_msg.reject_reason);
-
-	/* Verify storage is still in batch active state by making another batch request */
-	batch_request.session_id = 0x88888888; /* Different session to test busy response */
-
-	err = zbus_chan_pub(&STORAGE_CHAN, &batch_request, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	k_sleep(K_MSEC(100));
-
-	/* Should get BATCH_BUSY because original session is still active */
-	TEST_ASSERT_EQUAL(STORAGE_BATCH_BUSY, received_msg.type);
-	TEST_ASSERT_EQUAL(0x88888888, received_msg.session_id);
-
-	/* Clean up - close the session */
-	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	k_sleep(K_MSEC(100));
-
-	/* Now passthrough mode change should work */
-	err = zbus_chan_pub(&STORAGE_CHAN, &passthrough_msg, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-
-	k_sleep(K_SECONDS(1));
-
-	TEST_ASSERT_EQUAL(STORAGE_MODE_PASSTHROUGH, received_msg.type);
-}
-
 void test_storage_batch_timeout_releases_busy_session(void)
 {
 	int err;
 	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
-	struct storage_msg buffer_msg = { .type = STORAGE_MODE_BUFFER_REQUEST };
+	// struct storage_msg buffer_msg = { .type = STORAGE_MODE_BUFFER_REQUEST };
 	struct storage_msg clear_msg = { .type = STORAGE_CLEAR };
 	struct storage_msg first_request = {
 		.type = STORAGE_BATCH_REQUEST,
@@ -1012,11 +813,6 @@ void test_storage_batch_timeout_releases_busy_session(void)
 		.type = STORAGE_BATCH_REQUEST,
 		.session_id = 0xABCDEF02,
 	};
-
-	/* Enable buffer mode */
-	err = zbus_chan_pub(&STORAGE_CHAN, &buffer_msg, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-	k_sleep(K_MSEC(100));
 
 	/* Clean slate */
 	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
@@ -1138,6 +934,66 @@ void test_storage_stores_samples_while_batch_session_active(void)
 	close_batch_and_assert(received_msg.session_id);
 }
 
+void test_storage_threshold(void)
+{
+	int err;
+	struct storage_msg msg = {
+		.type = STORAGE_SET_THRESHOLD,
+		.data_len = 5
+	};
+	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
+
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Wait for handling */
+	k_sleep(K_MSEC(100));
+
+	/* Write until threshold is reached */
+	for (size_t i = 0; i < 5; i++) {
+		populate_env_message(i, &env_msg);
+		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+	}
+
+	/* Wait for handling */
+	k_sleep(K_MSEC(100));
+
+	/* Verify we got STORAGE_THRESHOLD_REACHED message */
+	TEST_ASSERT_EQUAL(STORAGE_THRESHOLD_REACHED, received_msg.type);
+	TEST_ASSERT_EQUAL(STORAGE_TYPE_ENVIRONMENTAL, received_msg.data_type);
+	TEST_ASSERT_EQUAL(5, received_msg.data_len);
+
+	/* Send more data */
+	populate_env_message(5, &env_msg);
+	publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+
+	/* Wait for handling */
+	k_sleep(K_MSEC(100));
+
+	/* Verify we got STORAGE_THRESHOLD_REACHED message again with updated count */
+	TEST_ASSERT_EQUAL(STORAGE_THRESHOLD_REACHED, received_msg.type);
+	TEST_ASSERT_EQUAL(STORAGE_TYPE_ENVIRONMENTAL, received_msg.data_type);
+	TEST_ASSERT_EQUAL(6, received_msg.data_len);
+
+	/* Reset threshold to 0 and verify no further threshold messages are sent */
+	msg.data_len = 0;
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Wait for handling */
+	k_sleep(K_MSEC(100));
+
+	/* Send more data */
+	populate_env_message(6, &env_msg);
+	publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+
+	/* Wait for handling */
+	k_sleep(K_MSEC(100));
+
+	/* Verify we did NOT get STORAGE_THRESHOLD_REACHED message since threshold is now 0 */
+	TEST_ASSERT_NOT_EQUAL(STORAGE_THRESHOLD_REACHED, received_msg.type);
+
+}
 
 extern int unity_main(void);
 

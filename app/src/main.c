@@ -47,10 +47,8 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
 enum timer_msg_type {
 	/* Timer for sampling data has expired.
 	 * This timer is used to trigger the sampling of data from the sensors.
-	 * The timer is set to expire every CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS,
+	 * The timer is set to expire every CONFIG_APP_SAMPLING_INTERVAL_SECONDS,
 	 * and can be overridden from the cloud.
-	 * If the storage module is in passthrough mode, expiry of this timer will also trigger
-	 * polling of the cloud shadow and FOTA status.
 	 */
 	TIMER_EXPIRED_SAMPLE_DATA,
 
@@ -121,47 +119,29 @@ static K_WORK_DELAYABLE_DEFINE(timer_sample_data_work, timer_sample_data_work_fn
 /* Forward declarations of state handlers */
 static void running_entry(void *o);
 static enum smf_state_result running_run(void *o);
+static void running_exit(void *o);
 
-/* Storage mode handlers */
-static void buffer_mode_entry(void *o);
-static enum smf_state_result buffer_mode_run(void *o);
-static void buffer_mode_exit(void *o);
-static void passthrough_mode_entry(void *o);
-static enum smf_state_result passthrough_mode_run(void *o);
-static void passthrough_mode_exit(void *o);
+/* Connectivity handlers */
+static void disconnected_entry(void *o);
+static enum smf_state_result disconnected_run(void *o);
+static void connected_entry(void *o);
+static enum smf_state_result connected_run(void *o);
 
-/* Buffer mode connectivity handlers */
-static void buffer_disconnected_entry(void *o);
-static enum smf_state_result buffer_disconnected_run(void *o);
-static void buffer_connected_entry(void *o);
-static enum smf_state_result buffer_connected_run(void *o);
+/* Disconnected operation handlers */
+static void disconnected_sampling_entry(void *o);
+static enum smf_state_result disconnected_sampling_run(void *o);
+static void disconnected_waiting_entry(void *o);
+static enum smf_state_result disconnected_waiting_run(void *o);
+static void disconnected_waiting_exit(void *o);
 
-/* Buffer disconnected operation handlers */
-static void buffer_disconnected_sampling_entry(void *o);
-static enum smf_state_result buffer_disconnected_sampling_run(void *o);
-static void buffer_disconnected_waiting_entry(void *o);
-static enum smf_state_result buffer_disconnected_waiting_run(void *o);
-static void buffer_disconnected_waiting_exit(void *o);
-
-/* Buffer connected operation handlers */
-static void buffer_connected_sampling_entry(void *o);
-static enum smf_state_result buffer_connected_sampling_run(void *o);
-static void buffer_connected_waiting_entry(void *o);
-static enum smf_state_result buffer_connected_waiting_run(void *o);
-static void buffer_connected_waiting_exit(void *o);
-
-/* Passthrough mode connectivity handlers */
-static void passthrough_disconnected_entry(void *o);
-static enum smf_state_result passthrough_disconnected_run(void *o);
-static void passthrough_connected_entry(void *o);
-static enum smf_state_result passthrough_connected_run(void *o);
-
-/* Passthrough operation handlers */
-static void passthrough_connected_sampling_entry(void *o);
-static enum smf_state_result passthrough_connected_sampling_run(void *o);
-static void passthrough_connected_waiting_entry(void *o);
-static enum smf_state_result passthrough_connected_waiting_run(void *o);
-static void passthrough_connected_waiting_exit(void *o);
+/* Connected operation handlers */
+static void connected_sampling_entry(void *o);
+static enum smf_state_result connected_sampling_run(void *o);
+static void connected_waiting_entry(void *o);
+static enum smf_state_result connected_waiting_run(void *o);
+static void connected_waiting_exit(void *o);
+static void connected_sending_entry(void *o);
+static enum smf_state_result connected_sending_run(void *o);
 
 static void fota_entry(void *o);
 static enum smf_state_result fota_run(void *o);
@@ -183,30 +163,20 @@ static void fota_rebooting_entry(void *o);
 enum state {
 	/* Main application is running */
 	STATE_RUNNING,
-		/* Application is in buffer storage mode */
-		STATE_BUFFER_MODE,
-			/* Buffer mode with no cloud connectivity */
-			STATE_BUFFER_DISCONNECTED,
-				/* Sampling sensor data and queuing cloud operations */
-				STATE_BUFFER_DISCONNECTED_SAMPLING,
-				/* Waiting for next sample trigger or user input */
-				STATE_BUFFER_DISCONNECTED_WAITING,
-			/* Buffer mode with active cloud connectivity */
-			STATE_BUFFER_CONNECTED,
-				/* Sampling sensor data and storing to buffer */
-				STATE_BUFFER_CONNECTED_SAMPLING,
-				/* Waiting for next sample or data send trigger */
-				STATE_BUFFER_CONNECTED_WAITING,
-		/* Application is in passthrough storage mode */
-		STATE_PASSTHROUGH_MODE,
-			/* Passthrough mode with no cloud connectivity */
-			STATE_PASSTHROUGH_DISCONNECTED,
-			/* Passthrough mode with cloud connectivity */
-			STATE_PASSTHROUGH_CONNECTED,
-				/* Sampling sensors and sending data immediately */
-				STATE_PASSTHROUGH_CONNECTED_SAMPLING,
-				/* Waiting for next sample trigger or user input */
-				STATE_PASSTHROUGH_CONNECTED_WAITING,
+		/* No cloud connectivity */
+		STATE_DISCONNECTED,
+			/* Sampling sensor data and queuing cloud operations */
+			STATE_DISCONNECTED_SAMPLING,
+			/* Waiting for next sample trigger or user input */
+			STATE_DISCONNECTED_WAITING,
+		/* Active cloud connectivity */
+		STATE_CONNECTED,
+			/* Sampling sensor data and storing to buffer */
+			STATE_CONNECTED_SAMPLING,
+			/* Waiting for next sample or data send trigger */
+			STATE_CONNECTED_WAITING,
+			/* Sending buffered data to the cloud */
+			STATE_CONNECTED_SENDING,
 
 	/* Firmware Over-The-Air update is in progress */
 	STATE_FOTA,
@@ -243,10 +213,17 @@ struct main_state {
 	/* Update interval, how often the device synchronizes with the cloud */
 	uint32_t update_interval_sec;
 
+	uint32_t storage_threshold;
+
 	/* Start time of the most recent sampling. This is used to calculate the correct
 	 * time when scheduling the next sampling trigger.
 	 */
 	uint32_t sample_start_time;
+
+	/* Start time of the most recent cloud sync. This is used to calculate the correct
+	 * time when scheduling the next cloud sync trigger.
+	 */
+	uint32_t sync_start_time;
 
 	/* Storage batch session ID for batch operations */
 	uint32_t storage_session_id;
@@ -256,15 +233,11 @@ struct main_state {
 	 */
 	enum state running_history;
 
-	/* Flag to track if shadow has been polled on initial connection */
-	bool shadow_polled_on_connect;
+	/* Flag to track if cloud has been synced on initial connection
+	 * Initial SHADOW_GET_DESIRED and FOTA_POLL_REQUEST
+	 */
+	bool cloud_synced_on_connect;
 };
-
-#if defined(CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH)
-#define INITIAL_MODE STATE_PASSTHROUGH_MODE
-#else
-#define INITIAL_MODE STATE_BUFFER_MODE
-#endif
 
 /* Construct state table */
 static const struct smf_state states[] = {
@@ -272,98 +245,60 @@ static const struct smf_state states[] = {
 	[STATE_RUNNING] = SMF_CREATE_STATE(
 		running_entry,
 		running_run,
+		running_exit,
 		NULL,
-		NULL,
-		&states[INITIAL_MODE]
+		&states[STATE_DISCONNECTED]
 	),
-	/* Storage mode states */
-	[STATE_BUFFER_MODE] = SMF_CREATE_STATE(
-		buffer_mode_entry,
-		buffer_mode_run,
-		buffer_mode_exit,
+	/* Connectivity states */
+	[STATE_DISCONNECTED] = SMF_CREATE_STATE(
+		disconnected_entry,
+		disconnected_run,
+		NULL,
 		&states[STATE_RUNNING],
-		&states[STATE_BUFFER_DISCONNECTED]  /* Initially disconnected */
+		&states[STATE_DISCONNECTED_WAITING]
 	),
-	/* Buffer mode connectivity states */
-	[STATE_BUFFER_DISCONNECTED] = SMF_CREATE_STATE(
-		buffer_disconnected_entry,
-		buffer_disconnected_run,
+	/* Disconnected operation states */
+	[STATE_DISCONNECTED_SAMPLING] = SMF_CREATE_STATE(
+		disconnected_sampling_entry,
+		disconnected_sampling_run,
 		NULL,
-		&states[STATE_BUFFER_MODE],
-		&states[STATE_BUFFER_DISCONNECTED_SAMPLING]
-	),
-	/* Buffer disconnected operation states */
-	[STATE_BUFFER_DISCONNECTED_SAMPLING] = SMF_CREATE_STATE(
-		buffer_disconnected_sampling_entry,
-		buffer_disconnected_sampling_run,
-		NULL,
-		&states[STATE_BUFFER_DISCONNECTED],
+		&states[STATE_DISCONNECTED],
 		NULL
 	),
-	[STATE_BUFFER_DISCONNECTED_WAITING] = SMF_CREATE_STATE(
-		buffer_disconnected_waiting_entry,
-		buffer_disconnected_waiting_run,
-		buffer_disconnected_waiting_exit,
-		&states[STATE_BUFFER_DISCONNECTED],
+	[STATE_DISCONNECTED_WAITING] = SMF_CREATE_STATE(
+		disconnected_waiting_entry,
+		disconnected_waiting_run,
+		disconnected_waiting_exit,
+		&states[STATE_DISCONNECTED],
 		NULL
 	),
-	[STATE_BUFFER_CONNECTED] = SMF_CREATE_STATE(
-		buffer_connected_entry,
-		buffer_connected_run,
+	[STATE_CONNECTED] = SMF_CREATE_STATE(
+		connected_entry,
+		connected_run,
 		NULL,
-		&states[STATE_BUFFER_MODE],
-		&states[STATE_BUFFER_CONNECTED_SAMPLING]
-	),
-	/* Buffer connected operation states */
-	[STATE_BUFFER_CONNECTED_SAMPLING] = SMF_CREATE_STATE(
-		buffer_connected_sampling_entry,
-		buffer_connected_sampling_run,
-		NULL,
-		&states[STATE_BUFFER_CONNECTED],
-		NULL
-	),
-	[STATE_BUFFER_CONNECTED_WAITING] = SMF_CREATE_STATE(
-		buffer_connected_waiting_entry,
-		buffer_connected_waiting_run,
-		buffer_connected_waiting_exit,
-		&states[STATE_BUFFER_CONNECTED],
-		NULL
-	),
-	[STATE_PASSTHROUGH_MODE] = SMF_CREATE_STATE(
-		passthrough_mode_entry,
-		passthrough_mode_run,
-		passthrough_mode_exit,
 		&states[STATE_RUNNING],
-		&states[STATE_PASSTHROUGH_DISCONNECTED]  /* Initially disconnected */
+		&states[STATE_CONNECTED_WAITING]
 	),
-	/* Passthrough mode connectivity states */
-	[STATE_PASSTHROUGH_DISCONNECTED] = SMF_CREATE_STATE(
-		passthrough_disconnected_entry,
-		passthrough_disconnected_run,
+	/* Connected operation states */
+	[STATE_CONNECTED_SAMPLING] = SMF_CREATE_STATE(
+		connected_sampling_entry,
+		connected_sampling_run,
 		NULL,
-		&states[STATE_PASSTHROUGH_MODE],
+		&states[STATE_CONNECTED],
 		NULL
 	),
-	[STATE_PASSTHROUGH_CONNECTED] = SMF_CREATE_STATE(
-		passthrough_connected_entry,
-		passthrough_connected_run,
-		NULL,
-		&states[STATE_PASSTHROUGH_MODE],
-		&states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]
-	),
-	/* Passthrough operation states */
-	[STATE_PASSTHROUGH_CONNECTED_SAMPLING] = SMF_CREATE_STATE(
-		passthrough_connected_sampling_entry,
-		passthrough_connected_sampling_run,
-		NULL,
-		&states[STATE_PASSTHROUGH_CONNECTED],
+	[STATE_CONNECTED_WAITING] = SMF_CREATE_STATE(
+		connected_waiting_entry,
+		connected_waiting_run,
+		connected_waiting_exit,
+		&states[STATE_CONNECTED],
 		NULL
 	),
-	[STATE_PASSTHROUGH_CONNECTED_WAITING] = SMF_CREATE_STATE(
-		passthrough_connected_waiting_entry,
-		passthrough_connected_waiting_run,
-		passthrough_connected_waiting_exit,
-		&states[STATE_PASSTHROUGH_CONNECTED],
+	[STATE_CONNECTED_SENDING] = SMF_CREATE_STATE(
+		connected_sending_entry,
+		connected_sending_run,
+		NULL,
+		&states[STATE_CONNECTED],
 		NULL
 	),
 	/* FOTA states */
@@ -462,7 +397,7 @@ static void poll_triggers_send(void)
 	poll_shadow_send(CLOUD_SHADOW_GET_DELTA);
 }
 
-/* Common helpers for buffer-mode substates */
+/* Common helpers for substates */
 
 static void sampling_begin_common(struct main_state *state_object,
 				  const struct smf_state *fallback_state)
@@ -487,11 +422,12 @@ static void sampling_begin_common(struct main_state *state_object,
 	}
 
 #if defined(CONFIG_APP_LED)
+	/* Blue pattern to indicate sampling */
 	struct led_msg led_msg = {
 		.type = LED_RGB_SET,
 		.red = 0,
-		.green = 55,
-		.blue = 0,
+		.green = 0,
+		.blue = 55,
 		.duration_on_msec = 250,
 		.duration_off_msec = 2000,
 		.repetitions = 10,
@@ -523,39 +459,37 @@ static void waiting_entry_common(const struct main_state *state_object)
 	uint32_t time_elapsed;
 	uint32_t time_remaining;
 
-	time_elapsed = k_uptime_seconds() - state_object->sample_start_time;
+	/* Reschedule the next sample trigger */
 
-	if (time_elapsed > state_object->sample_interval_sec) {
-		LOG_WRN("Sampling took longer than the interval, time_elapsed: %d, interval: %d",
-			time_elapsed, state_object->sample_interval_sec);
+	/* Special case: sample_start_time == 0 means first sample, trigger immediately */
+	if (state_object->sample_start_time == 0) {
 		time_remaining = 0;
 	} else {
-		time_remaining = state_object->sample_interval_sec - time_elapsed;
+		time_elapsed = k_uptime_seconds() - state_object->sample_start_time;
+
+		if (time_elapsed > state_object->sample_interval_sec) {
+			LOG_WRN("Sampling took longer than the interval, time_elapsed: %d, interval: %d",
+				time_elapsed, state_object->sample_interval_sec);
+			time_remaining = 0;
+		} else {
+			time_remaining = state_object->sample_interval_sec - time_elapsed;
+		}
 	}
 
-	LOG_DBG("Next trigger in %d seconds", time_remaining);
+	LOG_DBG("Next sample trigger in %d seconds", time_remaining);
 	timer_sample_start(time_remaining);
 
-#if defined(CONFIG_APP_LED)
-	int err;
-	struct led_msg led_msg = {
-		.type = LED_RGB_SET,
-		.red = 0,
-		.green = 0,
-		.blue = 55,
-		.duration_on_msec = 250,
-		.duration_off_msec = 2000,
-		.repetitions = 10,
-	};
-
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
-	if (err) {
-		LOG_ERR("Failed to publish LED wait pattern, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
+	/* Reschedule cloud sync trigger */
+	time_elapsed = k_uptime_seconds() - state_object->sync_start_time;
+	if (time_elapsed > state_object->update_interval_sec) {
+		LOG_WRN("Cloud sync took longer than the update interval, time_elapsed: %d, interval: %d",
+			time_elapsed, state_object->update_interval_sec);
+		time_remaining = 0;
+	} else {
+		time_remaining = state_object->update_interval_sec - time_elapsed;
 	}
-#endif /* CONFIG_APP_LED */
+	LOG_DBG("Next cloud sync trigger in %d seconds", time_remaining);
+	timer_send_data_start(time_remaining);
 }
 
 static void waiting_exit_common(void)
@@ -625,6 +559,29 @@ static void cloud_send_now(struct main_state *state_object)
 	storage_send_data(state_object);
 	poll_triggers_send();
 	timer_send_data_start(state_object->update_interval_sec);
+	state_object->sync_start_time = k_uptime_seconds();
+
+#if defined(CONFIG_APP_LED)
+	int err;
+	/* Green pattern to indicate sending */
+	struct led_msg led_msg = {
+		.type = LED_RGB_SET,
+		.red = 0,
+		.green = 55,
+		.blue = 0,
+		.duration_on_msec = 250,
+		.duration_off_msec = 2000,
+		.repetitions = 10,
+	};
+
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to publish LED pattern message, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+#endif /* CONFIG_APP_LED */
 }
 
 /* Delayable work used to send messages on the TIMER_CHAN */
@@ -737,22 +694,19 @@ static void update_shadow_reported_section(const struct config_params *config,
 		return;
 	}
 
-	LOG_DBG("Configuration reported: update_interval=%d, sample_interval=%d, mode=%s",
+	LOG_DBG("Configuration reported: update_interval=%d, sample_interval=%d, storage_threshold=%d",
 		config->update_interval, config->sample_interval,
-		config->buffer_mode ? "buffer" : "passthrough");
+		config->storage_threshold);
 }
 
 static void config_apply(struct main_state *state_object, const struct config_params *config)
 {
 	int err;
-	struct storage_msg storage_msg = {
-		.type = STORAGE_MODE_PASSTHROUGH_REQUEST,
-	};
 	bool interval_changed = false;
 
 	if (!config->sample_interval &&
 	    !config->update_interval &&
-	    !config->buffer_mode_valid) {
+	    !config->storage_threshold_valid) {
 		LOG_DBG("No configuration parameters to update");
 		return;
 	}
@@ -771,17 +725,23 @@ static void config_apply(struct main_state *state_object, const struct config_pa
 		interval_changed = true;
 	}
 
-	if (config->buffer_mode && config->buffer_mode_valid) {
-		LOG_DBG("Switching to buffer mode");
-		storage_msg.type = STORAGE_MODE_BUFFER_REQUEST;
-	}
+	if (config->storage_threshold_valid &&
+	    config->storage_threshold != state_object->storage_threshold) {
+		struct storage_msg storage_msg = {
+			.type = STORAGE_SET_THRESHOLD,
+			.data_len = config->storage_threshold,
+		};
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
-	if (err) {
-		LOG_ERR("Failed to publish storage mode change request, error: %d", err);
-		SEND_FATAL_ERROR();
+		LOG_DBG("Updating storage threshold to %d bytes", config->storage_threshold);
+		state_object->storage_threshold = config->storage_threshold;
 
-		return;
+		err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+		if (err) {
+			LOG_ERR("Failed to publish storage threshold update, error: %d", err);
+			SEND_FATAL_ERROR();
+
+			return;
+		}
 	}
 
 	/* Notify waiting states that configuration has changed and timers need restart */
@@ -822,8 +782,7 @@ static void command_execute(uint32_t command_type)
 }
 
 static void handle_cloud_shadow_response(struct main_state *state_object,
-					 const struct cloud_msg *msg,
-					 bool in_buffer_mode)
+					 const struct cloud_msg *msg)
 {
 	int err;
 	struct config_params config = { 0 };
@@ -851,15 +810,8 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 	 */
 	config.sample_interval = state_object->sample_interval_sec;
 	config.update_interval = state_object->update_interval_sec;
-
-	/* Set buffer_mode based on what was applied or current state.
-	 * If the cloud sent a mode change request (buffer_mode_valid is true), report that.
-	 * Otherwise, report the current operating mode passed in by the caller.
-	 */
-	if (!config.buffer_mode_valid) {
-		config.buffer_mode = in_buffer_mode;
-		config.buffer_mode_valid = true;
-	}
+	config.storage_threshold = state_object->storage_threshold;
+	config.storage_threshold_valid = true;
 
 	/* Only process commands from delta responses, not from desired responses.
 	 * Delta responses contain only new commands that haven't been executed yet.
@@ -883,8 +835,13 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 
 static void running_entry(void *o)
 {
+	struct main_state *state_object = (struct main_state *)o;
+
 	ARG_UNUSED(o);
 	LOG_DBG("%s", __func__);
+
+	timer_send_data_start(state_object->update_interval_sec);
+	state_object->sync_start_time = k_uptime_seconds();
 }
 
 static enum smf_state_result running_run(void *o)
@@ -902,38 +859,7 @@ static enum smf_state_result running_run(void *o)
 	return SMF_EVENT_PROPAGATE;
 }
 
-/* STATE_BUFFER_MODE */
-
-static void buffer_mode_entry(void *o)
-{
-	struct main_state *state_object = (struct main_state *)o;
-
-	LOG_DBG("%s", __func__);
-
-	/* Reset sample start time to allow immediate sampling when changing operation mode */
-	state_object->sample_start_time = 0;
-
-	timer_send_data_start(state_object->update_interval_sec);
-}
-
-static enum smf_state_result buffer_mode_run(void *o)
-{
-	const struct main_state *state_object = (struct main_state *)o;
-
-	/* Handle long button press to send immediately */
-	if (state_object->chan == &BUTTON_CHAN) {
-		struct button_msg msg = MSG_TO_BUTTON_MSG(state_object->msg_buf);
-
-		if (msg.type == BUTTON_PRESS_LONG) {
-			/* Let buffer_connected_* handle long press when connected */
-			return SMF_EVENT_HANDLED;
-		}
-	}
-
-	return SMF_EVENT_PROPAGATE;
-}
-
-static void buffer_mode_exit(void *o)
+static void running_exit(void *o)
 {
 	ARG_UNUSED(o);
 	LOG_DBG("%s", __func__);
@@ -942,39 +868,18 @@ static void buffer_mode_exit(void *o)
 	timer_send_data_stop();
 }
 
-/* STATE_BUFFER_DISCONNECTED */
+/* STATE_DISCONNECTED */
 
-static void buffer_disconnected_entry(void *o)
+static void disconnected_entry(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
 
-	state_object->running_history = STATE_BUFFER_DISCONNECTED;
-
-#if defined(CONFIG_APP_LED)
-	int err;
-	struct led_msg led_msg = {
-		.type = LED_RGB_SET,
-		.red = 150,
-		.green = 150,
-		.blue = 0,
-		.duration_on_msec = 250,
-		.duration_off_msec = 2000,
-		.repetitions = 10,
-	};
-
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
-	if (err) {
-		LOG_ERR("Failed to publish LED disconnected pattern, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-#endif /* CONFIG_APP_LED */
+	state_object->running_history = STATE_DISCONNECTED;
 }
 
-static enum smf_state_result buffer_disconnected_run(void *o)
+static enum smf_state_result disconnected_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -983,7 +888,7 @@ static enum smf_state_result buffer_disconnected_run(void *o)
 		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
 
 		if (msg->type == CLOUD_CONNECTED) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_CONNECTED]);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -993,17 +898,24 @@ static enum smf_state_result buffer_disconnected_run(void *o)
 	if (state_object->chan == &TIMER_CHAN &&
 	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_CLOUD) {
 		timer_send_data_start(state_object->update_interval_sec);
+		state_object->sync_start_time = k_uptime_seconds();
 
 		return SMF_EVENT_HANDLED;
 	}
 
+	/* Ignore send trigers when disconnected */
+	if (state_object->chan == &BUTTON_CHAN) {
+		struct button_msg button_msg = MSG_TO_BUTTON_MSG(state_object->msg_buf);
+
+		if (button_msg.type == BUTTON_PRESS_LONG) {
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
 	if (state_object->chan == &STORAGE_CHAN) {
-		const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
+		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
 
-		if (msg->type == STORAGE_MODE_PASSTHROUGH) {
-			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_PASSTHROUGH_DISCONNECTED]);
-
+		if (msg->type == STORAGE_THRESHOLD_REACHED) {
 			return SMF_EVENT_HANDLED;
 		}
 	}
@@ -1011,24 +923,36 @@ static enum smf_state_result buffer_disconnected_run(void *o)
 	return SMF_EVENT_PROPAGATE;
 }
 
-/* STATE_BUFFER_CONNECTED */
+/* STATE_CONNECTED */
 
-static void buffer_connected_entry(void *o)
+static void connected_entry(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
 
-	state_object->running_history = STATE_BUFFER_CONNECTED;
+	state_object->running_history = STATE_CONNECTED;
 
 	/* Get the latest device configuration by polling the desired section of the shadow. */
-	if (!state_object->shadow_polled_on_connect) {
+	if (!state_object->cloud_synced_on_connect) {
+
+		/* Poll for FOTA updates immediately upon connecting to the cloud. Also makes the device
+	 	* report the result of any pending FOTA jobs as soon as possible.
+		 */
+		int err;
+		enum fota_msg_type fota_msg = FOTA_POLL_REQUEST;
+
+		err = zbus_chan_pub(&FOTA_CHAN, &fota_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+		if (err) {
+			LOG_ERR("Failed to trigger FOTA polling on cloud connection: %d", err);
+		}
+
 		poll_shadow_send(CLOUD_SHADOW_GET_DESIRED);
-		state_object->shadow_polled_on_connect = true;
+		state_object->cloud_synced_on_connect = true;
 	}
 }
 
-static enum smf_state_result buffer_connected_run(void *o)
+static enum smf_state_result connected_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -1038,13 +962,13 @@ static enum smf_state_result buffer_connected_run(void *o)
 
 		switch (msg->type) {
 		case CLOUD_DISCONNECTED:
-			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_DISCONNECTED]);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
 
 			return SMF_EVENT_HANDLED;
 		case CLOUD_SHADOW_RESPONSE_DESIRED:
 			__fallthrough;
 		case CLOUD_SHADOW_RESPONSE_DELTA:
-			handle_cloud_shadow_response(state_object, msg, true);
+			handle_cloud_shadow_response(state_object, msg);
 
 			break;
 		case CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED:
@@ -1053,8 +977,7 @@ static enum smf_state_result buffer_connected_run(void *o)
 			struct config_params config = {
 				.update_interval = state_object->update_interval_sec,
 				.sample_interval = state_object->sample_interval_sec,
-				.buffer_mode = true,
-				.buffer_mode_valid = true,
+				.storage_threshold = state_object->storage_threshold,
 			};
 
 			update_shadow_reported_section(&config, 0, 0);
@@ -1068,7 +991,7 @@ static enum smf_state_result buffer_connected_run(void *o)
 	/* Handle periodic send at connectivity parent level */
 	if (state_object->chan == &TIMER_CHAN &&
 	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_CLOUD) {
-		cloud_send_now(state_object);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_SENDING]);
 
 		return SMF_EVENT_HANDLED;
 	}
@@ -1078,18 +1001,7 @@ static enum smf_state_result buffer_connected_run(void *o)
 		struct button_msg button_msg = MSG_TO_BUTTON_MSG(state_object->msg_buf);
 
 		if (button_msg.type == BUTTON_PRESS_LONG) {
-			cloud_send_now(state_object);
-
-			return SMF_EVENT_HANDLED;
-		}
-	}
-
-	if (state_object->chan == &STORAGE_CHAN) {
-		const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
-
-		if (msg->type == STORAGE_MODE_PASSTHROUGH) {
-			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_PASSTHROUGH_CONNECTED]);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_SENDING]);
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -1098,26 +1010,25 @@ static enum smf_state_result buffer_connected_run(void *o)
 	return SMF_EVENT_PROPAGATE;
 }
 
-/* STATE_BUFFER_DISCONNECTED_SAMPLING */
+/* STATE_DISCONNECTED_SAMPLING */
 
-static void buffer_disconnected_sampling_entry(void *o)
+static void disconnected_sampling_entry(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
-	sampling_begin_common(state_object, &states[STATE_BUFFER_DISCONNECTED_WAITING]);
+	sampling_begin_common(state_object, &states[STATE_DISCONNECTED_WAITING]);
 }
 
-static enum smf_state_result buffer_disconnected_sampling_run(void *o)
+static enum smf_state_result disconnected_sampling_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
 	if (state_object->chan == &LOCATION_CHAN &&
 	    MSG_TO_LOCATION_TYPE(state_object->msg_buf) == LOCATION_SEARCH_DONE) {
 
-		/* In buffer mode when disconnected, just queue sensor sampling */
 		sensor_triggers_send();
-		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_DISCONNECTED_WAITING]);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_WAITING]);
 
 		return SMF_EVENT_HANDLED;
 	}
@@ -1128,23 +1039,42 @@ static enum smf_state_result buffer_disconnected_sampling_run(void *o)
 		return SMF_EVENT_HANDLED;
 	}
 
-	/* Handle cloud timer - queue data sending for when connected */
-	/* TIMER_EXPIRED_CLOUD handled in parent buffer_disconnected_run */
-
 	return SMF_EVENT_PROPAGATE;
 }
 
-/* STATE_BUFFER_DISCONNECTED_WAITING */
+/* STATE_DISCONNECTED_WAITING */
 
-static void buffer_disconnected_waiting_entry(void *o)
+static void disconnected_waiting_entry(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
 	waiting_entry_common(state_object);
+
+#if defined(CONFIG_APP_LED)
+	int err;
+	/* Red pattern indicating disconnected */
+	struct led_msg led_msg = {
+		.type = LED_RGB_SET,
+		.red = 55,
+		.green = 0,
+		.blue = 0,
+		.duration_on_msec = 250,
+		.duration_off_msec = 2000,
+		.repetitions = 10,
+	};
+
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to publish LED pattern, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+#endif /* CONFIG_APP_LED */
 }
 
-static enum smf_state_result buffer_disconnected_waiting_run(void *o)
+static enum smf_state_result disconnected_waiting_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -1153,7 +1083,7 @@ static enum smf_state_result buffer_disconnected_waiting_run(void *o)
 
 		if (timer_type == TIMER_EXPIRED_SAMPLE_DATA) {
 			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_BUFFER_DISCONNECTED_SAMPLING]);
+				      &states[STATE_DISCONNECTED_SAMPLING]);
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -1161,7 +1091,7 @@ static enum smf_state_result buffer_disconnected_waiting_run(void *o)
 		if (timer_type == TIMER_CONFIG_CHANGED) {
 			/* Re-enter state to restart timer with new interval */
 			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_BUFFER_DISCONNECTED_WAITING]);
+				      &states[STATE_DISCONNECTED_WAITING]);
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -1170,15 +1100,7 @@ static enum smf_state_result buffer_disconnected_waiting_run(void *o)
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
 		smf_set_state(SMF_CTX(state_object),
-			      &states[STATE_BUFFER_DISCONNECTED_SAMPLING]);
-
-		return SMF_EVENT_HANDLED;
-	}
-
-	/* Handle long button press - queue operations for when connected */
-	if (state_object->chan == &BUTTON_CHAN &&
-	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_LONG) {
-		LOG_DBG("Long button press while disconnected, operations will be queued");
+			      &states[STATE_DISCONNECTED_SAMPLING]);
 
 		return SMF_EVENT_HANDLED;
 	}
@@ -1186,7 +1108,7 @@ static enum smf_state_result buffer_disconnected_waiting_run(void *o)
 	return SMF_EVENT_PROPAGATE;
 }
 
-static void buffer_disconnected_waiting_exit(void *o)
+static void disconnected_waiting_exit(void *o)
 {
 	ARG_UNUSED(o);
 	LOG_DBG("%s", __func__);
@@ -1194,52 +1116,59 @@ static void buffer_disconnected_waiting_exit(void *o)
 	waiting_exit_common();
 }
 
-/* STATE_BUFFER_CONNECTED_SAMPLING */
+/* STATE_CONNECTED_SAMPLING */
 
-static void buffer_connected_sampling_entry(void *o)
+static void connected_sampling_entry(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
-	sampling_begin_common(state_object, &states[STATE_BUFFER_CONNECTED_WAITING]);
+	sampling_begin_common(state_object, &states[STATE_CONNECTED_WAITING]);
 }
 
-static enum smf_state_result buffer_connected_sampling_run(void *o)
+static enum smf_state_result connected_sampling_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
 	if (state_object->chan == &LOCATION_CHAN &&
 	    MSG_TO_LOCATION_TYPE(state_object->msg_buf) == LOCATION_SEARCH_DONE) {
 
-		/* In buffer mode when connected, sample all sensors */
 		sensor_triggers_send();
-		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_CONNECTED_WAITING]);
+
+		if (SMF_CTX(state_object)->previous == &states[STATE_CONNECTED_SENDING]) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_SENDING]);
+		} else {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_WAITING]);
+		}
+
 
 		return SMF_EVENT_HANDLED;
 	}
 
-	/* Ignore other triggers while sampling */
+	/* Ignore other sample triggers while sampling */
 	if (state_object->chan == &BUTTON_CHAN &&
 	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
 		return SMF_EVENT_HANDLED;
 	}
 
-	/* Handle cloud timer */
-	if (state_object->chan == &TIMER_CHAN &&
-	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_CLOUD) {
-		timer_send_data_start(state_object->update_interval_sec);
-		storage_send_data(state_object);
-		poll_triggers_send();
+	/* Handle buffer limit reached to send immediately */
+	if (state_object->chan == &STORAGE_CHAN) {
+		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
 
-		return SMF_EVENT_HANDLED;
+		if (msg->type == STORAGE_THRESHOLD_REACHED) {
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_CONNECTED_SENDING]);
+
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	return SMF_EVENT_PROPAGATE;
 }
 
-/* STATE_BUFFER_CONNECTED_WAITING */
+/* STATE_CONNECTED_WAITING */
 
-static void buffer_connected_waiting_entry(void *o)
+static void connected_waiting_entry(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
@@ -1247,7 +1176,7 @@ static void buffer_connected_waiting_entry(void *o)
 	waiting_entry_common(state_object);
 }
 
-static enum smf_state_result buffer_connected_waiting_run(void *o)
+static enum smf_state_result connected_waiting_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -1256,15 +1185,7 @@ static enum smf_state_result buffer_connected_waiting_run(void *o)
 
 		if (timer_type == TIMER_EXPIRED_SAMPLE_DATA) {
 			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_BUFFER_CONNECTED_SAMPLING]);
-
-			return SMF_EVENT_HANDLED;
-		}
-
-		if (timer_type == TIMER_EXPIRED_CLOUD) {
-			storage_send_data(state_object);
-			poll_triggers_send();
-			timer_send_data_start(state_object->update_interval_sec);
+				      &states[STATE_CONNECTED_SAMPLING]);
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -1272,7 +1193,7 @@ static enum smf_state_result buffer_connected_waiting_run(void *o)
 		if (timer_type == TIMER_CONFIG_CHANGED) {
 			/* Re-enter state to restart timer with new interval */
 			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_BUFFER_CONNECTED_WAITING]);
+				      &states[STATE_CONNECTED_WAITING]);
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -1283,14 +1204,19 @@ static enum smf_state_result buffer_connected_waiting_run(void *o)
 
 		if (button_msg.type == BUTTON_PRESS_SHORT) {
 			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_BUFFER_CONNECTED_SAMPLING]);
+				      &states[STATE_CONNECTED_SAMPLING]);
 
 			return SMF_EVENT_HANDLED;
 		}
+	}
 
-		if (button_msg.type == BUTTON_PRESS_LONG) {
-			storage_send_data(state_object);
-			poll_triggers_send();
+	/* Handle buffer limit reached to send immediately */
+	if (state_object->chan == &STORAGE_CHAN) {
+		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
+
+		if (msg->type == STORAGE_THRESHOLD_REACHED) {
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_CONNECTED_SENDING]);
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -1299,7 +1225,7 @@ static enum smf_state_result buffer_connected_waiting_run(void *o)
 	return SMF_EVENT_PROPAGATE;
 }
 
-static void buffer_connected_waiting_exit(void *o)
+static void connected_waiting_exit(void *o)
 {
 	ARG_UNUSED(o);
 
@@ -1307,298 +1233,17 @@ static void buffer_connected_waiting_exit(void *o)
 	waiting_exit_common();
 }
 
-/* STATE_PASSTHROUGH_MODE */
-
-static void passthrough_mode_entry(void *o)
+static void connected_sending_entry(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
 
-	/* Reset sample start time to allow immediate sampling when changing operation mode */
-	state_object->sample_start_time = 0;
-
-	/* Cancel any existing timers - passthrough only operates when connected */
-	timer_sample_stop();
-	timer_send_data_stop();
+	/* Send data immediately when entering this state */
+	cloud_send_now(state_object);
 }
 
-static enum smf_state_result passthrough_mode_run(void *o)
-{
-	struct main_state *state_object = (struct main_state *)o;
-
-	/* Handle connectivity changes */
-	if (state_object->chan == &CLOUD_CHAN) {
-		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
-
-		switch (msg->type) {
-		case CLOUD_DISCONNECTED:
-			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_PASSTHROUGH_DISCONNECTED]);
-
-			return SMF_EVENT_HANDLED;
-		case CLOUD_CONNECTED:
-			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]);
-
-			return SMF_EVENT_HANDLED;
-		default:
-			break;
-		}
-	}
-
-	return SMF_EVENT_PROPAGATE;
-}
-
-static void passthrough_mode_exit(void *o)
-{
-	ARG_UNUSED(o);
-	LOG_DBG("%s", __func__);
-
-	timer_sample_stop();
-}
-
-/* STATE_PASSTHROUGH_DISCONNECTED */
-
-static void passthrough_disconnected_entry(void *o)
-{
-	struct main_state *state_object = (struct main_state *)o;
-
-	LOG_DBG("%s", __func__);
-
-	state_object->running_history = STATE_PASSTHROUGH_DISCONNECTED;
-
-	/* Stop any running sampling timers when disconnecting in passthrough mode */
-	timer_sample_stop();
-
-#if defined(CONFIG_APP_LED)
-	int err;
-	struct led_msg led_msg = {
-		.type = LED_RGB_SET,
-		.red = 150,
-		.green = 150,
-		.blue = 0,
-		.duration_on_msec = 250,
-		.duration_off_msec = 2000,
-		.repetitions = 10,
-	};
-
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
-	if (err) {
-		LOG_ERR("Failed to publish LED disconnected pattern, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-#endif /* CONFIG_APP_LED */
-}
-
-static enum smf_state_result passthrough_disconnected_run(void *o)
-{
-	struct main_state *state_object = (struct main_state *)o;
-
-	/* Handle connectivity changes */
-	if (state_object->chan == &CLOUD_CHAN) {
-		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
-
-		if (msg->type == CLOUD_CONNECTED) {
-			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]);
-
-			return SMF_EVENT_HANDLED;
-		}
-	}
-
-	if (state_object->chan == &STORAGE_CHAN) {
-		const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
-
-		if (msg->type == STORAGE_MODE_BUFFER) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_DISCONNECTED]);
-
-			return SMF_EVENT_HANDLED;
-		}
-	}
-
-	return SMF_EVENT_PROPAGATE;
-}
-
-/* STATE_PASSTHROUGH_CONNECTED */
-
-static void passthrough_connected_entry(void *o)
-{
-	struct main_state *state_object = (struct main_state *)o;
-
-	LOG_DBG("%s", __func__);
-
-	state_object->running_history = STATE_PASSTHROUGH_CONNECTED;
-
-	/* Get the latest device configuration by polling the desired section of the shadow. */
-	if (!state_object->shadow_polled_on_connect) {
-		poll_shadow_send(CLOUD_SHADOW_GET_DESIRED);
-		state_object->shadow_polled_on_connect = true;
-	}
-}
-
-static enum smf_state_result passthrough_connected_run(void *o)
-{
-	struct main_state *state_object = (struct main_state *)o;
-
-	/* Handle cloud shadow responses */
-	if (state_object->chan == &CLOUD_CHAN) {
-		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
-
-		switch (msg->type) {
-		case CLOUD_SHADOW_RESPONSE_DESIRED:
-			__fallthrough;
-		case CLOUD_SHADOW_RESPONSE_DELTA:
-			handle_cloud_shadow_response(state_object, msg, false);
-
-			return SMF_EVENT_HANDLED;
-		case CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED:
-			LOG_DBG("Received empty shadow response from cloud");
-
-			struct config_params config = {
-				.update_interval = state_object->update_interval_sec,
-				.sample_interval = state_object->sample_interval_sec,
-				.buffer_mode = false,
-				.buffer_mode_valid = true,
-			};
-
-			update_shadow_reported_section(&config, 0, 0);
-
-			return SMF_EVENT_HANDLED;
-		default:
-			break;
-		}
-	}
-
-	if (state_object->chan == &STORAGE_CHAN) {
-		const struct storage_msg *msg = MSG_TO_STORAGE_MSG(state_object->msg_buf);
-
-		if (msg->type == STORAGE_MODE_BUFFER) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_CONNECTED]);
-
-			return SMF_EVENT_PROPAGATE;
-		}
-
-		return SMF_EVENT_HANDLED;
-	}
-
-	return SMF_EVENT_PROPAGATE;
-}
-
-/* STATE_PASSTHROUGH_CONNECTED_SAMPLING */
-
-static void passthrough_connected_sampling_entry(void *o)
-{
-	int err;
-	struct location_msg location_msg = {
-		.type = LOCATION_SEARCH_TRIGGER,
-	};
-	struct main_state *state_object = (struct main_state *)o;
-
-	LOG_DBG("%s", __func__);
-
-	/* Record history and the start time of sampling */
-	state_object->running_history = STATE_PASSTHROUGH_CONNECTED_SAMPLING;
-	state_object->sample_start_time = k_uptime_seconds();
-
-#if defined(CONFIG_APP_LED)
-	struct led_msg led_msg = {
-		.type = LED_RGB_SET,
-		.red = 0,
-		.green = 55,
-		.blue = 0,
-		.duration_on_msec = 250,
-		.duration_off_msec = 2000,
-		.repetitions = 10,
-	};
-
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
-	if (err) {
-		LOG_ERR("Failed to publish LED pattern message, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-#endif /* CONFIG_APP_LED */
-
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
-	if (err) {
-		LOG_ERR("Failed to publish location search trigger, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-}
-
-static enum smf_state_result passthrough_connected_sampling_run(void *o)
-{
-	struct main_state *state_object = (struct main_state *)o;
-
-	if (state_object->chan == &LOCATION_CHAN &&
-	    MSG_TO_LOCATION_TYPE(state_object->msg_buf) == LOCATION_SEARCH_DONE) {
-
-		/* In passthrough mode, send data immediately after sampling */
-		sensor_triggers_send();
-		poll_triggers_send();
-		smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH_CONNECTED_WAITING]);
-
-		return SMF_EVENT_HANDLED;
-	}
-
-	/* Ignore other triggers while sampling */
-	if (state_object->chan == &BUTTON_CHAN &&
-	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
-		return SMF_EVENT_HANDLED;
-	}
-
-	return SMF_EVENT_PROPAGATE;
-}
-
-/* STATE_PASSTHROUGH_CONNECTED_WAITING */
-
-static void passthrough_connected_waiting_entry(void *o)
-{
-	const struct main_state *state_object = (const struct main_state *)o;
-	uint32_t time_elapsed = k_uptime_seconds() - state_object->sample_start_time;
-	uint32_t time_remaining;
-
-	LOG_DBG("%s", __func__);
-
-	/* In passthrough mode, use update_interval (update_interval_sec) for sampling */
-	if (time_elapsed > state_object->update_interval_sec) {
-		time_remaining = 0;
-	} else {
-		time_remaining = state_object->update_interval_sec - time_elapsed;
-	}
-
-	LOG_DBG("Passthrough mode: next trigger in %d seconds", time_remaining);
-	timer_sample_start(time_remaining);
-
-#if defined(CONFIG_APP_LED)
-	int err;
-	struct led_msg led_msg = {
-		.type = LED_RGB_SET,
-		.red = 0,
-		.green = 55,
-		.blue = 0,
-		.duration_on_msec = 250,
-		.duration_off_msec = 2000,
-		.repetitions = 10,
-	};
-
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
-	if (err) {
-		LOG_ERR("Failed to publish LED pattern message, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-#endif /* CONFIG_APP_LED */
-}
-
-static enum smf_state_result passthrough_connected_waiting_run(void *o)
+static enum smf_state_result connected_sending_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
@@ -1607,46 +1252,51 @@ static enum smf_state_result passthrough_connected_waiting_run(void *o)
 
 		if (timer_type == TIMER_EXPIRED_SAMPLE_DATA) {
 			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]);
+				      &states[STATE_CONNECTED_SAMPLING]);
 
 			return SMF_EVENT_HANDLED;
 		}
 
-		if (timer_type == TIMER_CONFIG_CHANGED) {
-			/* Re-enter state to restart timer with new interval */
+		/* Ignore cloud send timer while sending as we are already sending */
+		if (timer_type == TIMER_EXPIRED_CLOUD) {
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	if (state_object->chan == &BUTTON_CHAN) {
+		struct button_msg button_msg = MSG_TO_BUTTON_MSG(state_object->msg_buf);
+
+		if (button_msg.type == BUTTON_PRESS_SHORT) {
 			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_PASSTHROUGH_CONNECTED_WAITING]);
+				      &states[STATE_CONNECTED_SAMPLING]);
 
+			return SMF_EVENT_HANDLED;
+		}
+
+		/* Ignore long press while sending as we are already sending */
+		if (button_msg.type == BUTTON_PRESS_LONG) {
 			return SMF_EVENT_HANDLED;
 		}
 	}
 
-	if (state_object->chan == &BUTTON_CHAN &&
-	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
-		smf_set_state(SMF_CTX(state_object),
-			      &states[STATE_PASSTHROUGH_CONNECTED_SAMPLING]);
+	if (state_object->chan == &STORAGE_CHAN) {
+		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
 
-		return SMF_EVENT_HANDLED;
-	}
+		/* Ignore STORAGE_THRESHOLD_REACHED messages while sending */
+		if (msg->type == STORAGE_THRESHOLD_REACHED) {
+			return SMF_EVENT_HANDLED;
+		}
 
-	/* Handle long button press - immediate send */
-	if (state_object->chan == &BUTTON_CHAN &&
-	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_LONG) {
-		LOG_DBG("Passthrough mode: long button press, immediate poll and send");
-		poll_triggers_send();
+		/* Storage batch closed indicates sending is done, go back to waiting */
+		if (msg->type == STORAGE_BATCH_CLOSE) {
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_CONNECTED_WAITING]);
 
-		return SMF_EVENT_HANDLED;
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	return SMF_EVENT_PROPAGATE;
-}
-
-static void passthrough_connected_waiting_exit(void *o)
-{
-	ARG_UNUSED(o);
-	LOG_DBG("%s", __func__);
-
-	waiting_exit_common();
 }
 
 /* STATE_FOTA */
@@ -1660,6 +1310,28 @@ static void fota_entry(void *o)
 	/* Suspend all periodic activity while in FOTA */
 	timer_sample_stop();
 	timer_send_data_stop();
+
+#if defined(CONFIG_APP_LED)
+	int err;
+	/* Purple pattern during download - indefinite for ongoing process */
+	struct led_msg led_msg = {
+		.type = LED_RGB_SET,
+		.red = 160,
+		.green = 32,
+		.blue = 240,
+		.duration_on_msec = 250,
+		.duration_off_msec = 2000,
+		.repetitions = -1,
+	};
+
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	if (err) {
+		LOG_ERR("Failed to publish LED FOTA download pattern, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+#endif /* CONFIG_APP_LED */
 }
 
 static enum smf_state_result fota_run(void *o)
@@ -1696,15 +1368,11 @@ static enum smf_state_result fota_run(void *o)
 		if (msg->type == CLOUD_DISCONNECTED) {
 			/* Figure out which state to return to in case FOTA is cancelled */
 			switch (resume_state) {
-			case STATE_PASSTHROUGH_CONNECTED_SAMPLING:
-				state_object->running_history = STATE_PASSTHROUGH_DISCONNECTED;
+			case STATE_CONNECTED:
+				state_object->running_history = STATE_DISCONNECTED;
 
 				break;
-			case STATE_BUFFER_CONNECTED:
-				state_object->running_history = STATE_BUFFER_DISCONNECTED;
-
-				break;
-			case STATE_BUFFER_DISCONNECTED:
+			case STATE_DISCONNECTED:
 				/* No need to change state */
 				break;
 			default:
@@ -1712,17 +1380,11 @@ static enum smf_state_result fota_run(void *o)
 			}
 		} else if (msg->type == CLOUD_CONNECTED) {
 			switch (resume_state) {
-			case STATE_BUFFER_DISCONNECTED:
-				state_object->running_history = STATE_BUFFER_CONNECTED;
+			case STATE_DISCONNECTED:
+				state_object->running_history = STATE_CONNECTED;
 
 				break;
-			case STATE_PASSTHROUGH_DISCONNECTED:
-				state_object->running_history = STATE_PASSTHROUGH_CONNECTED_SAMPLING;
-
-				break;
-			case STATE_PASSTHROUGH_CONNECTED_SAMPLING:
-				__fallthrough;
-			case STATE_BUFFER_CONNECTED:
+			case STATE_CONNECTED:
 				/* No need to change state */
 				break;
 			default:
@@ -1741,28 +1403,6 @@ static void fota_downloading_entry(void *o)
 	ARG_UNUSED(o);
 
 	LOG_DBG("%s", __func__);
-
-#if defined(CONFIG_APP_LED)
-	int err;
-	/* Purple pattern during download - indefinite for ongoing process */
-	struct led_msg led_msg = {
-		.type = LED_RGB_SET,
-		.red = 160,
-		.green = 32,
-		.blue = 240,
-		.duration_on_msec = 250,
-		.duration_off_msec = 2000,
-		.repetitions = -1,
-	};
-
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
-	if (err) {
-		LOG_ERR("Failed to publish LED FOTA download pattern, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-#endif /* CONFIG_APP_LED */
 }
 
 static enum smf_state_result fota_downloading_run(void *o)
@@ -1937,7 +1577,7 @@ static void fota_rebooting_entry(void *o)
 	/* Flush log buffer */
 	LOG_PANIC();
 
-	k_sleep(K_SECONDS(5));
+	k_sleep(K_SECONDS(10));
 
 	sys_reboot(SYS_REBOOT_COLD);
 }
@@ -1952,8 +1592,9 @@ int main(void)
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	static struct main_state main_state;
 
-	main_state.sample_interval_sec = CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS;
+	main_state.sample_interval_sec = CONFIG_APP_SAMPLING_INTERVAL_SECONDS;
 	main_state.update_interval_sec = CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS;
+	main_state.storage_threshold = CONFIG_APP_STORAGE_INITIAL_THRESHOLD;
 
 	LOG_DBG("Main has started");
 
