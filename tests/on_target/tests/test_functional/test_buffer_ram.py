@@ -16,10 +16,10 @@ logger = get_logger()
 
 DEFAULT_UPDATE_INTERVAL = 600
 DEFAULT_SAMPLE_INTERVAL = 150
-DEFAULT_BUFFER_MODE = False
+DEFAULT_STORAGE_THRESHOLD = 1
 RAM_BUFFER_TEST_UPDATE_INTERVAL = 180
 RAM_BUFFER_TEST_SAMPLE_INTERVAL = 15
-RAM_BUFFER_TEST_SAMPLE_BUFFER_MODE = True
+RAM_BUFFER_TEST_STORAGE_THRESHOLD = 0
 
 
 def get_initialized_str(datatype):
@@ -36,15 +36,13 @@ def test_buffer_ram(dut_cloud, hex_file_buffer_ram):
         dut_cloud.device_id,
         update_interval=RAM_BUFFER_TEST_UPDATE_INTERVAL,
         sample_interval=RAM_BUFFER_TEST_SAMPLE_INTERVAL,
-        buffer_mode=RAM_BUFFER_TEST_SAMPLE_BUFFER_MODE
+        storage_threshold=RAM_BUFFER_TEST_STORAGE_THRESHOLD
     )
 
 
     try:
         flash_device(os.path.abspath(hex_file_buffer_ram))
         dut_cloud.uart.xfactoryreset()
-
-        clear_str = "att_storage clear\r\n"
 
         initialization_list = [
                 get_initialized_str("BATTERY"),
@@ -85,5 +83,5 @@ def test_buffer_ram(dut_cloud, hex_file_buffer_ram):
             dut_cloud.device_id,
             update_interval=DEFAULT_UPDATE_INTERVAL,
             sample_interval=DEFAULT_SAMPLE_INTERVAL,
-            buffer_mode=DEFAULT_BUFFER_MODE
+            storage_threshold=DEFAULT_STORAGE_THRESHOLD
         )

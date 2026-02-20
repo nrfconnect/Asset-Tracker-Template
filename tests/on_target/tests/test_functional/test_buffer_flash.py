@@ -17,10 +17,10 @@ logger = get_logger()
 
 DEFAULT_UPDATE_INTERVAL = 600
 DEFAULT_SAMPLE_INTERVAL = 150
-DEFAULT_BUFFER_MODE = False
+DEFAULT_STORAGE_THRESHOLD = 1
 FLASH_BUFFER_TEST_UPDATE_INTERVAL = 180
 FLASH_BUFFER_TEST_SAMPLE_INTERVAL = 15
-FLASH_BUFFER_TEST_SAMPLE_BUFFER_MODE = True
+FLASH_BUFFER_TEST_STORAGE_THRESHOLD = 0
 
 def get_storing_str(datatype, file_index=0):
     return "Storing data in file /att_storage/" + datatype + "_" + str(file_index) + ".bin"
@@ -39,7 +39,7 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
         dut_cloud.device_id,
         update_interval=FLASH_BUFFER_TEST_UPDATE_INTERVAL,
         sample_interval=FLASH_BUFFER_TEST_SAMPLE_INTERVAL,
-        buffer_mode=FLASH_BUFFER_TEST_SAMPLE_BUFFER_MODE
+        storage_threshold=FLASH_BUFFER_TEST_STORAGE_THRESHOLD
     )
 
     flash_device(os.path.abspath(hex_file_buffer_flash))
@@ -135,5 +135,5 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
             dut_cloud.device_id,
             update_interval=DEFAULT_UPDATE_INTERVAL,
             sample_interval=DEFAULT_SAMPLE_INTERVAL,
-            buffer_mode=DEFAULT_BUFFER_MODE
+            storage_threshold=DEFAULT_STORAGE_THRESHOLD
         )

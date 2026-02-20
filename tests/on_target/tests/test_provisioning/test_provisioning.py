@@ -148,7 +148,7 @@ def _wait_for_provisioning_completion_and_cloud_connection(
 def _verify_device_config_reported_to_cloud(dut_cloud, timeout: int = 180):
     """
     Verifies that the device has reported its configuration to the cloud shadow.
-    Checks for update_interval, sample_interval, and buffer_mode in the reported section.
+    Checks for update_interval, sample_interval, and storage_threshold in the reported section.
     """
     logger.info("Verifying device configuration is reported to cloud shadow...")
 
@@ -160,13 +160,13 @@ def _verify_device_config_reported_to_cloud(dut_cloud, timeout: int = 180):
             device_state = device["state"]
             update_interval = device_state["reported"]["config"]["update_interval"]
             sample_interval = device_state["reported"]["config"]["sample_interval"]
-            buffer_mode = device_state["reported"]["config"]["buffer_mode"]
+            storage_threshold = device_state["reported"]["config"]["storage_threshold"]
 
             logger.info(
                 f"Device configuration reported to cloud: "
                 f"update_interval={update_interval}, "
                 f"sample_interval={sample_interval}, "
-                f"buffer_mode={buffer_mode}"
+                f"storage_threshold={storage_threshold}"
             )
             return
 

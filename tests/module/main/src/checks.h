@@ -11,6 +11,13 @@
 #include "storage.h"
 #include "cloud.h"
 
+/* Timer message type - must match the enum in project/app/src/main.c */
+enum timer_msg_type {
+	TIMER_EXPIRED_SAMPLE_DATA,
+	TIMER_EXPIRED_CLOUD,
+	TIMER_CONFIG_CHANGED,
+};
+
 /* Private functions that return the actual received values or negative error codes */
 int priv_expect_location_event(void);
 int priv_expect_network_event(void);
@@ -18,6 +25,7 @@ int priv_expect_power_event(void);
 int priv_expect_fota_event(void);
 int priv_expect_storage_event(void);
 int priv_expect_cloud_event(void);
+int priv_expect_timer_event(void);
 
 /* Macros that provide line number information for test failures */
 #define expect_location_event(expected) \
@@ -38,6 +46,9 @@ int priv_expect_cloud_event(void);
 #define expect_cloud_event(expected) \
 	TEST_ASSERT_EQUAL(expected, priv_expect_cloud_event())
 
+#define expect_timer_event(expected) \
+	TEST_ASSERT_EQUAL(expected, priv_expect_timer_event())
+
 void expect_no_events(uint32_t timeout_sec);
 
 void purge_location_events(void);
@@ -49,6 +60,8 @@ void purge_power_events(void);
 void purge_storage_events(void);
 
 void purge_cloud_events(void);
+
+void purge_timer_events(void);
 
 void purge_all_events(void);
 

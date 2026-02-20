@@ -31,6 +31,15 @@ LOG_MODULE_REGISTER(fota_module_test, 4);
 
 static struct nrf_cloud_fota_poll_ctx test_fota_ctx;
 
+/* NRF_MODEM_LIB_ON_INIT creates a structure with the callback.
+ * We can access it to invoke the modem init callback in tests.
+ */
+struct nrf_modem_lib_init_cb {
+	void (*callback)(int ret, void *ctx);
+	void *context;
+};
+extern struct nrf_modem_lib_init_cb nrf_modem_hook_fota_modem_init_hook;
+
 /* Forward declarations */
 static void event_expect(enum fota_msg_type expected_fota_type);
 static void no_events_expect(uint32_t time_in_seconds);
@@ -58,6 +67,22 @@ void setUp(void)
 	FFF_RESET_HISTORY();
 
 	nrf_cloud_fota_poll_init_fake.custom_fake = init_custom_fake;
+
+	const struct zbus_channel *chan;
+	enum fota_msg_type received_msg;
+
+	while (zbus_sub_wait_msg(&fota_subscriber, &chan, &received_msg, K_NO_WAIT) == 0) {
+		/* Purge all messages from the channel */
+	}
+
+	/* Initialize the fota module by calling the modem init callback
+	 * via the hook structure
+	 */
+	nrf_modem_hook_fota_modem_init_hook.callback(0,
+		nrf_modem_hook_fota_modem_init_hook.context);
+
+	/* Wait for initialization */
+	k_sleep(K_MSEC(100));
 }
 
 void tearDown(void)

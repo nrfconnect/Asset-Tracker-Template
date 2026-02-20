@@ -24,6 +24,7 @@ zephyr_include_directories(${ASSET_TRACKER_TEMPLATE_DIR}/app/src/modules/fota)
 
 zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)
 zephyr_include_directories(${ZEPHYR_BASE}/subsys/testsuite/include)
+zephyr_include_directories(${ZEPHYR_BASE}/../nrfxlib/nrf_modem/include)
 
 zephyr_include_directories(${NRF_DIR}/include/net)
 zephyr_include_directories(${NRF_DIR}/subsys/net/lib/nrf_cloud/include)

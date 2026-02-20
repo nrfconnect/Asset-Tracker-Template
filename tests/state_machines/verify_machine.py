@@ -69,13 +69,14 @@ def compare_state_machines(c_code, plantuml):
         1. Extract all state identifiers from both C and PlantUML.
         2. Extract all transition pairs (source → target) from both.
         3. Extract the parent-child (hierarchy) relationships among states from both.
-        4. Verify initial transitions exist in both.
-        5. Ensure that every state, transition, and hierarchical relationship appears in both representations.
+        4. Extract internal actions (event handlers without state changes) from both.
+        5. Verify initial transitions exist in both.
+        6. Ensure that every state, transition, internal action, and hierarchical relationship appears in both representations.
 
         Output:
         A single JSON object with two fields:
             • `match` (boolean):
-                - `true` if all states, transitions, and hierarchies align semantically
+                - `true` if all states, transitions, internal actions, and hierarchies align semantically
                 - `false` only if there are genuine mismatches (not just representation differences)
             • `details` (string):
                 - On success, a brief confirmation message.
@@ -116,6 +117,25 @@ def compare_state_machines(c_code, plantuml):
              * STATE_ACTIVE receives SEARCH_DONE → calls smf_set_state(INACTIVE) → transition occurs
            - PlantUML should show: STATE_ACTIVE --> STATE_INACTIVE : SEARCH_DONE
            - NOT: STATE_ACTIVE --> STATE_INACTIVE : SEARCH_CANCEL (this would be incorrect)
+
+        5. INTERNAL ACTIONS (Event Handlers Without State Transitions):
+           - PlantUML uses the notation `STATE_NAME : EVENT_NAME / action()` to denote an internal action
+             (an event that is handled within the state without causing a state transition).
+           - PlantUML shorthand: `STATE_NAME : EVENT_NAME /` (with just `/`) means the event is handled
+             and consumed without calling a specific action - this is also an internal action.
+           - Both forms (`EVENT /` and `EVENT / action()`) represent internal actions.
+           - In C, this corresponds to an event handler in the run function that processes the event
+             (possibly calling external functions) but does NOT call smf_set_state().
+           - THESE ARE VALID BEHAVIORS TO VERIFY: If PlantUML shows an internal action and C code shows
+             the same event being handled without calling smf_set_state(), this is a MATCH.
+           - Internal actions are PART OF the state machine semantics and should be verified.
+           - Only flag a mismatch if:
+             * PlantUML shows an internal action that C treats as a transition (calls smf_set_state())
+             * PlantUML shows a transition that C treats as an internal action (no smf_set_state())
+             * PlantUML documents an internal action that C doesn't handle at all
+           - Allow for mismatches if an internal action is present in the C code but not documented
+             in PlantUML, as long as it doesn't contradict the documented behavior.
+
 
         IMPORTANT:
         - Focus on semantic equivalence, not syntactic exactness.

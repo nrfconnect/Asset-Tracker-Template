@@ -86,16 +86,14 @@ runs:
         fi
         if [[ "${{ inputs.buffer_flash }}" == "true" ]]; then
           params+=("-DCONFIG_APP_STORAGE_BACKEND_LITTLEFS=y")
-          params+=("-DCONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y")
           params+=("-DCONFIG_APP_STORAGE_LOG_LEVEL_DBG=y")
-          params+=("-DCONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS=15")
+          params+=("-DCONFIG_APP_SAMPLING_INTERVAL_SECONDS=15")
           params+=("-DCONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=10")
           params+=("-DCONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS=180")
         fi
         if [[ "${{ inputs.buffer_ram }}" == "true" ]]; then
-          params+=("-DCONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y")
           params+=("-DCONFIG_APP_STORAGE_LOG_LEVEL_DBG=y")
-          params+=("-DCONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS=15")
+          params+=("-DCONFIG_APP_SAMPLING_INTERVAL_SECONDS=15")
           params+=("-DCONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=10")
           params+=("-DCONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS=180")
         fi
