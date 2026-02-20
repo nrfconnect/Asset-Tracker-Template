@@ -980,6 +980,7 @@ static enum smf_state_result connected_run(void *o)
 				.update_interval = state_object->update_interval_sec,
 				.sample_interval = state_object->sample_interval_sec,
 				.storage_threshold = state_object->storage_threshold,
+				.storage_threshold_valid = true
 			};
 
 			update_shadow_reported_section(&config, 0, 0);
