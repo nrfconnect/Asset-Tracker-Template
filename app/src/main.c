@@ -233,8 +233,10 @@ struct main_state {
 	 */
 	enum state running_history;
 
-	/* Flag to track if shadow has been polled on initial connection */
-	bool shadow_polled_on_connect;
+	/* Flag to track if cloud has been synced on initial connection
+	 * Initial SHADOW_GET_DESIRED and FOTA_POLL_REQUEST
+	 */
+	bool cloud_synced_on_connect;
 };
 
 /* Construct state table */
@@ -932,9 +934,21 @@ static void connected_entry(void *o)
 	state_object->running_history = STATE_CONNECTED;
 
 	/* Get the latest device configuration by polling the desired section of the shadow. */
-	if (!state_object->shadow_polled_on_connect) {
+	if (!state_object->cloud_synced_on_connect) {
+
+		/* Poll for FOTA updates immediately upon connecting to the cloud. Also makes the device
+	 	* report the result of any pending FOTA jobs as soon as possible.
+		 */
+		int err;
+		enum fota_msg_type fota_msg = FOTA_POLL_REQUEST;
+
+		err = zbus_chan_pub(&FOTA_CHAN, &fota_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+		if (err) {
+			LOG_ERR("Failed to trigger FOTA polling on cloud connection: %d", err);
+		}
+
 		poll_shadow_send(CLOUD_SHADOW_GET_DESIRED);
-		state_object->shadow_polled_on_connect = true;
+		state_object->cloud_synced_on_connect = true;
 	}
 }
 

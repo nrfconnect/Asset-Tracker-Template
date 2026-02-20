@@ -16,6 +16,7 @@
 #include <nrf_cloud_fota.h>
 #include <zephyr/smf.h>
 #include <net/fota_download.h>
+#include <modem/nrf_modem_lib.h>
 
 #include "app_common.h"
 #include "fota.h"
@@ -41,10 +42,38 @@ ZBUS_CHAN_DEFINE(FOTA_CHAN,
 		 ZBUS_MSG_INIT(0)
 );
 
-/* Observe channels */
-ZBUS_CHAN_ADD_OBS(FOTA_CHAN, fota, 0);
+/* Private channel message types for internal state management. */
+enum priv_fota_msg {
+	/* Modem has completed initialization. */
+	FOTA_PRIV_MODEM_INITIALIZED,
+};
 
-#define MAX_MSG_SIZE sizeof(enum fota_msg_type)
+/* Create private fota channel for internal messaging that is not intended for external use. */
+ZBUS_CHAN_DEFINE(PRIV_FOTA_CHAN,
+		 enum priv_fota_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
+
+/* Define the channels that the module subscribes to, their associated message types
+ * and the subscriber that will receive the messages on the channel.
+ */
+#define CHANNEL_LIST(X)							\
+	X(FOTA_CHAN,		enum fota_msg_type)			\
+	X(PRIV_FOTA_CHAN,	enum priv_fota_msg)			\
+
+#define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
+
+/* Add the fota subscriber as observer to all the channels in the list. */
+#define ADD_OBSERVERS(_chan, _type)	ZBUS_CHAN_ADD_OBS(_chan, fota, 0);
+
+/*
+ * Expand to a call to ZBUS_CHAN_ADD_OBS for each channel in the list.
+ * Example: ZBUS_CHAN_ADD_OBS(FOTA_CHAN, fota, 0);
+ */
+CHANNEL_LIST(ADD_OBSERVERS)
 
 /* State machine */
 
@@ -52,6 +81,8 @@ ZBUS_CHAN_ADD_OBS(FOTA_CHAN, fota, 0);
 enum fota_module_state {
 	/* The module is initialized and running */
 	STATE_RUNNING,
+		/* The module is waiting for modem initialization */
+		STATE_WAITING_FOR_MODEM_INIT,
 		/* The module is waiting for a poll request */
 		STATE_WAITING_FOR_POLL_REQUEST,
 		/* The module is polling for an update */
@@ -88,6 +119,8 @@ struct fota_state_object {
 /* Forward declarations of state handlers */
 static void state_running_entry(void *obj);
 static enum smf_state_result state_running_run(void *obj);
+static void state_waiting_for_modem_init_entry(void *obj);
+static enum smf_state_result state_waiting_for_modem_init_run(void *obj);
 static void state_waiting_for_poll_request_entry(void *obj);
 static enum smf_state_result state_waiting_for_poll_request_run(void *obj);
 static void state_polling_for_update_entry(void *obj);
@@ -108,7 +141,13 @@ static const struct smf_state states[] = {
 				 state_running_run,
 				 NULL,
 				 NULL,	/* No parent state */
-				 &states[STATE_WAITING_FOR_POLL_REQUEST]),
+				 &states[STATE_WAITING_FOR_MODEM_INIT]),
+	[STATE_WAITING_FOR_MODEM_INIT] =
+		SMF_CREATE_STATE(state_waiting_for_modem_init_entry,
+				 state_waiting_for_modem_init_run,
+				 NULL,
+				 &states[STATE_RUNNING],
+				 NULL), /* No initial transition */
 	[STATE_WAITING_FOR_POLL_REQUEST] =
 		SMF_CREATE_STATE(state_waiting_for_poll_request_entry,
 				 state_waiting_for_poll_request_run,
@@ -152,6 +191,30 @@ static const struct smf_state states[] = {
 				 &states[STATE_RUNNING],
 				 NULL),
 };
+
+static void on_modem_init(int ret, void *ctx)
+{
+	int err;
+	enum priv_fota_msg msg = FOTA_PRIV_MODEM_INITIALIZED;
+
+	ARG_UNUSED(ctx);
+
+	if (ret) {
+		LOG_ERR("Modem init failed: %d, fota module cannot initialize", ret);
+
+		return;
+	}
+
+	err = zbus_chan_pub(&PRIV_FOTA_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+}
+
+NRF_MODEM_LIB_ON_INIT(fota_modem_init_hook, on_modem_init, NULL);
 
 /* FOTA support functions */
 
@@ -250,13 +313,6 @@ static void state_running_entry(void *obj)
 		LOG_ERR("nrf_cloud_fota_poll_init failed: %d", err);
 		SEND_FATAL_ERROR();
 	}
-
-	/* Process pending FOTA job, the FOTA type is returned */
-	err = nrf_cloud_fota_poll_process_pending(&state_object->fota_ctx);
-	if (err < 0) {
-		LOG_ERR("nrf_cloud_fota_poll_process_pending failed: %d", err);
-		SEND_FATAL_ERROR();
-	}
 }
 
 static enum smf_state_result state_running_run(void *obj)
@@ -268,6 +324,44 @@ static enum smf_state_result state_running_run(void *obj)
 
 		if (msg_type == FOTA_DOWNLOAD_CANCEL) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CANCELING]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
+
+static void state_waiting_for_modem_init_entry(void *obj)
+{
+	ARG_UNUSED(obj);
+
+	LOG_DBG("%s", __func__);
+	LOG_DBG("Waiting for modem initialization before processing pending FOTA job");
+}
+
+static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
+{
+	struct fota_state_object *state_object = obj;
+
+	if (&PRIV_FOTA_CHAN == state_object->chan) {
+		const enum priv_fota_msg msg_type = *(const enum priv_fota_msg *)(state_object->msg_buf);
+
+		/* Wait for modem initialization to complete before processing pending FOTA job.
+		 * This ensures the modem DFU result callback has been invoked.
+		 */
+		if (msg_type == FOTA_PRIV_MODEM_INITIALIZED) {
+			LOG_DBG("Modem initialized, processing pending FOTA job");
+
+			int err = nrf_cloud_fota_poll_process_pending(&state_object->fota_ctx);
+
+			if (err < 0) {
+				LOG_ERR("nrf_cloud_fota_poll_process_pending failed: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			smf_set_state(SMF_CTX(state_object),
+					      &states[STATE_WAITING_FOR_POLL_REQUEST]);
 
 			return SMF_EVENT_HANDLED;
 		}
