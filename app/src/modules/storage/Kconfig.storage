@@ -110,7 +110,7 @@ config APP_STORAGE_MSG_PROCESSING_TIMEOUT_SECONDS
 
 config APP_STORAGE_INITIAL_THRESHOLD
 	int "Initial trigger limit for buffered mode"
-	default 0
+	default 1
 	help
 	  Initial threshold limit for storage buffer.
 	  0 means that the buffer threshold is disabled, and the STORAGE_THRESHOLD_REACHED message
