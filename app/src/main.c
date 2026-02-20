@@ -220,6 +220,11 @@ struct main_state {
 	 */
 	uint32_t sample_start_time;
 
+	/* Start time of the most recent cloud sync. This is used to calculate the correct
+	 * time when scheduling the next cloud sync trigger.
+	 */
+	uint32_t sync_start_time;
+
 	/* Storage batch session ID for batch operations */
 	uint32_t storage_session_id;
 
@@ -452,18 +457,37 @@ static void waiting_entry_common(const struct main_state *state_object)
 	uint32_t time_elapsed;
 	uint32_t time_remaining;
 
-	time_elapsed = k_uptime_seconds() - state_object->sample_start_time;
+	/* Reschedule the next sample trigger */
 
-	if (time_elapsed > state_object->sample_interval_sec) {
-		LOG_WRN("Sampling took longer than the interval, time_elapsed: %d, interval: %d",
-			time_elapsed, state_object->sample_interval_sec);
+	/* Special case: sample_start_time == 0 means first sample, trigger immediately */
+	if (state_object->sample_start_time == 0) {
 		time_remaining = 0;
 	} else {
-		time_remaining = state_object->sample_interval_sec - time_elapsed;
+		time_elapsed = k_uptime_seconds() - state_object->sample_start_time;
+
+		if (time_elapsed > state_object->sample_interval_sec) {
+			LOG_WRN("Sampling took longer than the interval, time_elapsed: %d, interval: %d",
+				time_elapsed, state_object->sample_interval_sec);
+			time_remaining = 0;
+		} else {
+			time_remaining = state_object->sample_interval_sec - time_elapsed;
+		}
 	}
 
-	LOG_DBG("Next trigger in %d seconds", time_remaining);
+	LOG_DBG("Next sample trigger in %d seconds", time_remaining);
 	timer_sample_start(time_remaining);
+
+	/* Reschedule cloud sync trigger */
+	time_elapsed = k_uptime_seconds() - state_object->sync_start_time;
+	if (time_elapsed > state_object->update_interval_sec) {
+		LOG_WRN("Cloud sync took longer than the update interval, time_elapsed: %d, interval: %d",
+			time_elapsed, state_object->update_interval_sec);
+		time_remaining = 0;
+	} else {
+		time_remaining = state_object->update_interval_sec - time_elapsed;
+	}
+	LOG_DBG("Next cloud sync trigger in %d seconds", time_remaining);
+	timer_send_data_start(time_remaining);
 }
 
 static void waiting_exit_common(void)
@@ -533,6 +557,7 @@ static void cloud_send_now(struct main_state *state_object)
 	storage_send_data(state_object);
 	poll_triggers_send();
 	timer_send_data_start(state_object->update_interval_sec);
+	state_object->sync_start_time = k_uptime_seconds();
 
 #if defined(CONFIG_APP_LED)
 	int err;
@@ -814,6 +839,7 @@ static void running_entry(void *o)
 	LOG_DBG("%s", __func__);
 
 	timer_send_data_start(state_object->update_interval_sec);
+	state_object->sync_start_time = k_uptime_seconds();
 }
 
 static enum smf_state_result running_run(void *o)
@@ -870,6 +896,7 @@ static enum smf_state_result disconnected_run(void *o)
 	if (state_object->chan == &TIMER_CHAN &&
 	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_CLOUD) {
 		timer_send_data_start(state_object->update_interval_sec);
+		state_object->sync_start_time = k_uptime_seconds();
 
 		return SMF_EVENT_HANDLED;
 	}
