@@ -61,6 +61,12 @@ enum location_msg_type {
 	 */
 	LOCATION_SEARCH_TRIGGER,
 
+	/* Request a dedicated GNSS-only fix. Unlike LOCATION_SEARCH_TRIGGER, this bypasses
+	 * Wi-Fi and cellular methods and only uses GNSS. A successful fix is published as
+	 * LOCATION_GNSS_DATA. On failure/timeout, LOCATION_SEARCH_DONE is published.
+	 */
+	LOCATION_GNSS_SEARCH_TRIGGER,
+
 	/* Request to cancel an ongoing location search operation.
 	 *
 	 * WARNING: This operation has known limitations and may cause issues with Wi-Fi

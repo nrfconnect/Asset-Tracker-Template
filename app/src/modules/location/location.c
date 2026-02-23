@@ -307,6 +307,7 @@ static void state_location_search_inactive_entry(void *obj)
 
 static enum smf_state_result state_location_search_inactive_run(void *obj)
 {
+	int err;
 	struct location_state_object *state_object = obj;
 
 	if (state_object->chan == &LOCATION_CHAN) {
@@ -316,7 +317,36 @@ static enum smf_state_result state_location_search_inactive_run(void *obj)
 		if (location_msg->type == LOCATION_SEARCH_CANCEL) {
 			LOG_DBG("Location search cancel received in inactive state, ignoring");
 		} else if (location_msg->type == LOCATION_SEARCH_TRIGGER) {
-			LOG_DBG("Location search trigger received, starting location request");
+			LOG_DBG("Location search trigger received");
+
+			err = location_request(NULL);
+			if (err) {
+				LOG_WRN("location_request, error: %d", err);
+				SEND_FATAL_ERROR();
+
+				return SMF_EVENT_HANDLED;
+			}
+
+			smf_set_state(SMF_CTX(state_object), &states[STATE_LOCATION_SEARCH_ACTIVE]);
+
+			return SMF_EVENT_HANDLED;
+		} else if (location_msg->type == LOCATION_GNSS_SEARCH_TRIGGER) {
+			struct location_config config;
+			enum location_method methods[] = {
+				LOCATION_METHOD_GNSS
+			};
+
+			LOG_DBG("GNSS fix trigger received");
+
+			location_config_defaults_set(&config, 1, methods);
+
+			err = location_request(&config);
+			if (err) {
+				LOG_WRN("location_request, error: %d", err);
+				SEND_FATAL_ERROR();
+
+				return SMF_EVENT_HANDLED;
+			}
 
 			smf_set_state(SMF_CTX(state_object), &states[STATE_LOCATION_SEARCH_ACTIVE]);
 
@@ -332,14 +362,6 @@ static void state_location_search_active_entry(void *obj)
 	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
-
-	int err = location_request(NULL);
-
-	if (err) {
-		LOG_WRN("location_request, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
 }
 
 static enum smf_state_result state_location_search_active_run(void *obj)
@@ -351,8 +373,9 @@ static enum smf_state_result state_location_search_active_run(void *obj)
 			MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
 		int err;
 
-		if (location_msg->type == LOCATION_SEARCH_TRIGGER) {
-			LOG_DBG("Location search trigger received while active, ignoring");
+		if (location_msg->type == LOCATION_SEARCH_TRIGGER ||
+		    location_msg->type == LOCATION_GNSS_SEARCH_TRIGGER) {
+			LOG_DBG("Location trigger received while active, ignoring");
 		} else if (location_msg->type == LOCATION_SEARCH_CANCEL) {
 			LOG_DBG("Location search cancel received, cancelling location request");
 
@@ -368,6 +391,7 @@ static enum smf_state_result state_location_search_active_run(void *obj)
 
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_LOCATION_SEARCH_INACTIVE]);
+
 			return SMF_EVENT_HANDLED;
 		}
 	}
