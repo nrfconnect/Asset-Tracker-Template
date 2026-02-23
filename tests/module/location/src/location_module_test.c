@@ -39,6 +39,8 @@ FAKE_VALUE_FUNC(int, date_time_set, const struct tm *);
 FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
 FAKE_VALUE_FUNC(const char *, location_method_str, enum location_method);
 FAKE_VALUE_FUNC(int, lte_lc_func_mode_set, enum lte_lc_func_mode);
+FAKE_VOID_FUNC(location_config_defaults_set, struct location_config *,
+	       uint8_t, enum location_method *);
 
 /* Store the registered event handler */
 static location_event_handler_t registered_handler;
@@ -310,6 +312,7 @@ void setUp(void)
 	RESET_FAKE(date_time_set);
 	RESET_FAKE(date_time_now);
 	RESET_FAKE(location_method_str);
+	RESET_FAKE(location_config_defaults_set);
 
 	/* Set up custom fakes */
 	location_init_fake.custom_fake = custom_location_init;
@@ -339,6 +342,20 @@ void setUp(void)
 		nrf_modem_hook_location_modem_init_hook.context);
 
 	wait_for_initialization();
+}
+
+void tearDown(void)
+{
+	struct location_msg msg = { .type = LOCATION_SEARCH_DONE };
+	const struct zbus_channel *chan;
+	struct location_msg consumed;
+
+	zbus_chan_pub(&LOCATION_CHAN, &msg, K_NO_WAIT);
+	wait_for_processing();
+
+	while (zbus_sub_wait_msg(&test_subscriber, &chan, &consumed, K_NO_WAIT) == 0) {
+		/* Purge all messages from the channel */
+	}
 }
 
 /* Test location library initialization */
@@ -1442,6 +1459,109 @@ void test_cloud_location_ext_request_cellular_and_wifi(void)
 
 	/* Verify that search done message follows */
 	verify_search_done_follows();
+}
+
+/* Test GNSS fix trigger handling from inactive state */
+void test_gnss_fix_trigger(void)
+{
+	struct location_msg msg = {
+		.type = LOCATION_GNSS_SEARCH_TRIGGER
+	};
+
+	zbus_chan_pub(&LOCATION_CHAN, &msg, K_NO_WAIT);
+	wait_for_processing();
+
+	/* Verify location_config_defaults_set was called with GNSS-only method */
+	TEST_ASSERT_EQUAL(1, location_config_defaults_set_fake.call_count);
+	TEST_ASSERT_EQUAL(1, location_config_defaults_set_fake.arg1_val);
+
+	/* Verify location_request was called with a config (not NULL) */
+	TEST_ASSERT_EQUAL(1, location_request_fake.call_count);
+	TEST_ASSERT_NOT_NULL(location_request_fake.arg0_val);
+}
+
+/* Test GNSS fix trigger is ignored while a search is already active */
+void test_gnss_fix_trigger_while_active(void)
+{
+	/* Transition to active state */
+	publish_and_consume_message(LOCATION_SEARCH_TRIGGER);
+
+	RESET_FAKE(location_request);
+	RESET_FAKE(location_config_defaults_set);
+
+	/* Send GNSS fix trigger while active */
+	publish_and_consume_message(LOCATION_GNSS_SEARCH_TRIGGER);
+
+	/* Verify neither config_defaults_set nor location_request was called */
+	TEST_ASSERT_EQUAL(0, location_config_defaults_set_fake.call_count);
+	TEST_ASSERT_EQUAL(0, location_request_fake.call_count);
+}
+
+/* Test full GNSS fix trigger flow: trigger -> GNSS event -> LOCATION_GNSS_DATA */
+void test_gnss_fix_trigger_produces_gnss_data(void)
+{
+	struct location_data mock_location = {
+		.latitude = 63.421,
+		.longitude = 10.437,
+		.accuracy = 5.0,
+		.datetime.valid = true,
+		.datetime.year = 2025,
+		.datetime.month = 1,
+		.datetime.day = 15,
+		.datetime.hour = 12,
+		.datetime.minute = 30,
+		.datetime.second = 45,
+		.datetime.ms = 0
+	};
+	struct location_event_data mock_event = {
+		.id = LOCATION_EVT_LOCATION,
+		.method = LOCATION_METHOD_GNSS,
+		.location = mock_location
+	};
+
+	/* Trigger GNSS fix to move to active state */
+	publish_and_consume_message(LOCATION_GNSS_SEARCH_TRIGGER);
+
+	/* Simulate GNSS location event from the location library */
+	simulate_location_event(&mock_event);
+	wait_for_processing();
+
+	/* Verify GNSS location data was published, then search done */
+	verify_gnss_location_data(&mock_location);
+}
+
+/* Test that normal trigger works correctly after a GNSS fix trigger completes */
+void test_gnss_fix_trigger_then_normal_trigger(void)
+{
+	struct location_event_data mock_done_event = {
+		.id = LOCATION_EVT_TIMEOUT,
+		.method = LOCATION_METHOD_GNSS
+	};
+
+	/* Trigger GNSS fix request */
+	publish_and_consume_message(LOCATION_GNSS_SEARCH_TRIGGER);
+
+	TEST_ASSERT_EQUAL(1, location_config_defaults_set_fake.call_count);
+	TEST_ASSERT_EQUAL(1, location_request_fake.call_count);
+	TEST_ASSERT_NOT_NULL(location_request_fake.arg0_val);
+
+	/* Complete the GNSS fix search (timeout -> SEARCH_DONE -> back to inactive) */
+	simulate_location_event(&mock_done_event);
+	wait_for_processing();
+	verify_location_status(LOCATION_SEARCH_DONE);
+
+	RESET_FAKE(location_request);
+	RESET_FAKE(location_config_defaults_set);
+
+	location_request_fake.return_val = 0;
+
+	/* Now trigger a normal search */
+	publish_and_consume_message(LOCATION_SEARCH_TRIGGER);
+
+	/* Verify normal search called location_request(NULL) without config_defaults_set */
+	TEST_ASSERT_EQUAL(0, location_config_defaults_set_fake.call_count);
+	TEST_ASSERT_EQUAL(1, location_request_fake.call_count);
+	TEST_ASSERT_NULL(location_request_fake.arg0_val);
 }
 
 /* This is required to be added to each test. That is because unity's
