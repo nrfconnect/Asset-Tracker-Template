@@ -109,6 +109,45 @@ uart:~$ pm suspend uart@8000  # Suspend UART1
 > [!NOTE]
 > After suspending the UART you are using for the shell, you will not be able to send further commands until the device is reset or the UART is resumed through other means.
 
+### Wi-Fi scanning optimization (Thingy:91 X using the nRF7002)
+
+On Thingy:91 X, Wi-Fi scanning is used for location services. By default, a full Wi-Fi scan across all bands can take a significant amount of time ~8 seconds and consume significant power (~55 mA during active scanning). The following optimizations can dramatically reduce scan time and power consumption with some tradeoff in discoverability.
+
+For detailed information on Wi-Fi scan timing, channels, and dwell times, see the [Wi-Fi scan operation documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/protocols/wifi/scan_mode/scan_operation.html).
+
+#### Configuring dwell times
+
+Dwell time determines how long the radio listens on each channel. The application enables `CONFIG_LOCATION_METHOD_WIFI_SCANNING_PARAMS_OVERRIDE` by default, which uses these values:
+
+- **Active dwell time:** 50 ms (range: 5-1000 ms)
+- **Passive dwell time:** 260 ms (range: 10-1000 ms)
+
+The 260 ms passive dwell time is set to cover at least two beacon intervals (102.4 ms beacon interval + ~30 ms channel contention) × 2, providing reliable AP detection for a mobile Asset Tracker.
+If you only want to cover one beacon interval, 130ms passive dwell time is sufficient.
+
+To customize dwell times, add to your board configuration file (e.g., `boards/thingy91x_nrf9151_ns.conf`):
+
+```config
+CONFIG_LOCATION_METHOD_WIFI_SCANNING_DWELL_TIME_ACTIVE=50
+CONFIG_LOCATION_METHOD_WIFI_SCANNING_DWELL_TIME_PASSIVE=130
+```
+
+Shorter dwell times reduce scan duration and power consumption but may miss APs with weaker signals.
+
+#### Restricting to 2.4 GHz band only
+
+For a lot of location use cases, scanning only the 2.4 GHz band is sufficient and much faster:
+
+- **2.4 GHz APs are more common** in residential and commercial environments
+- **Scan time reduces from ~8s to ~1s** (with 260ms passive and 50ms active dwell time)
+- **5 GHz channels require passive scanning** due to regulatory restrictions, which is slower
+
+To restrict scanning to 2.4 GHz only, add to your board configuration:
+
+```config
+CONFIG_NRF_WIFI_2G_BAND=y
+```
+
 ## Optimization best practices
 
 1. **Disable peripherals** - Disable UART and peripherals that consume a lot of power.
