@@ -11,12 +11,16 @@ import time
 import random
 import requests
 from enum import Enum
-from typing import Union
+from typing import Union, Callable
 from datetime import datetime, timedelta, timezone
 from utils.logger import get_logger
-from requests.exceptions import HTTPError
+from requests.exceptions import HTTPError, ConnectionError, Timeout
 
 logger = get_logger()
+
+DEFAULT_MAX_RETRIES = 3
+DEFAULT_RETRY_DELAY_SECONDS = 2
+RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
 
 class FWType(Enum):
     app = 'application'
@@ -41,30 +45,49 @@ class NRFCloud():
         self.session.headers.update(self.default_headers)
         self.timeout = timeout
 
-    def _get(self, path: str, **kwargs) -> dict:
-        r = self.session.get(url=self.url + path, **kwargs, timeout=self.timeout)
+    def _request_with_retry(self, method: Callable, path: str, return_json: bool = False, **kwargs):
+        """
+        Execute an HTTP request with retry logic.
+
+        Retries on 5xx server errors and connection/timeout issues with exponential backoff.
+        """
+        last_exception = None
+        for attempt in range(DEFAULT_MAX_RETRIES):
+            try:
+                r = method(url=self.url + path, **kwargs, timeout=self.timeout)
+                if r.status_code in RETRYABLE_STATUS_CODES:
+                    logger.warning(f"Retryable status {r.status_code} on attempt {attempt + 1}/{DEFAULT_MAX_RETRIES} for {path}")
+                    if attempt < DEFAULT_MAX_RETRIES - 1:
+                        delay = DEFAULT_RETRY_DELAY_SECONDS * (2 ** attempt) + random.uniform(0, 1)
+                        time.sleep(delay)
+                        continue
+                r.raise_for_status()
+                return r.json() if return_json else r
+            except (ConnectionError, Timeout) as e:
+                last_exception = e
+                logger.warning(f"Connection error on attempt {attempt + 1}/{DEFAULT_MAX_RETRIES} for {path}: {e}")
+                if attempt < DEFAULT_MAX_RETRIES - 1:
+                    delay = DEFAULT_RETRY_DELAY_SECONDS * (2 ** attempt) + random.uniform(0, 1)
+                    time.sleep(delay)
+                    continue
+                raise
+        # If we exit the loop due to retryable status codes, raise the last response's status
         r.raise_for_status()
-        return r.json()
+
+    def _get(self, path: str, **kwargs) -> dict:
+        return self._request_with_retry(self.session.get, path, return_json=True, **kwargs)
 
     def _post(self, path: str, **kwargs):
-        r = self.session.post(self.url + path, **kwargs, timeout=self.timeout)
-        r.raise_for_status()
-        return r
+        return self._request_with_retry(self.session.post, path, **kwargs)
 
     def _put(self, path: str, **kwargs):
-        r = self.session.put(self.url + path, **kwargs, timeout=self.timeout)
-        r.raise_for_status()
-        return r
+        return self._request_with_retry(self.session.put, path, **kwargs)
 
     def _delete(self, path: str, **kwargs):
-        r = self.session.delete(self.url + path, **kwargs, timeout=self.timeout)
-        r.raise_for_status()
-        return r
+        return self._request_with_retry(self.session.delete, path, **kwargs)
 
     def _patch(self, path: str, **kwargs):
-        r = self.session.patch(self.url + path, **kwargs, timeout=self.timeout)
-        r.raise_for_status()
-        return r
+        return self._request_with_retry(self.session.patch, path, **kwargs)
 
     def claim_device(self, attestation_token: str) -> None:
         """
