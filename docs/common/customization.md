@@ -316,14 +316,14 @@ To add your own module, complete the following steps:
     mkdir -p app/src/modules/dummy
     ```
 
-1. Create the following files in the module directory:
+1. Create the following files in the `app/src/modules/dummy` directory:
 
-    - `dummy.h` - Module interface definitions.
-    - `dummy.c` - Module implementation.
-    - `Kconfig.dummy` - Module configuration options.
-    - `CMakeLists.txt` - Build system configuration.
+    - `app/src/modules/dummy/dummy.h` - Module interface definitions.
+    - `app/src/modules/dummy/dummy.c` - Module implementation.
+    - `app/src/modules/dummy/Kconfig.dummy` - Module configuration options.
+    - `app/src/modules/dummy/CMakeLists.txt` - Build system configuration.
 
-1. In `dummy.h`, define the module's interface:
+1. In `app/src/modules/dummy/dummy.h`, define the module's interface:
 
     ```c
     #ifndef _DUMMY_H_
@@ -363,7 +363,7 @@ To add your own module, complete the following steps:
     #endif /* _DUMMY_H_ */
     ```
 
-1. In `dummy.c`, implement the module's functionality:
+1. In `app/src/modules/dummy/dummy.c`, implement the module's functionality:
 
     ```c
     #include <zephyr/kernel.h>
@@ -437,9 +437,9 @@ To add your own module, complete the following steps:
     }
 
     /* State machine handlers */
-    static enum smf_state_result state_running_run(void *o)
+    static enum smf_state_result state_running_run(void *obj)
     {
-        const struct dummy_state *state_object = (const struct dummy_state *)o;
+        struct dummy_state *state_object = obj;
 
         if (&DUMMY_CHAN == state_object->chan) {
             struct dummy_msg msg = MSG_TO_DUMMY_MSG(state_object->msg_buf);
@@ -521,7 +521,7 @@ To add your own module, complete the following steps:
                     K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
     ```
 
-1. In `Kconfig.dummy`, define module configuration options:
+1. In `app/src/modules/dummy/Kconfig.dummy`, define module configuration options:
 
     ```kconfig
     menuconfig APP_DUMMY
@@ -557,20 +557,27 @@ To add your own module, complete the following steps:
     endif # APP_DUMMY
     ```
 
-1. In `CMakeLists.txt`, configure the build system to include the source files of the module:
+1. In `app/src/modules/dummy/CMakeLists.txt`, configure the build system to include the source files of the module:
 
     ```cmake
     target_sources(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/dummy.c)
     target_include_directories(app PRIVATE .)
     ```
 
-1. Add the module to the main application's `CMakeLists.txt` file:
+1. Add the module directory to the `app/CMakeLists.txt` file:
 
     ```cmake
     add_subdirectory(src/modules/dummy)
     ```
 
-1. Increase the value of the `CONFIG_TASK_WDT_CHANNELS` Kconfig option in the `prj.conf` file to accommodate for the new module's task watchdog integration.
+1. Add the module's Kconfig file to the `app/Kconfig` file:
+
+    ```kconfig
+    rsource "src/modules/dummy/Kconfig.dummy"
+    ```
+
+1. Increase the value of the `CONFIG_TASK_WDT_CHANNELS` Kconfig option in the `app/prj.conf` file by
+1 to accommodate for the new module's task watchdog integration.
 
 The dummy module is now ready to use. It provides the following functionality:
 
