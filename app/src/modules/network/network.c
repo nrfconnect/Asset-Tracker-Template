@@ -191,6 +191,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			LOG_DBG("PDN connection resumed");
 			network_status_notify(NETWORK_CONNECTED);
 
+			break;
 		default:
 			break;
 		}
