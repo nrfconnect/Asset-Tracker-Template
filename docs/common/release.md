@@ -39,7 +39,7 @@ The firmware variants are built using different configuration overlays that modi
 |------------------|-------------|------------------|
 | `overlay-etb.conf` | Embedded Trace Buffer (ETB) support | Hardware-level debugging and trace collection |
 | `overlay-memfault.conf` | Memfault integration | Crash reporting and device monitoring |
-| `overlay-storage-minimal.conf` | Minimal storage configuration | Reduced memory footprint with passthrough-only storage |
+| `overlay-storage-minimal.conf` | Minimal storage configuration | Reduced memory footprint with storage for 1 sample and immediate sending|
 | `overlay-upload-modem-traces-to-memfault.conf` | Modem trace to Memfault | Automatic upload of modem traces for analysis |
 
 ### Hardware platform support
