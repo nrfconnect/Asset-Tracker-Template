@@ -44,10 +44,14 @@
 	</defs>
 	<g>
 		<title>Page-1</title>
+		<!-- White background -->
+		<g id="white-background">
+			<rect x="-5" y="0" width="565" height="457" fill="#ffffff" stroke="none"/>
+		</g>
 		<g id="shape5-1" transform="translate(1,-1)">
 			<title>Sheet.5</title>
-			<path d="M0 575.38 A6.25694 7.47423 -180 0 0 6.26 582.85 L547.92 582.85 A6.25694 7.47423 -180 0 0 554.17 575.38 L554.17
-						 45.79 A6.25694 7.47423 -180 0 0 547.92 38.31 L6.26 38.31 A6.25694 7.47423 -180 0 0 0 45.79 L0 575.38 Z"
+			<path d="M0 445.38 A6.25694 7.47423 -180 0 0 6.26 452.85 L547.92 452.85 A6.25694 7.47423 -180 0 0 554.17 445.38 L554.17
+						 45.79 A6.25694 7.47423 -180 0 0 547.92 38.31 L6.26 38.31 A6.25694 7.47423 -180 0 0 0 45.79 L0 445.38 Z"
 					class="st1"/>
 		</g>
 		<g id="shape6-3" transform="translate(1,-527.89)">
@@ -72,164 +76,98 @@
 			<text x="0" y="581.13" class="st7">Start</text>		</g>
 		<g id="shape10-17" transform="translate(8.857,-497.063)">
 			<title>Sheet.10</title>
-			<desc>entry / backend-&#62;init(); STORAGR_STATS / handle_storage_stats...</desc>
-			<rect x="0" y="574.617" width="206.449" height="8.23585" class="st6"/>
-			<text x="0" y="563.73" class="st2">entry / backend-&#62;init();  <tspan x="0" dy="2.4em" class="st8">STORAGR_STATS / handle_storage_stats(); </tspan><tspan
-						x="0" dy="1.2em" class="st8">STORAGR_CLEAR / storage_clear();</tspan></text>		</g>
-		<g id="shape11-22" transform="translate(140.786,-466.453)">
-			<title>Dynamic connector.40</title>
-			<path d="M0 582.85 L112.63 582.85 L112.63 595.51" class="st4"/>
-		</g>
-		<g id="shape12-27" transform="translate(135.646,-464.19)">
-			<title>Initial state.43</title>
-			<ellipse cx="2.57022" cy="580.589" rx="2.57022" ry="2.26315" class="st9"/>
-		</g>
-		<g id="shape13-29" transform="translate(50.6063,-369.504)">
-			<title>Sheet.13</title>
-			<path d="M3.9 580.69 A11.7782 8.42731 -180 0 0 11.78 582.85 L380.82 582.85 A11.7782 8.42731 -180 0 0 388.7 580.69 A8.50394
-						 8.50394 -180 0 0 392.6 573.54 L392.6 514.03 A11.7782 8.42731 -180 0 0 380.82 505.6 L11.78 505.6 A11.7782
-						 8.42731 -180 0 0 3.9 507.77 A8.50394 8.50394 -180 0 0 0 514.92 L0 573.54 A8.50394 8.50394 -180 0 0 3.9 580.69
-						 Z" class="st1"/>
-		</g>
-		<g id="shape14-31" transform="translate(50.6063,-427.752)">
-			<title>Sheet.14</title>
-			<desc>STATE_PASSTHROUGH</desc>
-			<path d="M5.8 581.92 A11.7782 6.70604 -180 0 0 11.78 582.85 L380.82 582.85 A11.7782 6.70604 -180 0 0 386.8 581.92 A8.50394
-						 8.50394 -180 0 0 392.6 573.86 L392.6 570.63 A4.25197 4.25197 -180 0 0 392.16 568.75 A11.7782 6.70604 -180
-						 0 0 380.82 563.85 L11.78 563.85 A11.7782 6.70604 -180 0 0 5.8 564.78 A8.50394 8.50394 -180 0 0 0 572.84
-						 L0 573.86 A8.50394 8.50394 -180 0 0 5.8 581.92 Z" class="st1"/>
-			<text x="4" y="576.35" class="st2">STATE_PASSTHROUGH</text>		</g>
-		<g id="shape44-34" transform="translate(54.8582,-407.906)">
-			<title>Sheet.44</title>
-			<desc>STORAGE_MODE_PASSTHROUGH_REQUEST / send_mode_confirmed();</desc>
-			<rect x="0" y="574.617" width="392.598" height="8.23585" class="st6"/>
-			<text x="0" y="582.03" class="st10">STORAGE_MODE_PASSTHROUGH_REQUEST / send_mode_confirmed();</text>		</g>
-		<g id="shape46-37" transform="translate(36.4331,-22.2598)">
-			<title>Sheet.46</title>
-			<path d="M0 565.85 A7.52616 16.9988 -180 0 0 5.25 582.06 A4.25197 4.25197 -180 0 0 7.73 582.85 L494.01 582.85 A4.25197
-						 4.25197 -180 0 0 496.48 582.06 A7.52616 16.9988 -180 0 0 501.73 565.85 L501.73 288.21 A7.52616 16.9988 -180
-						 0 0 499.6 276.35 A8.50394 8.50394 -180 0 0 491.79 271.21 L7.73 271.21 A4.25197 4.25197 -180 0 0 5.25 272.01
-						 A7.52616 16.9988 -180 0 0 0 288.21 L0 565.85 Z" class="st1"/>
-		</g>
-		<g id="shape47-39" transform="translate(36.4331,-318.21)">
-			<title>Sheet.47</title>
-			<path d="M-0 576.97 A7.52616 5.88289 -180 0 0 7.53 582.85 L494.21 582.85 A7.52616 5.88289 -180 0 0 501.73 576.97 L501.73
-						 573.05 A7.52616 5.88289 -180 0 0 494.21 567.17 L7.53 567.17 A7.52616 5.88289 -180 0 0 -0 573.05 L0 576.97
-						 Z" class="st1"/>
-		</g>
-		<g id="shape48-41" transform="translate(42.1024,-320.465)">
-			<title>Sheet.48</title>
-			<desc>STATE_BUFFER</desc>
-			<rect x="0" y="572.263" width="118.534" height="10.5889" class="st6"/>
-			<text x="0" y="581.26" class="st2">STATE_BUFFER</text>		</g>
-		<g id="shape49-44" transform="translate(94.8407,-187.873)">
+			<desc>entry / backend-&#62;init(); STORAGE_STATS / handle_storage_stats()...</desc>
+			<rect x="0" y="574.617" width="250" height="8.23585" class="st6"/>
+			<text x="0" y="563.73" class="st2">entry / backend-&#62;init(); <tspan x="0" dy="2.4em" class="st8">STORAGE_STATS / handle_storage_stats(); </tspan><tspan
+						x="0" dy="1.2em" class="st8">STORAGE_FLUSH / flush_stored_data(); </tspan><tspan
+						x="0" dy="1.2em" class="st8">STORAGE_CLEAR / storage_clear(); </tspan><tspan
+						x="0" dy="1.2em" class="st8">STORAGE_SET_THRESHOLD / set</tspan></text>		</g>
+		<g id="shape49-44" transform="translate(94.8407,-317.873)">
 			<title>Sheet.49</title>
 			<path d="M6.04 582.06 A11.6124 6.42772 -180 0 0 11.61 582.85 L336.75 582.85 A11.6124 6.42772 -180 0 0 342.32 582.06 A8.50394
 						 8.50394 -180 0 0 348.36 573.92 L348.36 530.5 A4.25197 4.25197 -180 0 0 347.67 528.17 A11.6124 6.42772 -180
 						 0 0 336.75 523.93 L11.61 523.93 A11.6124 6.42772 -180 0 0 6.04 524.72 A8.50394 8.50394 -180 0 0 -0 532.86
 						 L-0 573.92 A8.50394 8.50394 -180 0 0 6.04 582.06 Z" class="st1"/>
 		</g>
-		<g id="shape50-46" transform="translate(95.1287,-230.325)">
+		<g id="shape50-46" transform="translate(95.1287,-360.325)">
 			<title>Sheet.50</title>
 			<path d="M6.41 582.23 A11.6124 5.88289 -180 0 0 11.61 582.85 L336.75 582.85 A11.6124 5.88289 -180 0 0 347.14 579.6 A4.25197
 						 4.25197 -180 0 0 348.36 576.61 L348.36 572.42 A4.25197 4.25197 -180 0 0 347.14 569.44 A11.6124 5.88289 -180
 						 0 0 336.75 566.18 L11.61 566.18 A11.6124 5.88289 -180 0 0 1.23 569.44 A4.25197 4.25197 -180 0 0 0 572.42
 						 L0 573.99 A8.50394 8.50394 -180 0 0 6.41 582.23 Z" class="st1"/>
 		</g>
-		<g id="shape51-48" transform="translate(100.213,-232.586)">
+		<g id="shape51-48" transform="translate(100.213,-362.586)">
 			<title>Sheet.51</title>
 			<desc>STATE_BUFFER_IDLE</desc>
 			<rect x="0" y="572.263" width="194.882" height="10.5889" class="st11"/>
 			<text x="0" y="580.56" class="st2">STATE_BUFFER_IDLE</text>		</g>
-		<g id="shape52-51" transform="translate(96.9667,-207.716)">
+		<g id="shape52-51" transform="translate(96.9667,-337.716)">
 			<title>Sheet.52</title>
-			<desc>STORAGE_MODE_PASSTHROUGH_REQUEST</desc>
+			<desc>STORAGE_BATCH_REQUEST / ;</desc>
 			<rect x="0" y="574.617" width="184.252" height="8.23585" class="st6"/>
-			<text x="0" y="581.13" class="st7">STORAGE_MODE_PASSTHROUGH_REQUEST</text>		</g>
-		<g id="shape53-54" transform="translate(277.793,-148.503)">
+			<text x="0" y="581.13" class="st7">STORAGE_BATCH_REQUEST / ;</text>		</g>
+		<g id="shape53-54" transform="translate(277.793,-278.503)">
 			<title>Sheet.53</title>
 			<path d="M0 582.85 L8.23 582.85" class="st12"/>
 		</g>
-		<g id="shape55-57" transform="translate(286.023,1017.2) rotate(180)">
+		<g id="shape55-57" transform="translate(286.023,887.2) rotate(180)">
 			<title>Sheet.55</title>
 			<path d="M0 582.85 L8.23 582.85" class="st12"/>
 		</g>
-		<g id="shape57-60" transform="translate(125.587,-270.291)">
+		<g id="shape57-60" transform="translate(125.587,-400.291)">
 			<title>Dynamic connector.129</title>
 			<path d="M0 582.85 L56.49 582.85 L56.49 599.57" class="st4"/>
 		</g>
-		<g id="shape58-65" transform="translate(125.587,-265.672) scale(-1,1)">
+		<g id="shape58-65" transform="translate(125.587,-395.672) scale(-1,1)">
 			<title>Sheet.58</title>
 			<ellipse cx="4.11481" cy="577.95" rx="4.11481" ry="4.90229" class="st3"/>
 		</g>
-		<g id="shape59-67" transform="translate(84.622,-37.8504)">
+		<g id="shape59-67" transform="translate(84.622,-167.8504)">
 			<title>Sheet.59</title>
-			<path d="M0 569.96 A9.48668 12.8943 -180 0 0 3.97 580.45 A8.50394 8.50394 -180 0 0 9.9 582.85 L274.7 582.85 A8.50394
-						 8.50394 -180 0 0 280.63 580.45 A9.48668 12.8943 -180 0 0 284.59 569.96 L284.59 477.55 A9.48668 12.8943 -180
-						 0 0 280.63 467.06 A8.50394 8.50394 -180 0 0 274.7 464.66 L9.9 464.66 A8.50394 8.50394 -180 0 0 3.97 467.06
+			<path d="M0 569.96 A9.48668 12.8943 -180 0 0 3.97 580.45 A8.50394 8.50394 -180 0 0 9.9 582.85 L284.7 582.85 A8.50394
+						 8.50394 -180 0 0 290.63 580.45 A9.48668 12.8943 -180 0 0 294.59 569.96 L294.59 477.55 A9.48668 12.8943 -180
+						 0 0 290.63 467.06 A8.50394 8.50394 -180 0 0 284.7 464.66 L9.9 464.66 A8.50394 8.50394 -180 0 0 3.97 467.06
 						 A9.48668 12.8943 -180 0 0 -0 477.55 L0 569.96 Z" class="st1"/>
 		</g>
-		<g id="shape60-69" transform="translate(84.9101,-140.238)">
+		<g id="shape60-69" transform="translate(84.9101,-270.238)">
 			<title>Sheet.60</title>
-			<path d="M7.22 582.68 A9.48668 5.88289 -180 0 0 9.49 582.85 L275.11 582.85 A9.48668 5.88289 -180 0 0 283.91 579.16 A4.25197
-						 4.25197 -180 0 0 284.59 576.85 L284.59 572.19 A4.25197 4.25197 -180 0 0 283.91 569.88 A9.48668 5.88289 -180
-						 0 0 275.11 566.18 L9.49 566.18 A9.48668 5.88289 -180 0 0 0.68 569.88 A4.25197 4.25197 -180 0 0 -0 572.19
+			<path d="M7.22 582.68 A9.48668 5.88289 -180 0 0 9.49 582.85 L285.11 582.85 A9.48668 5.88289 -180 0 0 293.91 579.16 A4.25197
+						 4.25197 -180 0 0 294.59 576.85 L294.59 572.19 A4.25197 4.25197 -180 0 0 293.91 569.88 A9.48668 5.88289 -180
+						 0 0 285.11 566.18 L9.49 566.18 A9.48668 5.88289 -180 0 0 0.68 569.88 A4.25197 4.25197 -180 0 0 -0 572.19
 						 L-0 574.28 A8.50394 8.50394 -180 0 0 7.22 582.68 Z" class="st1"/>
 		</g>
-		<g id="shape61-71" transform="translate(92.1384,-142.732)">
+		<g id="shape61-71" transform="translate(92.1384,-272.732)">
 			<title>Sheet.61</title>
 			<desc>STATE_BUFFER_PIPE_ACTIVE</desc>
 			<rect x="0" y="572.263" width="149.806" height="10.5889" class="st11"/>
 			<text x="0" y="580.56" class="st2">STATE_BUFFER_PIPE_ACTIVE</text>		</g>
-		<g id="shape63-74" transform="translate(270.291,-187.873)">
+		<g id="shape63-74" transform="translate(270.291,-317.873)">
 			<title>Dynamic connector.135</title>
 			<path d="M7.09 582.85 L7.09 606.78" class="st4"/>
 		</g>
-		<g id="shape65-79" transform="translate(38.431,-304.575)">
-			<title>Sheet.65</title>
-			<desc>STORAGE_MODE_BUFFER_REQUEST / send_mode_confirmed();</desc>
-			<rect x="0" y="574.617" width="248.868" height="8.23585" class="st6"/>
-			<text x="0" y="581.13" class="st7">STORAGE_MODE_BUFFER_REQUEST / send_mode_confirmed();</text>		</g>
-		<g id="shape67-82" transform="translate(100.213,-369.504)">
-			<title>Dynamic connector.116</title>
-			<path d="M7.09 582.85 L7.09 611.42" class="st4"/>
-		</g>
-		<g id="shape68-87" transform="translate(109.297,-347.095)">
-			<title>Sheet.68</title>
-			<desc>STORAGE_MODE_BUFFER_REQUEST</desc>
-			<rect x="0" y="574.617" width="149.806" height="8.23585" class="st6"/>
-			<text x="0" y="581.13" class="st7">STORAGE_MODE_BUFFER_REQUEST</text>		</g>
-		<g id="shape70-90" transform="translate(369.504,-369.504)">
-			<title>Dynamic connector.70</title>
-			<path d="M-7.09 588.09 L-7.09 588.45 L-7.09 706.29" class="st13"/>
-		</g>
-		<g id="shape71-96" transform="translate(365.252,-347.095)">
-			<title>Sheet.71</title>
-			<desc>STORAGE_MODE_PASSTHROUGH_REQUEST</desc>
-			<rect x="0" y="574.617" width="184.252" height="8.23585" class="st6"/>
-			<text x="0" y="581.13" class="st7">STORAGE_MODE_PASSTHROUGH_REQUEST</text>		</g>
-		<g id="shape74-99" transform="translate(157.945,-169.653)">
+		<g id="shape74-99" transform="translate(157.945,-299.653)">
 			<title>Sheet.74</title>
 			<desc>STORAGE_BATCH_REQUEST</desc>
 			<rect x="0" y="574.617" width="118.534" height="8.23585" class="st6"/>
 			<text x="0" y="581.13" class="st7">STORAGE_BATCH_REQUEST</text>		</g>
-		<g id="shape88-102" transform="translate(369.216,-100.213)">
+		<g id="shape88-102" transform="translate(379.216,-230.213)">
 			<title>Dynamic connector.88</title>
-			<path d="M0 582.85 L134.93 582.85 L134.93 467.81 L80.15 467.81" class="st15"/>
+			<path d="M0 582.85 L124.93 582.85 L124.93 467.81 L70.15 467.81" class="st15"/>
 		</g>
-		<g id="shape89-108" transform="translate(399.789,-163.586)">
+		<g id="shape89-108" transform="translate(400,-275)">
 			<title>Sheet.89</title>
 			<desc>STORAGE_BATCH_CLOSE</desc>
-			<rect x="0" y="574.617" width="104.361" height="8.23585" class="st6"/>
-			<text x="0" y="581.13" class="st7">STORAGE_BATCH_CLOSE</text>		</g>
-		<g id="shape90-111" transform="translate(94.8407,-81.9214)">
+			<rect x="0" y="574.617" width="180" height="8.23585" class="st6"/>
+			<text x="0" y="581.13" class="st7">STORAGE_BATCH_CLOSE</text>
+		</g>
+		<g id="shape90-111" transform="translate(94.8407,-211.9214)">
 			<title>Sheet.90</title>
 			<desc>entry / start_batch_session(); STORAGE_CLEAR / ; STORAGE_BATC...</desc>
 			<rect x="0" y="574.617" width="274.375" height="8.23585" class="st6"/>
 			<text x="0" y="547.53" class="st7">entry / start_batch_session();  <tspan x="0" dy="2.4em" class="st8">STORAGE_CLEAR / ;  </tspan><tspan
-						x="0" dy="1.2em" class="st8">STORAGE_BATCH_CLOSE / reject_if_wrong session id (); </tspan><tspan x="0"
-						dy="1.2em" class="st8">STORAGE_BATCH_REQUEST / send_batch_session(); </tspan><tspan x="0" dy="1.2em"
-						class="st8">STORAGE_MODE_PASSTHROUGH_REQUEST / send_rejected_mode();  </tspan><tspan x="0" dy="2.4em"
+						x="0" dy="1.2em" class="st8">STORAGE_BATCH_CLOSE / reject_if_wrong_session_id(); </tspan><tspan x="0"
+						dy="1.2em" class="st8">STORAGE_BATCH_REQUEST / start_batch_session(); </tspan><tspan x="0"
+						dy="1.2em" class="st8">STORAGE_BATCH_SESSION_TIMEOUT / send STORAGE_BATCH_CLOSE  </tspan><tspan x="0" dy="2.4em"
 						class="st8">exit / drain_pipe();</tspan></text>		</g>
 	</g>
 </svg>

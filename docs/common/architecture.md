@@ -13,7 +13,7 @@ This document provides an overview of the architecture and explains how the diff
 The Asset Tracker Template is built around a modular architecture where each module is responsible for a specific functionality. The template consists of the following modules:
 
 - **[Main module](../modules/main.md)**: The central coordinator that implements the business logic and controls the overall application flow.
-- **[Storage module](../modules/storage.md)**: Forwards or stores data from enabled modules.
+- **[Storage module](../modules/storage.md)**: Stores data from enabled modules.
 - **[Network module](../modules/network.md)**: Manages LTE connectivity and tracks network status.
 - **[Cloud module](../modules/cloud.md)**: Handles communication with nRF Cloud using CoAP.
 - **[Location module](../modules/location.md)**: Provides location services using GNSS, Wi-Fi, and cellular positioning.

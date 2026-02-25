@@ -60,28 +60,16 @@ The following Kconfig options that are set in the `prj.conf` file control sampli
 ```config
 CONFIG_APP_SAMPLING_INTERVAL_SECONDS=150    # Default: 2.5 minutes
 CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS=600            # Default: 10 minutes
+CONFIG_APP_STORAGE_INITIAL_THRESHOLD=1 # Default: 1 item
 ```
 
-In buffer mode, sensors and location are sampled and stored at every interval set in the `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` Kconfig option and sent to the cloud at every interval as set in the `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig option.
+Sensors and location are sampled and stored at every interval set in the `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` Kconfig option and sent to the cloud at every interval as set in the `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig option. Or when the number of stored items reaches the `CONFIG_APP_STORAGE_INITIAL_THRESHOLD` threshold.
 
 You can adjust these Kconfig options at runtime using the nRF Cloud device shadow. See [Configuration guide](configuration.md#set-sampling-interval-and-logic-from-cloud) for details.
 
-**Impact:** Using longer intervals between operations results in fewer network connections and leads to lower power consumption.
+**Impact:** Using longer intervals between operations and increasing the storage threshold results in fewer network connections and leads to lower power consumption.
 
 Ensure that the PSM Periodic TAU interval is set reasonably longer than the cloud sync interval to avoid waking the modem up to perform tracking or updates.
-
-### Storage mode
-
-The following Kconfig options that are set in the `prj.conf` file configure the data handling mode:
-
-```config
-CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH=y  # Default: immediate forwarding
-# CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y     # Alternative: batch transmission
-```
-
-**Buffer mode** significantly reduces power by storing data locally and transmitting in batches, minimizing network activity. This is ideal for infrequent reporting (hourly/daily).
-
-See [Storage Module Configuration](configuration.md#storage-mode-configuration) and [Storage Module Documentation](../modules/storage.md) for details.
 
 ### UART power management
 
@@ -152,7 +140,7 @@ CONFIG_NRF_WIFI_2G_BAND=y
 
 1. **Disable peripherals** - Disable UART and peripherals that consume a lot of power.
 2. **Increase update intervals** - Reduce sampling/transmission frequency.
-3. **Enable buffer mode** - Batch data transmissions.
+3. **Increase storage threshold** - Store more data before sending to cloud.
 4. **Minimize payload size** - Reduce transmission duration by using effective serialization formats (CBOR, Protobuf).
 5. **Validate with PPK2** - Measure actual power consumption.
 

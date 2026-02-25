@@ -422,14 +422,14 @@ Connecting to J-Link (Cortex-M33)...
 
 Module          | Current State                                                | Details
 ----------------------------------------------------------------------------------------------------
-Main            | STATE_PASSTHROUGH_CONNECTED_WAITING                          | Ptr: 0x0008C648
-Cloud           | STATE_CONNECTED_READY                                        | Ptr: 0x0008C8D0
-Location        | STATE_LOCATION_SEARCH_INACTIVE                               | Ptr: 0x0008C808
-Network         | STATE_CONNECTED                                              | Ptr: 0x0008C724
-FOTA            | STATE_WAITING_FOR_POLL_REQUEST                               | Ptr: 0x0008C974
-Env             | STATE_ENVIRONMENTAL_IDLE                                     | Ptr: 0x0008CA68
-Power           | STATE_POWER_IDLE                                             | Ptr: 0x0008CAAC
-Storage         | STATE_PASSTHROUGH                                            | Ptr: 0x0008CA14
+Main            | STATE_CONNECTED_WAITING                                      | Ptr: 0x00094D80
+Cloud           | STATE_CONNECTED_READY                                        | Ptr: 0x000966F0
+Location        | STATE_LOCATION_SEARCH_INACTIVE                               | Ptr: 0x00096628
+Network         | STATE_CONNECTED                                              | Ptr: 0x00094E70
+FOTA            | STATE_WAITING_FOR_POLL_REQUEST                               | Ptr: 0x000967A8
+Env             | STATE_RUNNING                                                | Ptr: 0x000965BC
+Power           | STATE_RUNNING                                                | Ptr: 0x00094F68
+Storage         | STATE_BUFFER_IDLE                                            | Ptr: 0x00096848
 
 Options:
   q: Quit
