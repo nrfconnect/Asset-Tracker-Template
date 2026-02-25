@@ -13,23 +13,23 @@ The Asset Tracker Template generates multiple firmware artifacts for different h
 
 | **Artifact name** | **Hardware platform** | **Description** | **Use case** |
 |-------------------|----------------------|----------------|--------------|
-| `att-thingy91x-{VERSION}.hex` | Thingy:91 X (nRF9151) | Standard production firmware with all core features enabled | Production deployment on Thingy:91 X devices |
-| `att-nrf9151dk-{VERSION}.hex` | nRF9151 DK | Development kit firmware with full feature set | Development and testing on nRF9151 DK |
+| `asset-tracker-template-{VERSION}-thingy91x-nrf91.hex` | Thingy:91 X (nRF9151) | Standard production firmware with all core features enabled | Production deployment on Thingy:91 X devices |
+| `asset-tracker-template-{VERSION}-nrf9151dk-nrf91.hex` | nRF9151 DK | Development kit firmware with full feature set | Development and testing on nRF9151 DK |
 
 #### Debug and development variants
 
 | **Artifact name** | **Hardware platform** | **Description** | **Use case** |
 |-------------------|----------------------|----------------|--------------|
-| `att-thingy91x-{VERSION}-debug.hex` | Thingy:91 X (nRF9151) | Debug build with enhanced logging and diagnostic features. **Note: This build uploads diagnostic and crash data to Memfault using Nordic's account and is intended for internal use only.** | Development debugging and issue investigation |
-| `att-thingy91x-{VERSION}-mqtt.hex` | Thingy:91 X (nRF9151) | Firmware with MQTT cloud connectivity instead of CoAP | Testing MQTT-based cloud communication |
+| `asset-tracker-template-{VERSION}-debug-thingy91x-nrf91.hex` | Thingy:91 X (nRF9151) | Debug build with enhanced logging and diagnostic features. **Note: This build uploads diagnostic and crash data to Memfault using Nordic's account and is intended for internal use only.** | Development debugging and issue investigation |
+| `asset-tracker-template-{VERSION}-mqtt-thingy91x-nrf91.hex` | Thingy:91 X (nRF9151) | Firmware with MQTT cloud connectivity instead of CoAP | Testing MQTT-based cloud communication |
 
 #### Specialized configuration variants
 
 | **Artifact name** | **Hardware platform** | **Description** | **Use case** |
 |-------------------|----------------------|----------------|--------------|
-| `att-thingy91x-{VERSION}-mtrace.hex` | Thingy:91 X (nRF9151) | Firmware with modem trace output enabled through UART 1 | Cellular connectivity debugging and analysis |
-| `att-nrf9151dk-{VERSION}-mtrace.hex` | nRF9151 DK | Firmware with modem trace output enabled through UART 1  | Cellular connectivity debugging and analysis |
-| `att-nrf9151dk-{VERSION}-ext-gnss.hex` | nRF9151 DK | Firmware configured for external GNSS antenna | Testing with external GNSS antenna setup |
+| `asset-tracker-template-{VERSION}-mtrace-thingy91x-nrf91.hex` | Thingy:91 X (nRF9151) | Firmware with modem trace output enabled through UART 1 | Cellular connectivity debugging and analysis |
+| `asset-tracker-template-{VERSION}-mtrace-nrf9151dk-nrf91.hex` | nRF9151 DK | Firmware with modem trace output enabled through UART 1  | Cellular connectivity debugging and analysis |
+| `asset-tracker-template-{VERSION}-ext-gnss-nrf9151dk-nrf91.hex` | nRF9151 DK | Firmware configured for external GNSS antenna | Testing with external GNSS antenna setup |
 
 ### Configuration overlays
 
