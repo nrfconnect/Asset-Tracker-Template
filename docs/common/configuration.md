@@ -6,25 +6,27 @@ This section describes the available compile-time and runtime configuration opti
 
 ## Table of Contents
 
-- [Runtime Configurations](#runtime-configurations)
-  - [Operation Modes](#operation-modes)
-    - [Passthrough Mode](#passthrough-mode)
-    - [Buffer Mode](#buffer-mode)
-- [Remote Configuration from Cloud](#remote-configuration-from-cloud)
+- [Runtime configurations](#runtime-configurations)
+  - [Behavior:](#behavior)
+- [Remote configuration from cloud](#remote-configuration-from-cloud)
   - [Configuration through nRF Cloud UI](#configuration-through-nrf-cloud-ui)
   - [Configuration through REST API](#configuration-through-rest-api)
-  - [Sending Commands through REST API](#sending-commands-through-rest-api)
+  - [Sending commands through REST API](#sending-commands-through-rest-api)
   - [Configuration Flow](#configuration-flow)
-- [Set Location Method Priorities](#set-location-method-priorities)
-  - [Available Location Methods](#available-location-methods)
-  - [Configuration Examples](#configuration-examples)
-- [Storage Mode Configuration](#storage-mode-configuration)
-- [Network Configuration](#network-configuration)
-  - [NB-IoT vs LTE-M](#nb-iot-vs-lte-m)
+- [Set location method priorities](#set-location-method-priorities)
+  - [Available location methods](#available-location-methods)
+  - [Configuration examples](#configuration-examples)
+- [Storage configuration](#storage-configuration)
+  - [Basic configuration in `prj.conf`:](#basic-configuration-in-prjconf)
+- [Network configuration](#network-configuration)
+  - [NB-IoT vs. LTE-M](#nb-iot-vs-lte-m)
+    - [Network mode selection](#network-mode-selection)
+    - [Network mode preference](#network-mode-preference)
   - [Power Saving Mode (PSM)](#power-saving-mode-psm)
+    - [PSM parameters](#psm-parameters)
   - [Access Point Name (APN)](#access-point-name-apn)
-- [LED Status Indicators](#led-status-indicators)
-  - [Example: Setting LED Colors](#example-setting-led-colors)
+- [LED status indicators](#led-status-indicators)
+  - [Example: Setting LED colors](#example-setting-led-colors)
 
 </div>
 
@@ -41,46 +43,24 @@ Cloud updates include sending data, checking for FOTA jobs, and retrieving confi
 
 | Parameter | Description | Unit | Valid Range | Static Configuration
 |-----------|-------------|------|-------------|---------------------
-| **`update_interval`** | <ul><li>**In passthrough mode**: Sampling and cloud update interval.</li><li>**In buffer mode**: Cloud update interval</li></ul> | Seconds | 1 to 4294967295 | `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` (default: 600)
-| **`sample_interval`** | <ul><li>**In passthrough mode**: Not valid.</li><li>**In buffer mode**: Sample interval.</li></ul> | Seconds | 1 to 4294967295 | `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` (default: 150)
-| **`buffer_mode`** | Storage mode control. Set to `true` for buffer mode or `false` for passthrough mode. | Boolean | true or false | `CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH` (default) / `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER`
+| **`update_interval`** | Cloud update interval | Seconds | 1 to 4294967295 | `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` (default: 600)
+| **`sample_interval`** | Sample interval | Seconds | 1 to 4294967295 | `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` (default: 150)
+| **`storage_threshold`** | Number of records to store before triggering a cloud update | Records | 0 (disabled) to `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` | `CONFIG_APP_STORAGE_THRESHOLD_RECORDS` (default: 1)
 
 You can set the runtime configurations through the cloud device shadow and they will override the compile-time Kconfig defaults shown in the Static Configuration column.
 
 The complete device shadow structure is defined in the [CDDL](https://datatracker.ietf.org/doc/html/rfc8610) schema at `Asset-Tracker-Template/app/src/cbor/device_shadow.cddl`. This schema specifies all supported configuration parameters, commands, and their valid value ranges.
 
-### Operation modes
-
-The device operates in one of two following modes based on which parameters are configured:
-
-#### Passthrough mode
-
-**Activated**: When `buffer_mode` is set to `false` (or not configured)
-
-**Configuration**: Uses `update_interval` parameter only (ignores `sample_interval`)
-
-**Behavior**:
-
-- Samples sensors and location at `update_interval`.
-- Sends data immediately to cloud.
-- Polls shadow and checks FOTA at `update_interval`.
-
-**Use case**: Real-time data transmission, lower latency
-
-#### Buffer mode
-
-**Activated**: When `buffer_mode` is set to `true`
-
-**Configuration**: Uses both `sample_interval` and `update_interval` parameters
-
-**Behavior**:
+### Behavior:
 
 - Samples sensors and location at `sample_interval`.
 - Buffers data locally.
-- Sends buffered data at `update_interval`.
+- Sends buffered data at `update_interval` or when `storage_threshold` is reached.
 - Polls shadow and checks FOTA at `update_interval`.
 
-**Use case**: Reduced power consumption, batch data transmission
+> [!NOTE]
+> Setting `storage_threshold` to 0 disables the threshold, meaning data will only be sent based on the `update_interval`.
+> Setting `storage_threshold` to 1 means data will be sent immediately after each sample.
 
 > [!CAUTION]
 > While low intervals are supported, they can cause network congestion and connectivity issues, especially in poor network conditions. Choose intervals appropriate for your network quality, use case, and device mode.
@@ -100,26 +80,27 @@ The Asset Tracker can be configured remotely through nRF Cloud's device shadow m
 1. Select **Edit Configuration**.
 1. Enter the desired configuration:
 
-    **Example 1: Buffer mode with 5-minute sampling and 15-minute cloud updates**
+    **Example 1: 5-minute sampling and 15-minute cloud updates, storage threshold disabled**
 
     ```json
     {
     "update_interval": 900,
     "sample_interval": 300,
-    "buffer_mode": true
+    "storage_threshold": 0
     }
     ```
 
-    **Example 2: Passthrough mode with 60-second interval**
+    **Example 2: 1-minute sampling and cloud updates, send data immediately after each sample**
 
     ```json
     {
     "update_interval": 60,
-    "buffer_mode": false
+    "storage_threshold": 1
     }
     ```
 
-    **IMPORTANT:** To remove a configuration entry you need to explicitly `null` the parameter.
+> [!IMPORTANT]
+> To remove a configuration entry you need to explicitly `null` the parameter.
 
 1. Click **Commit** to apply the changes.
 
@@ -129,22 +110,22 @@ The device receives the new configuration through its shadow and adjusts its int
 
 You can update the intervals using [nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState).
 
-**Buffer mode example:**
+**Example 1:**
 
 ```bash
 curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{ "desired": { "config": { "update_interval": 900, "sample_interval": 300, "buffer_mode": true } } }'
+  -d '{ "desired": { "config": { "update_interval": 900, "sample_interval": 300, "storage_threshold": 0 } } }'
 ```
 
-**Passthrough mode example:**
+**Example 2:**
 
 ```bash
 curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{ "desired": { "config": { "update_interval": 60, "buffer_mode": false } } }'
+  -d '{ "desired": { "config": { "update_interval": 60, "storage_threshold": 1 } } }'
 ```
 
 ### Sending commands through REST API
@@ -169,7 +150,8 @@ For shadow structure details, see `Asset-Tracker-Template/app/src/cbor/device_sh
 
 ### Configuration Flow
 
-The device starts in **passthrough mode** by default (you can configure it using the `CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH` Kconfig option). To start in buffer mode instead, use `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER`. Default intervals are set from the `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` and `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig options.
+Default intervals are set from the `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` and `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig options,
+and the threshold is set from `CONFIG_APP_STORAGE_THRESHOLD`. When the device polls the shadow, it checks for any updates to these parameters and applies them at runtime. If a parameter is not set in the shadow, the device continues using the existing value (either from Kconfig or a previous shadow update).
 
 The following diagrams illustrate what happens in the various scenarios where the device polls the shadow:
 
@@ -224,32 +206,27 @@ The following are the available location methods:
     CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_SECOND_CELLULAR=y
     ```
 
-## Storage mode configuration
+## Storage configuration
 
-The storage module handles collected data in two modes: **Passthrough** (forward immediately, default) or **Buffer** (store and transmit in batches for lower power consumption). See [Storage Module Documentation](../modules/storage.md) for details.
+The storage module buffers collected data locally and sends it to the cloud based on the configured intervals and thresholds. See [Storage Module Documentation](../modules/storage.md) for details.
 
-**Basic configuration** in `prj.conf`:
-
-Passthrough mode is the default mode. To enable buffer mode use:
-
-```bash
-CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y
-```
+### Basic configuration in `prj.conf`:
 
 To configure buffer size and records per stored data type:
 
 ```bash
 CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=8      # Records per data type
 CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE=256       # Batch buffer size
+CONFIG_APP_STORAGE_THRESHOLD=4                 # Number of records to trigger cloud update
 ```
+
+The `storage_threshold` runtime parameter controls when buffered data is sent to the cloud. Setting it to `0` means data will only be sent based on the `update_interval`, while setting it to `1` means data will be sent immediately after each sample.
 
 For minimal use, include the `overlay-storage-minimal.conf` overlay.
 
 **Runtime control** (shell commands when `CONFIG_APP_STORAGE_SHELL=y`):
 
 ```bash
-att_storage mode passthrough   # Switch to passthrough
-att_storage mode buffer        # Switch to buffer
 att_storage flush              # Flush stored data
 att_storage clear              # Clear all data
 att_storage stats              # Show statistics (if enabled)
@@ -362,42 +339,3 @@ Common scenarios for APN configuration:
 
 > [!NOTE]
 > In most cases, the default APN provided by the carrier should work without additional configuration.
-
-## LED status indicators
-
-The Asset Tracker Template uses LED colors to indicate different device states:
-
-- **Red** (Blinking, 10 repetitions): Device is idle and disconnected from cloud.
-- **Blue** (Blinking, 10 repetitions): Device is actively sampling data.
-- **Green** (Blinking, 10 repetitions): Device is sending data to cloud.
-- **Purple** (Blinking): FOTA download in progress.
-
-### Example: Setting LED colors
-
-You can control the LED colors through the LED module using zbus messages. The following is an example of how to set different LED patterns:
-
-```c
-/* Set yellow blinking pattern for idle state */
-struct led_msg led_msg = {
-    .type = LED_RGB_SET,
-    .red = 255,
-    .green = 255,
-    .blue = 0,
-    .duration_on_msec = 250,
-    .duration_off_msec = 2000,
-    .repetitions = 10,
-};
-
-/* Publish the message to LED_CHAN */
-int err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
-if (err) {
-    LOG_ERR("zbus_chan_pub, error: %d", err);
-    return;
-}
-```
-
-The LED message structure allows you to:
-
-- Set RGB values for color (`0-255` for each component).
-- Define on/off durations in milliseconds.
-- Specify number of repetitions (`-1` for continuous blinking).

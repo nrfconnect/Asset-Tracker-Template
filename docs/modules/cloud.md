@@ -24,13 +24,13 @@ The Cloud module implements a state machine with the following states and transi
 
 ### Integration with storage module
 
-The cloud module subscribes to the `STORAGE_CHAN` and `STORAGE_DATA_CHAN` channels to support both buffered and passthrough data flows:
-
-- **Buffered flow (batch)**: The cloud module handles `STORAGE_BATCH_AVAILABLE`, `STORAGE_BATCH_EMPTY`, `STORAGE_BATCH_BUSY`, and `STORAGE_BATCH_ERROR` on the `STORAGE_CHAN` channel and consumes batch items using the `storage_batch_read()` function until the batch is exhausted, then issues `STORAGE_BATCH_CLOSE`.
-
-- **Passthrough/flush flow**: The cloud module receives `STORAGE_DATA` on `STORAGE_DATA_CHAN` and forwards the contained data to nRF Cloud.
-
-The periodic request interval for buffered data can be configured with the `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig option in the `Kconfig.main` file.
+The cloud module subscribes to the `STORAGE_CHAN` and `STORAGE_DATA_CHAN` channels to receive data
+from the storage module.
+It handles `STORAGE_BATCH_AVAILABLE`, `STORAGE_BATCH_EMPTY`, `STORAGE_BATCH_BUSY`, and
+`STORAGE_BATCH_ERROR` messages on the `STORAGE_CHAN` channel to manage batch data flow, and consumes
+batch items using the `storage_batch_read()` function until the batch is exhausted, then issues
+`STORAGE_BATCH_CLOSE`. It also handles `STORAGE_DATA` messages on the `STORAGE_DATA_CHAN` channel to
+forward individual data items to nRF Cloud.
 
 ## Messages
 

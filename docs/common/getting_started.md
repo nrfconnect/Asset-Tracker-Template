@@ -154,94 +154,194 @@ To test that everything is working as expected, complete the following steps:
     <summary>Example log output</summary>
 
     ```shell
+
     *** Booting Asset Tracker Template v0.0.0-dev - unknown commit ***
-    ***Using nRF Connect SDK v3.1.99-fd20d7a44cf2***
-    ***Using Zephyr OS v4.2.99-be5d7776dbb7***
-    [00:00:00.522,857] <dbg> main: main: Main has started
-    [00:00:00.522,918] <dbg> main: running_entry: running_entry
-    [00:00:00.522,949] <dbg> main: passthrough_mode_entry: passthrough_mode_entry
-    [00:00:00.522,979] <dbg> main: passthrough_disconnected_entry: passthrough_disconnected_entry
-    [00:00:00.523,406] <dbg> cloud: cloud_module_thread: Cloud module task started
-    [00:00:00.523,498] <dbg> cloud: state_running_entry: state_running_entry
-    [00:00:00.523,559] <inf> nrf_provisioning_coap: Init CoAP client
-    [00:00:00.524,078] <dbg> cloud: state_disconnected_entry: state_disconnected_entry
-    [00:00:00.524,383] <dbg> main: passthrough_disconnected_entry: passthrough_disconnected_entry
-    [00:00:00.524,871] <dbg> environmental: env_module_thread: Environmental module task started
-    [00:00:00.524,993] <dbg> fota: fota_module_thread: FOTA module task started
-    [00:00:00.525,085] <dbg> fota: state_running_entry: state_running_entry
-    [00:00:00.525,939] <dbg> location_module: location_module_thread: Location module task started
-    [00:00:00.526,092] <dbg> network: state_running_entry: state_running_entry
-    [00:00:00.526,153] <dbg> network: state_running_entry: Bringing network interface up and connecting to the network
-    [00:00:00.526,580] <dbg> power: power_module_thread: Power module task started
-    [00:00:00.720,947] <inf> nrf_cloud_fota_common: Saved job: , type: 7, validate: 0, bl: 0x0
-    [00:00:00.722,351] <dbg> fota: state_waiting_for_poll_request_entry: state_waiting_for_poll_request_entry
-    [00:00:00.808,898] <dbg> location_module: state_waiting_for_modem_init_run: Modem initialized, transitioning to running state
-    [00:00:00.808,929] <dbg> location_module: state_running_entry: state_running_entry
-    [00:00:00.824,981] <dbg> location_module: state_running_entry: Location library initialized
-    [00:00:00.825,012] <dbg> location_module: state_location_search_inactive_entry: state_location_search_inactive_entry
-    [00:00:00.963,165] <dbg> nrf_provisioning: cert_provision: Certificate already provisioned
-    [00:00:00.963,348] <dbg> network: state_running_entry: Network module started
-    [00:00:00.963,378] <dbg> network: state_disconnected_entry: state_disconnected_entry
-    [00:00:00.963,378] <dbg> network: state_disconnected_searching_entry: state_disconnected_searching_entry
-    [00:00:03.496,551] <dbg> network: lte_lc_evt_handler: eDRX parameters received, mode: 7, eDRX: 5.12 s, PTW: 2.56 s
-    [00:00:03.497,406] <dbg> network: lte_lc_evt_handler: PDN connection activated
-    [00:00:03.498,962] <dbg> cloud: state_connecting_entry: state_connecting_entry
-    [00:00:03.498,992] <dbg> cloud: state_connecting_attempt_entry: state_connecting_attempt_entry
-    [00:00:03.499,023] <dbg> cloud: state_connecting_provisioned_entry: state_connecting_provisioned_entry
-    [00:00:03.499,298] <dbg> network: state_connected_entry: state_connected_entry
-    [00:00:03.500,122] <dbg> network: lte_lc_evt_handler: PSM parameters received, TAU: 7200, Active time: 16
-    [00:00:03.621,551] <inf> cloud: Connecting to nRF Cloud CoAP with client ID: 5034474b-3731-4772-800e-0d0982488285
-    [00:00:05.320,068] <inf> nrf_cloud_coap_transport: Request authorization with JWT
-    [00:00:05.567,199] <inf> nrf_cloud_coap_transport: Authorization result_code: 2.01
-    [00:00:05.567,321] <inf> nrf_cloud_coap_transport: Authorized
-    [00:00:05.567,535] <inf> nrf_cloud_coap_transport: DTLS CID is active
-    [00:00:06.096,343] <inf> cloud: nRF Cloud CoAP connection successful
-    [00:00:06.096,618] <dbg> cloud: state_connected_entry: state_connected_entry
-    [00:00:06.096,649] <inf> cloud: Connected to Cloud
-    [00:00:06.096,710] <dbg> cloud: state_connected_ready_entry: state_connected_ready_entry
-    [00:00:06.097,045] <dbg> main: passthrough_connected_entry: passthrough_connected_entry
-    [00:00:06.097,503] <dbg> main: passthrough_connected_sampling_entry: passthrough_connected_sampling_entry
-    [00:00:06.098,510] <dbg> cloud: handle_cloud_channel_message: Poll shadow desired trigger received
-    [00:00:06.098,602] <dbg> cloud: cloud_configuration_poll: Configuration: Requesting device shadow desired from cloud
-    [00:00:06.100,494] <dbg> location_module: state_location_search_inactive_run: Location search trigger received, starting location request
-    [00:00:06.100,524] <dbg> location_module: state_location_search_active_entry: state_location_search_active_entry
-    [00:00:06.115,386] <inf> wifi_nrf_bus: SPIM spi@b000: freq = 8 MHz
-    [00:00:06.115,417] <inf> wifi_nrf_bus: SPIM spi@b000: latency = 0
-    [00:00:06.279,632] <dbg> cbor_helper: decode_shadow_parameters_from_cbor: Command parameter present: type=1, id=1
-    [00:00:06.279,754] <dbg> main: config_apply: No configuration parameters to update
-    [00:00:06.280,273] <dbg> main: update_shadow_reported_section: Configuration reported: update_interval=600, sample_interval=150, mode=passthrough
-    [00:00:06.280,883] <dbg> cloud: cloud_configuration_reported_update: Configuration: Reporting config to cloud
-    [00:00:10.948,577] <dbg> location_module: location_event_handler: Cloud location request received from location library
-    [00:00:10.948,699] <dbg> location_module: location_cloud_request_data_copy: Copying cloud request data, size of dest: 560
-    [00:00:10.948,730] <dbg> location_module: copy_wifi_data: Copied 10 WiFi APs
-    [00:00:10.951,416] <dbg> main: passthrough_connected_waiting_entry: passthrough_connected_waiting_entry
-    [00:00:10.951,446] <dbg> main: passthrough_connected_waiting_entry: Passthrough mode: next trigger in 596 seconds
-    [00:00:10.952,301] <dbg> cloud: handle_cloud_channel_message: Poll shadow delta trigger received
-    [00:00:10.952,392] <dbg> cloud: cloud_configuration_poll: Configuration: Requesting device shadow delta from cloud
-    [00:00:10.955,963] <dbg> location_module: state_location_search_active_run: Location search done message received, going to inactive state
-    [00:00:10.955,993] <dbg> location_module: state_location_search_active_exit: state_location_search_active_exit
-    [00:00:10.957,275] <dbg> power: state_running_run: Battery percentage sample request received, getting battery data
-    [00:00:10.957,427] <dbg> environmental: state_running_run: Environmental values sample request received, getting data
-    [00:00:10.957,519] <dbg> fota: state_polling_for_update_entry: state_polling_for_update_entry
-    [00:00:10.957,550] <inf> nrf_cloud_fota_poll: Checking for FOTA job...
-    [00:00:10.964,050] <dbg> location_module: state_location_search_inactive_entry: state_location_search_inactive_entry
-    [00:00:10.965,209] <dbg> environmental: sample_sensors: Temperature: 23.97 C, Pressure: 98.03 Pa, Humidity: 24.10 %
-    [00:00:10.967,102] <dbg> power: sample: State of charge: 97.000000
-    [00:00:10.967,132] <dbg> power: sample: The battery is not charging
-    [00:00:10.967,163] <dbg> power: sample: Battery voltage: 4.140000 V
-    [00:00:10.967,193] <dbg> power: sample: Battery current: -0.000000 A
-    [00:00:10.967,193] <dbg> power: sample: Battery temperature: 24.193420 C
-    [00:00:11.264,984] <dbg> cloud: cloud_configuration_poll: Shadow delta section not present
-    [00:00:11.265,502] <dbg> cloud: handle_storage_data_message: Storage data received, type: 4, size: 568
-    [00:00:11.265,594] <dbg> cloud: cloud_location_handle_message: Cloud location request received
-    [00:00:11.265,625] <dbg> cloud: handle_cloud_location_request: Handling cloud location request
-    [00:00:11.567,504] <inf> nrf_cloud_fota_poll: No pending FOTA job
-    [00:00:11.567,535] <dbg> fota: state_polling_for_update_entry: No FOTA job available
-    [00:00:11.567,901] <dbg> fota: state_waiting_for_poll_request_entry: state_waiting_for_poll_request_entry
-    [00:00:11.846,557] <dbg> cloud: handle_storage_data_message: Storage data received, type: 3, size: 40
-    [00:00:12.544,464] <dbg> cloud: cloud_environmental_send: Environmental data sent to cloud: T=24.0°C, P=98.0hPa, H=24.1%
-    [00:00:12.544,586] <dbg> cloud: handle_storage_data_message: Storage data received, type: 2, size: 8
-    [00:00:12.786,468] <dbg> cloud: send_storage_data_to_cloud: Battery data sent to cloud: 97.0%
+    *** Using nRF Connect SDK v3.2.99-eb5e822d5f11 ***
+    *** Using Zephyr OS v4.3.99-29bbe2f2b560 ***
+    [00:00:00.526,062] <dbg> main: main: Main has started
+    [00:00:00.526,123] <dbg> main: running_entry: running_entry
+    [00:00:00.526,184] <dbg> main: disconnected_entry: disconnected_entry
+    [00:00:00.526,214] <dbg> main: disconnected_waiting_entry: disconnected_waiting_entry
+    [00:00:00.526,245] <dbg> main: waiting_entry_common: Next sample trigger in 0 seconds
+    [00:00:00.526,306] <dbg> main: waiting_entry_common: Next cloud sync trigger in 600 seconds
+    [00:00:00.526,733] <dbg> main: disconnected_waiting_exit: disconnected_waiting_exit
+    [00:00:00.526,763] <dbg> main: disconnected_sampling_entry: disconnected_sampling_entry
+    [00:00:00.527,770] <dbg> cloud: cloud_module_thread: Cloud module task started
+    [00:00:00.527,832] <dbg> cloud: state_running_entry: state_running_entry
+    [00:00:00.527,893] <inf> nrf_provisioning_coap: Init CoAP client
+    [00:00:00.528,503] <dbg> cloud: state_disconnected_entry: state_disconnected_entry
+    [00:00:00.529,205] <dbg> environmental: env_module_thread: Environmental module task started
+    [00:00:00.529,510] <dbg> fota: fota_module_thread: FOTA module task started
+    [00:00:00.529,571] <dbg> fota: state_running_entry: state_running_entry
+    [00:00:00.530,426] <dbg> location_module: location_module_thread: Location module task started
+    [00:00:00.530,700] <dbg> network: state_running_entry: state_running_entry
+    [00:00:00.531,158] <dbg> power: power_module_thread: Power module task started
+    [00:00:00.531,311] <dbg> storage: storage_thread: Storage module task started
+    [00:00:00.531,402] <dbg> storage: state_running_entry: state_running_entry
+    [00:00:00.531,433] <dbg> storage: ram_init: RAM backend initialized with 1 types, using 320 bytes of RAM
+    [00:00:00.531,463] <dbg> storage: ram_init: Ring buffer BATTERY initialized with size 320, item size: 40
+    [00:00:00.531,494] <dbg> storage: ram_init: RAM backend initialized with 2 types, using 320 bytes of RAM
+    [00:00:00.531,524] <dbg> storage: ram_init: Ring buffer ENVIRONMENTAL initialized with size 320, item size: 40
+    [00:00:00.531,555] <dbg> storage: ram_init: RAM backend initialized with 3 types, using 3904 bytes of RAM
+    [00:00:00.531,585] <dbg> storage: ram_init: Ring buffer LOCATION initialized with size 3904, item size: 488
+    [00:00:00.531,738] <dbg> storage: state_buffer_idle_run: state_buffer_idle_run
+    [00:00:00.531,768] <dbg> storage: state_running_run: state_running_run
+    [00:00:00.531,799] <dbg> storage: handle_data_message: Handle data message for LOCATION
+    [00:00:00.594,909] <inf> nrf_cloud_fota_common: Saved job: , type: 7, validate: 0, bl: 0x0
+    [00:00:00.596,649] <dbg> fota: state_waiting_for_modem_init_entry: state_waiting_for_modem_init_entry
+    [00:00:00.596,679] <dbg> fota: state_waiting_for_modem_init_entry: Waiting for modem initialization before processing pending FOTA job
+    [00:00:00.795,837] <dbg> fota: state_waiting_for_modem_init_run: Modem initialized, processing pending FOTA job
+    [00:00:00.795,898] <dbg> fota: state_waiting_for_poll_request_entry: state_waiting_for_poll_request_entry
+    [00:00:00.825,195] <dbg> location_module: state_waiting_for_modem_init_run: Modem initialized, transitioning to running state
+    [00:00:00.825,225] <dbg> location_module: state_running_entry: state_running_entry
+    [00:00:00.842,224] <dbg> location_module: state_running_entry: Location library initialized
+    [00:00:00.842,254] <dbg> location_module: state_location_search_inactive_entry: state_location_search_inactive_entry
+    [00:00:00.919,555] <dbg> nrf_provisioning: cert_provision: Certificate already provisioned
+    [00:00:00.920,349] <dbg> network: state_running_entry: Network module started
+    [00:00:00.920,349] <dbg> network: state_disconnected_entry: state_disconnected_entry
+    [00:00:00.920,379] <dbg> network: state_disconnected_searching_entry: state_disconnected_searching_entry
+    [00:00:00.920,562] <dbg> power: state_waiting_for_modem_init_run: Modem initialized, transitioning to running state
+    [00:00:00.923,980] <dbg> power: uart_enable: UART devices enabled
+    [00:00:00.928,863] <dbg> power: fuel_gauge_state_is_valid: No valid fuel gauge state found (magic: 0x60878800)
+    [00:00:00.928,863] <dbg> power: state_running_entry: No saved fuel gauge state found, initializing from scratch
+    [00:00:05.268,859] <dbg> nrf_provisioning: lte_lc_event_handler: Connected to network
+    [00:00:05.269,042] <dbg> network: lte_lc_evt_handler: PDN connection activated
+    [00:00:05.269,866] <dbg> network: lte_lc_evt_handler: PSM parameters received, TAU: 7200, Active time: 6
+    [00:00:05.270,355] <dbg> cloud: state_connecting_entry: state_connecting_entry
+    [00:00:05.270,385] <dbg> cloud: state_connecting_attempt_entry: state_connecting_attempt_entry
+    [00:00:05.270,416] <dbg> cloud: state_connecting_provisioned_entry: state_connecting_provisioned_entry
+    [00:00:05.270,843] <dbg> network: state_connected_entry: state_connected_entry
+    [00:00:05.393,341] <inf> cloud: Connecting to nRF Cloud CoAP with client ID: 5034474b-3731-4772-800e-0d0982488285
+    [00:00:07.924,377] <inf> nrf_cloud_coap_transport: Request authorization with JWT
+    [00:00:08.266,845] <inf> nrf_cloud_coap_transport: Authorization result_code: 2.01
+    [00:00:08.267,150] <inf> nrf_cloud_coap_transport: Authorized
+    [00:00:08.267,395] <inf> nrf_cloud_coap_transport: DTLS CID is active
+    [00:00:08.985,137] <inf> cloud: nRF Cloud CoAP connection successful
+    [00:00:08.985,443] <dbg> cloud: state_connected_entry: state_connected_entry
+    [00:00:08.985,443] <inf> cloud: Connected to Cloud
+    [00:00:08.985,534] <dbg> cloud: state_connected_ready_entry: state_connected_ready_entry
+    [00:00:08.985,870] <dbg> main: connected_entry: connected_entry
+    [00:00:08.986,450] <dbg> main: connected_waiting_entry: connected_waiting_entry
+    [00:00:08.986,480] <dbg> main: waiting_entry_common: Next sample trigger in 0 seconds
+    [00:00:08.986,541] <dbg> main: waiting_entry_common: Next cloud sync trigger in 592 seconds
+    [00:00:08.986,968] <dbg> main: connected_waiting_exit: connected_waiting_exit
+    [00:00:08.986,999] <dbg> main: connected_sampling_entry: connected_sampling_entry
+    [00:00:08.988,006] <dbg> cloud: handle_cloud_channel_message: Poll shadow desired trigger received
+    [00:00:08.988,098] <dbg> cloud: cloud_configuration_poll: Configuration: Requesting device shadow desired from cloud
+    [00:00:08.989,715] <dbg> fota: state_polling_for_update_entry: state_polling_for_update_entry
+    [00:00:08.989,715] <inf> nrf_cloud_fota_poll: Checking for FOTA job...
+    [00:00:08.990,478] <dbg> location_module: state_location_search_inactive_run: Location search trigger received, starting location request
+    [00:00:08.990,539] <dbg> location_module: state_location_search_active_entry: state_location_search_active_entry
+    [00:00:08.992,095] <dbg> storage: state_buffer_idle_run: state_buffer_idle_run
+    [00:00:08.992,126] <dbg> storage: state_running_run: state_running_run
+    [00:00:08.992,156] <dbg> storage: handle_data_message: Handle data message for LOCATION
+    [00:00:08.992,309] <dbg> storage: state_buffer_idle_run: state_buffer_idle_run
+    [00:00:08.992,340] <dbg> storage: state_running_run: state_running_run
+    [00:00:08.992,492] <dbg> storage: handle_data_message: Handle data message for LOCATION
+    [00:00:08.995,452] <inf> wifi_nrf_bus: SPIM spi@b000: freq = 8 MHz
+    [00:00:08.995,483] <inf> wifi_nrf_bus: SPIM spi@b000: latency = 0
+    [00:00:09.293,090] <dbg> cloud: cloud_configuration_poll: Shadow desired section not present
+    [00:00:09.293,426] <dbg> main: connected_run: Received empty shadow response from cloud
+    [00:00:09.293,914] <dbg> main: update_shadow_reported_section: Configuration reported: update_interval=600, sample_interval=150, storage_threshold=1
+    [00:00:09.294,586] <dbg> cloud: cloud_configuration_reported_update: Configuration: Reporting config to cloud
+    [00:00:10.072,174] <inf> nrf_cloud_fota_poll: No pending FOTA job
+    [00:00:10.072,204] <dbg> fota: state_polling_for_update_entry: No FOTA job available
+    [00:00:10.072,570] <dbg> fota: state_waiting_for_poll_request_entry: state_waiting_for_poll_request_entry
+    [00:00:17.861,358] <dbg> location_module: location_event_handler: Cloud location request received from location library
+    [00:00:17.861,450] <dbg> location_module: location_cloud_request_data_copy: Copying cloud request data, size of dest: 472
+    [00:00:17.861,480] <dbg> location_module: copy_wifi_data: Copied 10 WiFi APs
+    [00:00:17.863,830] <dbg> location_module: state_location_search_active_run: Location search cancel received, cancelling location request
+    [00:00:17.863,922] <dbg> location_module: location_event_handler: Location request cancelled
+    [00:00:17.864,715] <dbg> main: connected_waiting_entry: connected_waiting_entry
+    [00:00:17.864,746] <dbg> main: waiting_entry_common: Next sample trigger in 141 seconds
+    [00:00:17.864,807] <dbg> main: waiting_entry_common: Next cloud sync trigger in 583 seconds
+    [00:00:17.864,959] <dbg> location_module: state_location_search_active_run: Location request cancelled successfully
+    [00:00:17.865,081] <dbg> location_module: state_location_search_active_run: Location search done message received, going to inactive state
+    [00:00:17.865,142] <dbg> location_module: state_location_search_inactive_entry: state_location_search_inactive_entry
+    [00:00:17.865,386] <dbg> storage: state_buffer_idle_run: state_buffer_idle_run
+    [00:00:17.865,417] <dbg> storage: state_running_run: state_running_run
+    [00:00:17.865,478] <dbg> storage: handle_data_message: Handle data message for LOCATION
+    [00:00:17.865,539] <dbg> storage: ram_store: idx: 2, ring_buf: 0x20006b68, data size: 488 (488), free: 3904 bytes
+    [00:00:17.865,631] <dbg> storage: ram_records_count: Counted 1 items in LOCATION ring buffer
+    [00:00:17.865,661] <dbg> storage: ram_store: Stored LOCATION item, count: 1, left: 3416 bytes
+    [00:00:17.865,692] <dbg> storage: ram_records_count: Counted 1 items in LOCATION ring buffer
+    [00:00:17.865,753] <dbg> storage: check_and_notify_buffer_threshold: Buffer threshold limit reached for LOCATION: count=1, limit=1
+    [00:00:17.866,119] <dbg> main: connected_waiting_exit: connected_waiting_exit
+    [00:00:17.866,180] <dbg> main: connected_sending_entry: connected_sending_entry
+    [00:00:17.870,025] <dbg> storage: state_buffer_idle_run: state_buffer_idle_run
+    [00:00:17.870,056] <dbg> storage: state_running_run: state_running_run
+    [00:00:17.870,086] <dbg> storage: handle_data_message: Handle data message for LOCATION
+    [00:00:17.870,178] <dbg> storage: state_buffer_idle_run: state_buffer_idle_run
+    [00:00:17.870,208] <dbg> storage: state_running_run: state_running_run
+    [00:00:17.870,239] <dbg> storage: handle_data_message: Handle data message for BATTERY
+    [00:00:17.870,544] <dbg> storage: state_buffer_idle_run: state_buffer_idle_run
+    [00:00:17.870,574] <dbg> storage: state_running_run: state_running_run
+    [00:00:17.870,635] <dbg> storage: handle_data_message: Handle data message for ENVIRONMENTAL
+    [00:00:17.870,758] <dbg> storage: state_buffer_idle_run: state_buffer_idle_run
+    [00:00:17.870,788] <dbg> storage: state_running_run: state_running_run
+    [00:00:17.870,819] <dbg> storage: handle_data_message: Handle data message for LOCATION
+    [00:00:17.870,971] <dbg> storage: state_buffer_idle_run: state_buffer_idle_run
+    [00:00:17.871,002] <dbg> storage: state_running_run: state_running_run
+    [00:00:17.871,124] <dbg> storage: state_buffer_idle_run: state_buffer_idle_run
+    [00:00:17.871,124] <dbg> storage: state_buffer_idle_run: Batch request received, switching to batch active state
+    [00:00:17.871,185] <dbg> storage: state_buffer_pipe_active_entry: state_buffer_pipe_active_entry
+    [00:00:17.871,215] <dbg> storage: ram_records_count: Counted 1 items in LOCATION ring buffer
+    [00:00:17.871,276] <dbg> storage: ram_records_count: Counted 1 items in LOCATION ring buffer
+    [00:00:17.871,368] <dbg> storage: ram_retrieve: Retrieved item in LOCATION ring buffer, size: 488 bytes, 0 items left
+    [00:00:17.871,459] <dbg> storage: populate_pipe: Batch population complete for session 0x45CA: 1/1 items
+    [00:00:17.871,978] <dbg> storage: start_batch_session: Started batch session (session_id 0x45CA), 1 items in batch (1 total)
+    [00:00:17.872,009] <dbg> storage: state_buffer_pipe_active_entry: Batch session started, session_id: 17866
+    [00:00:17.872,131] <dbg> storage: state_buffer_pipe_active_run: state_buffer_pipe_active_run
+    [00:00:17.872,161] <dbg> storage: state_running_run: state_running_run
+    [00:00:17.872,711] <dbg> cloud: handle_cloud_channel_message: Poll shadow delta trigger received
+    [00:00:17.872,802] <dbg> cloud: cloud_configuration_poll: Configuration: Requesting device shadow delta from cloud
+    [00:00:17.874,389] <dbg> power: state_running_run: Battery percentage sample request received, getting battery data
+    [00:00:17.874,511] <dbg> environmental: state_running_run: Environmental values sample request received, getting data
+    [00:00:17.875,335] <dbg> fota: state_polling_for_update_entry: state_polling_for_update_entry
+    [00:00:17.875,366] <inf> nrf_cloud_fota_poll: Checking for FOTA job...
+    [00:00:17.881,103] <dbg> environmental: sample_sensors: Temperature: 24.67 C, Pressure: 100.67 Pa, Humidity: 11.70 %
+    [00:00:17.881,500] <dbg> storage: state_buffer_pipe_active_run: state_buffer_pipe_active_run
+    [00:00:17.881,530] <dbg> storage: state_running_run: state_running_run
+    [00:00:17.881,561] <dbg> storage: handle_data_message: Handle data message for ENVIRONMENTAL
+    [00:00:17.881,622] <dbg> storage: ram_store: idx: 1, ring_buf: 0x20006b7c, data size: 40 (40), free: 320 bytes
+    [00:00:17.881,683] <dbg> storage: ram_records_count: Counted 1 items in ENVIRONMENTAL ring buffer
+    [00:00:17.881,713] <dbg> storage: ram_store: Stored ENVIRONMENTAL item, count: 1, left: 280 bytes
+    [00:00:17.881,774] <dbg> storage: ram_records_count: Counted 1 items in ENVIRONMENTAL ring buffer
+    [00:00:17.881,805] <dbg> storage: check_and_notify_buffer_threshold: Buffer threshold limit reached for ENVIRONMENTAL: count=1, limit=1
+    [00:00:17.882,476] <dbg> storage: state_buffer_pipe_active_run: state_buffer_pipe_active_run
+    [00:00:17.882,507] <dbg> storage: state_running_run: state_running_run
+    [00:00:17.884,246] <dbg> power: fuel_gauge_state_save: Saved fuel gauge state to no-init RAM (236 bytes)
+    [00:00:17.884,277] <dbg> power: sample: State of charge: 99.000000
+    [00:00:17.884,307] <dbg> power: sample: The battery is not charging
+    [00:00:17.884,338] <dbg> power: sample: Battery voltage: 4.179000 V
+    [00:00:17.884,338] <dbg> power: sample: Battery current: -0.000000 A
+    [00:00:17.884,368] <dbg> power: sample: Battery temperature: 24.294037 C
+    [00:00:17.884,887] <dbg> storage: state_buffer_pipe_active_run: state_buffer_pipe_active_run
+    [00:00:17.884,918] <dbg> storage: state_running_run: state_running_run
+    [00:00:17.884,948] <dbg> storage: handle_data_message: Handle data message for BATTERY
+    [00:00:17.884,979] <dbg> storage: ram_store: idx: 0, ring_buf: 0x20006b90, data size: 40 (40), free: 320 bytes
+    [00:00:17.885,009] <dbg> storage: ram_records_count: Counted 1 items in BATTERY ring buffer
+    [00:00:17.885,070] <dbg> storage: ram_store: Stored BATTERY item, count: 1, left: 280 bytes
+    [00:00:17.885,101] <dbg> storage: ram_records_count: Counted 1 items in BATTERY ring buffer
+    [00:00:17.885,131] <dbg> storage: check_and_notify_buffer_threshold: Buffer threshold limit reached for BATTERY: count=1, limit=1
+    [00:00:17.885,772] <dbg> storage: state_buffer_pipe_active_run: state_buffer_pipe_active_run
+    [00:00:17.885,803] <dbg> storage: state_running_run: state_running_run
+    [00:00:18.406,921] <dbg> cloud: cloud_configuration_poll: Shadow delta section not present
+    [00:00:18.407,531] <dbg> cloud: handle_storage_channel_message: Storage batch available, 1 items, session_id: 0x45CA
+    [00:00:18.407,592] <inf> cloud: Processing storage batch: 1 items available
+    [00:00:18.407,684] <dbg> storage: storage_batch_read: Read storage item: type=4, size=488
+    [00:00:18.407,714] <dbg> cloud: cloud_location_handle_message: Cloud location request received
+    [00:00:18.407,745] <dbg> cloud: handle_cloud_location_request: Handling cloud location request
+    [00:00:18.785,949] <inf> nrf_cloud_fota_poll: No pending FOTA job
+    [00:00:18.785,980] <dbg> fota: state_polling_for_update_entry: No FOTA job available
+    [00:00:18.786,346] <dbg> fota: state_waiting_for_poll_request_entry: state_waiting_for_poll_request_entry
+    [00:00:19.675,415] <dbg> cloud: handle_storage_batch_available: No more data available in batch (timeout)
+    [00:00:19.675,415] <dbg> cloud: handle_storage_batch_available: Processed 1/1 storage items
+    [00:00:20.113,220] <dbg> main: connected_waiting_entry: connected_waiting_entry
+    [00:00:20.113,281] <dbg> main: waiting_entry_common: Next sample trigger in 138 seconds
+    [00:00:20.113,311] <dbg> main: waiting_entry_common: Next cloud sync trigger in 597 seconds
+    [00:00:20.114,074] <dbg> storage: state_buffer_pipe_active_run: state_buffer_pipe_active_run
+    [00:00:20.114,105] <dbg> storage: state_buffer_pipe_active_exit: state_buffer_pipe_active_exit
     ```
 
     </details>

@@ -1,12 +1,8 @@
 # Storage module
 
 The storage module forwards or stores data from enabled modules.
-It has the following two modes:
 
-- Passthrough (default): forward data immediately.
-- Buffer: stores data, retrieves through flush or batch.
-
-It is implemented as a small SMF state machine with a parent `RUNNING` state and `PASSTHROUGH/BUFFER` children state.
+It is implemented as a small SMF state machine with a parent `RUNNING` state.
 Data types are discovered automatically through iterable sections.
 See `storage.c`, `storage.h`, and `Kconfig.storage` for details.
 
@@ -18,12 +14,9 @@ The Storage module implements a state machine with the following states and tran
 
 ![Storage module state diagram](../images/storage_module_state_diagram.svg "Storage module state diagram")
 
-- **RUNNING** (parent): Initializes backend, handles admin commands (`STORAGE_CLEAR`, `STORAGE_FLUSH`, `STORAGE_STATS`).
-- **PASSTHROUGH**: Forwards data immediately as `STORAGE_DATA` on `STORAGE_DATA_CHAN`.
-- **BUFFER**: Stores data in backend, serves flush and batch requests. Has sub-states `IDLE` and `PIPE_ACTIVE`.
-
-- Initial state: `PASSTHROUGH` (default) or `BUFFER` (if `CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y`).
-- Runtime switching: Send `STORAGE_MODE_*_REQUEST` on `STORAGE_CHAN`.
+- **RUNNING** (parent): Initializes backend, handles admin commands (`STORAGE_CLEAR`, `STORAGE_FLUSH`, `STORAGE_STATS`, `STORAGE_SET_THRESHOLD`)
+- **STATE_BUFFER_IDLE**: Storing incoming data, waiting for commands. Transitions to `STATE_BUFFER_PIPE_ACTIVE` on `STORAGE_BATCH_REQUEST`.
+- **STATE_BUFFER_PIPE_ACTIVE**: Actively serving batch data through the batch interface. Transitions back to `STATE_BUFFER_IDLE` when batch session ends.
 
 ### Backend
 
@@ -46,15 +39,13 @@ The storage module supports two backends:
 ### Data flow
 
 Data producing modules publish sampled data to their respective zbus channel.
-In passthrough mode, data is forwarded as `STORAGE_DATA`.
-In buffer mode, data is stored and later emitted by flush or streamed over the batch pipe, using the batch interface described below.
+Data is stored and later emitted by flush or streamed over the batch pipe, using the batch interface described below.
 
 ### Memory management
 
 This module allocates RAM from the following places, and understanding these helps you tune it down:
 
 - Built-in batch pipe buffer: `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` bytes are reserved at boot.
-<!-- - Per-type buffers: Each enabled data type declares a `struct ring_buf` with `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` slots of that type's size. -->
 - RAM backend ring buffers: For each enabled data type, a ring buffer is declared with capacity `sizeof(type) * CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE`.
 - Message buffers: `struct storage_msg` carries a `buffer[STORAGE_MAX_DATA_SIZE]`, where `STORAGE_MAX_DATA_SIZE` is the max size of any enabled data type.
   Enabling large types increases this buffer and several temporary buffers.
@@ -65,7 +56,8 @@ This module allocates RAM from the following places, and understanding these hel
 
 - Minimize enabled data types
 
-    - Disable modules that you do not forward or store (for example, `CONFIG_APP_LOCATION=n`), which reduces both slabs and RAM backend ring buffers, and shrinks `STORAGE_MAX_DATA_SIZE`.
+    - Disable modules that you do not forward or store (for example, `CONFIG_APP_LOCATION=n`), which
+      reduces both slabs and RAM backend ring buffers, and shrinks `STORAGE_MAX_DATA_SIZE`.
 
 - Reduce records per type
 
@@ -74,10 +66,9 @@ This module allocates RAM from the following places, and understanding these hel
 
 - Shrink batch pipe buffer
 
-    - Set the `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` Kconfig option to a low value.
-      The batch pipe is allocated unconditionally, but it is only used in the buffer mode.
-      If you never use the batch or buffer mode, pick a very small value (for example, from 64 to 256 bytes).
-      If you do use batch, ensure it can hold at least one item of `sizeof(header) + max_item_size`.
+    - Set the `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` Kconfig option to a low value (for example,
+      from 64 to 256 bytes), but ensure it can hold at least one item of `sizeof(header) +
+      max_item_size` if you use batch mode.
 
 - Reduce thread and queues
 
@@ -88,50 +79,36 @@ This module allocates RAM from the following places, and understanding these hel
 
     - Disable the `CONFIG_APP_STORAGE_SHELL` and `CONFIG_APP_STORAGE_SHELL_STATS` Kconfig option to trim RAM and code footprint.
 
-- Prefer passthrough when persistence is not required
+- Prefer LittleFS backend when buffering many records
 
-    - Keep the module in passthrough mode, so the backend store path is not exercised at runtime.
+    - Use the littleFS backend when large value `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` is needed, since the RAM backend allocates all ring buffers at boot, while the littleFS backend only needs RAM for the currently stored records.
 
 - Ready-made Kconfig fragment
 
-    - Use `overlay-storage-minimal.conf` to apply a minimal, passthrough-only storage configuration with reduced RAM usage.
+    - Use `overlay-storage-minimal.conf` to apply a minimal storage configuration with reduced RAM usage.
 
-#### Passthrough-only minimal RAM example
+#### Minimal RAM example
 
-If your application will only ever operate in passthrough mode (no buffering, no batch), the following `prj.conf` excerpt minimizes RAM usage for the storage module while preserving
-passthrough forwarding:
+If your application will only ever operate with immediate sending (`CONFIG_APP_STORAGE_THRESHOLD=1`) the following `prj.conf` excerpt minimizes RAM usage for the storage module.
 
 ```config
-# Storage enabled, start and stay in passthrough
+# Minimal storage configuration
 CONFIG_APP_STORAGE=y
-CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH=y
-
-# Backend selection
 CONFIG_APP_STORAGE_BACKEND_RAM=y
 
 # Keep only a single slot per type (no buffering planned)
 CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=1
-
-# Make batch pipe tiny since batch will never be used
-CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE=128
-
-# Trim runtime resources
-CONFIG_APP_STORAGE_THREAD_STACK_SIZE=1024
+# Send a message for every sample
+CONFIG_APP_STORAGE_INITIAL_THRESHOLD=1
 
 # Drop development features
 CONFIG_APP_STORAGE_SHELL=n
 CONFIG_APP_STORAGE_SHELL_STATS=n
-
-# Optional: Disable heavy data types you do not forward
-# CONFIG_APP_LOCATION=n
-# CONFIG_APP_ENVIRONMENTAL=n
-# CONFIG_APP_NETWORK=n
 ```
 
 > [!NOTE]
 >
-> * If you later enable buffer or batch, increase the value of the `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` Kconfig option, so that at least one header plus the largest item fits.
-> * For RAM backend the actual RAM consumed by ring buffers scales with which data types are enabled and the value of the `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` Kconfig option.
+> - For RAM backend the actual RAM consumed by ring buffers scales with which data types are enabled and the value of the `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` Kconfig option.
 
 ### Flash management (LittleFS backend)
 
@@ -251,17 +228,11 @@ All message types are defined in the `storage.h` file.
 
 ### Input Messages (Commands)
 
-**Mode Control:**
-
-- **`STORAGE_MODE_PASSTHROUGH_REQUEST`**: Request to switch from `buffer` mode to `passthrough` mode.
-  On success, the module replies with `STORAGE_MODE_PASSTHROUGH`.
-  If the change is declined (for example, batch session active), the module replies with `STORAGE_MODE_CHANGE_REJECTED`.
-
-- **`STORAGE_MODE_BUFFER_REQUEST`**: Request to switch from passthrough mode to buffer mode.
-  On success, the module replies with `STORAGE_MODE_BUFFER`.
-  If the change is unsafe, the module replies with `STORAGE_MODE_CHANGE_REJECTED`.
-
 **Data Operations (handled by parent RUNNING state):**
+
+- **`STORAGE_SET_THRESHOLD`**: Set the threshold for triggering `STORAGE_THRESHOLD_REACHED`.
+  If threshold is 1, every sample triggers a message. Higher values enable buffering until the threshold is reached.
+  If threshold is 0, no threshold events are emitted.
 
 - **`STORAGE_FLUSH`**: Flushes stored data one item at a time as individual `STORAGE_DATA` messages.
   Data is sent in FIFO order per type. Available in both operational modes.
@@ -281,14 +252,10 @@ All message types are defined in the `storage.h` file.
 
 ### Output Messages (Responses)
 
-**Mode confirmation:**
+**Data Events:**
 
-- **`STORAGE_MODE_PASSTHROUGH`**: Mode change to passthrough confirmed.
-
-- **`STORAGE_MODE_BUFFER`**: Mode change to buffer confirmed.
-
-- **`STORAGE_MODE_CHANGE_REJECTED`**: Mode change rejected.
-  See `reject_reason` in `struct storage_msg`.
+- **`STORAGE_THRESHOLD_REACHED`**: Emitted when the number of stored samples for a type reaches the configured threshold.
+  Contains the data type and count that triggered the event.
 
 **Data Messages:**
 
@@ -343,13 +310,26 @@ The following includes the key configuration categories:
 
 ### Memory Configuration
 
-- **`CONFIG_APP_STORAGE_MAX_TYPES`** (default: 4): Maximum number of different data types that can be registered.
+- **`CONFIG_APP_STORAGE_MAX_TYPES`** (default: 3): Maximum number of different data types that can be registered.
   Affects RAM usage.
 
 - **`CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE`** (default: 8): Maximum records stored per data type.
   Total RAM usage = `MAX_TYPES` × `MAX_RECORDS_PER_TYPE` × `RECORD_SIZE`.
 
-- **`CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE`** (default: 256): Size of the internal buffer for batch data access.
+- **`CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE`** (default: 1024): Size of the internal buffer for batch data access.
+
+### Flash Configuration (LittleFS backend)
+
+- **`CONFIG_PM_PARTITION_SIZE_LITTLEFS`**: Size of the flash partition for LittleFS storage.
+  Must be large enough to accommodate the stored data and filesystem metadata. See flash management section above for sizing guidance.
+
+- **`PM_PARTITION_REGION_LITTLEFS_EXTERNAL`** (default: `y`): Use external flash for LittleFS storage (uses internal flash if set to `n`).
+
+### Threshold Configuration
+
+- **`CONFIG_APP_STORAGE_INITIAL_THRESHOLD`** (default: 1): Initial threshold for triggering `STORAGE_THRESHOLD_REACHED` events.
+  A value of 1 means every sample triggers an event, while higher values enable buffering until the threshold is reached.
+  A value of 0 disables threshold events. (Threshold can be changed at runtime through `STORAGE_SET_THRESHOLD` messages).
 
 ### Thread Configuration
 
@@ -359,12 +339,6 @@ The following includes the key configuration categories:
 
 - **`CONFIG_APP_STORAGE_MSG_PROCESSING_TIMEOUT_SECONDS`** (default: 5): Maximum time for processing a single message.
 
-### Operational Modes
-
-- **`CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH`** (default): Automatically transition from `RUNNING` to `PASSTHROUGH` state on startup for immediate data forwarding.
-
-- **`CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER`**: Automatically transition from `RUNNING` to `BUFFER` state on startup for data storage.
-
 ### Development Features
 
 - **`CONFIG_APP_STORAGE_SHELL`** (default: `y`): Enable shell commands for storage interaction.
@@ -373,9 +347,8 @@ The following includes the key configuration categories:
 
 ### Message Handling
 
-- **RUNNING state**: Handles `STORAGE_CLEAR`, `STORAGE_FLUSH`, `STORAGE_STATS` regardless of mode.
-- **PASSTHROUGH**: Forwards data immediately, rejects batch requests with `STORAGE_BATCH_ERROR`.
-- **BUFFER**: Stores data, serves batch through pipe, transitions to `PIPE_ACTIVE` for batch sessions.
+- **RUNNING state**: Handles `STORAGE_CLEAR`, `STORAGE_FLUSH`, `STORAGE_STATS`, and `STORAGE_SET_THRESHOLD` messages.
+- **BUFFER_IDLE**: Handles `STORAGE_BATCH_REQUEST` to transition to `BUFFER_PIPE_ACTIVE`.
 - **BUFFER_PIPE_ACTIVE**: Populates pipe with `[header + data]` items, handles session management.
 
 ## API Documentation
@@ -388,8 +361,7 @@ The storage channel is the primary zbus channel for controlling the storage modu
 
 **Input Message Types:**
 
-- `STORAGE_MODE_PASSTHROUGH_REQUEST` - Request passthrough mode
-- `STORAGE_MODE_BUFFER_REQUEST` - Request buffer mode
+- `STORAGE_SET_THRESHOLD` - Set threshold for `STORAGE_THRESHOLD_REACHED` events
 - `STORAGE_FLUSH` - Flush stored data as individual messages
 - `STORAGE_BATCH_REQUEST` - Request batch access to stored data
 - `STORAGE_CLEAR` - Clear all stored data
@@ -397,9 +369,7 @@ The storage channel is the primary zbus channel for controlling the storage modu
 
 **Output Message Types:**
 
-- `STORAGE_MODE_PASSTHROUGH` - Mode change confirmed
-- `STORAGE_MODE_BUFFER` - Mode change confirmed
-- `STORAGE_MODE_CHANGE_REJECTED` - Mode change rejected
+- `STORAGE_THRESHOLD_REACHED` - Threshold reached for a data type
 - `STORAGE_BATCH_AVAILABLE` - Batch ready with data
 - `STORAGE_BATCH_EMPTY` - No data available
 - `STORAGE_BATCH_BUSY` - Another session active
@@ -458,20 +428,6 @@ It reads stored data through the batch interface, handling header parsing and da
 > When done consuming all items, send `STORAGE_BATCH_CLOSE` with the same `session_id`.
 
 ## Usage
-
-### Mode Switching
-
-```c
-struct storage_msg msg = { .type = STORAGE_MODE_PASSTHROUGH_REQUEST };
-
-err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
-
-struct storage_msg msg = { .type = STORAGE_MODE_BUFFER_REQUEST };
-
-err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
-```
-
-Responses: `STORAGE_MODE_PASSTHROUGH`/`STORAGE_MODE_BUFFER` (success) or `STORAGE_MODE_CHANGE_REJECTED` (for example, batch active).
 
 ### Data Retrieval
 
@@ -539,8 +495,6 @@ err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
 When `CONFIG_APP_STORAGE_SHELL` is enabled:
 
 ```bash
-att_storage mode passthrough   # Switch to passthrough
-att_storage mode buffer        # Switch to buffer
 att_storage flush              # Flush stored data
 att_storage clear              # Clear all data
 att_storage stats              # Show statistics (if enabled)

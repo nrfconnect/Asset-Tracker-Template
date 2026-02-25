@@ -31,6 +31,15 @@ The Main module uses the following zbus channels, both for subscribing to incomi
 | **POWER_CHAN**         | Request battery status and initiate low-power mode.                                        |
 | **TIMER_CHAN**         | Handle timer events for sampling.                                                          |
 
+## LED status indicators
+
+The Main module uses LED colors to indicate different device states:
+
+- **Red** (Blinking, 10 repetitions): Device is idle and disconnected from cloud.
+- **Blue** (Blinking, 10 repetitions): Device is actively sampling data.
+- **Green** (Blinking, 10 repetitions): Device is sending data to cloud.
+- **Purple** (Blinking): FOTA download in progress.
+
 ## Configuration
 
 The Main module can be configured using the following Kconfig options:
@@ -43,7 +52,6 @@ The Main module can be configured using the following Kconfig options:
 
 * **CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS:**
   Interval for cloud synchronization activities, including polling and data sending. Triggers cloud shadow and FOTA status polling.
-  In passthrough mode, this option also controls how often data is sampled and sent to cloud.
 
 * **CONFIG_APP_MSG_PROCESSING_TIMEOUT_SECONDS:**
   Maximum time allowed for processing a single message.

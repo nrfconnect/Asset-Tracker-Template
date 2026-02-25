@@ -73,3 +73,27 @@ The LED module uses the following configuration options:
     - `pwm-led0`: Red channel
     - `pwm-led1`: Green channel
     - `pwm-led2`: Blue channel
+
+## Example: Setting LED colors
+
+You can control the LED colors through the LED module using zbus messages. The following is an example of how to set different LED patterns:
+
+```c
+/* Set yellow blinking pattern */
+struct led_msg led_msg = {
+    .type = LED_RGB_SET,
+    .red = 255,
+    .green = 255,
+    .blue = 0,
+    .duration_on_msec = 250,
+    .duration_off_msec = 2000,
+    .repetitions = 10,
+};
+
+/* Publish the message to LED_CHAN */
+int err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+if (err) {
+    LOG_ERR("zbus_chan_pub, error: %d", err);
+    return;
+}
+```
