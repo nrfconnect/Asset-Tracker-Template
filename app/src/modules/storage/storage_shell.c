@@ -9,6 +9,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
 
+#include "app_common.h"
 #include "storage.h"
 #include "storage_data_types.h" /* For STORAGE_CHAN */
 
@@ -22,7 +23,7 @@ static int cmd_storage_flush(const struct shell *sh, size_t argc, char **argv)
 	struct storage_msg msg = { .type = STORAGE_FLUSH };
 	int err;
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		shell_error(sh, "Failed to publish STORAGE_FLUSH: %d", err);
 		return err;
@@ -40,7 +41,7 @@ static int cmd_storage_batch_request(const struct shell *sh, size_t argc, char *
 	struct storage_msg msg = { .type = STORAGE_BATCH_REQUEST, .session_id = 0x12345678 };
 	int err;
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		shell_error(sh, "Failed to publish STORAGE_BATCH_REQUEST: %d", err);
 		return err;
@@ -59,7 +60,7 @@ static int cmd_storage_clear(const struct shell *sh, size_t argc, char **argv)
 	struct storage_msg msg = { .type = STORAGE_CLEAR };
 	int err;
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		shell_error(sh, "Failed to publish STORAGE_CLEAR: %d", err);
 		return err;
@@ -77,7 +78,7 @@ static int cmd_storage_batch_close(const struct shell *sh, size_t argc, char **a
 	struct storage_msg msg = { .type = STORAGE_BATCH_CLOSE, .session_id = 0x12345678 };
 	int err;
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		shell_error(sh, "Failed to publish STORAGE_BATCH_CLOSE: %d", err);
 		return err;
@@ -96,7 +97,7 @@ static int cmd_storage_stats(const struct shell *sh, size_t argc, char **argv)
 	struct storage_msg msg = { .type = STORAGE_STATS };
 	int err;
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		shell_error(sh, "Failed to publish STORAGE_STATS: %d", err);
 		return err;

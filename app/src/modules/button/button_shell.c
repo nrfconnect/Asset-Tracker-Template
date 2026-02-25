@@ -9,6 +9,7 @@
 #include <zephyr/shell/shell.h>
 #include <zephyr/logging/log.h>
 
+#include "app_common.h"
 #include "button.h"
 
 LOG_MODULE_DECLARE(button, CONFIG_APP_BUTTON_LOG_LEVEL);
@@ -36,7 +37,7 @@ static int cmd_button_short(const struct shell *sh, size_t argc, char **argv)
 
 	msg.button_number = button_number;
 
-	err = zbus_chan_pub(&BUTTON_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&BUTTON_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
 		return 1;
@@ -68,7 +69,7 @@ static int cmd_button_long(const struct shell *sh, size_t argc, char **argv)
 
 	msg.button_number = button_number;
 
-	err = zbus_chan_pub(&BUTTON_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&BUTTON_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
 		return 1;

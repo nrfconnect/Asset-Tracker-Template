@@ -23,6 +23,7 @@
 #include <memfault/panics/coredump.h>
 #endif /* CONFIG_MEMFAULT */
 
+#include "app_common.h"
 #include "cloud.h"
 #include "cloud_internal.h"
 #include "cloud_configuration.h"
@@ -280,7 +281,7 @@ static void connect_to_cloud(const struct cloud_state_object *state_object)
 		msg = CLOUD_CONNECTION_FAILED;
 	}
 
-	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -314,7 +315,7 @@ static void backoff_timer_work_fn(struct k_work *work)
 
 	ARG_UNUSED(work);
 
-	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -326,7 +327,7 @@ static void send_request_failed(void)
 	int err;
 	enum priv_cloud_msg cloud_msg = CLOUD_SEND_REQUEST_FAILED;
 
-	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -497,7 +498,7 @@ static int request_storage_batch_data(uint32_t session_id)
 
 	LOG_DBG("Requesting storage batch data, session_id: 0x%X", msg.session_id);
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to request storage batch data, error: %d", err);
 
@@ -569,7 +570,7 @@ static void handle_storage_batch_available(const struct storage_msg *msg)
 	}
 
 	/* Close the batch session */
-	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to close storage batch session, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -586,7 +587,7 @@ static void handle_storage_batch_empty(const struct storage_msg *msg)
 
 	LOG_DBG("Storage batch is empty, closing session");
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to close empty storage batch session, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -603,7 +604,7 @@ static void handle_storage_batch_error(const struct storage_msg *msg)
 
 	LOG_ERR("Storage batch error occurred, closing session");
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to close error storage batch session, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -787,7 +788,7 @@ static void state_disconnected_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -896,7 +897,7 @@ static void state_connecting_provisioning_entry(void *obj)
 	/* Cancel any ongoing location search during provisioning to allow writing credentials,
 	 * which requires offline LTE functional mode.
 	 */
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -1030,7 +1031,7 @@ static void state_connected_exit(void *obj)
 		SEND_FATAL_ERROR();
 	}
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -1050,7 +1051,7 @@ static void state_connected_ready_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -1133,7 +1134,7 @@ static void state_connected_paused_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();

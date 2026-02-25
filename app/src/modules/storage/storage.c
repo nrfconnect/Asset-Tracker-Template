@@ -31,9 +31,6 @@
 /* Register log module */
 LOG_MODULE_REGISTER(storage, CONFIG_APP_STORAGE_LOG_LEVEL);
 
-/* Timeout for pipe operations */
-#define STORAGE_PIPE_TIMEOUT_MS			50
-
 /* Timeout for batch session activity (to prevent stuck sessions) */
 #define STORAGE_SESSION_TIMEOUT_SECONDS		CONFIG_APP_STORAGE_SESSION_TIMEOUT_SECONDS
 
@@ -231,7 +228,7 @@ static void session_timeout_work_fn(struct k_work *work)
 
 	LOG_WRN("Session timeout: closing session 0x%X", state->current_session.session_id);
 
-	err = zbus_chan_pub(&PRIV_STORAGE_CHAN, &msg, K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
+	err = zbus_chan_pub(&PRIV_STORAGE_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish session timeout message: %d", err);
 		/* If we fail to publish, we can't do much else from work queue context */
@@ -326,8 +323,7 @@ static void check_and_notify_buffer_threshold(const struct storage_state *state_
 			.data_len = (uint16_t)count,
 		};
 
-		err = zbus_chan_pub(&STORAGE_CHAN, &threshold_msg,
-				    K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
+		err = zbus_chan_pub(&STORAGE_CHAN, &threshold_msg, PUB_TIMEOUT);
 		if (err) {
 			LOG_ERR("Failed to publish buffer threshold message, error: %d", err);
 			SEND_FATAL_ERROR();
@@ -394,8 +390,7 @@ static void flush_stored_data(void)
 
 			msg.data_len = (uint16_t)ret;
 
-			ret = zbus_chan_pub(&STORAGE_DATA_CHAN, &msg,
-					    K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
+			ret = zbus_chan_pub(&STORAGE_DATA_CHAN, &msg, PUB_TIMEOUT);
 			if (ret) {
 				LOG_ERR("Failed to publish %s data, error: %d", type->name, ret);
 				SEND_FATAL_ERROR();
@@ -459,7 +454,7 @@ static void send_batch_response(enum storage_msg_type response_type,
 	response_msg.data_len = (uint16_t)MIN(data_len, (size_t)UINT16_MAX);
 	response_msg.more_data = more_data;
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &response_msg, K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
+	err = zbus_chan_pub(&STORAGE_CHAN, &response_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to send batch response type %d: %d", response_type, err);
 		SEND_FATAL_ERROR();
@@ -568,8 +563,7 @@ static int populate_pipe(struct storage_state *state_object)
 			__ASSERT_NO_MSG(ret == (int)header->data_size);
 
 			/* Write combined buffer atomically to pipe */
-			ret = pipe_write_all(&storage_pipe, item_buffer, total_size,
-					     K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
+			ret = pipe_write_all(&storage_pipe, item_buffer, total_size, PUB_TIMEOUT);
 			if (ret < 0) {
 				/* This should never happen since we checked space above */
 				LOG_ERR("Unexpected pipe write failure after space check: %d", ret);
@@ -937,7 +931,7 @@ static enum smf_state_result state_buffer_pipe_active_run(void *o)
 				close_msg.session_id);
 
 			/* Notify other modules (like cloud) that the batch is closed */
-			zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
+			zbus_chan_pub(&STORAGE_CHAN, &close_msg, PUB_TIMEOUT);
 
 			/* Force transition to idle state */
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
@@ -988,8 +982,7 @@ static void storage_thread(void)
 		return;
 	}
 
-	err = zbus_chan_add_obs(&STORAGE_CHAN, &storage_subscriber,
-				K_MSEC(STORAGE_PIPE_TIMEOUT_MS));
+	err = zbus_chan_add_obs(&STORAGE_CHAN, &storage_subscriber, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to add observer to STORAGE_CHAN, error: %d", err);
 		SEND_FATAL_ERROR();

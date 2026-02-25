@@ -119,7 +119,7 @@ static void on_modem_init(int ret, void *ctx)
 		return;
 	}
 
-	err = zbus_chan_pub(&PRIV_POWER_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&PRIV_POWER_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -552,7 +552,7 @@ static void sample(int64_t *ref_time)
 		return;
 	}
 
-	err = zbus_chan_pub(&POWER_CHAN, &msg, K_NO_WAIT);
+	err = zbus_chan_pub(&POWER_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();

@@ -28,7 +28,7 @@ static void nrf_provisioning_callback(const struct nrf_provisioning_callback_dat
 
 		nw_msg = NETWORK_DISCONNECT;
 
-		err = zbus_chan_pub(&NETWORK_CHAN, &nw_msg, K_SECONDS(1));
+		err = zbus_chan_pub(&NETWORK_CHAN, &nw_msg, PUB_TIMEOUT);
 		if (err) {
 			LOG_ERR("zbus_chan_pub, error: %d", err);
 			SEND_FATAL_ERROR();
@@ -40,7 +40,7 @@ static void nrf_provisioning_callback(const struct nrf_provisioning_callback_dat
 
 		nw_msg = NETWORK_CONNECT;
 
-		err = zbus_chan_pub(&NETWORK_CHAN, &nw_msg, K_SECONDS(1));
+		err = zbus_chan_pub(&NETWORK_CHAN, &nw_msg, PUB_TIMEOUT);
 		if (err) {
 			LOG_ERR("zbus_chan_pub, error: %d", err);
 			SEND_FATAL_ERROR();
@@ -122,7 +122,7 @@ static void nrf_provisioning_callback(const struct nrf_provisioning_callback_dat
 		return;
 	}
 
-	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();

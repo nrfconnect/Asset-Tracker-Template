@@ -50,6 +50,9 @@ extern "C" {
 #define MAX_MSG_SIZE_FROM_LIST(_CHAN_LIST) \
         sizeof(union {_CHAN_LIST(UNION_MEMBER)})
 
+/* Timeout for zbus channel publishing */
+#define PUB_TIMEOUT K_MSEC(100)
+
 #ifdef __cplusplus
 }
 #endif

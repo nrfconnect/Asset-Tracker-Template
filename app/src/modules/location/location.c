@@ -99,7 +99,7 @@ static void on_modem_init(int ret, void *ctx)
 		return;
 	}
 
-	err = zbus_chan_pub(&PRIV_LOCATION_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&PRIV_LOCATION_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -195,7 +195,7 @@ static void cloud_request_send(const struct location_data_cloud *cloud_request)
 		return;
 	}
 
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -213,7 +213,7 @@ static void agnss_request_send(const struct nrf_modem_gnss_agnss_data_frame *agn
 		.agnss_request = *agnss_request
 	};
 
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -238,7 +238,7 @@ static void gnss_location_send(const struct location_data *location_data)
 		return;
 	}
 
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -253,7 +253,7 @@ static void message_send(enum location_msg_type msg_type)
 		.type = msg_type
 	};
 
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();

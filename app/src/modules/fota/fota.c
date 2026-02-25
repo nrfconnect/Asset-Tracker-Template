@@ -225,7 +225,7 @@ static void fota_reboot(enum nrf_cloud_fota_reboot_status status)
 
 	LOG_DBG("Reboot requested with FOTA status %d", status);
 
-	err = zbus_chan_pub(&FOTA_CHAN, &evt, K_SECONDS(1));
+	err = zbus_chan_pub(&FOTA_CHAN, &evt, PUB_TIMEOUT);
 	if (err) {
 		LOG_DBG("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -283,7 +283,7 @@ static void fota_status(enum nrf_cloud_fota_status status, const char *const sta
 		return;
 	}
 
-	err = zbus_chan_pub(&FOTA_CHAN, &evt, K_SECONDS(1));
+	err = zbus_chan_pub(&FOTA_CHAN, &evt, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -418,7 +418,7 @@ static void state_polling_for_update_entry(void *obj)
 
 		enum fota_msg_type evt = FOTA_NO_AVAILABLE_UPDATE;
 
-		err = zbus_chan_pub(&FOTA_CHAN, &evt, K_SECONDS(1));
+		err = zbus_chan_pub(&FOTA_CHAN, &evt, PUB_TIMEOUT);
 		if (err) {
 			LOG_ERR("zbus_chan_pub, error: %d", err);
 			SEND_FATAL_ERROR();

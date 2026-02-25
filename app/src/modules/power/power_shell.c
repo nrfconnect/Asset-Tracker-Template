@@ -10,6 +10,7 @@
 #include <zephyr/logging/log.h>
 #include <errno.h>
 
+#include "app_common.h"
 #include "power.h"
 
 LOG_MODULE_DECLARE(power, CONFIG_APP_POWER_LOG_LEVEL);
@@ -46,7 +47,7 @@ static int cmd_power_sample(const struct shell *shell, size_t argc, char **argv)
 		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST,
 	};
 
-	err = zbus_chan_pub(&POWER_CHAN, &msg, K_NO_WAIT);
+	err = zbus_chan_pub(&POWER_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		shell_print(shell, "Failed to send request: %d", err);
 		return err;

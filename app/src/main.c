@@ -38,9 +38,6 @@
 /* Register log module */
 LOG_MODULE_REGISTER(main, 4);
 
-/* Configuration constants to replace magic numbers */
-#define ZBUS_PUBLISH_TIMEOUT_MS		100
-
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
 
@@ -371,7 +368,7 @@ static void poll_shadow_send(enum cloud_msg_type type)
 		return;
 	}
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish cloud shadow poll trigger, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -385,7 +382,7 @@ static void poll_triggers_send(void)
 	int err;
 	enum fota_msg_type fota_msg = FOTA_POLL_REQUEST;
 
-	err = zbus_chan_pub(&FOTA_CHAN, &fota_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&FOTA_CHAN, &fota_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish FOTA poll trigger, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -433,7 +430,7 @@ static void sampling_begin_common(struct main_state *state_object,
 		.repetitions = 10,
 	};
 
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish LED pattern message, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -444,8 +441,7 @@ static void sampling_begin_common(struct main_state *state_object,
 
 	state_object->sample_start_time = k_uptime_seconds();
 
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg,
-			    K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish location search trigger, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -510,7 +506,7 @@ static void sensor_triggers_send(void)
 		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST,
 	};
 
-	err = zbus_chan_pub(&POWER_CHAN, &power_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&POWER_CHAN, &power_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish power battery sample request, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -524,8 +520,7 @@ static void sensor_triggers_send(void)
 		.type = ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST,
 	};
 
-	err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &environmental_msg,
-			    K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &environmental_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish environmental sensor sample request, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -545,7 +540,7 @@ static void storage_send_data(struct main_state *state_object)
 	state_object->storage_session_id = k_uptime_get_32();
 	storage_msg.session_id = state_object->storage_session_id;
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish storage batch request (session: %u), error: %d",
 			storage_msg.session_id, err);
@@ -576,7 +571,7 @@ static void cloud_send_now(struct main_state *state_object)
 		.repetitions = 10,
 	};
 
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish LED pattern message, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -594,7 +589,7 @@ static void timer_send_data_work_fn(struct k_work *work)
 
 	ARG_UNUSED(work);
 
-	err = zbus_chan_pub(&TIMER_CHAN, &msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&TIMER_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish cloud timer expired message, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -610,7 +605,7 @@ static void timer_sample_data_work_fn(struct k_work *work)
 
 	ARG_UNUSED(work);
 
-	err = zbus_chan_pub(&TIMER_CHAN, &msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&TIMER_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish sample data timer expired message, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -688,7 +683,7 @@ static void update_shadow_reported_section(const struct config_params *config,
 
 	cloud_msg.payload.buffer_data_len = encoded_len;
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish config report, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -737,7 +732,7 @@ static void config_apply(struct main_state *state_object, const struct config_pa
 		LOG_DBG("Updating storage threshold to %d samples", config->storage_threshold);
 		state_object->storage_threshold = config->storage_threshold;
 
-		err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+		err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, PUB_TIMEOUT);
 		if (err) {
 			LOG_ERR("Failed to publish storage threshold update, error: %d", err);
 			SEND_FATAL_ERROR();
@@ -753,7 +748,7 @@ static void config_apply(struct main_state *state_object, const struct config_pa
 		/* Reset sample start time so re-entering waiting state uses full new interval */
 		state_object->sample_start_time = k_uptime_seconds();
 
-		err = zbus_chan_pub(&TIMER_CHAN, &timer_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+		err = zbus_chan_pub(&TIMER_CHAN, &timer_msg, PUB_TIMEOUT);
 		if (err) {
 			LOG_ERR("Failed to publish timer config changed event, error: %d", err);
 			SEND_FATAL_ERROR();
@@ -770,7 +765,7 @@ static void command_execute(uint32_t command_type)
 		struct cloud_msg cloud_msg = {
 			.type = CLOUD_PROVISIONING_REQUEST,
 		};
-		int err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+		int err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, PUB_TIMEOUT);
 
 		if (err) {
 			LOG_ERR("zbus_chan_pub, error: %d", err);
@@ -944,7 +939,7 @@ static void connected_entry(void *o)
 		int err;
 		enum fota_msg_type fota_msg = FOTA_POLL_REQUEST;
 
-		err = zbus_chan_pub(&FOTA_CHAN, &fota_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+		err = zbus_chan_pub(&FOTA_CHAN, &fota_msg, PUB_TIMEOUT);
 		if (err) {
 			LOG_ERR("Failed to trigger FOTA polling on cloud connection: %d", err);
 		}
@@ -1067,7 +1062,7 @@ static void disconnected_waiting_entry(void *o)
 		.repetitions = 10,
 	};
 
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish LED pattern, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -1327,7 +1322,7 @@ static void fota_entry(void *o)
 		.repetitions = -1,
 	};
 
-	err = zbus_chan_pub(&LED_CHAN, &led_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&LED_CHAN, &led_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish LED FOTA download pattern, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -1448,7 +1443,7 @@ static void fota_waiting_for_network_disconnect_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish network disconnect request, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -1487,7 +1482,7 @@ static void fota_waiting_for_network_disconnect_to_apply_image_entry(void *o)
 		.type = NETWORK_DISCONNECT
 	};
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish network disconnect request, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -1528,7 +1523,7 @@ static void fota_applying_image_entry(void *o)
 	int err;
 	enum fota_msg_type msg = FOTA_IMAGE_APPLY;
 
-	err = zbus_chan_pub(&FOTA_CHAN, &msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&FOTA_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish FOTA image apply request, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -1566,7 +1561,7 @@ static void fota_rebooting_entry(void *o)
 	LOG_DBG("%s", __func__);
 
 	/* Tell storage module to clear any stored data */
-	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+	err = zbus_chan_pub(&STORAGE_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish storage clear message, error: %d", err);
 		SEND_FATAL_ERROR();

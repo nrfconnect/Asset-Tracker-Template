@@ -132,7 +132,7 @@ static void sample_sensors(const struct device *const bme680)
 	LOG_DBG("Temperature: %.2f C, Pressure: %.2f Pa, Humidity: %.2f %%",
 		msg.temperature, msg.pressure, msg.humidity);
 
-	err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &msg, K_NO_WAIT);
+	err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();

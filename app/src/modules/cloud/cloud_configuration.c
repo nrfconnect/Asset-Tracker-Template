@@ -11,6 +11,7 @@
 #include <net/nrf_cloud_coap.h>
 #include <nrf_cloud_coap_transport.h>
 
+#include "app_common.h"
 #include "cloud.h"
 #include "cloud_configuration.h"
 #include "cloud_internal.h"
@@ -56,7 +57,7 @@ int cloud_configuration_poll(enum shadow_poll_type type)
 		return -ENODATA;
 	}
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&CLOUD_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		return err;
