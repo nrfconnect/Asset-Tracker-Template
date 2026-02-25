@@ -36,6 +36,7 @@ jobs:
         - name: Delete test assets
           run: |
             rm -f asset-tracker-template-*-buffer-flash-* asset-tracker-template-*-buffer-ram-*
+            rm -f pmr-*-buffer-flash* pmr-*-buffer-ram*
 
         - name: Deploy release to github
           uses: softprops/action-gh-release@v2
