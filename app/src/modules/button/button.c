@@ -49,7 +49,7 @@ static void long_press_work_handler(struct k_work *work)
 		msg.button_number = 1;
 		msg.type = BUTTON_PRESS_LONG;
 
-		err = zbus_chan_pub(&BUTTON_CHAN, &msg, K_SECONDS(1));
+		err = zbus_chan_pub(&BUTTON_CHAN, &msg, PUB_TIMEOUT);
 		if (err) {
 			LOG_ERR("zbus_chan_pub long press, error: %d", err);
 			SEND_FATAL_ERROR();
@@ -68,7 +68,7 @@ static void publish_short_press(uint8_t button_number)
 
 	LOG_DBG("Button %d short press", button_number);
 
-	err = zbus_chan_pub(&BUTTON_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&BUTTON_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub short press, error: %d", err);
 		SEND_FATAL_ERROR();

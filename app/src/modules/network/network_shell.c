@@ -9,6 +9,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
 
+#include "app_common.h"
 #include "network.h"
 
 LOG_MODULE_DECLARE(network, CONFIG_APP_NETWORK_LOG_LEVEL);
@@ -23,7 +24,7 @@ static int cmd_connect(const struct shell *sh, size_t argc, char **argv)
 		.type = NETWORK_CONNECT,
 	};
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
 		return 1;
@@ -42,7 +43,7 @@ static int cmd_disconnect(const struct shell *sh, size_t argc, char **argv)
 		.type = NETWORK_DISCONNECT,
 	};
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
 		return 1;

@@ -133,7 +133,7 @@ static void network_status_notify(enum network_msg_type status)
 		.type = status,
 	};
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -145,7 +145,7 @@ static void network_msg_send(const struct network_msg *msg)
 {
 	int err;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, msg, K_SECONDS(1));
+	err = zbus_chan_pub(&NETWORK_CHAN, msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();

@@ -11,6 +11,7 @@
 #include <net/nrf_cloud_defs.h>
 #include <date_time.h>
 
+#include "app_common.h"
 #include "cloud.h"
 
 LOG_MODULE_DECLARE(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
@@ -54,7 +55,7 @@ static int cmd_publish(const struct shell *sh, size_t argc, char **argv)
 	(void)shell_print(sh, "Sending on payload channel: %s (%d bytes)",
 			  msg.payload.buffer, msg.payload.buffer_data_len);
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&CLOUD_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
 		return 1;
@@ -73,7 +74,7 @@ static int cmd_poll_shadow(const struct shell *sh, size_t argc, char **argv)
 		.type = CLOUD_SHADOW_GET_DELTA,
 	};
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&CLOUD_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
 		return 1;
@@ -92,7 +93,7 @@ static int cmd_provisioning(const struct shell *sh, size_t argc, char **argv)
 		.type = CLOUD_PROVISIONING_REQUEST,
 	};
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&CLOUD_CHAN, &msg, PUB_TIMEOUT);
 	if (err) {
 		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
 		return 1;
