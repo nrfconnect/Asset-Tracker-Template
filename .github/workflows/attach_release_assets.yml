@@ -35,7 +35,7 @@ jobs:
 
         - name: Delete test assets
           run: |
-            rm -f att-thingy91x-*buffer-flash.hex att-thingy91x-*buffer-ram.hex
+            rm -f asset-tracker-template-*-buffer-flash-* asset-tracker-template-*-buffer-ram-*
 
         - name: Deploy release to github
           uses: softprops/action-gh-release@v2
