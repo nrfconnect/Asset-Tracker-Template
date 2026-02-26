@@ -28,7 +28,6 @@ def get_initialized_str(datatype):
 def get_storing_str(datatype):
     return f"Stored {datatype} item, count: 1"
 
-@pytest.mark.slow
 def test_buffer_ram(dut_cloud, hex_file_buffer_ram):
 
     # Change cloud config to enable buffer mode and set short sampling interval

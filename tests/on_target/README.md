@@ -46,10 +46,10 @@ export NRFCLOUD_API_KEY=<your_nrfcloud_api_key>
 
 Run desired tests, example commands
 ```shell
-pytest -s -v -m "not slow" tests
-pytest -s -v -m "not slow" tests/test_functional/test_network_reconnect.py
-pytest -s -v -m "not slow" tests/test_functional/test_sampling.py
-pytest -s -v -m "slow" tests/test_functional/test_fota.py::test_full_mfw_fota
+pytest -s -v tests
+pytest -s -v tests/test_functional/test_network_reconnect.py
+pytest -s -v tests/test_functional/test_sampling.py
+pytest -s -v tests/test_functional/test_fota.py::test_full_mfw_fota
 ```
 
 ## Test docker image version control

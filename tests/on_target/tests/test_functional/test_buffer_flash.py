@@ -31,7 +31,6 @@ def get_header_str(datatype):
 def get_storage_full_str(datatype):
     return "Storage full for type " + datatype + ", overwriting oldest data"
 
-@pytest.mark.slow
 def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
 
     # Change cloud config to enable buffer mode and set short sampling interval
