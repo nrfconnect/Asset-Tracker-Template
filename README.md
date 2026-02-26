@@ -28,23 +28,29 @@ Modules communicate through [zbus](https://docs.zephyrproject.org/latest/service
 
 ## Quick Start
 
-For detailed setup instructions using the [nRF Connect for VS Code extension](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) and advanced configuration options, see the [Getting Started Guide](docs/common/getting_started.md).
+The fastest way to get started is to download and run the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop). It provides a guided setup and provisioning process that gets your device connected to [nRF Cloud](https://nrfcloud.com) in minutes.
 
-For pre-built binaries, refer to the latest tag and release artifacts documentaion; [release artifacts](docs/common/release.md).
+Alternatively, you can download pre-built firmware binaries from the latest release and flash them directly to your device. See the [release artifacts](docs/common/release.md) documentation for details.
 
-> [!TIP]
-> Download and run the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in the [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop) for a guided setup and provisioning process.
->
-> You can also refer to [Exercise 1](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals/lessons/lesson-1-cellular-fundamentals/topic/lesson-1-exercise-1/) in [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals) for more details.
+## Setting up the development environment
 
-### Prerequisites
+To build the firmware from source, you need the nRF Connect SDK development environment ([setup guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation.html)). There are two options for setting up and building the project. For a detailed walkthrough, see the [Getting Started Guide](docs/common/getting_started.md).
 
-* nRF Connect SDK development environment ([setup guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation.html))
+### Option 1: nRF Connect for VS Code (Recommended)
 
-### Build and Run
+Use the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) extension for an integrated development experience:
+
+1. Open VS Code and go to the **nRF Connect** extension.
+2. Select **Create New Application** → **Browse nRF Connect SDK add-on Index**.
+3. Search for **Asset Tracker Template** and create the project.
+4. Use the **Actions** panel in the extension to build and flash the application.
+
+For more details, see the [Getting Started Guide](docs/common/getting_started.md).
+
+### Option 2: Command line
 
 <details>
-<summary>1. <strong>Initialize workspace:</strong></summary>
+<summary><strong>1. Initialize workspace</strong></summary>
 
 1. Install nRF Util. Follow the <a href="https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html">nRF Util documentation</a> for installation instructions.
 
@@ -52,19 +58,19 @@ For pre-built binaries, refer to the latest tag and release artifacts documentai
 
    ```bash
    nrfutil install sdk-manager
-	 ```
+   ```
 
 3. Install toolchain:
 
    ```bash
    nrfutil sdk-manager install v3.1.0
-	 ```
+   ```
 
 4. Launch toolchain:
 
    ```bash
    nrfutil sdk-manager toolchain launch --ncs-version v3.1.0 --terminal
-	 ```
+   ```
 
    This will launch a new terminal window with the specified toolchain activated, use this terminal in the coming steps.
 
@@ -78,7 +84,7 @@ For pre-built binaries, refer to the latest tag and release artifacts documentai
 </details>
 
 <details>
-<summary>2. <strong>Build and flash:</strong></summary>
+<summary><strong>2. Build and flash</strong></summary>
 
 **For Thingy:91 X:**
 ```shell
@@ -95,19 +101,24 @@ west flash --erase
 ```
 </details>
 
-<details>
-<summary>3. <strong>Provision device:</strong></summary>
+### Provision device to nRF Cloud
 
-1. Get the device attestation token over terminal shell:
+After building and flashing (using either option above), you need to provision the device to connect to [nRF Cloud](https://nrfcloud.com).
+
+<details>
+<summary><strong>Provisioning steps</strong></summary>
+
+1. Get the device attestation token. Open a serial terminal connected to the device (115200 baud) and run the following AT command in the device shell:
 
    ```bash
    at at%attesttoken
    ```
 
-   *Note: Token is printed automatically on first boot of unprovisioned devices.*
+   *Note: The token is also printed automatically to the serial log on first boot of unprovisioned devices.*
 
-2. In nRF Cloud: **Security Services** → **Claimed Devices** → **Claim Device**
-3. Paste token, set rule to "nRF Cloud Onboarding", click **Claim Device**
+2. Log in to the [nRF Cloud](https://nrfcloud.com) portal.
+3. Navigate to **Security Services** → **Claimed Devices** → **Claim Device**.
+4. Paste the attestation token, set rule to "nRF Cloud Onboarding", and click **Claim Device**.
 
     <details>
     <summary><strong>If "nRF Cloud Onboarding" rule is not showing:</strong></summary>
@@ -117,7 +128,10 @@ west flash --erase
     <img src="docs/images/claim.png" alt="Claim Device" width="300" />
     </details>
 
-4. Wait for the device to provision credentials and connect to nRF Cloud over CoAP. Once connected, the device should be available under **Device Management** → **Devices**.
+5. After claiming, wait for the device to provision credentials and connect to nRF Cloud over CoAP. Once connected, the device will be available under **Device Management** → **Devices**.
+
+> [!NOTE]
+> The device polls the provisioning service at its own interval. This means it may take a few minutes for the device to pick up the claim and complete provisioning. If you want a quicker response, press **Button 1** on the device or reset it to trigger an immediate provisioning poll.
 
 See [Provisioning to nRF Cloud](docs/common/provisioning.md) for more details.
 </details>
