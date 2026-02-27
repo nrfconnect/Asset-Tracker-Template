@@ -94,6 +94,7 @@ FAKE_VALUE_FUNC(int, nrf_cloud_client_id_get, char *, size_t);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_init);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_connect, const char * const);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_disconnect);
+FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_configured_info_update, const char * const);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_network_info_update);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_device_status_update);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_bytes_send, uint8_t *, size_t, bool);
@@ -1033,6 +1034,25 @@ void test_shadow_get_delta_should_return_response(void)
 
 	/* Verify that nrf_cloud_coap_shadow_get was called */
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_get_fake.call_count);
+}
+
+void test_shadow_update_reported_device_should_call_update(void)
+{
+	struct cloud_msg update_msg = {
+		.type = CLOUD_SHADOW_UPDATE_REPORTED_DEVICE
+	};
+
+	/* Connect to cloud */
+	test_should_transition_from_disconnected_to_connected_ready();
+
+	/* Send shadow update reported device request */
+	publish_and_assert(&cloud_chan, &update_msg);
+
+	/* Give cloud module time to process the request */
+	wait_for_processing();
+
+	/* Verify that nrf_cloud_coap_shadow_configured_info_update was called */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_configured_info_update_fake.call_count);
 }
 
 void test_shadow_update_reported_should_call_patch(void)

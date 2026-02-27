@@ -334,6 +334,22 @@ static void send_request_failed(void)
 	}
 }
 
+static void send_provisioned_msg(void)
+{
+	int err;
+	struct cloud_msg cloud_msg = {
+		.type = CLOUD_PROVISIONED,
+	};
+
+	err = zbus_chan_pub(&cloud_chan, &cloud_msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+}
+
 /**
  * @brief Attempt to set the provided uptime (in milliseconds) to unix time.
  *
@@ -681,6 +697,13 @@ static void handle_cloud_channel_message(struct cloud_state_object const *state_
 			send_request_failed();
 		}
 		break;
+	case CLOUD_SHADOW_UPDATE_REPORTED_DEVICE:
+		err = nrf_cloud_coap_shadow_configured_info_update(APP_VERSION_STRING);
+		if (err) {
+			LOG_ERR("nrf_cloud_coap_shadow_configured_info_update, error: %d", err);
+			send_request_failed();
+		}
+		break;
 	case CLOUD_PROVISIONING_REQUEST:
 		LOG_DBG("Provisioning request received");
 		smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONING]);
@@ -924,6 +947,7 @@ static enum smf_state_result state_connecting_provisioning_run(void *obj)
 		enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
 
 		if (msg == CLOUD_PROVISIONING_FINISHED) {
+			send_provisioned_msg();
 			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONED]);
 
 			return SMF_EVENT_HANDLED;

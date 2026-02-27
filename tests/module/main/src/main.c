@@ -342,6 +342,7 @@ void test_init_first_connection(void)
 	expect_cloud_event(CLOUD_CONNECTED);
 
 	/* First connection should trigger fota poll and get shadow desired */
+	expect_cloud_event(CLOUD_SHADOW_UPDATE_REPORTED_DEVICE);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DESIRED);
 }
