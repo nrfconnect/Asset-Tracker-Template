@@ -83,20 +83,14 @@ enum network_msg_type {
 	 */
 	NETWORK_SYSTEM_MODE_RESPONSE,
 
-	/* The NTN modem requires a fresh location fix. The application should mediate a
+	/* The modem requires a fresh location fix for NTN. The application should respond with a
 	 * GNSS-only location request via the location module and respond with
 	 * NETWORK_LOCATION_DATA on success or NETWORK_LOCATION_FAILED on failure.
 	 */
-	NETWORK_NTN_LOCATION_NEEDED,
+	NETWORK_LOCATION_NEEDED,
 
 	/* The modem has completed an NTN satellite search without finding a suitable cell. */
-	NTN_SEARCH_NO_SUITABLE_CELL,
-
-	/* The modem has completed a terrestrial network search without finding a suitable cell.
-	 * This is distinct from NETWORK_SEARCH_DONE: it originates from a TN probe during an
-	 * NTN wait cycle, not from a standalone TN search.
-	 */
-	TN_SEARCH_NO_SUITABLE_CELL,
+	NETWORK_NTN_NO_SUITABLE_CELL,
 
 	/* Input message types */
 
@@ -152,9 +146,6 @@ enum network_msg_type {
 	 * module could not obtain a GNSS fix.
 	 */
 	NETWORK_LOCATION_FAILED,
-
-	/* Request to sample current network quality metrics. */
-	NETWORK_QUALITY_SAMPLE,
 
 	/* New TLE (Two-Line Element) orbital data available for LEO satellite pass
 	 * prediction. Payload in the .tle field.

@@ -43,6 +43,14 @@ enum priv_network_ntn_msg {
 	NTN_LOCATION_NEEDED,
 };
 
+enum network_connection_type {
+	NETWORK_CONN_TYPE_DISCONNECTED = 0x0,
+
+	NETWORK_CONN_TYPE_TN,
+	NETWORK_CONN_TYPE_NTN_LEO,
+	NETWORK_CONN_TYPE_NTN_GEO,
+};
+
 ZBUS_CHAN_DEFINE(PRIV_NETWORK_NTN_CHAN,
 		 enum priv_network_ntn_msg,
 		 NULL,
@@ -95,6 +103,11 @@ struct network_state_object {
 	/* Buffer for last ZBus message */
 	uint8_t msg_buf[MAX_MSG_SIZE];
 
+	/* Current network connection type, if any. Set to NETWORK_CONN_TYPE_DISCONNECTED if no
+	 * connection is active.
+	 */
+	enum network_connection_type connection_type;
+
 	/* Cached location for NTN. Should always contain the last known location. */
 	struct {
 		double latitude;
@@ -127,6 +140,7 @@ static enum smf_state_result state_disconnected_idle_run(void *obj);
 
 static void state_disconnected_searching_tn_entry(void *obj);
 static enum smf_state_result state_disconnected_searching_tn_run(void *obj);
+static void state_disconnected_searching_tn_exit(void *obj);
 
 static void state_disconnected_waiting_for_leo_entry(void *obj);
 static enum smf_state_result state_disconnected_waiting_for_leo_run(void *obj);
@@ -138,8 +152,10 @@ static enum smf_state_result state_disconnected_ntn_search_run(void *obj);
 static enum smf_state_result state_ntn_search_prepare_run(void *obj);
 
 static void state_ntn_search_leo_entry(void *obj);
+static enum smf_state_result state_ntn_search_leo_run(void *obj);
 
 static void state_ntn_search_geo_entry(void *obj);
+static enum smf_state_result state_ntn_search_geo_run(void *obj);
 
 static void state_connected_entry(void *obj);
 static enum smf_state_result state_connected_run(void *obj);
@@ -164,7 +180,8 @@ static const struct smf_state states[] = {
 				 NULL),
 	[STATE_DISCONNECTED_SEARCHING_TN] =
 		SMF_CREATE_STATE(state_disconnected_searching_tn_entry,
-				 state_disconnected_searching_tn_run, NULL,
+				 state_disconnected_searching_tn_run,
+				 state_disconnected_searching_tn_exit,
 				 &states[STATE_DISCONNECTED],
 				 NULL),
 	[STATE_DISCONNECTED_WAITING_FOR_LEO] =
@@ -183,11 +200,13 @@ static const struct smf_state states[] = {
 				 &states[STATE_DISCONNECTED_NTN_SEARCH],
 				 NULL),
 	[STATE_NTN_SEARCH_LEO] =
-		SMF_CREATE_STATE(state_ntn_search_leo_entry, NULL, NULL,
+		SMF_CREATE_STATE(state_ntn_search_leo_entry,
+				 state_ntn_search_leo_run, NULL,
 				 &states[STATE_DISCONNECTED_NTN_SEARCH],
 				 NULL),
 	[STATE_NTN_SEARCH_GEO] =
-		SMF_CREATE_STATE(state_ntn_search_geo_entry, NULL, NULL,
+		SMF_CREATE_STATE(state_ntn_search_geo_entry,
+				 state_ntn_search_geo_run, NULL,
 				 &states[STATE_DISCONNECTED_NTN_SEARCH],
 				 NULL),
 	[STATE_CONNECTED] =
@@ -202,7 +221,6 @@ static const struct smf_state states[] = {
 				 NULL),
 };
 
-/* Helper: publish a simple network_msg_type on NETWORK_CHAN */
 static void network_status_notify(enum network_msg_type status)
 {
 	int err;
@@ -267,9 +285,13 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NOT_REGISTERED) {
 			LOG_WRN("Not registered, check rejection cause");
 			network_status_notify(NETWORK_ATTACH_REJECTED);
+		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NO_SUITABLE_CELL) {
+			LOG_WRN("No suitable cell found");
+			network_status_notify(NETWORK_NTN_NO_SUITABLE_CELL);
 		}
 
 		break;
+
 	case LTE_LC_EVT_PDN:
 		switch (evt->pdn.type) {
 		case LTE_LC_EVT_PDN_ACTIVATED:
@@ -277,26 +299,31 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			network_status_notify(NETWORK_CONNECTED);
 
 			break;
+
 		case LTE_LC_EVT_PDN_DEACTIVATED:
 			LOG_DBG("PDN connection deactivated");
 			network_status_notify(NETWORK_DISCONNECTED);
 
 			break;
+
 		case LTE_LC_EVT_PDN_NETWORK_DETACH:
 			LOG_DBG("PDN connection network detached");
 			network_status_notify(NETWORK_DISCONNECTED);
 
 			break;
+
 		case LTE_LC_EVT_PDN_SUSPENDED:
 			LOG_DBG("PDN connection suspended");
 			network_status_notify(NETWORK_DISCONNECTED);
 
 			break;
+
 		case LTE_LC_EVT_PDN_RESUMED:
 			LOG_DBG("PDN connection resumed");
 			network_status_notify(NETWORK_CONNECTED);
 
 			break;
+
 		default:
 			break;
 		}
@@ -315,6 +342,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		}
 
 		break;
+
 	case LTE_LC_EVT_PSM_UPDATE: {
 		struct network_msg msg = {
 			.type = NETWORK_PSM_PARAMS,
@@ -328,6 +356,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 
 		break;
 	}
+
 	case LTE_LC_EVT_EDRX_UPDATE: {
 		struct network_msg msg = {
 			.type = NETWORK_EDRX_PARAMS,
@@ -341,6 +370,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 
 		break;
 	}
+
 	default:
 		break;
 	}
@@ -377,14 +407,113 @@ static int network_disconnect(void)
 {
 	int err;
 
-	err = lte_lc_offline();
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
 	if (err) {
-		LOG_ERR("lte_lc_offline, error: %d", err);
+		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
 
 		return err;
 	}
 
 	return 0;
+}
+
+static int network_connect(void)
+{
+	int err;
+
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
+	if (err) {
+		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
+
+		return err;
+	}
+
+	return 0;
+}
+
+/* Timer helpers */
+
+static void leo_satellite_search_timer_start(struct network_state_object *state_object)
+{
+	int64_t now_ms;
+	int64_t delay_ms;
+	int err;
+
+	err = date_time_now(&now_ms);
+	if (err) {
+		LOG_ERR("date_time_now, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+
+	delay_ms = state_object->next_pass_unix_time_ms - now_ms;
+	if (delay_ms < 0) {
+		delay_ms = 0;
+	}
+
+	state_object->waiting_for_leo = true;
+
+	k_work_schedule(&leo_satellite_search_timer_work, K_MSEC(delay_ms));
+}
+
+static void leo_satellite_search_timer_cancel(struct network_state_object *state_object)
+{
+	k_work_cancel_delayable(&leo_satellite_search_timer_work);
+}
+
+static void periodic_tn_search_timer_start(void)
+{
+	k_work_schedule(&periodic_tn_search_timer_work,
+			K_SECONDS(CONFIG_APP_NETWORK_NTN_PERIODIC_TN_SEARCH_INTERVAL_SECONDS));
+}
+
+static void periodic_tn_search_timer_cancel(void)
+{
+	k_work_cancel_delayable(&periodic_tn_search_timer_work);
+}
+
+/* NTN action helpers */
+
+static void store_tle_data(struct network_state_object *state_object,
+			   const struct network_msg *msg)
+{
+	int64_t now_ms;
+	int err;
+
+	err = date_time_now(&now_ms);
+	if (err) {
+		LOG_WRN("date_time_now failed, TLE timestamp not updated");
+	} else {
+		state_object->tle_unix_time_ms = now_ms;
+	}
+
+	/* TODO: Store TLE data in flash */
+
+	LOG_DBG("store_tle_data placeholder");
+}
+
+static void estimate_next_pass(struct network_state_object *state_object)
+{
+	/* TODO: Use TLE data + SGP4 to predict next LEO satellite pass.
+	 * Should update state_object->next_pass_unix_time_ms and post
+	 * either NTN_LEO_SATELLITE_PASS_UPCOMING or NTN_WAIT_FOR_SATELLITE_PASS
+	 * on the private channel.
+	 */
+	ARG_UNUSED(state_object);
+
+	LOG_DBG("estimate_next_pass placeholder");
+}
+
+static int start_geo_search(void)
+{
+	return network_connect();
+}
+
+static void start_geo_or_maybe_reset(void)
+{
+	/* TODO: Check CONFIG_APP_NETWORK_NTN_TLE_STALE_HANDLING and act accordingly. */
+	priv_ntn_msg_send(NTN_SEARCH_GEO_START);
 }
 
 /* State handlers */
@@ -416,13 +545,11 @@ static void state_running_entry(void *obj)
 
 	k_work_init_delayable(&leo_satellite_search_timer_work, leo_satellite_search_timer_work_fn);
 	k_work_init_delayable(&periodic_tn_search_timer_work, periodic_tn_search_timer_work_fn);
-
-	LOG_DBG("Network NTN module started");
 }
 
 static enum smf_state_result state_running_run(void *obj)
 {
-	struct network_state_object const *state_object = obj;
+	struct network_state_object *state_object = obj;
 
 	if (state_object->chan == &NETWORK_CHAN) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
@@ -440,6 +567,7 @@ static enum smf_state_result state_running_run(void *obj)
 			request_system_mode();
 
 			return SMF_EVENT_HANDLED;
+
 		default:
 			break;
 		}
@@ -457,36 +585,168 @@ static void state_disconnected_entry(void *obj)
 
 static enum smf_state_result state_disconnected_run(void *obj)
 {
-	/* TODO: implement in state-handlers task */
+	int err;
+	struct network_state_object *state_object = obj;
 
-	ARG_UNUSED(obj);
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		switch (msg.type) {
+		case NETWORK_CONNECTED:
+			state_object->connection_type = NETWORK_CONN_TYPE_TN;
+
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
+
+			return SMF_EVENT_HANDLED;
+
+		case NETWORK_SEARCH_STOP:
+			__fallthrough;
+
+		case NETWORK_DISCONNECT:
+			err = network_disconnect();
+			if (err) {
+				LOG_ERR("network_disconnect, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_IDLE]);
+
+			return SMF_EVENT_HANDLED;
+
+		default:
+			break;
+		}
+	} else if (state_object->chan == &PRIV_NETWORK_NTN_CHAN) {
+		enum priv_network_ntn_msg priv_msg =
+			*(const enum priv_network_ntn_msg *)state_object->msg_buf;
+
+		if (priv_msg == LEO_SATELLITE_PASS_UPCOMING) {
+			err = network_disconnect();
+			if (err) {
+				LOG_ERR("network_disconnect, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_DISCONNECTED_NTN_SEARCH]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
 
 	return SMF_EVENT_PROPAGATE;
 }
 
 static enum smf_state_result state_disconnected_idle_run(void *obj)
 {
-	/* TODO: implement in state-handlers task */
+	int err;
+	struct network_state_object *state_object = obj;
 
-	ARG_UNUSED(obj);
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		switch (msg.type) {
+		case NETWORK_DISCONNECT:
+			return SMF_EVENT_HANDLED;
+
+		case NETWORK_CONNECT_TN:
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_DISCONNECTED_SEARCHING_TN]);
+
+			return SMF_EVENT_HANDLED;
+
+		case NETWORK_CONNECT_NTN:
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_DISCONNECTED_NTN_SEARCH]);
+
+			return SMF_EVENT_HANDLED;
+
+		case NETWORK_SYSTEM_MODE_SET_LTEM:
+			err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM_GPS,
+						     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+			if (err) {
+				LOG_ERR("lte_lc_system_mode_set, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			return SMF_EVENT_HANDLED;
+
+		case NETWORK_SYSTEM_MODE_SET_NBIOT:
+			err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NBIOT_GPS,
+						     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+			if (err) {
+				LOG_ERR("lte_lc_system_mode_set, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			return SMF_EVENT_HANDLED;
+
+		case NETWORK_SYSTEM_MODE_SET_LTEM_NBIOT:
+			err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM_NBIOT_GPS,
+						     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+			if (err) {
+				LOG_ERR("lte_lc_system_mode_set, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			return SMF_EVENT_HANDLED;
+
+		default:
+			break;
+		}
+	}
 
 	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_disconnected_searching_tn_entry(void *obj)
 {
+	int err;
+
 	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
+
+	/* Set the system mode to only use LTE-M access technology */
+	err = lte_lc_system_mode_set(CONFIG_LTE_NETWORK_MODE_LTE_M_NBIOT_GPS,
+				     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+	if (err) {
+		LOG_ERR("lte_lc_system_mode_set, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+
+	/* Start searching for a suitable terrestrial network */
+	err = lte_lc_connect_async(lte_lc_evt_handler);
+	if (err) {
+		LOG_ERR("lte_lc_connect_async, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
 }
 
 static enum smf_state_result state_disconnected_searching_tn_run(void *obj)
 {
-	/* TODO: implement in state-handlers task */
+	struct network_state_object *state_object = obj;
 
-	ARG_UNUSED(obj);
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		switch (msg.type) {
+		case NETWORK_CONNECT_TN:
+			return SMF_EVENT_HANDLED;
+
+		default:
+			break;
+		}
+	}
 
 	return SMF_EVENT_PROPAGATE;
+}
+
+static void state_disconnected_searching_tn_exit(void *obj)
+{
+	ARG_UNUSED(obj);
+
+	LOG_DBG("%s", __func__);
 }
 
 static void state_disconnected_waiting_for_leo_entry(void *obj)
@@ -494,13 +754,25 @@ static void state_disconnected_waiting_for_leo_entry(void *obj)
 	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
+
+	periodic_tn_search_timer_start();
 }
 
 static enum smf_state_result state_disconnected_waiting_for_leo_run(void *obj)
 {
-	/* TODO: implement in state-handlers task */
+	struct network_state_object *state_object = obj;
 
-	ARG_UNUSED(obj);
+	if (state_object->chan == &PRIV_NETWORK_NTN_CHAN) {
+		enum priv_network_ntn_msg priv_msg =
+			*(const enum priv_network_ntn_msg *)state_object->msg_buf;
+
+		if (priv_msg == PERIODIC_TN_SEARCH) {
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_DISCONNECTED_SEARCHING_TN]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
 
 	return SMF_EVENT_PROPAGATE;
 }
@@ -510,59 +782,254 @@ static void state_disconnected_waiting_for_leo_exit(void *obj)
 	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
+
+	periodic_tn_search_timer_cancel();
 }
 
 static void state_disconnected_ntn_search_entry(void *obj)
 {
+	int err;
+
 	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
+
+	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+	if (err) {
+		LOG_ERR("lte_lc_system_mode_set, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
 }
 
 static enum smf_state_result state_disconnected_ntn_search_run(void *obj)
 {
-	/* TODO: implement in state-handlers task */
+	struct network_state_object *state_object = obj;
 
-	ARG_UNUSED(obj);
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		switch (msg.type) {
+		case NETWORK_NTN_NO_SUITABLE_CELL:
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_IDLE]);
+
+			return SMF_EVENT_HANDLED;
+
+		default:
+			break;
+		}
+	}
+
+	if (state_object->chan == &PRIV_NETWORK_NTN_CHAN) {
+		enum priv_network_ntn_msg priv_msg =
+			*(const enum priv_network_ntn_msg *)state_object->msg_buf;
+
+		switch (priv_msg) {
+		case NTN_SEARCH_GEO_START:
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_NTN_SEARCH_GEO]);
+
+			return SMF_EVENT_HANDLED;
+
+		default:
+			break;
+		}
+	}
 
 	return SMF_EVENT_PROPAGATE;
 }
 
 static enum smf_state_result state_ntn_search_prepare_run(void *obj)
 {
-	/* TODO: implement in state-handlers task */
+	int err;
+	struct network_state_object *state_object = obj;
 
-	ARG_UNUSED(obj);
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		switch (msg.type) {
+		case NETWORK_LOCATION_DATA:
+			err = ntn_location_set(msg.location.latitude,
+					       msg.location.longitude,
+					       msg.location.altitude, 0);
+			if (err) {
+				LOG_ERR("ntn_location_set, error: %d", err);
+			}
+
+			state_object->location.latitude = msg.location.latitude;
+			state_object->location.longitude = msg.location.longitude;
+			state_object->location.altitude = msg.location.altitude;
+			state_object->location.valid = true;
+			state_object->location.unix_time_ms = msg.timestamp;
+
+			estimate_next_pass(state_object);
+
+			return SMF_EVENT_HANDLED;
+
+		case NETWORK_LOCATION_FAILED:
+			start_geo_or_maybe_reset();
+
+			return SMF_EVENT_HANDLED;
+
+		default:
+			break;
+		}
+	}
+
+	if (state_object->chan == &PRIV_NETWORK_NTN_CHAN) {
+		enum priv_network_ntn_msg priv_msg =
+			*(const enum priv_network_ntn_msg *)state_object->msg_buf;
+
+		switch (priv_msg) {
+		case NTN_LOCATION_NEEDED:
+			network_status_notify(NETWORK_LOCATION_NEEDED);
+
+			return SMF_EVENT_HANDLED;
+
+		case NTN_LEO_SATELLITE_PASS_UPCOMING:
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_NTN_SEARCH_LEO]);
+
+			return SMF_EVENT_HANDLED;
+
+		case NTN_WAIT_FOR_SATELLITE_PASS:
+			leo_satellite_search_timer_start(state_object);
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_DISCONNECTED_WAITING_FOR_LEO]);
+
+			return SMF_EVENT_HANDLED;
+
+		default:
+			break;
+		}
+	}
 
 	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_ntn_search_leo_entry(void *obj)
 {
-	ARG_UNUSED(obj);
+	int err;
+	struct network_state_object *state_object = obj;
 
 	LOG_DBG("%s", __func__);
+
+	state_object->waiting_for_leo = false;
+
+#if defined(CONFIG_APP_NETWORK_NTN_BANDLOCK)
+	err = nrf_modem_at_printf("AT%%XBANDLOCK=2,,\"%s\"", CONFIG_APP_NETWORK_NTN_BANDLOCK_BANDS);
+	if (err) {
+		LOG_ERR("Failed to set NTN band lock, error: %d", err);
+
+		return;
+	}
+#endif
+
+#if defined(CONFIG_APP_NETWORK_NTN_CHANNEL_SELECT)
+	err = nrf_modem_at_printf("AT%%CHSELECT=1,14,%i",
+				  CONFIG_APP_NETWORK_NTN_CHANNEL_SELECT_CHANNEL);
+	if (err) {
+		LOG_ERR("Failed to set NTN channel, error: %d", err);
+
+		return;
+	}
+#endif
+
+	err = network_connect();
+	if (err) {
+		LOG_ERR("network_connect, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+
+	/* TODO: run_sgp4() to refine satellite position before search */
+}
+
+static enum smf_state_result state_ntn_search_leo_run(void *obj)
+{
+	struct network_state_object *state_object = obj;
+
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		if (msg.type == NETWORK_CONNECTED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
+
+			state_object->connection_type = NETWORK_CONN_TYPE_NTN_LEO;
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_ntn_search_geo_entry(void *obj)
 {
+	int err;
+
 	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
+
+	err = start_geo_search();
+	if (err) {
+		LOG_ERR("start_geo_search, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+static enum smf_state_result state_ntn_search_geo_run(void *obj)
+{
+	struct network_state_object *state_object = obj;
+
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		if (msg.type == NETWORK_CONNECTED) {
+			state_object->connection_type = NETWORK_CONN_TYPE_NTN_GEO;
+
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	return SMF_EVENT_PROPAGATE;
 }
 
 static void state_connected_entry(void *obj)
 {
-	ARG_UNUSED(obj);
+	struct network_state_object *state_object = obj;
 
 	LOG_DBG("%s", __func__);
+
+	leo_satellite_search_timer_cancel(state_object);
+
+	state_object->waiting_for_leo = false;
 }
 
 static enum smf_state_result state_connected_run(void *obj)
 {
-	/* TODO: implement in state-handlers task */
+	struct network_state_object *state_object = obj;
 
-	ARG_UNUSED(obj);
+	if (state_object->chan == &NETWORK_CHAN) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		switch (msg.type) {
+		case NETWORK_DISCONNECT:
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_DISCONNECTING]);
+
+			return SMF_EVENT_HANDLED;
+
+		case NETWORK_TLE_DATA:
+			store_tle_data(state_object, &msg);
+
+			return SMF_EVENT_HANDLED;
+
+		default:
+			break;
+		}
+	}
 
 	return SMF_EVENT_PROPAGATE;
 }
@@ -586,7 +1053,7 @@ static void state_disconnecting_entry(void *obj)
 
 static enum smf_state_result state_disconnecting_run(void *obj)
 {
-	struct network_state_object const *state_object = obj;
+	struct network_state_object *state_object = obj;
 
 	if (state_object->chan == &NETWORK_CHAN) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);

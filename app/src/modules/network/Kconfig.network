@@ -55,6 +55,13 @@ config APP_NETWORK_NTN
 
 if APP_NETWORK_NTN
 
+config APP_NETWORK_NTN_PERIODIC_TN_SEARCH_INTERVAL_SECONDS
+	int "Periodic terrestrial network search interval in seconds"
+	default 3600
+	help
+	  Interval in seconds between terrestrial network
+	  searches while waiting for a LEO satellite pass.
+
 config APP_NETWORK_NTN_TLE_STALE_HOURS
 	int "TLE freshness threshold in hours"
 	default 168
@@ -96,6 +103,31 @@ config APP_NETWORK_NTN_TLE_STALE_NO_NTN
 	  terrestrial networks instead of using NTN.
 
 endchoice # APP_NETWORK_NTN_TLE_STALE_HANDLING
+
+config APP_NETWORK_NTN_BANDLOCK
+	bool "Enable NTN band lock"
+	help
+	  Use abnd lock for NTN searches. This will llimit the number of bands that the modem can
+	  use for NTN searches and may reduce the search time.
+	  Note that constellations may support different bands in different regions.
+
+config APP_NETWORK_NTN_BANDLOCK_BANDS
+	string "NTN band lock bands"
+	help
+	  NTN band lock bands in string format as a comma-separated list of band numbers.
+	  The band lock applies only to NTN searches.
+
+config APP_NETWORK_NTN_CHANNEL_SELECT
+	bool "Enable NTN channel select"
+	help
+	  Use channel select for NTN searches. This will limit the number of channels that the modem can
+	  use for NTN searches and may reduce the search time.
+	  Note that constellations may support different channels in different regions.
+
+config APP_NETWORK_NTN_CHANNEL_SELECT_CHANNEL
+	int "NTN channel select channel"
+	help
+	  NTN channel select channel.
 
 endif # APP_NETWORK_NTN
 
