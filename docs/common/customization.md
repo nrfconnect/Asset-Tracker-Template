@@ -1,9 +1,9 @@
 # Customization
 
-This guide explains modifying the specific aspects of the template.
+This guide explains how to modify certain aspects of the template.
 
 - [Add a new zbus event](#add-a-new-zbus-event)
-- [Add environmental sensor](#add-environmental-sensor)
+- [Add a new environmental sensor](#add-a-new-environmental-sensor)
 - [Add your own module](#add-your-own-module)
 - [Enable support for MQTT](#enable-support-for-mqtt)
 
@@ -12,8 +12,8 @@ This guide explains modifying the specific aspects of the template.
 This section demonstrates how to add a new event to a module and utilize it in another module within the system. In this example, you can add events to the power module to notify the system when VBUS is connected or disconnected on the Thingy:91 X.
 The main module subscribes to these events and requests specific LED patterns from the LED module in response.
 
-When VBUS is connected, the LED will toggle white for 10 seconds.
-When VBUS is disconnected, the LED will toggle purple for 10 seconds.
+When VBUS is connected, the LED will toggle white rapidly.
+When VBUS is disconnected, the LED will toggle purple more slowly.
 
 ### Instructions
 
@@ -73,7 +73,7 @@ To add a new zbus event, complete the following procedure:
 1. Make sure the channel is included in the subscriber module (for example, `main.c`). Add the channel to the channel list:
 
     ```c
-    # define CHANNEL_LIST(X)      \
+    #define CHANNEL_LIST(X)      \
     X(CLOUD_CHAN,  struct cloud_msg)  \
     X(BUTTON_CHAN,  struct button_msg)  \
     X(FOTA_CHAN,  enum fota_msg_type)  \
@@ -91,12 +91,12 @@ To add a new zbus event, complete the following procedure:
         struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
 
         if (msg.type == POWER_VBUS_CONNECTED) {
-            LOG_DBG("VBUS connected, request blue LED blinking rapidly for 10 seconds");
+            LOG_DBG("VBUS connected, request white LED blinking rapidly for 10 seconds");
 
             struct led_msg led_msg = {
                 .type = LED_RGB_SET,
-                .red = 0,
-                .green = 0,
+                .red = 255,
+                .green = 255,
                 .blue = 255,
                 .duration_on_msec = 300,
                 .duration_off_msec = 300,
@@ -112,7 +112,7 @@ To add a new zbus event, complete the following procedure:
 
             return SMF_EVENT_HANDLED;
         } else if (msg.type == POWER_VBUS_DISCONNECTED) {
-            LOG_DBG("VBUS disconnected, request purple LED blinking slow for 10 seconds");
+            LOG_DBG("VBUS disconnected, request purple LED blinking slowly for 10 seconds");
 
             struct led_msg led_msg = {
                 .type = LED_RGB_SET,
@@ -138,32 +138,29 @@ To add a new zbus event, complete the following procedure:
 
 1. Test the implementation by connecting and disconnecting VBUS to verify the LED patterns change as expected.
 
-## Add environmental sensor
+## Add a new environmental sensor
 
-This section demonstrates how to add support for the BMM350 magnetometer.
-The environmental module will be updated to sample data from the sensor through the Zephyr Sensor API.
-The data is forwarded to nRF Cloud along with all the other data types sampled by the system.
+This section demonstrates how to add support for a new sensor to the environmental module.
+The environmental module will be updated to sample data from the sensor through the [Zephyr Sensor API](https://docs.zephyrproject.org/latest/hardware/peripherals/sensor/index.html).
+The data is forwarded to nRF Cloud along with the other environmental data.
+
+In this example, support for the Bosch BMM350 magnetometer sensor is added.
+A similar procedure can be used for any sensor that supports the Zephyr Sensor API.
+
+Thingy:91 X is used as the example board, as it is a supported board in the template with defined board files in the nRF Connect SDK.
 
 ### Instructions
 
-To add a new sensor to the environmental module, ensure that:
+Before adding a new sensor to the environmental module, ensure that the sensor's driver is available in the Zephyr RTOS and that the driver uses the Zephyr Sensor API. Zephyr includes such a driver for the Bosch BMM350 magnetometer.
 
-1. The sensor is properly configured in the Device Tree (DTS).
-1. The corresponding driver is available in the Zephyr RTOS.
-1. The sensor is compatible with the Zephyr Sensor API.
+1. Add the sensor to the devicetree and enable it. This will perform the following:
 
-In this example, support for the Bosch BMM350 Magnetometer sensor is added using the [Zephyr Sensor API](https://docs.zephyrproject.org/latest/hardware/peripherals/sensor/index.html). The BMM350 driver in Zephyr integrates with the Sensor API.
-This applies in general for all sensors that support the Zephyr Sensor API.
+    - Instantiate a devicetree node for the sensor.
+    - Initialize the driver and the sensor during boot.
 
-Thingy:91 X is used as an example, as it is a supported board in the template with defined board files in the nRF Connect SDK.
+    In the case of the Bosch BMM350 magnetometer, the device is already added to the devicetree. The node can be found in the nRF Connect SDK in the `nrf/boards/nordic/thingy91x/thingy91x_common.dtsi` file.
 
-1. Enable the sensor in the devicetree by setting its status to `okay`. This will perform the following:
-
-    - Instantiate the devicetree node for the sensor.
-    - Initialize the driver during boot.
-    - Make the sensor ready for use.
-
-    Add the following to the board-specific devicetree overlay file (`thingy91x_nrf9151_ns.overlay`):
+    To enable the sensor, add the following to the Asset Tracker Template's board-specific devicetree overlay file `app/boards/thingy91x_nrf9151_ns.overlay`:
 
     ```c
     &magnetometer {
@@ -171,136 +168,131 @@ Thingy:91 X is used as an example, as it is a supported board in the template wi
     };
     ```
 
-1. Update the environmental module's state structure to include the magnetometer device reference and data storage:
+1. Update the environmental module's state structure in the `app/src/modules/environmental/environmental.c` file to include the magnetometer device reference and data fields:
 
     ```c
     struct environmental_state_object {
         /* ... existing fields ... */
 
-       /* BMM350 sensor device reference */
+        /* BMM350 sensor device reference */
         const struct device *const bmm350;
 
-        /* Magnetic field measurements (X, Y, Z) in gauss */
+        /* Magnetic field measurements (X, Y, Z) in Gauss */
         double magnetic_field[3];
-
-        /* ... existing fields ... */
     };
     ```
 
-1. Initialize the device reference using the devicetree label:
+1. In the module's thread function `env_module_thread()` in the same file, find the initialization of the `environmental_state` structure and add the reference to the device using the devicetree label:
 
     ```c
     struct environmental_state_object environmental_state = {
         .bme680 = DEVICE_DT_GET(DT_NODELABEL(bme680)),
-        .bmm350 = DEVICE_DT_GET(DT_NODELABEL(magnetometer)),
+        .bmm350 = DEVICE_DT_GET(DT_NODELABEL(magnetometer)), /* Add this line */
     };
     ```
 
-1. Update the sensor sampling function signature to include the magnetometer device:
+1. In the same file, update the sensor sampling function signature to include the magnetometer device:
 
      ```c
      static void sample_sensors(const struct device *const bme680, const struct device *const bmm350)
     ```
 
-    And update the function call:
+1.  In the `state_running_run()` function in the same file, update the function call to `sample_sensors()`:
 
     ```c
      sample_sensors(state_object->bme680, state_object->bmm350);
     ```
 
-1. Implement sensor data acquisition using the Zephyr Sensor API:
+1. Update the `sample_sensors()` function in the same file to sample from the new sensor and add the data to the outgoing message (we will extend the message struct in the next step):
 
     ```c
-    err = sensor_sample_fetch(bmm350);
-    if (err) {
-        LOG_ERR("Failed to fetch magnetometer sample: %d", err);
-        SEND_FATAL_ERROR();
-        return;
+    static void sample_sensors(const struct device *const bme680, const struct device *const bmm350)
+    {
+        /* ... existing code, calls to sensor_sample_fetch() and sensor_channel_get() ... */
+
+        struct sensor_value magnetic_field[3] = { {0}, {0}, {0} };
+
+        err = sensor_sample_fetch(bmm350);
+        if (err) {
+            LOG_ERR("Failed to fetch magnetometer sample: %d", err);
+            SEND_FATAL_ERROR();
+            return;
+        }
+
+        err = sensor_channel_get(bmm350, SENSOR_CHAN_MAGN_XYZ, magnetic_field);
+        if (err) {
+            LOG_ERR("Failed to get magnetometer data: %d", err);
+            SEND_FATAL_ERROR();
+            return;
+        }
+
+        LOG_DBG("Magnetic field: X: %.2f G, Y: %.2f G, Z: %.2f G",
+        sensor_value_to_double(&magnetic_field[0]),
+        sensor_value_to_double(&magnetic_field[1]),
+        sensor_value_to_double(&magnetic_field[2]));
+
+        struct environmental_msg msg = {
+            /* ... existing fields ... */
+            .magnetic_field[0] = sensor_value_to_double(&magnetic_field[0]),
+            .magnetic_field[1] = sensor_value_to_double(&magnetic_field[1]),
+            .magnetic_field[2] = sensor_value_to_double(&magnetic_field[2]),
+        };
+
+        /* ... existing code to timestamp and publish the message ... */
     }
-
-    err = sensor_channel_get(bmm350, SENSOR_CHAN_MAGN_XYZ, &magnetic_field);
-     if (err) {
-        LOG_ERR("Failed to get magnetometer data: %d", err);
-        SEND_FATAL_ERROR();
-        return;
-    }
-
-    LOG_DBG("Magnetic field: X: %.2f µT, Y: %.2f µT, Z: %.2f µT",
-            sensor_value_to_double(&magnetic_field[0]),
-            sensor_value_to_double(&magnetic_field[1]),
-            sensor_value_to_double(&magnetic_field[2]));
-
-    struct environmental_msg msg = {
-        .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE,
-        .temperature = sensor_value_to_double(&temp),
-        .pressure = sensor_value_to_double(&press),
-        .humidity = sensor_value_to_double(&humidity),
-        .magnetic_field[0] = sensor_value_to_double(&magnetic_field[0]),
-        .magnetic_field[1] = sensor_value_to_double(&magnetic_field[1]),
-        .magnetic_field[2] = sensor_value_to_double(&magnetic_field[2]),
-    };
     ```
 
-1. Update the `environmental_msg` structure in `environmental.h` to include the magnetic field data:
+1. Update the `environmental_msg` structure in `app/src/modules/environmental/environmental.h` to include the magnetic field data:
 
     ```c
     struct environmental_msg {
         /* ... existing fields ... */
 
-        /** Magnetic field measurements (X, Y, Z) in µT (microtesla). */
+        /** Magnetic field measurements (X, Y, Z) in Gauss */
         double magnetic_field[3];
-
-        /* ... existing fields ... */
     };
     ```
 
-    The magnetometer data is now part of the environmental message and will be automatically handled by the storage module through the existing `ENVIRONMENTAL` data type. No changes to `storage_data_types.h` or `storage_data_types.c` are needed since the existing `environmental_check()` and `environmental_extract()` functions will handle the entire structure, including the magnetic field data.
-
-1. Add cloud integration in the `send_storage_data_to_cloud()` function in `cloud.c` to send magnetometer data to nRF Cloud. Add this code after the existing environmental sensor data handling:
+1. Add cloud integration in the `cloud_environmental_send()` function in `app/src/modules/cloud/cloud_environmental.c` to send magnetometer data to nRF Cloud. There is no existing application ID for magnetometer data, so we use a custom message with the `"MAGNETIC_FIELD"` ID. Update the function as follows:
 
     ```c
-    #if defined(CONFIG_APP_ENVIRONMENTAL)
-        if (item->type == STORAGE_TYPE_ENVIRONMENTAL) {
-            const struct environmental_msg *env = &item->data.ENVIRONMENTAL;
+    int cloud_environmental_send(const struct environmental_msg *env,
+                                int64_t timestamp_ms,
+                                bool confirmable)
+    {
+        /* ... existing code to send temperature, pressure and humidity ... */
 
-            /* ... existing temperature, pressure, humidity sending code ... */
+        char mag_message[64];
 
-            /* Send magnetometer data if available (non-zero values) */
-            if (env->magnetic_field[0] != 0.0 ||
-                env->magnetic_field[1] != 0.0 ||
-                env->magnetic_field[2] != 0.0) {
-                char message[64];
+        /* Format magnetometer data as a string with three values */
+        snprintk(mag_message, sizeof(mag_message),
+                 "%.2f %.2f %.2f",
+                 env->magnetic_field[0],
+                 env->magnetic_field[1],
+                 env->magnetic_field[2]);
 
-                /* Format magnetometer data as a string with three values */
-                err = snprintk(message, sizeof(message),
-                              "%.2f %.2f %.2f",
-                              env->magnetic_field[0],
-                              env->magnetic_field[1],
-                              env->magnetic_field[2]);
-                if (err < 0 || err >= sizeof(message)) {
-                    LOG_ERR("Failed to format magnetometer data: %d", err);
-                    return -ENOMEM;
-                }
-
-                /* Send as a custom app ID message */
-                err = nrf_cloud_coap_message_send("MAGNETIC_FIELD",
-                                                 message,
-                                                 false,
-                                                 timestamp_ms,
-                                                 confirmable);
-                if (err) {
-                    LOG_ERR("Failed to send magnetometer data to cloud, error: %d", err);
-                    return err;
-                }
-
-                LOG_DBG("Magnetometer data sent to cloud: X=%.2f µT, Y=%.2f µT, Z=%.2f µT",
-                       env->magnetic_field[0], env->magnetic_field[1], env->magnetic_field[2]);
-            }
-
-            return 0;
+        /* Send as a message with a custom app ID*/
+        err = nrf_cloud_coap_message_send("MAGNETIC_FIELD",
+                                            mag_message,
+                                            false,
+                                            timestamp_ms,
+                                            confirmable);
+        if (err) {
+            LOG_ERR("Failed to send magnetometer data to cloud, error: %d", err);
+            return err;
         }
-    #endif /* CONFIG_APP_ENVIRONMENTAL */
+
+        LOG_DBG("Magnetometer data sent to cloud: %s", mag_message);
+
+        return 0;
+    }
     ```
+
+1. Build and run the modified application
+
+1. Confirm that the custom messages appear in the Terminal card in [nRF Cloud](https://nrfcloud.com), as shown below:
+
+    ![nRF Cloud magnetometer messages](../images/nrf_cloud_magnetometer.png)
 
 ## Add your own module
 
@@ -576,8 +568,7 @@ To add your own module, complete the following steps:
     rsource "src/modules/dummy/Kconfig.dummy"
     ```
 
-1. Increase the value of the `CONFIG_TASK_WDT_CHANNELS` Kconfig option in the `app/prj.conf` file by
-1 to accommodate for the new module's task watchdog integration.
+1. Increase the value of the `CONFIG_TASK_WDT_CHANNELS` Kconfig option in the `app/prj.conf` file by 1 to accommodate for the new module's task watchdog integration.
 
 The dummy module is now ready to use. It provides the following functionality:
 
@@ -598,13 +589,13 @@ To connect to a generic MQTT server using the Asset Tracker Template, you can us
 - **MQTT module *default* configurations:**
 
     - **Broker hostname:** [mqtt.nordicsemi.academy](https://mqtt.nordicsemi.academy/)
-    - **Device/Client ID** IMEI (International Mobile Equipment Identity)
+    - **Device/Client ID:** IMEI (International Mobile Equipment Identity)
     - **Port:** 8883
     - **TLS:** Yes
     - **Authentication:** Server only
-    - **CA:** modules/examples/cloud/creds/mqtt.nordicsemi.academy.pem
-    - **Subscribed topic** imei/att-pub-topic
-    - **Publishing toptic** imei/att-sub-topic
+    - **CA:** examples/modules/cloud/creds/mqtt.nordicsemi.academy.pem
+    - **Subscribed topic:** imei/att-pub-topic
+    - **Publishing topic:** imei/att-sub-topic
 
 ### Configuration
 
