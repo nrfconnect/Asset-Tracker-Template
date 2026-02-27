@@ -42,7 +42,7 @@ To add a new zbus event, complete the following procedure:
             .type = POWER_VBUS_CONNECTED
         };
 
-        err = zbus_chan_pub(&POWER_CHAN, &msg, K_SECONDS(1));
+        err = zbus_chan_pub(&POWER_CHAN, &msg, PUB_TIMEOUT);
         if (err) {
             LOG_ERR("zbus_chan_pub, error: %d", err);
             SEND_FATAL_ERROR();
@@ -59,7 +59,7 @@ To add a new zbus event, complete the following procedure:
             .type = POWER_VBUS_DISCONNECTED
         };
 
-        err = zbus_chan_pub(&POWER_CHAN, &msg, K_SECONDS(1));
+        err = zbus_chan_pub(&POWER_CHAN, &msg, PUB_TIMEOUT);
         if (err) {
             LOG_ERR("zbus_chan_pub, error: %d", err);
             SEND_FATAL_ERROR();
@@ -91,7 +91,7 @@ To add a new zbus event, complete the following procedure:
         struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
 
         if (msg.type == POWER_VBUS_CONNECTED) {
-            LOG_WRN("VBUS connected, request blue LED blinking rapidly for 10 seconds");
+            LOG_DBG("VBUS connected, request blue LED blinking rapidly for 10 seconds");
 
             struct led_msg led_msg = {
                 .type = LED_RGB_SET,
@@ -103,16 +103,16 @@ To add a new zbus event, complete the following procedure:
                 .repetitions = 10,
             };
 
-            int err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+            int err = zbus_chan_pub(&LED_CHAN, &led_msg, PUB_TIMEOUT);
 
             if (err) {
                 LOG_ERR("zbus_chan_pub, error: %d", err);
                 SEND_FATAL_ERROR();
             }
 
-            return;
+            return SMF_EVENT_HANDLED;
         } else if (msg.type == POWER_VBUS_DISCONNECTED) {
-            LOG_WRN("VBUS disconnected, request purple LED blinking slow for 10 seconds");
+            LOG_DBG("VBUS disconnected, request purple LED blinking slow for 10 seconds");
 
             struct led_msg led_msg = {
                 .type = LED_RGB_SET,
@@ -124,14 +124,14 @@ To add a new zbus event, complete the following procedure:
                 .repetitions = 10,
             };
 
-            int err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+            int err = zbus_chan_pub(&LED_CHAN, &led_msg, PUB_TIMEOUT);
 
             if (err) {
                 LOG_ERR("zbus_chan_pub, error: %d", err);
                 SEND_FATAL_ERROR();
             }
 
-            return;
+            return SMF_EVENT_HANDLED;
         }
     }
     ```
