@@ -52,6 +52,7 @@ struct environmental_msg {
 	 *  This is either:
 	 * - Unix time in milliseconds if the system clock was synchronized at sampling time, or
 	 * - Uptime in milliseconds if the system clock was not synchronized at sampling time.
+	 * Only valid for ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE events.
 	 */
 	int64_t timestamp;
 };
