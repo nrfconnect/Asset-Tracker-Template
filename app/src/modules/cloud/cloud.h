@@ -72,6 +72,11 @@ enum cloud_msg_type {
 	 */
 	CLOUD_SHADOW_RESPONSE_EMPTY_DELTA,
 
+	/* The device has been provisioned and is ready to connect to the cloud. This is triggered
+	 * after successful provisioning or reprovisioning of the device.
+	 */
+	CLOUD_PROVISIONED,
+
 	/* Input message types */
 
 	/* Request to send a JSON payload to the cloud. The payload data is located in the
@@ -88,6 +93,10 @@ enum cloud_msg_type {
 	 * command execution. The command type and parameters are encoded in the payload buffer.
 	 */
 	CLOUD_SHADOW_UPDATE_REPORTED,
+
+	/* Request to report the current device info to the device shadow.
+	 */
+	CLOUD_SHADOW_UPDATE_REPORTED_DEVICE,
 
 	/* Request the desired section of the device shadow from the cloud. This retrieves the
 	 * target configuration that the cloud wants the device to use. The response is sent as

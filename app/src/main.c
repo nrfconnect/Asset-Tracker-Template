@@ -157,7 +157,7 @@ static enum smf_state_result fota_applying_image_run(void *o);
 
 static void fota_rebooting_entry(void *o);
 
-enum state {
+enum app_state {
 	/* Main application is running */
 	STATE_RUNNING,
 		/* No cloud connectivity */
@@ -228,7 +228,7 @@ struct main_state {
 	/* Deep history of the last leaf state under STATE_RUNNING.
 	 * Needed to transition to the correct state when coming back from FOTA.
 	 */
-	enum state running_history;
+	enum app_state running_history;
 
 	/* Flag to track if cloud has been synced on initial connection
 	 * Initial SHADOW_GET_DESIRED and FOTA_POLL_REQUEST
@@ -853,6 +853,20 @@ static enum smf_state_result running_run(void *o)
 		return SMF_EVENT_HANDLED;
 	}
 
+	/* Handle cloud provisioning completion */
+	if (state_object->chan == &cloud_chan) {
+		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
+
+		if (msg->type == CLOUD_PROVISIONED) {
+			LOG_DBG("Device provisioning completed");
+			/* After reprovisioning, the device shadow is no longer considered synced
+			 * with the cloud, so reset the flag to trigger a new sync on the next
+			 * connection.
+			 */
+			state_object->cloud_synced_on_connect = false;
+		}
+	}
+
 	return SMF_EVENT_PROPAGATE;
 }
 
@@ -930,14 +944,24 @@ static void connected_entry(void *o)
 
 	state_object->running_history = STATE_CONNECTED;
 
-	/* Get the latest device configuration by polling the desired section of the shadow. */
+	/* On initial connection, update shadow reported info, and poll shadow desired and FOTA
+	 * status. Ensures synced states between device and cloud.
+	 */
 	if (!state_object->cloud_synced_on_connect) {
 
-		/* Poll for FOTA updates immediately upon connecting to the cloud. Also makes the
-		 * device report the result of any pending FOTA jobs as soon as possible.
-		 */
 		int err;
 		enum fota_msg_type fota_msg = FOTA_POLL_REQUEST;
+		struct cloud_msg cloud_msg = {
+			.type = CLOUD_SHADOW_UPDATE_REPORTED_DEVICE
+		};
+
+		err = zbus_chan_pub(&cloud_chan, &cloud_msg, PUB_TIMEOUT);
+		if (err) {
+			LOG_ERR("Failed to publish cloud shadow poll trigger, error: %d", err);
+			SEND_FATAL_ERROR();
+
+			return;
+		}
 
 		err = zbus_chan_pub(&fota_chan, &fota_msg, PUB_TIMEOUT);
 		if (err) {
@@ -1335,7 +1359,7 @@ static void fota_entry(void *o)
 static enum smf_state_result fota_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
-	const enum state resume_state = state_object->running_history;
+	const enum app_state resume_state = state_object->running_history;
 
 	if (state_object->chan == &fota_chan) {
 		enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
