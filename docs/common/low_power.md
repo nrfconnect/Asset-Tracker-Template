@@ -99,41 +99,44 @@ uart:~$ pm suspend uart@8000  # Suspend UART1
 
 ### Wi-Fi scanning optimization (Thingy:91 X using the nRF7002)
 
-On Thingy:91 X, Wi-Fi scanning is used for location services. By default, a full Wi-Fi scan across all bands can take a significant amount of time ~8 seconds and consume significant power (~55 mA during active scanning). The following optimizations can dramatically reduce scan time and power consumption with some tradeoff in discoverability.
+On Thingy:91 X, Wi-Fi scanning is used for location services. Without optimization, a full scan across all bands takes ~4.65 s at ~55 mA average current. The application is configured to minimize scan time and power consumption by using passive scanning on only the three most common 2.4 GHz channels.
 
-For detailed information on Wi-Fi scan timing, channels, and dwell times, see the [Wi-Fi scan operation documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/protocols/wifi/scan_mode/scan_operation.html).
+For detailed information on Wi-Fi scan profiles and their power characteristics, see the [Wi-Fi scan operation documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/protocols/wifi/scan_mode/scan_operation.html).
 
-#### Configuring dwell times
+#### Default scan configuration
 
-Dwell time determines how long the radio listens on each channel. The application enables `CONFIG_LOCATION_METHOD_WIFI_SCANNING_PARAMS_OVERRIDE` by default, which uses these values:
-
-- **Active dwell time:** 50 ms (range: 5-1000 ms)
-- **Passive dwell time:** 260 ms (range: 10-1000 ms)
-
-The 260 ms passive dwell time is set to cover at least two beacon intervals (102.4 ms beacon interval + ~30 ms channel contention) × 2, providing reliable AP detection for a mobile Asset Tracker.
-If you only want to cover one beacon interval, 130ms passive dwell time is sufficient.
-
-To customize dwell times, add to your board configuration file (e.g., `boards/thingy91x_nrf9151_ns.conf`):
+The application overrides the default nRF7002 scan behavior with the following settings in `boards/thingy91x_nrf9151_ns.conf`:
 
 ```config
-CONFIG_LOCATION_METHOD_WIFI_SCANNING_DWELL_TIME_ACTIVE=50
+CONFIG_LOCATION_METHOD_WIFI_SCANNING_PARAMS_OVERRIDE=y
+CONFIG_LOCATION_METHOD_WIFI_SCANNING_PASSIVE=y
+CONFIG_LOCATION_METHOD_WIFI_SCANNING_COMMON_CHANNELS=y
+```
+
+- **Passive scanning** (`CONFIG_LOCATION_METHOD_WIFI_SCANNING_PASSIVE`) - The Wi-Fi chip only listens for beacons and does not transmit probe requests, reducing peak current draw. This is important for battery-powered devices where high current spikes affect battery voltage and lifetime.
+- **Common channels only** (`CONFIG_LOCATION_METHOD_WIFI_SCANNING_COMMON_CHANNELS`) - Restricts scanning to channels 1, 6, and 11, the three non-overlapping 2.4 GHz channels where the vast majority of APs operate. This drastically reduces scan time compared to a full band scan.
+- **Passive dwell time: 260 ms** (Kconfig default) - Set to cover at least two beacon intervals (102.4 ms beacon interval + ~30 ms channel contention) × 2, providing reliable AP detection for a mobile asset tracker.
+
+#### Customizing the scan configuration
+
+The scan behavior can be adjusted in your board configuration file (e.g., `boards/thingy91x_nrf9151_ns.conf`):
+
+- To reduce dwell time to a single beacon interval (~130 ms), trading some scan robustness for faster scans:
+
+```config
 CONFIG_LOCATION_METHOD_WIFI_SCANNING_DWELL_TIME_PASSIVE=130
 ```
 
-Shorter dwell times reduce scan duration and power consumption but may miss APs with weaker signals.
-
-#### Restricting to 2.4 GHz band only
-
-For a lot of location use cases, scanning only the 2.4 GHz band is sufficient and much faster:
-
-- **2.4 GHz APs are more common** in residential and commercial environments
-- **Scan time reduces from ~8s to ~1s** (with 260ms passive and 50ms active dwell time)
-- **5 GHz channels require passive scanning** due to regulatory restrictions, which is slower
-
-To restrict scanning to 2.4 GHz only, add to your board configuration:
+- To use the default mix of active and passive scanning depending on channel and regulatory domain (faster per channel but transmits probe requests where allowed):
 
 ```config
-CONFIG_NRF_WIFI_2G_BAND=y
+CONFIG_LOCATION_METHOD_WIFI_SCANNING_PASSIVE=n
+```
+
+- To scan all 2.4 GHz channels instead of only 1, 6, and 11 (more thorough but slower):
+
+```config
+CONFIG_LOCATION_METHOD_WIFI_SCANNING_COMMON_CHANNELS=n
 ```
 
 ## Optimization best practices
