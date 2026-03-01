@@ -7,14 +7,14 @@ menu "App"
 
 config APP_SAMPLING_INTERVAL_SECONDS
 	int "Sampling interval in buffer mode"
-	default 150
+	default 600
 	help
 	  Interval in seconds that determines how often sensor and location data is
 	  collected in buffer mode.
 
 config APP_CLOUD_UPDATE_INTERVAL_SECONDS
 	int "Cloud update interval"
-	default 600
+	default 1800
 	help
 	  Interval in seconds that controls how frequently the application
 	  updates cloud, performing cloud-related tasks such as:
