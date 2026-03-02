@@ -54,6 +54,10 @@ def compare_state_machines(c_code, plantuml):
         You are a validation tool that compares a Zephyr SMF state-machine implementation (in C) against a PlantUML "source of truth."
         Your job is to verify that states, transitions, and hierarchy match semantically, ignoring entry/running/exit callbacks.
 
+        CHANNEL EQUIVALENCE RULE:
+        - When comparing events, it does not matter whether the event is received on a public or private channel (e.g., STORAGE_CHAN vs PRIV_STORAGE_CHAN).
+        - Treat events as equivalent regardless of channel, unless the channel distinction is explicitly documented as semantically significant in the PlantUML or C code.
+
         Input:
         • C implementation:
             - States defined via `struct smf_state` with SMF_CREATE_STATE(entry, run, exit, parent, initial_child)
