@@ -39,7 +39,7 @@ The FOTA module implements a state machine with the following states and transit
 
 ## Messages
 
-The FOTA module communicates through the zbus channel `FOTA_CHAN`, using input and output messages defined in `fota.h`.
+The FOTA module communicates through the zbus channel `fota_chan`, using input and output messages defined in `fota.h`.
 All input messages are requests from the application to the FOTA module. The output messages may be responses to input messages or notifications from the FOTA module to the application.
 
 ### Input messages

@@ -27,10 +27,10 @@ The following diagram shows the system architecture and how the modules interact
 
 The following steps show the simplified flow of a typical operation:
 
-1. The Main module schedules periodic triggers or responds to a short button press reported on the `BUTTON_CHAN` channel.
-2. When triggered either by timeout or button press, it requests location data from the Location module on the `LOCATION_CHAN` channel.
-3. After the location search is completed and reported on the `LOCATION_CHAN` channel, the Main module requests sensor data from the Environmental module on the `ENVIRONMENTAL_CHAN` channel.
-4. Throughout the operation, the Main module controls the LED module over the `LED_CHAN` channel to provide visual feedback about the system state.
+1. The Main module schedules periodic triggers or responds to a short button press reported on the `button_chan` channel.
+2. When triggered either by timeout or button press, it requests location data from the Location module on the `location_chan` channel.
+3. After the location search is completed and reported on the `location_chan` channel, the Main module requests sensor data from the Environmental module on the `environmental_chan` channel.
+4. Throughout the operation, the Main module controls the LED module over the `led_chan` channel to provide visual feedback about the system state.
 
 ## Module design
 
@@ -101,12 +101,12 @@ The zbus library is part of Zephyr and implements channel-based message passing 
 
 ### Channels
 
-In the Asset Tracker Template, each module declares and defines a channel using zbus macros. For example, in the `app/src/modules/network/network.h` file, the Network module declares the `NETWORK_CHAN` channel:
+In the Asset Tracker Template, each module declares and defines a channel using zbus macros. For example, in the `app/src/modules/network/network.h` file, the Network module declares the `network_chan` channel:
 
 ```c
 /* Channels provided by this module */
 ZBUS_CHAN_DECLARE(
-	NETWORK_CHAN
+	network_chan
 );
 ```
 
@@ -114,7 +114,7 @@ The channel is defined in `app/src/modules/network/network.c`:
 
 ```c
 /* Define channels provided by this module */
-ZBUS_CHAN_DEFINE(NETWORK_CHAN, /* Channel name, derived from module name */
+ZBUS_CHAN_DEFINE(network_chan, /* Channel name, derived from module name */
         struct network_msg,    /* Message data type */
         NULL,                  /* Optional validator function */
         NULL,                  /* Optional pointer to user data */
@@ -219,7 +219,7 @@ Messages are sent on a channel using `zbus_chan_pub()`. For example, to send a m
                 .type = NETWORK_DISCONNECT
         };
 
-        err = zbus_chan_pub(&NETWORK_CHAN, &msg, PUB_TIMEOUT);
+        err = zbus_chan_pub(&network_chan, &msg, PUB_TIMEOUT);
 ```
 
 The message will be copied by zbus, so the original message struct is no longer needed after calling `zbus_chan_pub()`.
@@ -238,7 +238,7 @@ A message subscriber is defined using `ZBUS_MSG_SUBSCRIBER_DEFINE`, and the subs
 
 ```c
 ZBUS_MSG_SUBSCRIBER_DEFINE(network);
-ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network, 0);
+ZBUS_CHAN_ADD_OBS(network_chan, network, 0);
 ```
 
 The messages are received in the module's thread loop by calling `zbus_sub_wait_msg()`:
@@ -260,7 +260,7 @@ A listener is defined using `ZBUS_LISTENER_DEFINE`, and the listener is added to
 
 ```c
 ZBUS_LISTENER_DEFINE(led, led_callback);
-ZBUS_CHAN_ADD_OBS(LED_CHAN, led, 0);
+ZBUS_CHAN_ADD_OBS(led_chan, led, 0);
 ```
 
 When a message is available, the callback function will process the message:
@@ -268,7 +268,7 @@ When a message is available, the callback function will process the message:
 ```c
 static void led_callback(const struct zbus_channel *chan)
 {
-        if (&LED_CHAN == chan) {
+        if (&led_chan == chan) {
                 int err;
                 const struct led_msg *led_msg = zbus_chan_const_msg(chan);
                 /* ... */
@@ -277,7 +277,7 @@ static void led_callback(const struct zbus_channel *chan)
 ```
 
 ### Private channels
-When a module needs internal state handling that should not be exposed to other modules, it uses a **private channel**. Private channels are reserved exclusively for the respective module and are not intended for external use. Otherwise, they are defined, published to and subscribed to just like public channels. For example, the Location module uses the `PRIV_LOCATION_CHAN` channel for internal messaging.
+When a module needs internal state handling that should not be exposed to other modules, it uses a **private channel**. Private channels are reserved exclusively for the respective module and are not intended for external use. Otherwise, they are defined, published to and subscribed to just like public channels. For example, the Location module uses the `priv_location_chan` channel for internal messaging.
 
 ## State machines
 

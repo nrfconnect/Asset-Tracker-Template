@@ -16,7 +16,7 @@ The Power module implements a state machine with the following states and transi
 
 ## Messages
 
-The Power module defines and communicates on the `POWER_CHAN` channel.
+The Power module defines and communicates on the `power_chan` channel.
 
 ### Input messages
 

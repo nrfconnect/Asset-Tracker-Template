@@ -4,7 +4,7 @@ The LED module controls the LEDs on the device using PWM (Pulse Width Modulation
 
 ## Messages
 
-The LED module uses the zbus channel `LED_CHAN` to receive control commands. Other modules can publish messages to this channel to control the LED behavior.
+The LED module uses the zbus channel `led_chan` to receive control commands. Other modules can publish messages to this channel to control the LED behavior.
 
 The module accepts messages with the following parameters:
 
@@ -44,7 +44,7 @@ struct led_msg {
 
 Instead of using a state machine, the LED module operates as follows:
 
-1. When a message is received on the `LED_CHAN` channel:
+1. When a message is received on the `led_chan` channel:
 
     - Any existing blink pattern is canceled.
     - The new LED state (colors and timing) is saved.
@@ -90,8 +90,8 @@ struct led_msg led_msg = {
     .repetitions = 10,
 };
 
-/* Publish the message to LED_CHAN */
-int err = zbus_chan_pub(&LED_CHAN, &led_msg, K_SECONDS(1));
+/* Publish the message to led_chan */
+int err = zbus_chan_pub(&led_chan, &led_msg, K_SECONDS(1));
 if (err) {
     LOG_ERR("zbus_chan_pub, error: %d", err);
     return;

@@ -36,7 +36,7 @@ LOG_MODULE_REGISTER(power, CONFIG_APP_POWER_LOG_LEVEL);
 ZBUS_MSG_SUBSCRIBER_DEFINE(power);
 
 /* Define channels provided by this module */
-ZBUS_CHAN_DEFINE(POWER_CHAN,
+ZBUS_CHAN_DEFINE(power_chan,
 		 struct power_msg,
 		 NULL,
 		 NULL,
@@ -51,7 +51,7 @@ enum priv_power_msg {
 };
 
 /* Create private power channel for internal messaging that is not intended for external use. */
-ZBUS_CHAN_DEFINE(PRIV_POWER_CHAN,
+ZBUS_CHAN_DEFINE(priv_power_chan,
 		 enum priv_power_msg,
 		 NULL,
 		 NULL,
@@ -63,8 +63,8 @@ ZBUS_CHAN_DEFINE(PRIV_POWER_CHAN,
  * and the subscriber that will receive the messages on the channel.
  */
 #define CHANNEL_LIST(X)							\
-	X(POWER_CHAN,		struct power_msg)			\
-	X(PRIV_POWER_CHAN,	enum priv_power_msg)			\
+	X(power_chan,		struct power_msg)			\
+	X(priv_power_chan,	enum priv_power_msg)			\
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
@@ -74,7 +74,7 @@ ZBUS_CHAN_DEFINE(PRIV_POWER_CHAN,
 
 /*
  * Expand to a call to ZBUS_CHAN_ADD_OBS for each channel in the list.
- * Example: ZBUS_CHAN_ADD_OBS(POWER_CHAN, power, 0);
+ * Example: ZBUS_CHAN_ADD_OBS(power_chan, power, 0);
  */
 CHANNEL_LIST(ADD_OBSERVERS)
 
@@ -119,7 +119,7 @@ static void on_modem_init(int ret, void *ctx)
 		return;
 	}
 
-	err = zbus_chan_pub(&PRIV_POWER_CHAN, &msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&priv_power_chan, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -183,7 +183,7 @@ static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
 {
 	struct power_state_object *state_object = obj;
 
-	if (state_object->chan == &PRIV_POWER_CHAN) {
+	if (state_object->chan == &priv_power_chan) {
 		enum priv_power_msg msg = *(const enum priv_power_msg *)state_object->msg_buf;
 
 		if (msg == POWER_PRIV_MODEM_INITIALIZED) {
@@ -264,7 +264,7 @@ static enum smf_state_result state_running_run(void *obj)
 {
 	struct power_state_object *state_object = obj;
 
-	if (&POWER_CHAN == state_object->chan) {
+	if (&power_chan == state_object->chan) {
 		struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
 
 		if (msg.type == POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST) {
@@ -552,7 +552,7 @@ static void sample(int64_t *ref_time)
 		return;
 	}
 
-	err = zbus_chan_pub(&POWER_CHAN, &msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&power_chan, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();

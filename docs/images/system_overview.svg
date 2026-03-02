@@ -211,60 +211,60 @@
 		</g>
 		<g id="shape278-99" v:mID="278" v:groupContext="shape" transform="translate(150.394,-342.575)">
 			<title>Sheet.278</title>
-			<desc>NETWORK_CHAN</desc>
+			<desc>network_chan</desc>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
 			<v:textRect cx="29.7638" cy="359.874" width="59.53" height="9.92126"/>
 			<rect x="0" y="354.913" width="59.5276" height="9.92126" class="st22"/>
-			<text x="4.26" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>NETWORK_CHAN</text>		</g>
+			<text x="4.26" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>network_chan</text>		</g>
 		<g id="shape283-102" v:mID="283" v:groupContext="shape" transform="translate(147.559,-278.795)">
 			<title>Sheet.283</title>
-			<desc>CLOUD_CHAN</desc>
+			<desc>cloud_chan</desc>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
 			<v:textRect cx="29.7638" cy="359.874" width="59.53" height="9.92126"/>
 			<rect x="0" y="354.913" width="59.5276" height="9.92126" class="st22"/>
-			<text x="9.09" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>CLOUD_CHAN</text>		</g>
+			<text x="9.09" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>cloud_chan</text>		</g>
 		<g id="shape284-105" v:mID="284" v:groupContext="shape" transform="translate(96.5354,-149.819)">
 			<title>Sheet.284</title>
-			<desc>POWER_CHAN</desc>
+			<desc>power_chan</desc>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
 			<v:textRect cx="29.7638" cy="359.874" width="59.53" height="9.92126"/>
 			<rect x="0" y="354.913" width="59.5276" height="9.92126" class="st22"/>
-			<text x="8.26" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>POWER_CHAN</text>		</g>
+			<text x="8.26" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>power_chan</text>		</g>
 		<g id="shape285-108" v:mID="285" v:groupContext="shape" transform="translate(61.1024,-22.2598)">
 			<title>Sheet.285</title>
-			<desc>ENVIRONMENTAL_CHAN</desc>
+			<desc>environmental_chan</desc>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
 			<v:textRect cx="41.811" cy="359.874" width="83.63" height="9.92126"/>
 			<rect x="0" y="354.913" width="83.622" height="9.92126" class="st22"/>
-			<text x="5.81" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>ENVIRONMENTAL_CHAN</text>		</g>
+			<text x="5.81" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>environmental_chan</text>		</g>
 		<g id="shape287-111" v:mID="287" v:groupContext="shape" transform="translate(85.1969,-86.0394)">
 			<title>Sheet.287</title>
-			<desc>LOCATION_CHAN</desc>
+			<desc>location_chan</desc>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
 			<v:textRect cx="29.7638" cy="359.874" width="59.53" height="9.92126"/>
 			<rect x="0" y="354.913" width="59.5276" height="9.92126" class="st22"/>
-			<text x="4.26" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>LOCATION_CHAN</text>		</g>
+			<text x="4.26" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>location_chan</text>		</g>
 		<g id="shape288-114" v:mID="288" v:groupContext="shape" transform="translate(369.849,-215.016)">
 			<title>Sheet.288</title>
-			<desc>LED_CHAN</desc>
+			<desc>led_chan</desc>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
 			<v:textRect cx="22.0834" cy="359.874" width="44.17" height="9.92126"/>
 			<rect x="0" y="354.913" width="44.1669" height="9.92126" class="st22"/>
-			<text x="6.08" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>LED_CHAN</text>		</g>
+			<text x="6.08" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>led_chan</text>		</g>
 		<g id="shape289-117" v:mID="289" v:groupContext="shape" transform="translate(379.445,-279.504)">
 			<title>Sheet.289</title>
-			<desc>FOTA_CHAN</desc>
+			<desc>fota_chan</desc>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
 			<v:textRect cx="25.7895" cy="359.874" width="51.58" height="9.92126"/>
 			<rect x="0" y="354.913" width="51.5791" height="9.92126" class="st22"/>
-			<text x="7.62" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>FOTA_CHAN</text>		</g>
+			<text x="7.62" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>fota_chan</text>		</g>
 		<g id="shape290-120" v:mID="290" v:groupContext="shape" transform="translate(368.661,-342.575)">
 			<title>Sheet.290</title>
-			<desc>BUTTON_CHAN</desc>
+			<desc>button_chan</desc>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
 			<v:textRect cx="29.7638" cy="359.874" width="59.53" height="9.92126"/>
 			<rect x="0" y="354.913" width="59.5276" height="9.92126" class="st22"/>
-			<text x="7.26" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>BUTTON_CHAN</text>		</g>
+			<text x="7.26" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>button_chan</text>		</g>
 		<g id="shape291-123" v:mID="291" v:groupContext="shape" transform="translate(39.8425,-193.756)">
 			<title>Nordic Lake.291</title>
 			<desc>Storage</desc>
@@ -293,11 +293,11 @@
 		</g>
 		<g id="shape298-147" v:mID="298" v:groupContext="shape" transform="translate(151.811,-215.016)">
 			<title>Sheet.298</title>
-			<desc>STORAGE_CHAN</desc>
+			<desc>storage_chan</desc>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
 			<v:textRect cx="29.7638" cy="359.874" width="59.53" height="9.92126"/>
 			<rect x="0" y="354.913" width="59.5276" height="9.92126" class="st22"/>
-			<text x="4.93" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>STORAGE_CHAN</text>		</g>
+			<text x="4.93" y="361.67" class="st23" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>storage_chan</text>		</g>
 		<g id="shape299-150" v:mID="299" v:groupContext="shape" v:layerMember="0" transform="translate(78.1102,-236.276)">
 			<title>Dynamic connector.299</title>
 			<path d="M7.09 364.83 L7.09 354.13" class="st16"/>

@@ -131,7 +131,7 @@ static void send_request_failed(void)
 	int err;
 	enum priv_cloud_msg cloud_msg = CLOUD_SEND_REQUEST_FAILED;
 
-	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &cloud_msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&priv_cloud_chan, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();

@@ -17,7 +17,7 @@
 #include "cloud.h"
 
 
-ZBUS_CHAN_DECLARE(TIMER_CHAN);
+ZBUS_CHAN_DECLARE(timer_chan);
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(fota_subscriber);
 ZBUS_MSG_SUBSCRIBER_DEFINE(location_subscriber);
@@ -26,13 +26,13 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(power_subscriber);
 ZBUS_MSG_SUBSCRIBER_DEFINE(storage_subscriber);
 ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
 ZBUS_MSG_SUBSCRIBER_DEFINE(timer_subscriber);
-ZBUS_CHAN_ADD_OBS(FOTA_CHAN, fota_subscriber, 0);
-ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, location_subscriber, 0);
-ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network_subscriber, 0);
-ZBUS_CHAN_ADD_OBS(POWER_CHAN, power_subscriber, 0);
-ZBUS_CHAN_ADD_OBS(STORAGE_CHAN, storage_subscriber, 0);
-ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, cloud_subscriber, 0);
-ZBUS_CHAN_ADD_OBS(TIMER_CHAN, timer_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(fota_chan, fota_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(location_chan, location_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(network_chan, network_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(power_chan, power_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(storage_chan, storage_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(cloud_chan, cloud_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(timer_chan, timer_subscriber, 0);
 
 LOG_MODULE_REGISTER(main_module_checks, 1);
 
@@ -54,9 +54,9 @@ int priv_expect_location_event(void)
 		return -2;
 	}
 
-	if (chan != &LOCATION_CHAN) {
+	if (chan != &location_chan) {
 		LOG_ERR("Received message from wrong channel, expected %s, got %s",
-			zbus_chan_name(&LOCATION_CHAN), zbus_chan_name(chan));
+			zbus_chan_name(&location_chan), zbus_chan_name(chan));
 		return -3;
 	}
 
@@ -81,9 +81,9 @@ int priv_expect_network_event(void)
 		return -2;
 	}
 
-	if (chan != &NETWORK_CHAN) {
+	if (chan != &network_chan) {
 		LOG_ERR("Received message from wrong channel, expected %s, got %s",
-			zbus_chan_name(&NETWORK_CHAN), zbus_chan_name(chan));
+			zbus_chan_name(&network_chan), zbus_chan_name(chan));
 		return -3;
 	}
 
@@ -108,9 +108,9 @@ int priv_expect_power_event(void)
 		return -2;
 	}
 
-	if (chan != &POWER_CHAN) {
+	if (chan != &power_chan) {
 		LOG_ERR("Received message from wrong channel, expected %s, got %s",
-			zbus_chan_name(&POWER_CHAN), zbus_chan_name(chan));
+			zbus_chan_name(&power_chan), zbus_chan_name(chan));
 		return -3;
 	}
 
@@ -135,9 +135,9 @@ int priv_expect_fota_event(void)
 		return -2;
 	}
 
-	if (chan != &FOTA_CHAN) {
+	if (chan != &fota_chan) {
 		LOG_ERR("Received message from wrong channel, expected %s, got %s",
-			zbus_chan_name(&FOTA_CHAN), zbus_chan_name(chan));
+			zbus_chan_name(&fota_chan), zbus_chan_name(chan));
 		return -3;
 	}
 
@@ -162,9 +162,9 @@ int priv_expect_storage_event(void)
 		return -2;
 	}
 
-	if (chan != &STORAGE_CHAN) {
+	if (chan != &storage_chan) {
 		LOG_ERR("Received message from wrong channel, expected %s, got %s",
-			zbus_chan_name(&STORAGE_CHAN), zbus_chan_name(chan));
+			zbus_chan_name(&storage_chan), zbus_chan_name(chan));
 		return -3;
 	}
 
@@ -189,9 +189,9 @@ int priv_expect_cloud_event(void)
 		return -2;
 	}
 
-	if (chan != &CLOUD_CHAN) {
+	if (chan != &cloud_chan) {
 		LOG_ERR("Received message from wrong channel, expected %s, got %s",
-			zbus_chan_name(&CLOUD_CHAN), zbus_chan_name(chan));
+			zbus_chan_name(&cloud_chan), zbus_chan_name(chan));
 		return -3;
 	}
 
@@ -216,9 +216,9 @@ int priv_expect_timer_event(void)
 		return -2;
 	}
 
-	if (chan != &TIMER_CHAN) {
+	if (chan != &timer_chan) {
 		LOG_ERR("Received message from wrong channel, expected %s, got %s",
-			zbus_chan_name(&TIMER_CHAN), zbus_chan_name(chan));
+			zbus_chan_name(&timer_chan), zbus_chan_name(chan));
 		return -3;
 	}
 
@@ -540,9 +540,9 @@ int wait_for_location_event(enum location_msg_type expected_type, uint32_t timeo
 		return err;
 	}
 
-	if (chan != &LOCATION_CHAN) {
+	if (chan != &location_chan) {
 		LOG_ERR("Received message from wrong channel, expected %s, got %s",
-			zbus_chan_name(&LOCATION_CHAN), zbus_chan_name(chan));
+			zbus_chan_name(&location_chan), zbus_chan_name(chan));
 		return -EINVAL;
 	}
 

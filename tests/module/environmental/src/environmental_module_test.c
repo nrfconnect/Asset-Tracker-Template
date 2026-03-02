@@ -19,7 +19,7 @@ FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
 FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(environmental_subscriber);
-ZBUS_CHAN_ADD_OBS(ENVIRONMENTAL_CHAN, environmental_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(environmental_chan, environmental_subscriber, 0);
 
 LOG_MODULE_REGISTER(environmental_module_test, 4);
 
@@ -51,7 +51,7 @@ void check_environmental_event(enum environmental_msg_type expected_environmenta
 		return;
 	}
 
-	if (chan != &ENVIRONMENTAL_CHAN) {
+	if (chan != &environmental_chan) {
 		LOG_ERR("Received message from wrong channel");
 		TEST_FAIL();
 	}
@@ -81,7 +81,7 @@ static void send_environmental_sample_request(void)
 		.type = ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST,
 	};
 
-	int err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &msg, K_SECONDS(1));
+	int err = zbus_chan_pub(&environmental_chan, &msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }

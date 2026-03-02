@@ -32,7 +32,7 @@ FAKE_VALUE_FUNC(int, nrf_fuel_gauge_state_get, void *, size_t);
 const size_t nrf_fuel_gauge_state_size = 128;
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(power_subscriber);
-ZBUS_CHAN_ADD_OBS(POWER_CHAN, power_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(power_chan, power_subscriber, 0);
 
 LOG_MODULE_REGISTER(power_module_test, 4);
 
@@ -99,7 +99,7 @@ void check_power_event(enum power_msg_type expected_power_type)
 		return;
 	}
 
-	if (chan != &POWER_CHAN) {
+	if (chan != &power_chan) {
 		LOG_ERR("Received message from wrong channel");
 		TEST_FAIL();
 	}
@@ -129,7 +129,7 @@ static void send_power_battery_percentage_sample_request(void)
 		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST,
 	};
 
-	int err = zbus_chan_pub(&POWER_CHAN, &msg, K_SECONDS(1));
+	int err = zbus_chan_pub(&power_chan, &msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }

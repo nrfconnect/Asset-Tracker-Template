@@ -28,7 +28,7 @@
  * This expands DATA_SOURCE_LIST with STORAGE_DATA_TYPE_ADD to register each enabled
  * data source. For example, with CONFIG_APP_POWER enabled, it expands to:
  *
- * STORAGE_DATA_TYPE_ADD(battery, POWER_CHAN, struct power_msg, double,
+ * STORAGE_DATA_TYPE_ADD(battery, power_chan, struct power_msg, double,
  *			 battery_check, battery_extract)
  *
  * This creates:

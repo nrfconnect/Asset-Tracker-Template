@@ -6,7 +6,7 @@ The module performs the following tasks:
 
 - Establishing and maintaining a connection to nRF Cloud, using CoAP with DTLS connection ID for secure and low-power communication.
 - Managing backoff and retries when connecting to the cloud. See the [Configurations](#configurations) section for more details on how to configure backoff behavior.
-- Publishing sensor data (temperature, pressure, connection quality, and so on) to nRF Cloud. The data is received on the `ENVIRONMENTAL_CHAN` channel when the environmental module publishes it.
+- Publishing sensor data (temperature, pressure, connection quality, and so on) to nRF Cloud. The data is received on the `environmental_chan` channel when the environmental module publishes it.
 - Requesting and handling shadow updates. Polling the device shadow is triggered by the main module by sending a `CLOUD_POLL_SHADOW` message.
 - Handling network events and transitioning between connection states as described in the [State diagram](#state-diagram) section.
 
@@ -24,17 +24,17 @@ The Cloud module implements a state machine with the following states and transi
 
 ### Integration with storage module
 
-The cloud module subscribes to the `STORAGE_CHAN` and `STORAGE_DATA_CHAN` channels to receive data
+The cloud module subscribes to the `storage_chan` and `storage_data_chan` channels to receive data
 from the storage module.
 It handles `STORAGE_BATCH_AVAILABLE`, `STORAGE_BATCH_EMPTY`, `STORAGE_BATCH_BUSY`, and
-`STORAGE_BATCH_ERROR` messages on the `STORAGE_CHAN` channel to manage batch data flow, and consumes
+`STORAGE_BATCH_ERROR` messages on the `storage_chan` channel to manage batch data flow, and consumes
 batch items using the `storage_batch_read()` function until the batch is exhausted, then issues
-`STORAGE_BATCH_CLOSE`. It also handles `STORAGE_DATA` messages on the `STORAGE_DATA_CHAN` channel to
+`STORAGE_BATCH_CLOSE`. It also handles `STORAGE_DATA` messages on the `storage_data_chan` channel to
 forward individual data items to nRF Cloud.
 
 ## Messages
 
-The cloud module publishes and receives messages over the zbus channel `CLOUD_CHAN`. All module message types are defined in `cloud.h` and used within `cloud.c`.
+The cloud module publishes and receives messages over the zbus channel `cloud_chan`. All module message types are defined in `cloud.h` and used within `cloud.c`.
 
 ### Input messages
 

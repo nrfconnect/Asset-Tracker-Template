@@ -37,7 +37,7 @@ static int cmd_button_short(const struct shell *sh, size_t argc, char **argv)
 
 	msg.button_number = button_number;
 
-	err = zbus_chan_pub(&BUTTON_CHAN, &msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&button_chan, &msg, PUB_TIMEOUT);
 	if (err) {
 		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
 		return 1;
@@ -69,7 +69,7 @@ static int cmd_button_long(const struct shell *sh, size_t argc, char **argv)
 
 	msg.button_number = button_number;
 
-	err = zbus_chan_pub(&BUTTON_CHAN, &msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&button_chan, &msg, PUB_TIMEOUT);
 	if (err) {
 		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
 		return 1;

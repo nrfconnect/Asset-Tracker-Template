@@ -43,7 +43,7 @@ static mqtt_helper_on_publish on_publish;
 static mqtt_helper_on_suback on_suback;
 static mqtt_helper_on_puback on_puback;
 
-ZBUS_CHAN_DEFINE(NETWORK_CHAN,
+ZBUS_CHAN_DEFINE(network_chan,
 		 struct network_msg,
 		 NULL,
 		 NULL,
@@ -96,7 +96,7 @@ static int hw_id_get_custom_fake(char *buf, size_t len)
 
 static void cloud_chan_cb(const struct zbus_channel *chan)
 {
-	if (chan == &CLOUD_CHAN) {
+	if (chan == &cloud_chan) {
 		const struct cloud_msg *cloud_msg = zbus_chan_const_msg(chan);
 		enum cloud_msg_type status = cloud_msg->type;
 
@@ -113,7 +113,7 @@ static void network_disconnect(void)
 	struct network_msg msg = {
 		.type = NETWORK_DISCONNECTED
 	};
-	int err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	int err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 
@@ -126,7 +126,7 @@ static void network_connect(void)
 	struct network_msg msg = {
 		.type = NETWORK_CONNECTED
 	};
-	int err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	int err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 
@@ -141,7 +141,7 @@ static void publish_test_payload(void)
 		.payload.buffer = "{\"test\": 1}",
 		.payload.buffer_data_len = strnlen(msg.payload.buffer, sizeof(msg.payload.buffer)),
 	};
-	int err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
+	int err = zbus_chan_pub(&cloud_chan, &msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 
@@ -165,7 +165,7 @@ void setUp(void)
 	hw_id_get_fake.custom_fake = hw_id_get_custom_fake;
 	mqtt_helper_init_fake.custom_fake = mqtt_helper_init_custom_fake;
 
-	zbus_chan_add_obs(&CLOUD_CHAN, &cloud_test_listener, K_NO_WAIT);
+	zbus_chan_add_obs(&cloud_chan, &cloud_test_listener, K_NO_WAIT);
 }
 
 void tearDown(void)

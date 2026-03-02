@@ -57,15 +57,15 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
 
 /* Define the channels that the module subscribes to, their associated message types
  * and the subscriber that will receive the messages on the channel.
- * ENVIRONMENTAL_CHAN, POWER_CHAN, and LOCATION_CHAN are optional and are only included if the
+ * environmental_chan, power_chan, and location_chan are optional and are only included if the
  * corresponding module is enabled.
  */
 #define CHANNEL_LIST(X)										\
-					 X(NETWORK_CHAN,	struct network_msg)		\
-					 X(CLOUD_CHAN,		struct cloud_msg)		\
-					 X(STORAGE_CHAN,	struct storage_msg)		\
-					 X(LOCATION_CHAN,	struct location_msg)		\
-					 X(STORAGE_DATA_CHAN,	struct storage_msg)
+					 X(network_chan,	struct network_msg)		\
+					 X(cloud_chan,		struct cloud_msg)		\
+					 X(storage_chan,	struct storage_msg)		\
+					 X(location_chan,	struct location_msg)		\
+					 X(storage_data_chan,	struct storage_msg)
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
@@ -75,11 +75,11 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
 
 /*
  * Expand to a call to ZBUS_CHAN_ADD_OBS for each channel in the list.
- * Example: ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, cloud_subscriber, 0);
+ * Example: ZBUS_CHAN_ADD_OBS(network_chan, cloud_subscriber, 0);
  */
 CHANNEL_LIST(ADD_OBSERVERS)
 
-ZBUS_CHAN_DEFINE(CLOUD_CHAN,
+ZBUS_CHAN_DEFINE(cloud_chan,
 		 struct cloud_msg,
 		 NULL,
 		 NULL,
@@ -92,7 +92,7 @@ ZBUS_CHAN_DEFINE(CLOUD_CHAN,
  * ensure state transitions only happen from the cloud  module thread where the state machine
  * is running.
  */
-ZBUS_CHAN_DEFINE(PRIV_CLOUD_CHAN,
+ZBUS_CHAN_DEFINE(priv_cloud_chan,
 		 enum priv_cloud_msg,
 		 NULL,
 		 NULL,
@@ -281,7 +281,7 @@ static void connect_to_cloud(const struct cloud_state_object *state_object)
 		msg = CLOUD_CONNECTION_FAILED;
 	}
 
-	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&priv_cloud_chan, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -315,7 +315,7 @@ static void backoff_timer_work_fn(struct k_work *work)
 
 	ARG_UNUSED(work);
 
-	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&priv_cloud_chan, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -327,7 +327,7 @@ static void send_request_failed(void)
 	int err;
 	enum priv_cloud_msg cloud_msg = CLOUD_SEND_REQUEST_FAILED;
 
-	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &cloud_msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&priv_cloud_chan, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -498,7 +498,7 @@ static int request_storage_batch_data(uint32_t session_id)
 
 	LOG_DBG("Requesting storage batch data, session_id: 0x%X", msg.session_id);
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&storage_chan, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to request storage batch data, error: %d", err);
 
@@ -570,7 +570,7 @@ static void handle_storage_batch_available(const struct storage_msg *msg)
 	}
 
 	/* Close the batch session */
-	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&storage_chan, &close_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to close storage batch session, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -587,7 +587,7 @@ static void handle_storage_batch_empty(const struct storage_msg *msg)
 
 	LOG_DBG("Storage batch is empty, closing session");
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&storage_chan, &close_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to close empty storage batch session, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -604,7 +604,7 @@ static void handle_storage_batch_error(const struct storage_msg *msg)
 
 	LOG_ERR("Storage batch error occurred, closing session");
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&storage_chan, &close_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to close error storage batch session, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -739,7 +739,7 @@ static void handle_storage_data_message(struct cloud_state_object const *state_o
 
 static void network_connection_status_retain(struct cloud_state_object *state_object)
 {
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		if (msg.type == NETWORK_DISCONNECTED || msg.type == NETWORK_CONNECTED) {
@@ -788,7 +788,7 @@ static void state_disconnected_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&cloud_chan, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -802,7 +802,7 @@ static enum smf_state_result state_disconnected_run(void *obj)
 	struct cloud_state_object const *state_object = obj;
 	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
+	if ((state_object->chan == &network_chan) && (msg.type == NETWORK_CONNECTED)) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
 
 		return SMF_EVENT_HANDLED;
@@ -826,7 +826,7 @@ static enum smf_state_result state_connecting_run(void *obj)
 {
 	struct cloud_state_object *state_object = obj;
 
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		if (msg.type == NETWORK_DISCONNECTED) {
@@ -863,7 +863,7 @@ static enum smf_state_result state_connecting_provisioned_run(void *obj)
 {
 	struct cloud_state_object *state_object = obj;
 
-	if (state_object->chan == &PRIV_CLOUD_CHAN) {
+	if (state_object->chan == &priv_cloud_chan) {
 		enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
 
 		if (msg == CLOUD_NOT_AUTHENTICATED) {
@@ -897,7 +897,7 @@ static void state_connecting_provisioning_entry(void *obj)
 	/* Cancel any ongoing location search during provisioning to allow writing credentials,
 	 * which requires offline LTE functional mode.
 	 */
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&location_chan, &location_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -920,7 +920,7 @@ static enum smf_state_result state_connecting_provisioning_run(void *obj)
 {
 	struct cloud_state_object *state_object = obj;
 
-	if (state_object->chan == &PRIV_CLOUD_CHAN) {
+	if (state_object->chan == &priv_cloud_chan) {
 		enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
 
 		if (msg == CLOUD_PROVISIONING_FINISHED) {
@@ -942,7 +942,7 @@ static enum smf_state_result state_connecting_provisioning_run(void *obj)
 	 * Therefore we handle network connected/disconnected events in this state preventing it
 	 * from propagating up the state machine changing the cloud module's connectivity status.
 	 */
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		if (msg.type == NETWORK_DISCONNECTED || msg.type == NETWORK_CONNECTED) {
@@ -976,7 +976,7 @@ static enum smf_state_result state_connecting_backoff_run(void *obj)
 {
 	struct cloud_state_object const *state_object = obj;
 
-	if (state_object->chan == &PRIV_CLOUD_CHAN) {
+	if (state_object->chan == &priv_cloud_chan) {
 		const enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
 
 		/* If the backoff timer expired, we can either continue provisioning or
@@ -1031,7 +1031,7 @@ static void state_connected_exit(void *obj)
 		SEND_FATAL_ERROR();
 	}
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&cloud_chan, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -1051,7 +1051,7 @@ static void state_connected_ready_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&cloud_chan, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -1064,12 +1064,12 @@ static enum smf_state_result state_connected_ready_run(void *obj)
 {
 	struct cloud_state_object const *state_object = obj;
 
-	if (state_object->chan == &PRIV_CLOUD_CHAN) {
+	if (state_object->chan == &priv_cloud_chan) {
 		handle_priv_cloud_message(state_object);
 		return SMF_EVENT_HANDLED;
 	}
 
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		switch (msg.type) {
@@ -1086,26 +1086,26 @@ static enum smf_state_result state_connected_ready_run(void *obj)
 		return SMF_EVENT_HANDLED;
 	}
 
-	if (state_object->chan == &STORAGE_CHAN) {
+	if (state_object->chan == &storage_chan) {
 		handle_storage_channel_message(state_object);
 
 		return SMF_EVENT_HANDLED;
 	}
 
-	if (state_object->chan == &STORAGE_DATA_CHAN) {
+	if (state_object->chan == &storage_data_chan) {
 		handle_storage_data_message(state_object);
 
 		return SMF_EVENT_HANDLED;
 	}
 
-	if (state_object->chan == &CLOUD_CHAN) {
+	if (state_object->chan == &cloud_chan) {
 		handle_cloud_channel_message(state_object);
 
 		return SMF_EVENT_HANDLED;
 	}
 
 #if defined(CONFIG_APP_LOCATION)
-	if (state_object->chan == &LOCATION_CHAN) {
+	if (state_object->chan == &location_chan) {
 		const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
 
 		if (msg->type == LOCATION_AGNSS_REQUEST) {
@@ -1134,7 +1134,7 @@ static void state_connected_paused_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&cloud_chan, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -1147,7 +1147,7 @@ static enum smf_state_result state_connected_paused_run(void *obj)
 {
 	struct cloud_state_object const *state_object = obj;
 
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		if (msg.type == NETWORK_CONNECTED) {
@@ -1157,7 +1157,7 @@ static enum smf_state_result state_connected_paused_run(void *obj)
 		}
 	}
 
-	if (state_object->chan == &STORAGE_CHAN) {
+	if (state_object->chan == &storage_chan) {
 		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
 
 		switch (msg->type) {

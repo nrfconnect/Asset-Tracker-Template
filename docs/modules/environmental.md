@@ -15,7 +15,7 @@ The Environmental module implements a state machine with the following states an
 
 ## Messages
 
-The Environmental module communicates via the zbus channel `ENVIRONMENTAL_CHAN`, using message types defined in `environmental.h`.
+The Environmental module communicates via the zbus channel `environmental_chan`, using message types defined in `environmental.h`.
 
 ### Input messages
 

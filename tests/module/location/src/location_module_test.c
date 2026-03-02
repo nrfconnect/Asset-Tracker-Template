@@ -23,7 +23,7 @@ DEFINE_FFF_GLOBALS;
 ZBUS_MSG_SUBSCRIBER_DEFINE(test_subscriber);
 
 /* Add observers for the channels */
-ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, test_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(location_chan, test_subscriber, 0);
 
 /* Create fakes for required functions */
 FAKE_VALUE_FUNC(int, location_init, location_event_handler_t);
@@ -67,7 +67,7 @@ static int wait_for_message(enum location_msg_type expected_type, struct locatio
 	const struct zbus_channel *chan;
 	int err = zbus_sub_wait_msg(&test_subscriber, &chan, received_msg, K_MSEC(100));
 
-	TEST_ASSERT_EQUAL_PTR(&LOCATION_CHAN, chan);
+	TEST_ASSERT_EQUAL_PTR(&location_chan, chan);
 	TEST_ASSERT_EQUAL(0, err);
 	TEST_ASSERT_EQUAL(expected_type, received_msg->type);
 
@@ -104,7 +104,7 @@ static void publish_and_consume_message(enum location_msg_type msg_type)
 {
 	struct location_msg msg = { .type = msg_type };
 
-	zbus_chan_pub(&LOCATION_CHAN, &msg, K_NO_WAIT);
+	zbus_chan_pub(&location_chan, &msg, K_NO_WAIT);
 	wait_for_processing();
 	consume_published_message(msg_type);
 }
@@ -350,7 +350,7 @@ void tearDown(void)
 	const struct zbus_channel *chan;
 	struct location_msg consumed;
 
-	zbus_chan_pub(&LOCATION_CHAN, &msg, K_NO_WAIT);
+	zbus_chan_pub(&location_chan, &msg, K_NO_WAIT);
 	wait_for_processing();
 
 	while (zbus_sub_wait_msg(&test_subscriber, &chan, &consumed, K_NO_WAIT) == 0) {
@@ -378,7 +378,7 @@ void test_location_search_trigger(void)
 	location_request_fake.return_val = 0;
 
 	/* Publish trigger message */
-	zbus_chan_pub(&LOCATION_CHAN, &msg, K_NO_WAIT);
+	zbus_chan_pub(&location_chan, &msg, K_NO_WAIT);
 
 	wait_for_processing();
 
@@ -1024,7 +1024,7 @@ void test_location_cancel_when_inactive(void)
 	};
 
 	/* Publish cancel message while in inactive state */
-	zbus_chan_pub(&LOCATION_CHAN, &msg, K_NO_WAIT);
+	zbus_chan_pub(&location_chan, &msg, K_NO_WAIT);
 
 	/* Give the module time to process */
 	wait_for_processing();
@@ -1047,7 +1047,7 @@ void test_location_cancel_when_active(void)
 	};
 
 	/* Start location search */
-	zbus_chan_pub(&LOCATION_CHAN, &trigger_msg, K_NO_WAIT);
+	zbus_chan_pub(&location_chan, &trigger_msg, K_NO_WAIT);
 	wait_for_processing();
 
 	/* Consume the trigger message that was published */
@@ -1057,7 +1057,7 @@ void test_location_cancel_when_active(void)
 	TEST_ASSERT_EQUAL(1, location_request_fake.call_count);
 
 	/* Cancel location search */
-	zbus_chan_pub(&LOCATION_CHAN, &cancel_msg, K_NO_WAIT);
+	zbus_chan_pub(&location_chan, &cancel_msg, K_NO_WAIT);
 	wait_for_processing();
 
 	/* Consume the cancel message that was published */
@@ -1468,7 +1468,7 @@ void test_gnss_fix_trigger(void)
 		.type = LOCATION_GNSS_SEARCH_TRIGGER
 	};
 
-	zbus_chan_pub(&LOCATION_CHAN, &msg, K_NO_WAIT);
+	zbus_chan_pub(&location_chan, &msg, K_NO_WAIT);
 	wait_for_processing();
 
 	/* Verify location_config_defaults_set was called with GNSS-only method */

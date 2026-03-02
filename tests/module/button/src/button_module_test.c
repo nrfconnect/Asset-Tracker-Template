@@ -19,7 +19,7 @@ DEFINE_FFF_GLOBALS;
 LOG_MODULE_REGISTER(button_module_test, 4);
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(button_subscriber);
-ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, button_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(button_chan, button_subscriber, 0);
 
 #define FAKE_TIME_MS 1716552398505
 
@@ -66,7 +66,7 @@ void test_button_short_press(void)
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* check if chan is button channel */
-	if (chan != &BUTTON_CHAN) {
+	if (chan != &button_chan) {
 		LOG_ERR("Received message from wrong channel");
 		TEST_FAIL();
 	}
@@ -92,7 +92,7 @@ void test_button_long_press(void)
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* check if chan is button channel */
-	if (chan != &BUTTON_CHAN) {
+	if (chan != &button_chan) {
 		LOG_ERR("Received message from wrong channel");
 		TEST_FAIL();
 	}
@@ -167,7 +167,7 @@ void test_random_presses(void)
 		TEST_ASSERT_EQUAL(0, err);
 
 		/* Check if chan is button channel */
-		if (chan != &BUTTON_CHAN) {
+		if (chan != &button_chan) {
 			LOG_ERR("Received message from wrong channel for press %d", i + 1);
 			TEST_FAIL();
 		}

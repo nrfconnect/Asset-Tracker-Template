@@ -29,7 +29,7 @@ enum priv_cloud_msg {
 };
 
 /* Private cloud channel - declared in cloud.c */
-ZBUS_CHAN_DECLARE(PRIV_CLOUD_CHAN);
+ZBUS_CHAN_DECLARE(priv_cloud_chan);
 
 #ifdef __cplusplus
 }

@@ -17,7 +17,7 @@ extern "C" {
 
 /* Channels provided by this module */
 ZBUS_CHAN_DECLARE(
-	ENVIRONMENTAL_CHAN
+	environmental_chan
 );
 
 enum environmental_msg_type {

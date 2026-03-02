@@ -49,7 +49,7 @@ static int cmd_publish(const struct shell *sh, size_t argc, char **argv)
 	(void)shell_print(sh, "Sending on payload channel: %s (%d bytes)",
 			  msg.payload.buffer, msg.payload.buffer_data_len);
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&cloud_chan, &msg, K_SECONDS(1));
 	if (err) {
 		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
 		return 1;

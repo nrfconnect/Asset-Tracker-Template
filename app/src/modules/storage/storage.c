@@ -73,10 +73,10 @@ BUILD_ASSERT(CONFIG_APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS >
  * For example, with CONFIG_APP_POWER enabled, the expansion looks like:
  *
  * Step 1: DATA_SOURCE_LIST expands to:
- *   ADD_OBSERVERS(battery, POWER_CHAN, struct power_msg, double, battery_check, battery_extract)
+ *   ADD_OBSERVERS(battery, power_chan, struct power_msg, double, battery_check, battery_extract)
  *
  * Step 2: ADD_OBSERVERS expands to:
- *   ZBUS_CHAN_ADD_OBS(POWER_CHAN, storage_subscriber, 0)
+ *   ZBUS_CHAN_ADD_OBS(power_chan, storage_subscriber, 0)
  *
  * This process repeats for each enabled module in DATA_SOURCE_LIST.
  *
@@ -100,7 +100,7 @@ enum priv_storage_msg {
 DATA_SOURCE_LIST(ADD_OBSERVERS);
 
 /* Create the storage channel */
-ZBUS_CHAN_DEFINE(STORAGE_CHAN,
+ZBUS_CHAN_DEFINE(storage_chan,
 		 struct storage_msg,
 		 NULL,
 		 NULL,
@@ -109,7 +109,7 @@ ZBUS_CHAN_DEFINE(STORAGE_CHAN,
 );
 
 /* Create the storage data channel */
-ZBUS_CHAN_DEFINE(STORAGE_DATA_CHAN,
+ZBUS_CHAN_DEFINE(storage_data_chan,
 		 struct storage_msg,
 		 NULL,
 		 NULL,
@@ -118,7 +118,7 @@ ZBUS_CHAN_DEFINE(STORAGE_DATA_CHAN,
 );
 
 /* Create private storage channel for internal messaging */
-ZBUS_CHAN_DEFINE(PRIV_STORAGE_CHAN,
+ZBUS_CHAN_DEFINE(priv_storage_chan,
 		 enum priv_storage_msg,
 		 NULL,
 		 NULL,
@@ -228,7 +228,7 @@ static void session_timeout_work_fn(struct k_work *work)
 
 	LOG_WRN("Session timeout: closing session 0x%X", state->current_session.session_id);
 
-	err = zbus_chan_pub(&PRIV_STORAGE_CHAN, &msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&priv_storage_chan, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish session timeout message: %d", err);
 		/* If we fail to publish, we can't do much else from work queue context */
@@ -323,7 +323,7 @@ static void check_and_notify_buffer_threshold(const struct storage_state *state_
 			.data_len = (uint16_t)count,
 		};
 
-		err = zbus_chan_pub(&STORAGE_CHAN, &threshold_msg, PUB_TIMEOUT);
+		err = zbus_chan_pub(&storage_chan, &threshold_msg, PUB_TIMEOUT);
 		if (err) {
 			LOG_ERR("Failed to publish buffer threshold message, error: %d", err);
 			SEND_FATAL_ERROR();
@@ -390,7 +390,7 @@ static void flush_stored_data(void)
 
 			msg.data_len = (uint16_t)ret;
 
-			ret = zbus_chan_pub(&STORAGE_DATA_CHAN, &msg, PUB_TIMEOUT);
+			ret = zbus_chan_pub(&storage_data_chan, &msg, PUB_TIMEOUT);
 			if (ret) {
 				LOG_ERR("Failed to publish %s data, error: %d", type->name, ret);
 				SEND_FATAL_ERROR();
@@ -454,7 +454,7 @@ static void send_batch_response(enum storage_msg_type response_type,
 	response_msg.data_len = (uint16_t)MIN(data_len, (size_t)UINT16_MAX);
 	response_msg.more_data = more_data;
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &response_msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&storage_chan, &response_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to send batch response type %d: %d", response_type, err);
 		SEND_FATAL_ERROR();
@@ -778,7 +778,7 @@ static enum smf_state_result state_running_run(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	if (state_object->chan == &STORAGE_CHAN) {
+	if (state_object->chan == &storage_chan) {
 		switch (msg->type) {
 		case STORAGE_CLEAR:
 			/* Clear all stored data */
@@ -824,7 +824,7 @@ static enum smf_state_result state_buffer_idle_run(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	if (state_object->chan == &STORAGE_CHAN && msg->type == STORAGE_BATCH_REQUEST) {
+	if (state_object->chan == &storage_chan && msg->type == STORAGE_BATCH_REQUEST) {
 		LOG_DBG("Batch request received, switching to batch active state");
 		/* Set up session ID for the upcoming batch session */
 		state_object->current_session.session_id = msg->session_id;
@@ -871,7 +871,7 @@ static enum smf_state_result state_buffer_pipe_active_run(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	if (state_object->chan == &STORAGE_CHAN) {
+	if (state_object->chan == &storage_chan) {
 		switch (msg->type) {
 		case STORAGE_CLEAR:
 			LOG_WRN("Cannot clear storage while batch session is active");
@@ -918,7 +918,7 @@ static enum smf_state_result state_buffer_pipe_active_run(void *o)
 		}
 	}
 
-	if (state_object->chan == &PRIV_STORAGE_CHAN) {
+	if (state_object->chan == &priv_storage_chan) {
 		enum priv_storage_msg priv_msg = *(enum priv_storage_msg *)state_object->msg_buf;
 
 		if (priv_msg == STORAGE_BATCH_SESSION_TIMEOUT) {
@@ -931,7 +931,7 @@ static enum smf_state_result state_buffer_pipe_active_run(void *o)
 				close_msg.session_id);
 
 			/* Notify other modules (like cloud) that the batch is closed */
-			zbus_chan_pub(&STORAGE_CHAN, &close_msg, PUB_TIMEOUT);
+			zbus_chan_pub(&storage_chan, &close_msg, PUB_TIMEOUT);
 
 			/* Force transition to idle state */
 			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
@@ -982,9 +982,9 @@ static void storage_thread(void)
 		return;
 	}
 
-	err = zbus_chan_add_obs(&STORAGE_CHAN, &storage_subscriber, PUB_TIMEOUT);
+	err = zbus_chan_add_obs(&storage_chan, &storage_subscriber, PUB_TIMEOUT);
 	if (err) {
-		LOG_ERR("Failed to add observer to STORAGE_CHAN, error: %d", err);
+		LOG_ERR("Failed to add observer to storage_chan, error: %d", err);
 		SEND_FATAL_ERROR();
 
 		return;

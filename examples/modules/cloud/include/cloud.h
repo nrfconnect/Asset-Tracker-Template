@@ -16,7 +16,7 @@ extern "C" {
 
 /* Channels provided by this module */
 ZBUS_CHAN_DECLARE(
-	CLOUD_CHAN
+	cloud_chan
 );
 
 struct cloud_payload {

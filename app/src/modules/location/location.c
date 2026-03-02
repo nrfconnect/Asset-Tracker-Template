@@ -39,7 +39,7 @@ BUILD_ASSERT(CONFIG_APP_LOCATION_WIFI_APS_MAX >=
 ZBUS_MSG_SUBSCRIBER_DEFINE(location);
 
 /* Define channels provided by this module */
-ZBUS_CHAN_DEFINE(LOCATION_CHAN,
+ZBUS_CHAN_DEFINE(location_chan,
 		 struct location_msg,
 		 NULL,
 		 NULL,
@@ -54,7 +54,7 @@ enum priv_location_msg {
 };
 
 /* Create private location channel for internal messaging that is not intended for external use. */
-ZBUS_CHAN_DEFINE(PRIV_LOCATION_CHAN,
+ZBUS_CHAN_DEFINE(priv_location_chan,
 		 enum priv_location_msg,
 		 NULL,
 		 NULL,
@@ -66,8 +66,8 @@ ZBUS_CHAN_DEFINE(PRIV_LOCATION_CHAN,
  * and the subscriber that will receive the messages on the channel.
  */
 #define CHANNEL_LIST(X)								\
-	X(LOCATION_CHAN,	struct location_msg)			\
-	X(PRIV_LOCATION_CHAN,	enum priv_location_msg)			\
+	X(location_chan,	struct location_msg)			\
+	X(priv_location_chan,	enum priv_location_msg)			\
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
@@ -77,7 +77,7 @@ ZBUS_CHAN_DEFINE(PRIV_LOCATION_CHAN,
 
 /*
  * Expand to a call to ZBUS_CHAN_ADD_OBS for each channel in the list.
- * Example: ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, location, 0);
+ * Example: ZBUS_CHAN_ADD_OBS(location_chan, location, 0);
  */
 CHANNEL_LIST(ADD_OBSERVERS)
 
@@ -99,7 +99,7 @@ static void on_modem_init(int ret, void *ctx)
 		return;
 	}
 
-	err = zbus_chan_pub(&PRIV_LOCATION_CHAN, &msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&priv_location_chan, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -195,7 +195,7 @@ static void cloud_request_send(const struct location_data_cloud *cloud_request)
 		return;
 	}
 
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&location_chan, &location_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -213,7 +213,7 @@ static void agnss_request_send(const struct nrf_modem_gnss_agnss_data_frame *agn
 		.agnss_request = *agnss_request
 	};
 
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&location_chan, &location_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -238,7 +238,7 @@ static void gnss_location_send(const struct location_data *location_data)
 		return;
 	}
 
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&location_chan, &location_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -253,7 +253,7 @@ static void message_send(enum location_msg_type msg_type)
 		.type = msg_type
 	};
 
-	err = zbus_chan_pub(&LOCATION_CHAN, &location_msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&location_chan, &location_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -266,7 +266,7 @@ static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
 {
 	struct location_state_object *state_object = obj;
 
-	if (state_object->chan == &PRIV_LOCATION_CHAN) {
+	if (state_object->chan == &priv_location_chan) {
 		enum priv_location_msg msg = *(const enum priv_location_msg *)state_object->msg_buf;
 
 		if (msg == LOCATION_PRIV_MODEM_INITIALIZED) {
@@ -310,7 +310,7 @@ static enum smf_state_result state_location_search_inactive_run(void *obj)
 	int err;
 	struct location_state_object *state_object = obj;
 
-	if (state_object->chan == &LOCATION_CHAN) {
+	if (state_object->chan == &location_chan) {
 		const struct location_msg *location_msg =
 			MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
 
@@ -368,7 +368,7 @@ static enum smf_state_result state_location_search_active_run(void *obj)
 {
 	struct location_state_object *state_object = obj;
 
-	if (state_object->chan == &LOCATION_CHAN) {
+	if (state_object->chan == &location_chan) {
 		const struct location_msg *location_msg =
 			MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
 		int err;
