@@ -396,6 +396,9 @@ class NRFCloudFOTA(NRFCloud):
         """
         return self._get(f"/fota-jobs/{job_id}")["status"]
 
+    def get_fota_completed_executions(self, job_id: str) -> int:
+        """Returns the number of completed executions for a FOTA job"""
+        return self._get(f"/fota-jobs/{job_id}")["executionStats"]["completedExecutions"]
 
     def post_fota_job(self, uuid: str, fw_id: str) -> Union[str, None]:
         """

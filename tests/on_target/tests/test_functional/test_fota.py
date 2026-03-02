@@ -201,6 +201,8 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
             "FOTA status",
             fotatimeout
         )
+        if not dut_fota.fota.get_fota_completed_executions(dut_fota.data['job_id']) > 0:
+            raise AssertionError("FOTA job completed but no devices succeeded")
 
         try:
             if fota_type == "app":
@@ -256,6 +258,8 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
                 "FOTA status",
                 fotatimeout
             )
+            if not dut_fota.fota.get_fota_completed_executions(dut_fota.data['job_id']) > 0:
+                raise AssertionError("FOTA job completed but no devices succeeded")
 
             try:
                 await_nrfcloud(
