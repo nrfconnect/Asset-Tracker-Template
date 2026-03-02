@@ -1,0 +1,12 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+config APP_SGP4
+    bool "SGP4 Satellite Prediction Module"
+    default n
+    select DATE_TIME
+    help
+      Enable satellite prediction module using SGP4.
