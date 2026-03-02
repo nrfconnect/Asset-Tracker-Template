@@ -15,23 +15,29 @@ If you are not familiar with the nRF91 Series SiPs and cellular in general, it i
 
 ## Quick Start
 
-For detailed setup instructions using the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) and advanced configuration options, see the [Getting Started Guide](common/getting_started.md).
+The fastest way to get started is to download and run the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop). It provides a guided setup and provisioning process that gets your device connected to [nRF Cloud](https://nrfcloud.com) in minutes.
 
-For pre-built binaries, refer to the latest tag and the [release artifacts](common/release.md) documentation.
+Alternatively, you can download pre-built firmware binaries from the latest release and flash them directly to your device. See the [release artifacts](common/release.md) documentation for details.
 
-> [!TIP]
-> Download and run the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in the [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop) for a guided setup and provisioning process.
->
-> You can also refer to [Exercise 1](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals/lessons/lesson-1-cellular-fundamentals/topic/lesson-1-exercise-1/) in [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals).
+## Setting up the development environment
 
-### Prerequisites
+To build the firmware from source, you need the nRF Connect SDK development environment ([setup guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation.html)). There are two options for setting up and building the project. For a detailed walkthrough, see the [Getting Started Guide](common/getting_started.md).
 
-* nRF Connect SDK development environment ([setup guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation.html))
+### Option 1: nRF Connect for VS Code (Recommended)
 
-### Build and run
+Use the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) extension for an integrated development experience:
+
+1. Open VS Code and go to the **nRF Connect** extension.
+2. Select **Create New Application** → **Browse nRF Connect SDK add-on Index**.
+3. Search for **Asset Tracker Template** and create the project.
+4. Use the **Actions** panel in the extension to build and flash the application.
+
+For more details, see the [Getting Started Guide](common/getting_started.md).
+
+### Option 2: Command line
 
 <details>
-<summary>1. <strong>Initialize workspace:</strong></summary>
+<summary><strong>1. Initialize workspace</strong></summary>
 <ol>
 <li>Install nRF Util. Follow <a href="https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html">documentation</a> for installation instructions.</li>
 <li>Install sdk-manager:
@@ -53,7 +59,7 @@ west update</code></pre>
 </details>
 
 <details>
-<summary>2. <strong>Build and flash:</strong></summary>
+<summary><strong>2. Build and flash</strong></summary>
 
     **For Thingy:91 X:**
 
@@ -72,13 +78,17 @@ west update</code></pre>
     ```
 </details>
 
-<details>
+### Provision device to nRF Cloud
 
-<summary>3. <strong>Provision device:</strong></summary>
+After building and flashing (using either option above), you need to provision the device to connect to [nRF Cloud](https://nrfcloud.com).
+
+<details>
+<summary><strong>Provisioning steps</strong></summary>
 <ol>
-<li>Get the device attestation token over terminal shell:
+<li>Get the device attestation token. Open a serial terminal connected to the device (115200 baud) and run the following AT command in the device shell:
 <pre><code class="language-bash">at at%attesttoken</code></pre>
-<br>Token is printed automatically on first boot of unprovisioned devices.</br></li>
+The token is also printed automatically to the serial log on first boot of unprovisioned devices.</li>
+<li>Log in to the <a href="https://nrfcloud.com/#/">nRF Cloud</a> portal.</li>
 <li>Select <strong>Security Services</strong> in the left sidebar.</li>
 <li>Select <strong>Claimed Devices</strong>.</li>
 <li>Click <strong>Claim Device</strong>.</li>
@@ -93,10 +103,14 @@ Create a new rule using the following configuration:<br>
 <img src="images/claim.png" alt="Claim Device" width="300" />
 </details>
 
-<li>Wait for the device to provision credentials and connect to nRF Cloud over CoAP. Once connected, the device must be available under the <strong>Devices</strong> section in the <strong>Device Management</strong> navigation pane on the left.</li>
+<li>After claiming, wait for the device to provision credentials and connect to nRF Cloud over CoAP. Once connected, the device will be available under the <strong>Devices</strong> section in the <strong>Device Management</strong> navigation pane on the left.</li>
 </ol>
 
-  See <a href="https://docs.nordicsemi.com/bundle/asset-tracker-template-latest/page/common/provisioning.html">provisioning</a> for more details.
+<blockquote>
+<strong>Note:</strong> The device polls the provisioning service at its own interval. This means it may take a few minutes for the device to pick up the claim and complete provisioning. If you want a quicker response, press <strong>Button 1</strong> on the device or reset it to trigger an immediate provisioning poll.
+</blockquote>
+
+See <a href="https://docs.nordicsemi.com/bundle/asset-tracker-template-latest/page/common/provisioning.html">provisioning</a> for more details.
 
 </details>
 
