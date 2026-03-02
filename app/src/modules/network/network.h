@@ -132,13 +132,6 @@ struct network_msg {
 		 */
 		IF_ENABLED(CONFIG_LTE_LC_EDRX_MODULE, (struct lte_lc_edrx_cfg edrx_cfg));
 	};
-
-	/** Timestamp when the sample was taken in milliseconds.
-	 *  This is either:
-	 * - Unix time in milliseconds if the system clock was synchronized at sampling time, or
-	 * - Uptime in milliseconds if the system clock was not synchronized at sampling time.
-	 */
-	int64_t timestamp;
 };
 
 #define MSG_TO_NETWORK_MSG(_msg)	(*(const struct network_msg *)_msg)
