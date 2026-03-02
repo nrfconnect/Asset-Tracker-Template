@@ -109,4 +109,3 @@ jobs:
       artifact_fw_version: ${{ needs.build.outputs.version }}
       artifact_run_id: ${{ needs.build.outputs.run_id }}
       devices: ${{ needs.setup.outputs.devices }}
-      test_all: ${{ needs.setup.outputs.build_all == 'true' }}

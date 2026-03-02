@@ -13,6 +13,11 @@ on:
         type: boolean
         required: false
         default: false
+      build_release:
+        description: Exclude test builds
+        type: boolean
+        required: false
+        default: false
       push_memory_badges:
         description: Whether to parse thingy91x build log and push memory badges
         type: boolean
@@ -29,6 +34,10 @@ on:
         required: false
         default: false
       build_all:
+        type: boolean
+        required: false
+        default: false
+      build_release:
         type: boolean
         required: false
         default: false
@@ -199,9 +208,9 @@ jobs:
           path: asset-tracker-template/app
           debug: true
 
-      # Asset Tracker Template firmware build with MQTT cloud moduel for Thingy91x
+      # Asset Tracker Template firmware build with MQTT cloud module for Thingy91x
       - name: Build thingy91x firmware with MQTT cloud module
-        if: ${{ inputs.build_all }}
+        if: ${{ inputs.build_all && !inputs.build_release }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: thingy91x/nrf9151/ns
@@ -211,7 +220,7 @@ jobs:
           mqtt: true
 
       - name: Build thingy91x firmware with buffered mode flash backend
-        if: ${{ inputs.build_all }}
+        if: ${{ inputs.build_all && !inputs.build_release }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: thingy91x/nrf9151/ns
@@ -221,7 +230,7 @@ jobs:
           buffer_flash: true
 
       - name: Build thingy91x firmware with buffered mode RAM backend
-        if: ${{ inputs.build_all }}
+        if: ${{ inputs.build_all && !inputs.build_release }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: thingy91x/nrf9151/ns

@@ -214,7 +214,6 @@ def thingy91x_ppk2():
     ppk2_dev.stop_measuring()
     ppk2_dev.toggle_DUT_power("OFF")
 
-@pytest.mark.slow
 def test_power(thingy91x_ppk2, hex_file):
     '''
     Test that the device can reach PSM and measure the current consumption

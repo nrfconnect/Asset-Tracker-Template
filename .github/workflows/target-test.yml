@@ -9,10 +9,6 @@ on:
       artifact_fw_version:
         type: string
         required: true
-      test_all:
-        type: boolean
-        required: false
-        default: false
       pytest_path:
         type: string
         required: false
@@ -33,11 +29,6 @@ on:
         description: The run ID of the workflow to fetch artifacts from
         type: string
         required: true
-      test_all:
-        description: Run all tests
-        type: boolean
-        required: false
-        default: false
       pytest_path:
         description: Select test execution path
         type: string
@@ -117,7 +108,7 @@ jobs:
           nrfutil install trace
 
       - name: Upload symbol file to Memfault
-        if: ${{ matrix.device == 'thingy91x' && inputs.test_all }}
+        if: ${{ matrix.device == 'thingy91x' }}
         working-directory: asset-tracker-template/tests/on_target/artifacts
         run: |
           memfault \
@@ -140,11 +131,6 @@ jobs:
         working-directory: asset-tracker-template/tests/on_target
         run: |
           mkdir -p results
-          if [[ ${{ inputs.test_all }} == true ]]; then
-            pytest_marker=()
-          else
-            pytest_marker=(-m "not slow")
-          fi
           if [[ '${{ matrix.device }}' == 'ppk_thingy91x' ]]; then
             PYTEST_PATH=tests/test_ppk
           elif [[ '${{ matrix.device }}' == 'gnss_nrf9151dk' ]]; then
@@ -155,7 +141,7 @@ jobs:
             PYTEST_PATH=${{ inputs.pytest_path }}
           fi
 
-          pytest -v "${pytest_marker[@]}" \
+          pytest -v \
             --junit-xml=results/test-results.xml \
             --html=results/test-results.html --self-contained-html \
             ${PYTEST_PATH}
