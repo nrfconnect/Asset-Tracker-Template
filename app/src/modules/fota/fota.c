@@ -34,7 +34,7 @@ BUILD_ASSERT(CONFIG_APP_FOTA_WATCHDOG_TIMEOUT_SECONDS >
 ZBUS_MSG_SUBSCRIBER_DEFINE(fota);
 
 /* Define FOTA channel */
-ZBUS_CHAN_DEFINE(FOTA_CHAN,
+ZBUS_CHAN_DEFINE(fota_chan,
 		 enum fota_msg_type,
 		 NULL,
 		 NULL,
@@ -49,7 +49,7 @@ enum priv_fota_msg {
 };
 
 /* Create private fota channel for internal messaging that is not intended for external use. */
-ZBUS_CHAN_DEFINE(PRIV_FOTA_CHAN,
+ZBUS_CHAN_DEFINE(priv_fota_chan,
 		 enum priv_fota_msg,
 		 NULL,
 		 NULL,
@@ -61,8 +61,8 @@ ZBUS_CHAN_DEFINE(PRIV_FOTA_CHAN,
  * and the subscriber that will receive the messages on the channel.
  */
 #define CHANNEL_LIST(X)							\
-	X(FOTA_CHAN,		enum fota_msg_type)			\
-	X(PRIV_FOTA_CHAN,	enum priv_fota_msg)			\
+	X(fota_chan,		enum fota_msg_type)			\
+	X(priv_fota_chan,	enum priv_fota_msg)			\
 
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
 
@@ -71,7 +71,7 @@ ZBUS_CHAN_DEFINE(PRIV_FOTA_CHAN,
 
 /*
  * Expand to a call to ZBUS_CHAN_ADD_OBS for each channel in the list.
- * Example: ZBUS_CHAN_ADD_OBS(FOTA_CHAN, fota, 0);
+ * Example: ZBUS_CHAN_ADD_OBS(fota_chan, fota, 0);
  */
 CHANNEL_LIST(ADD_OBSERVERS)
 
@@ -205,7 +205,7 @@ static void on_modem_init(int ret, void *ctx)
 		return;
 	}
 
-	err = zbus_chan_pub(&PRIV_FOTA_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&priv_fota_chan, &msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -225,7 +225,7 @@ static void fota_reboot(enum nrf_cloud_fota_reboot_status status)
 
 	LOG_DBG("Reboot requested with FOTA status %d", status);
 
-	err = zbus_chan_pub(&FOTA_CHAN, &evt, PUB_TIMEOUT);
+	err = zbus_chan_pub(&fota_chan, &evt, PUB_TIMEOUT);
 	if (err) {
 		LOG_DBG("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -283,7 +283,7 @@ static void fota_status(enum nrf_cloud_fota_status status, const char *const sta
 		return;
 	}
 
-	err = zbus_chan_pub(&FOTA_CHAN, &evt, PUB_TIMEOUT);
+	err = zbus_chan_pub(&fota_chan, &evt, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -319,7 +319,7 @@ static enum smf_state_result state_running_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
-	if (&FOTA_CHAN == state_object->chan) {
+	if (&fota_chan == state_object->chan) {
 		const enum fota_msg_type msg_type = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		if (msg_type == FOTA_DOWNLOAD_CANCEL) {
@@ -344,7 +344,7 @@ static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
 {
 	struct fota_state_object *state_object = obj;
 
-	if (&PRIV_FOTA_CHAN == state_object->chan) {
+	if (&priv_fota_chan == state_object->chan) {
 		const enum priv_fota_msg msg_type =
 			*(const enum priv_fota_msg *)(state_object->msg_buf);
 
@@ -382,7 +382,7 @@ static enum smf_state_result state_waiting_for_poll_request_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
-	if (&FOTA_CHAN == state_object->chan) {
+	if (&fota_chan == state_object->chan) {
 		const enum fota_msg_type msg_type = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		if (msg_type == FOTA_POLL_REQUEST) {
@@ -418,7 +418,7 @@ static void state_polling_for_update_entry(void *obj)
 
 		enum fota_msg_type evt = FOTA_NO_AVAILABLE_UPDATE;
 
-		err = zbus_chan_pub(&FOTA_CHAN, &evt, PUB_TIMEOUT);
+		err = zbus_chan_pub(&fota_chan, &evt, PUB_TIMEOUT);
 		if (err) {
 			LOG_ERR("zbus_chan_pub, error: %d", err);
 			SEND_FATAL_ERROR();
@@ -434,7 +434,7 @@ static enum smf_state_result state_polling_for_update_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
-	if (&FOTA_CHAN == state_object->chan) {
+	if (&fota_chan == state_object->chan) {
 		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		switch (evt) {
@@ -471,7 +471,7 @@ static enum smf_state_result state_downloading_update_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
-	if (&FOTA_CHAN == state_object->chan) {
+	if (&fota_chan == state_object->chan) {
 		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		switch (evt) {
@@ -515,7 +515,7 @@ static enum smf_state_result state_waiting_for_image_apply_run(void *obj)
 {
 	struct fota_state_object *state_object = obj;
 
-	if (&FOTA_CHAN == state_object->chan) {
+	if (&fota_chan == state_object->chan) {
 		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		if (evt == FOTA_IMAGE_APPLY) {
@@ -547,7 +547,7 @@ static enum smf_state_result state_image_applying_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
-	if (&FOTA_CHAN == state_object->chan) {
+	if (&fota_chan == state_object->chan) {
 		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		if (evt == FOTA_SUCCESS_REBOOT_NEEDED) {
@@ -587,7 +587,7 @@ static enum smf_state_result state_canceling_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
-	if (&FOTA_CHAN == state_object->chan) {
+	if (&fota_chan == state_object->chan) {
 		const enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
 
 		if (msg == FOTA_DOWNLOAD_CANCELED) {

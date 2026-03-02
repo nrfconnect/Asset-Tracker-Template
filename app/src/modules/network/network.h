@@ -17,7 +17,7 @@ extern "C" {
 
 /* Channels provided by this module */
 ZBUS_CHAN_DECLARE(
-	NETWORK_CHAN
+	network_chan
 );
 
 enum network_msg_type {

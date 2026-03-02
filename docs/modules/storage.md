@@ -223,7 +223,7 @@ CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=50
 
 ## Messages
 
-The storage module communicates through two zbus channels: `STORAGE_CHAN` and `STORAGE_DATA_CHAN`.
+The storage module communicates through two zbus channels: `storage_chan` and `storage_data_chan`.
 All message types are defined in the `storage.h` file.
 
 ### Input Messages (Commands)
@@ -355,7 +355,7 @@ The following includes the key configuration categories:
 
 ### Channels
 
-#### STORAGE_CHAN
+#### storage_chan
 
 The storage channel is the primary zbus channel for controlling the storage module and receiving control or status responses.
 
@@ -375,7 +375,7 @@ The storage channel is the primary zbus channel for controlling the storage modu
 - `STORAGE_BATCH_BUSY` - Another session active
 - `STORAGE_BATCH_ERROR` - Error accessing data
 
-#### STORAGE_DATA_CHAN
+#### storage_data_chan
 
 This is a dedicated channel for `STORAGE_DATA` payload messages to avoid self-flooding and race conditions.
 The subscribers interested in data should observe this channel.
@@ -438,7 +438,7 @@ It reads stored data through the batch interface, handling header parsing and da
 ```c
 struct storage_msg msg = { .type = STORAGE_BATCH_REQUEST, .session_id = 0x12345678 };
 
-err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+err = zbus_chan_pub(&storage_chan, &msg, K_SECONDS(1));
 
 // Wait for STORAGE_BATCH_AVAILABLE, then:
 struct storage_data_item item;
@@ -453,14 +453,14 @@ while (storage_batch_read(&item, K_SECONDS(1)) == 0) {
 
 // Close session
 struct storage_msg close = { .type = STORAGE_BATCH_CLOSE, .session_id = 0x12345678 };
-zbus_chan_pub(&STORAGE_CHAN, &close, K_SECONDS(1));
+zbus_chan_pub(&storage_chan, &close, K_SECONDS(1));
 ```
 
 Responses: `STORAGE_BATCH_AVAILABLE` (success), `STORAGE_BATCH_EMPTY`, `STORAGE_BATCH_BUSY`, `STORAGE_BATCH_ERROR`.
 
 ### Processing STORAGE_DATA
 
-Subscribe to `STORAGE_DATA_CHAN` to receive forwarded/flushed data:
+Subscribe to `storage_data_chan` to receive forwarded/flushed data:
 
 ```c
 switch (msg->data_type) {
@@ -482,12 +482,12 @@ case STORAGE_TYPE_LOCATION:
 /* Clear all stored data */
 struct storage_msg msg = { .type = STORAGE_CLEAR };
 
-err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+err = zbus_chan_pub(&storage_chan, &msg, K_SECONDS(1));
 
 /* Show statistics (requires CONFIG_APP_STORAGE_SHELL_STATS) */
 struct storage_msg msg = { .type = STORAGE_STATS };
 
-err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+err = zbus_chan_pub(&storage_chan, &msg, K_SECONDS(1));
 ```
 
 ### Shell Commands

@@ -25,7 +25,7 @@ BUILD_ASSERT(CONFIG_APP_NETWORK_WATCHDOG_TIMEOUT_SECONDS >
 	     "Watchdog timeout must be greater than maximum message processing time");
 
 /* Define channels provided by this module */
-ZBUS_CHAN_DEFINE(NETWORK_CHAN,
+ZBUS_CHAN_DEFINE(network_chan,
 		 struct network_msg,
 		 NULL,
 		 NULL,
@@ -37,7 +37,7 @@ ZBUS_CHAN_DEFINE(NETWORK_CHAN,
 ZBUS_MSG_SUBSCRIBER_DEFINE(network);
 
 /* Observe network channel */
-ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, network, 0);
+ZBUS_CHAN_ADD_OBS(network_chan, network, 0);
 
 #define MAX_MSG_SIZE sizeof(struct network_msg)
 
@@ -133,7 +133,7 @@ static void network_status_notify(enum network_msg_type status)
 		.type = status,
 	};
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&network_chan, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -145,7 +145,7 @@ static void network_msg_send(const struct network_msg *msg)
 {
 	int err;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&network_chan, msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -311,7 +311,7 @@ static enum smf_state_result state_running_run(void *obj)
 {
 	struct network_state_object const *state_object = obj;
 
-	if (&NETWORK_CHAN == state_object->chan) {
+	if (&network_chan == state_object->chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		switch (msg.type) {
@@ -346,7 +346,7 @@ static enum smf_state_result state_disconnected_run(void *obj)
 {
 	struct network_state_object const *state_object = obj;
 
-	if (&NETWORK_CHAN == state_object->chan) {
+	if (&network_chan == state_object->chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		switch (msg.type) {
@@ -385,7 +385,7 @@ static enum smf_state_result state_disconnected_searching_run(void *obj)
 	int err;
 	struct network_state_object const *state_object = obj;
 
-	if (&NETWORK_CHAN == state_object->chan) {
+	if (&network_chan == state_object->chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		switch (msg.type) {
@@ -414,7 +414,7 @@ static enum smf_state_result state_disconnected_idle_run(void *obj)
 	int err;
 	struct network_state_object const *state_object = obj;
 
-	if (&NETWORK_CHAN == state_object->chan) {
+	if (&network_chan == state_object->chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		switch (msg.type) {
@@ -470,7 +470,7 @@ static enum smf_state_result state_connected_run(void *obj)
 {
 	struct network_state_object const *state_object = obj;
 
-	if (&NETWORK_CHAN == state_object->chan) {
+	if (&network_chan == state_object->chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		if (msg.type == NETWORK_DISCONNECT) {
@@ -503,7 +503,7 @@ static enum smf_state_result state_disconnecting_run(void *obj)
 {
 	struct network_state_object const *state_object = obj;
 
-	if (&NETWORK_CHAN == state_object->chan) {
+	if (&network_chan == state_object->chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		if (msg.type == NETWORK_DISCONNECTED) {

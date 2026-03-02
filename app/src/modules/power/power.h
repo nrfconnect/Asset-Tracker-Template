@@ -16,7 +16,7 @@ extern "C" {
 
 /* Channels provided by this module */
 ZBUS_CHAN_DECLARE(
-	POWER_CHAN
+	power_chan
 );
 
 enum power_msg_type {

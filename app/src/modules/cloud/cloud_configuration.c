@@ -18,7 +18,7 @@
 
 LOG_MODULE_DECLARE(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 
-ZBUS_CHAN_DECLARE(CLOUD_CHAN);
+ZBUS_CHAN_DECLARE(cloud_chan);
 
 int cloud_configuration_poll(enum shadow_poll_type type)
 {
@@ -57,7 +57,7 @@ int cloud_configuration_poll(enum shadow_poll_type type)
 		return -ENODATA;
 	}
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&cloud_chan, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		return err;

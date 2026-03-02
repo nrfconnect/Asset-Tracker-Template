@@ -30,7 +30,7 @@
  * This macro defines a list of data sources that the storage module will handle.
  * Each entry in the list specifies:
  * - name: Identifier for this data type (e.g., battery)
- * - channel: zbus channel to listen on (e.g., POWER_CHAN)
+ * - channel: zbus channel to listen on (e.g., power_chan)
  * - msg_type: Type of messages on the channel (e.g., struct power_msg)
  * - data_type: Type of data to store (e.g., double for battery percentage)
  * - check_fn: Function to filter messages (e.g., battery_check)
@@ -45,13 +45,13 @@
  *
  * 1. With STORAGE_DATA_TYPE to register each data type:
  *    DATA_SOURCE_LIST(STORAGE_DATA_TYPE) expands to:
- *    STORAGE_DATA_TYPE(battery, POWER_CHAN, struct power_msg, double,
+ *    STORAGE_DATA_TYPE(battery, power_chan, struct power_msg, double,
  *                     battery_check, battery_extract)
  *    for each enabled module
  *
  * 2. With ADD_OBSERVERS to add storage_subscriber to each channel:
  *    DATA_SOURCE_LIST(ADD_OBSERVERS) expands to:
- *    ZBUS_CHAN_ADD_OBS(POWER_CHAN, storage_subscriber, 0)
+ *    ZBUS_CHAN_ADD_OBS(power_chan, storage_subscriber, 0)
  *    for each enabled module
  *
  * 3. With MAX_MSG_SIZE_FROM_LIST to calculate buffer sizes:
@@ -62,14 +62,14 @@
  */
 #define DATA_SOURCE_LIST(X)									\
 	IF_ENABLED(CONFIG_APP_POWER,								\
-		   (X(BATTERY, POWER_CHAN, struct power_msg, struct power_msg,			\
+		   (X(BATTERY, power_chan, struct power_msg, struct power_msg,			\
 		      battery_check, battery_extract)))						\
 	IF_ENABLED(CONFIG_APP_ENVIRONMENTAL,							\
-		   (X(ENVIRONMENTAL, ENVIRONMENTAL_CHAN,					\
+		   (X(ENVIRONMENTAL, environmental_chan,					\
 		      struct environmental_msg, struct environmental_msg,			\
 		      environmental_check, environmental_extract)))				\
 	IF_ENABLED(CONFIG_APP_LOCATION,								\
-		   (X(LOCATION, LOCATION_CHAN, struct location_msg,				\
+		   (X(LOCATION, location_chan, struct location_msg,				\
 		      struct location_msg, location_check, location_extract)))
 
 #define STORAGE_DATA_TYPE(_name)								\
@@ -222,7 +222,7 @@ struct storage_data {
  * Example usage:
  * @code
  * STORAGE_DATA_TYPE(battery,               - Name for this storage type
- *                   POWER_CHAN,            - Channel to listen on
+ *                   power_chan,            - Channel to listen on
  *                   struct power_msg,      - Type of messages on the channel
  *                   double,                - Type of data to store
  *                   battery_should_store,  - Function to check if message should be stored

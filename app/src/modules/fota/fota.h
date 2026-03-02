@@ -15,7 +15,7 @@ extern "C" {
 #endif
 
 /* Channels provided by this module */
-ZBUS_CHAN_DECLARE(FOTA_CHAN);
+ZBUS_CHAN_DECLARE(fota_chan);
 
 enum fota_msg_type {
 	/* Output message types */

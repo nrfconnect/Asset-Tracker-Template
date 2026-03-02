@@ -42,7 +42,7 @@ To add a new zbus event, complete the following procedure:
             .type = POWER_VBUS_CONNECTED
         };
 
-        err = zbus_chan_pub(&POWER_CHAN, &msg, PUB_TIMEOUT);
+        err = zbus_chan_pub(&power_chan, &msg, PUB_TIMEOUT);
         if (err) {
             LOG_ERR("zbus_chan_pub, error: %d", err);
             SEND_FATAL_ERROR();
@@ -59,7 +59,7 @@ To add a new zbus event, complete the following procedure:
             .type = POWER_VBUS_DISCONNECTED
         };
 
-        err = zbus_chan_pub(&POWER_CHAN, &msg, PUB_TIMEOUT);
+        err = zbus_chan_pub(&power_chan, &msg, PUB_TIMEOUT);
         if (err) {
             LOG_ERR("zbus_chan_pub, error: %d", err);
             SEND_FATAL_ERROR();
@@ -74,20 +74,20 @@ To add a new zbus event, complete the following procedure:
 
     ```c
     #define CHANNEL_LIST(X)      \
-    X(CLOUD_CHAN,  struct cloud_msg)  \
-    X(BUTTON_CHAN,  struct button_msg)  \
-    X(FOTA_CHAN,  enum fota_msg_type)  \
-    X(NETWORK_CHAN,  struct network_msg)  \
-    X(LOCATION_CHAN, struct location_msg)  \
-    X(STORAGE_CHAN,  struct storage_msg)  \
-    X(TIMER_CHAN,  enum timer_msg_type) \
-    X(POWER_CHAN,  struct power_msg) \
+    X(cloud_chan,  struct cloud_msg)  \
+    X(button_chan,  struct button_msg)  \
+    X(fota_chan,  enum fota_msg_type)  \
+    X(network_chan,  struct network_msg)  \
+    X(location_chan, struct location_msg)  \
+    X(storage_chan,  struct storage_msg)  \
+    X(timer_chan,  enum timer_msg_type) \
+    X(power_chan,  struct power_msg) \
     ```
 
 1. Implement a handler for the new events in the subscriber module (for example, in the main module's state machine in `running_run`):
 
     ```c
-    if (state_object->chan == &POWER_CHAN) {
+    if (state_object->chan == &power_chan) {
         struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
 
         if (msg.type == POWER_VBUS_CONNECTED) {
@@ -103,7 +103,7 @@ To add a new zbus event, complete the following procedure:
                 .repetitions = 10,
             };
 
-            int err = zbus_chan_pub(&LED_CHAN, &led_msg, PUB_TIMEOUT);
+            int err = zbus_chan_pub(&led_chan, &led_msg, PUB_TIMEOUT);
 
             if (err) {
                 LOG_ERR("zbus_chan_pub, error: %d", err);
@@ -124,7 +124,7 @@ To add a new zbus event, complete the following procedure:
                 .repetitions = 10,
             };
 
-            int err = zbus_chan_pub(&LED_CHAN, &led_msg, PUB_TIMEOUT);
+            int err = zbus_chan_pub(&led_chan, &led_msg, PUB_TIMEOUT);
 
             if (err) {
                 LOG_ERR("zbus_chan_pub, error: %d", err);
@@ -329,7 +329,7 @@ To add your own module, complete the following steps:
     #endif
 
     /* Module's zbus channel */
-    ZBUS_CHAN_DECLARE(DUMMY_CHAN);
+    ZBUS_CHAN_DECLARE(dummy_chan);
 
     /* Module message types */
     enum dummy_msg_type {
@@ -371,7 +371,7 @@ To add your own module, complete the following steps:
     LOG_MODULE_REGISTER(dummy_module, CONFIG_APP_DUMMY_LOG_LEVEL);
 
     /* Define module's zbus channel */
-    ZBUS_CHAN_DEFINE(DUMMY_CHAN,
+    ZBUS_CHAN_DEFINE(dummy_chan,
                      struct dummy_msg,
                      NULL,
                      NULL,
@@ -383,7 +383,7 @@ To add your own module, complete the following steps:
     ZBUS_MSG_SUBSCRIBER_DEFINE(dummy);
 
     /* Add subscriber to channel */
-    ZBUS_CHAN_ADD_OBS(DUMMY_CHAN, dummy, 0);
+    ZBUS_CHAN_ADD_OBS(dummy_chan, dummy, 0);
 
     #define MAX_MSG_SIZE sizeof(struct dummy_msg)
 
@@ -433,7 +433,7 @@ To add your own module, complete the following steps:
     {
         struct dummy_state *state_object = obj;
 
-        if (&DUMMY_CHAN == state_object->chan) {
+        if (&dummy_chan == state_object->chan) {
             struct dummy_msg msg = MSG_TO_DUMMY_MSG(state_object->msg_buf);
 
             if (msg.type == DUMMY_SAMPLE_REQUEST) {
@@ -445,7 +445,7 @@ To add your own module, complete the following steps:
                     .value = state_object->current_value
                 };
 
-                int err = zbus_chan_pub(&DUMMY_CHAN, &response, K_NO_WAIT);
+                int err = zbus_chan_pub(&dummy_chan, &response, K_NO_WAIT);
                 if (err) {
                     LOG_ERR("Failed to publish response: %d", err);
                     SEND_FATAL_ERROR();

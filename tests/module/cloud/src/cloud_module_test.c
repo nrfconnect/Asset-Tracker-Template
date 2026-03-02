@@ -41,21 +41,21 @@ DEFINE_FFF_GLOBALS;
 #define FAKE_TOKEN_SIZE			(sizeof(FAKE_TOKEN) - 1)
 
 /* Define the channels for testing */
-ZBUS_CHAN_DEFINE(POWER_CHAN,
+ZBUS_CHAN_DEFINE(power_chan,
 		 struct power_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0)
 );
-ZBUS_CHAN_DEFINE(NETWORK_CHAN,
+ZBUS_CHAN_DEFINE(network_chan,
 		 struct network_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(.type = NETWORK_DISCONNECTED)
 );
-ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
+ZBUS_CHAN_DEFINE(environmental_chan,
 		 struct environmental_msg,
 		 NULL,
 		 NULL,
@@ -63,7 +63,7 @@ ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
 		 ZBUS_MSG_INIT(0)
 );
 
-ZBUS_CHAN_DEFINE(LOCATION_CHAN,
+ZBUS_CHAN_DEFINE(location_chan,
 		 struct location_msg,
 		 NULL,
 		 NULL,
@@ -72,7 +72,7 @@ ZBUS_CHAN_DEFINE(LOCATION_CHAN,
 );
 
 /* Define storage channels used by the cloud module */
-ZBUS_CHAN_DEFINE(STORAGE_CHAN,
+ZBUS_CHAN_DEFINE(storage_chan,
 		 struct storage_msg,
 		 NULL,
 		 NULL,
@@ -80,7 +80,7 @@ ZBUS_CHAN_DEFINE(STORAGE_CHAN,
 		 ZBUS_MSG_INIT(0)
 );
 
-ZBUS_CHAN_DEFINE(STORAGE_DATA_CHAN,
+ZBUS_CHAN_DEFINE(storage_data_chan,
 		 struct storage_msg,
 		 NULL,
 		 NULL,
@@ -138,9 +138,9 @@ ZBUS_LISTENER_DEFINE(trigger, dummy_cb);
 ZBUS_LISTENER_DEFINE(cloud_test_listener, cloud_chan_cb);
 
 /* Attach a simple listener to storage channels to ensure observers exist */
-ZBUS_CHAN_ADD_OBS(STORAGE_CHAN, cloud_test_listener, 0);
-ZBUS_CHAN_ADD_OBS(STORAGE_DATA_CHAN, cloud_test_listener, 0);
-ZBUS_CHAN_ADD_OBS(CLOUD_CHAN, cloud_test_sub, 0);
+ZBUS_CHAN_ADD_OBS(storage_chan, cloud_test_listener, 0);
+ZBUS_CHAN_ADD_OBS(storage_data_chan, cloud_test_listener, 0);
+ZBUS_CHAN_ADD_OBS(cloud_chan, cloud_test_sub, 0);
 
 static K_SEM_DEFINE(cloud_disconnected, 0, 1);
 static K_SEM_DEFINE(cloud_connected, 0, 1);
@@ -228,7 +228,7 @@ static void connect_cloud(void)
 	int err;
 	struct network_msg nw = { .type = NETWORK_CONNECTED };
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &nw, K_NO_WAIT);
+	err = zbus_chan_pub(&network_chan, &nw, K_NO_WAIT);
 	TEST_ASSERT_EQUAL(0, err);
 
 	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
@@ -242,7 +242,7 @@ static void setup_cloud(void)
 	};
 
 	/* Connect to cloud */
-	err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &network_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 	err = k_sem_take(&cloud_connected, K_SECONDS(WAIT_TIMEOUT));
 	TEST_ASSERT_EQUAL(0, err);
@@ -255,7 +255,7 @@ static void dummy_cb(const struct zbus_channel *chan)
 
 static void cloud_chan_cb(const struct zbus_channel *chan)
 {
-	if (chan == &CLOUD_CHAN) {
+	if (chan == &cloud_chan) {
 		const struct cloud_msg *cloud_msg = zbus_chan_const_msg(chan);
 		enum cloud_msg_type status = cloud_msg->type;
 
@@ -272,7 +272,7 @@ static void cloud_chan_cb(const struct zbus_channel *chan)
 			memcpy(&last_shadow_response, cloud_msg, sizeof(struct cloud_msg));
 			k_sem_give(&cloud_module_response_recv_sem);
 		}
-	} else if (chan == &STORAGE_CHAN) {
+	} else if (chan == &storage_chan) {
 		const struct storage_msg *storage_msg = zbus_chan_const_msg(chan);
 
 		if (storage_msg->type == STORAGE_BATCH_CLOSE) {
@@ -348,7 +348,7 @@ static void consume_message_and_assert_channel(const struct zbus_channel **chan,
 
 	err = zbus_sub_wait(&cloud_test_sub, chan, timeout);
 	TEST_ASSERT_EQUAL(0, err);
-	TEST_ASSERT_EQUAL_PTR(&CLOUD_CHAN, *chan);
+	TEST_ASSERT_EQUAL_PTR(&cloud_chan, *chan);
 }
 
 /* Helper to wait for and verify a specific cloud message type */
@@ -434,7 +434,7 @@ void setUp(void)
 	while (zbus_sub_wait(&cloud_test_sub, &chan, K_NO_WAIT) == 0) {
 	}
 
-	zbus_chan_add_obs(&CLOUD_CHAN, &cloud_test_listener, K_NO_WAIT);
+	zbus_chan_add_obs(&cloud_chan, &cloud_test_listener, K_NO_WAIT);
 }
 
 void tearDown(void)
@@ -444,7 +444,7 @@ void tearDown(void)
 		.type = NETWORK_DISCONNECTED
 	};
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	k_sleep(K_MSEC(PROCESSING_DELAY_MS));
@@ -477,7 +477,7 @@ void test_should_handle_provisioning_when_device_not_claimed(void)
 
 	nrf_cloud_coap_connect_fake.return_val = -EACCES;
 
-	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	publish_and_assert(&network_chan, &network_msg);
 	wait_for_processing();
 
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_connect_fake.call_count);
@@ -519,11 +519,11 @@ void test_should_handle_provisioning_when_no_commands_received(void)
 		.type = NRF_PROVISIONING_EVENT_NO_COMMANDS
 	};
 
-	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	publish_and_assert(&network_chan, &network_msg);
 	wait_for_processing();
 	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
 
-	publish_and_assert(&CLOUD_CHAN, &cloud_msg);
+	publish_and_assert(&cloud_chan, &cloud_msg);
 	wait_for_processing();
 	wait_for_cloud_disconnected(K_SECONDS(WAIT_TIMEOUT));
 
@@ -546,7 +546,7 @@ void test_should_transition_from_disconnected_to_connected_ready(void)
 		.type = NETWORK_CONNECTED
 	};
 
-	publish_and_assert(&NETWORK_CHAN, &msg);
+	publish_and_assert(&network_chan, &msg);
 	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
 	wait_for_processing();
 }
@@ -562,7 +562,7 @@ void test_should_handle_provisioning_request_from_connected_state(void)
 
 	test_should_transition_from_disconnected_to_connected_ready();
 
-	publish_and_assert(&CLOUD_CHAN, &provisioning_msg);
+	publish_and_assert(&cloud_chan, &provisioning_msg);
 	wait_for_processing();
 
 	TEST_ASSERT_EQUAL(1, nrf_provisioning_trigger_manually_fake.call_count);
@@ -606,7 +606,7 @@ void test_should_send_json_payload_to_cloud(void)
 
 	test_should_transition_from_disconnected_to_connected_ready();
 
-	publish_and_assert(&CLOUD_CHAN, &msg);
+	publish_and_assert(&cloud_chan, &msg);
 	wait_for_processing();
 
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_json_message_send_fake.call_count);
@@ -622,12 +622,12 @@ void test_connected_to_disconnected(void)
 		.type = NETWORK_CONNECTED
 	};
 
-	publish_and_assert(&NETWORK_CHAN, &msg);
+	publish_and_assert(&network_chan, &msg);
 	wait_for_cloud_connected(K_SECONDS(1));
 
 	msg.type = NETWORK_DISCONNECTED;
 
-	publish_and_assert(&NETWORK_CHAN, &msg);
+	publish_and_assert(&network_chan, &msg);
 	wait_for_cloud_disconnected(K_SECONDS(1));
 }
 
@@ -645,11 +645,11 @@ void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 	/* Reset call count */
 	nrf_cloud_coap_bytes_send_fake.call_count = 0;
 
-	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	publish_and_assert(&network_chan, &network_msg);
 	wait_for_processing();
 	wait_for_cloud_connected(K_SECONDS(1));
 
-	publish_and_assert(&CLOUD_CHAN, &msg);
+	publish_and_assert(&cloud_chan, &msg);
 	wait_for_processing();
 
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_json_message_send_fake.call_count);
@@ -660,7 +660,7 @@ void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 
 	network_msg.type = NETWORK_DISCONNECTED;
 
-	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	publish_and_assert(&network_chan, &network_msg);
 	wait_for_processing();
 	wait_for_cloud_disconnected(K_SECONDS(1));
 }
@@ -699,14 +699,14 @@ void test_gnss_location_data_handling(void)
 	memcpy(storage_data_msg.buffer, &location_msg, sizeof(location_msg));
 
 	/* Connect to cloud */
-	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	publish_and_assert(&network_chan, &network_msg);
 	wait_for_cloud_connected(K_SECONDS(1));
 
 	/* Give the module time to process mode change */
 	k_sleep(K_MSEC(10));
 
 	/* Send GNSS location data via storage data channel */
-	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	publish_and_assert(&storage_data_chan, &storage_data_msg);
 	wait_for_processing();
 
 	/* Verify that GNSS location data was sent to nRF Cloud */
@@ -735,7 +735,7 @@ void test_storage_data_battery_sent_to_cloud(void)
 	fake_read_calls = 0;
 	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
 
-	publish_and_assert(&STORAGE_CHAN, &batch_available);
+	publish_and_assert(&storage_chan, &batch_available);
 	wait_for_processing();
 
 	/* One successful read + one -EAGAIN drain */
@@ -766,7 +766,7 @@ void test_storage_data_environmental_sent_to_cloud(void)
 	fake_read_calls = 0;
 	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
 
-	publish_and_assert(&STORAGE_CHAN, &batch_available);
+	publish_and_assert(&storage_chan, &batch_available);
 	wait_for_processing();
 
 	/* One successful read + one -EAGAIN drain */
@@ -801,7 +801,7 @@ void test_storage_batch_no_items_should_not_update_shadow_network_info(void)
 	fake_read_calls = 0;
 	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
 
-	publish_and_assert(&STORAGE_CHAN, &batch_available);
+	publish_and_assert(&storage_chan, &batch_available);
 	wait_for_processing();
 
 	/* Verify storage_batch_read was called but returned -EAGAIN */
@@ -830,7 +830,7 @@ void test_storage_batch_shadow_network_info_update_error_should_still_close_sess
 	/* Configure shadow network info update to fail */
 	nrf_cloud_coap_shadow_network_info_update_fake.return_val = -EIO;
 
-	publish_and_assert(&STORAGE_CHAN, &batch_available);
+	publish_and_assert(&storage_chan, &batch_available);
 	wait_for_processing();
 
 	/* Verify data was sent to cloud */
@@ -858,12 +858,12 @@ void test_provisioning_failed_with_network_connected_should_go_to_backoff(void)
 	};
 
 	/* Start with a connected network state */
-	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	publish_and_assert(&network_chan, &network_msg);
 	wait_for_processing();
 	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
 
 	/* Trigger provisioning request */
-	publish_and_assert(&CLOUD_CHAN, &cloud_msg);
+	publish_and_assert(&cloud_chan, &cloud_msg);
 	wait_for_processing();
 	wait_for_cloud_disconnected(K_SECONDS(WAIT_TIMEOUT));
 
@@ -897,12 +897,12 @@ void test_provisioning_failed_with_network_disconnected_should_go_to_disconnecte
 	};
 
 	/* Start with a connected network state */
-	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	publish_and_assert(&network_chan, &network_msg);
 	wait_for_processing();
 	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
 
 	/* Trigger provisioning request */
-	publish_and_assert(&CLOUD_CHAN, &cloud_msg);
+	publish_and_assert(&cloud_chan, &cloud_msg);
 	wait_for_processing();
 	wait_for_cloud_disconnected(K_SECONDS(WAIT_TIMEOUT));
 
@@ -910,7 +910,7 @@ void test_provisioning_failed_with_network_disconnected_should_go_to_disconnecte
 
 	/* Simulate network disconnect while in provisioning state */
 	network_msg.type = NETWORK_DISCONNECTED;
-	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	publish_and_assert(&network_chan, &network_msg);
 	wait_for_processing();
 
 	/* Simulate provisioning failure while network is disconnected */
@@ -936,7 +936,7 @@ void test_shadow_get_desired_should_return_empty(void)
 	test_should_transition_from_disconnected_to_connected_ready();
 
 	/* Send shadow get desired request */
-	publish_and_assert(&CLOUD_CHAN, &request_msg);
+	publish_and_assert(&cloud_chan, &request_msg);
 
 	/* Consume the request message (echo from our own publish) */
 	wait_for_cloud_message(CLOUD_SHADOW_GET_DESIRED, K_MSEC(100));
@@ -964,7 +964,7 @@ void test_shadow_get_delta_should_return_empty(void)
 	test_should_transition_from_disconnected_to_connected_ready();
 
 	/* Send shadow get desired request */
-	publish_and_assert(&CLOUD_CHAN, &request_msg);
+	publish_and_assert(&cloud_chan, &request_msg);
 
 	/* Consume the request message (echo from our own publish) */
 	wait_for_cloud_message(CLOUD_SHADOW_GET_DELTA, K_MSEC(100));
@@ -992,7 +992,7 @@ void test_shadow_get_desired_should_return_response(void)
 	test_should_transition_from_disconnected_to_connected_ready();
 
 	/* Send shadow get desired request */
-	publish_and_assert(&CLOUD_CHAN, &request_msg);
+	publish_and_assert(&cloud_chan, &request_msg);
 
 	/* Consume the request message (echo from our own publish) */
 	wait_for_cloud_message(CLOUD_SHADOW_GET_DESIRED, K_MSEC(100));
@@ -1020,7 +1020,7 @@ void test_shadow_get_delta_should_return_response(void)
 	test_should_transition_from_disconnected_to_connected_ready();
 
 	/* Send shadow get desired request */
-	publish_and_assert(&CLOUD_CHAN, &request_msg);
+	publish_and_assert(&cloud_chan, &request_msg);
 
 	/* Consume the request message (echo from our own publish) */
 	wait_for_cloud_message(CLOUD_SHADOW_GET_DELTA, K_MSEC(100));
@@ -1052,7 +1052,7 @@ void test_shadow_update_reported_should_call_patch(void)
 	test_should_transition_from_disconnected_to_connected_ready();
 
 	/* Send shadow update reported request */
-	publish_and_assert(&CLOUD_CHAN, &update_msg);
+	publish_and_assert(&cloud_chan, &update_msg);
 
 	/* Give cloud module time to process the request */
 	wait_for_processing();
@@ -1123,7 +1123,7 @@ void test_location_cloud_request_cellular_data(void)
 	setup_cloud();
 
 	/* Send location cloud request via storage data channel */
-	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	publish_and_assert(&storage_data_chan, &storage_data_msg);
 	wait_for_processing();
 
 	/* Verify that nrf_cloud_coap_location_get was called with the cellular data. */
@@ -1175,7 +1175,7 @@ void test_location_cloud_request_wifi_data(void)
 	setup_cloud();
 
 	/* Send location cloud request via storage data channel */
-	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	publish_and_assert(&storage_data_chan, &storage_data_msg);
 	wait_for_processing();
 
 	/* Verify that nrf_cloud_coap_location_get was called with the Wi-Fi data. */
@@ -1240,7 +1240,7 @@ void test_location_cloud_request_combined_data(void)
 	setup_cloud();
 
 	/* Send location cloud request via storage data channel */
-	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	publish_and_assert(&storage_data_chan, &storage_data_msg);
 	wait_for_processing();
 
 	/* Verify that nrf_cloud_coap_location_get was called with both data types. */
@@ -1307,7 +1307,7 @@ void test_location_cloud_request_wifi_data_partial_ap_list(void)
 	nrf_cloud_coap_location_get_fake.custom_fake = nrf_cloud_coap_location_get_custom_fake;
 
 	/* Send location cloud request via storage data channel */
-	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	publish_and_assert(&storage_data_chan, &storage_data_msg);
 	wait_for_processing();
 
 	/* Verify that nrf_cloud_coap_location_get was called. */
@@ -1359,7 +1359,7 @@ void test_location_cloud_request_wifi_data_excessive_ap_count(void)
 	setup_cloud();
 
 	/* Send location cloud request via storage data channel */
-	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	publish_and_assert(&storage_data_chan, &storage_data_msg);
 	wait_for_processing();
 
 	/* Verify that nrf_cloud_coap_location_get was NOT called due to validation failure. */
@@ -1448,7 +1448,7 @@ void test_location_cloud_request_gci_cells_only(void)
 	setup_cloud();
 
 	/* Send location cloud request via storage data channel */
-	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	publish_and_assert(&storage_data_chan, &storage_data_msg);
 	wait_for_processing();
 
 	/* Verify that nrf_cloud_coap_location_get was called with GCI cells. */
@@ -1523,7 +1523,7 @@ void test_location_cloud_request_neighbor_and_gci_cells(void)
 	setup_cloud();
 
 	/* Send location cloud request via storage data channel */
-	publish_and_assert(&STORAGE_DATA_CHAN, &storage_data_msg);
+	publish_and_assert(&storage_data_chan, &storage_data_msg);
 	wait_for_processing();
 
 	/* Verify that nrf_cloud_coap_location_get was called with both cell types. */
@@ -1538,14 +1538,14 @@ static void setup_cloud_paused(void)
 	};
 
 	/* Connect to cloud */
-	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	publish_and_assert(&network_chan, &network_msg);
 	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
 	wait_for_processing();
 
 	/* Disconnect network to enter paused state */
 	network_msg.type = NETWORK_DISCONNECTED;
 
-	publish_and_assert(&NETWORK_CHAN, &network_msg);
+	publish_and_assert(&network_chan, &network_msg);
 	wait_for_cloud_disconnected(K_SECONDS(WAIT_TIMEOUT));
 	wait_for_processing();
 }
@@ -1570,7 +1570,7 @@ void test_storage_batch_available_when_paused_should_close_session(void)
 
 	setup_cloud_paused();
 
-	publish_and_assert(&STORAGE_CHAN, &batch_available);
+	publish_and_assert(&storage_chan, &batch_available);
 	wait_for_processing();
 
 	wait_for_storage_batch_close(K_SECONDS(WAIT_TIMEOUT));
@@ -1588,7 +1588,7 @@ void test_storage_batch_empty_when_paused_should_close_session(void)
 
 	setup_cloud_paused();
 
-	publish_and_assert(&STORAGE_CHAN, &batch_empty);
+	publish_and_assert(&storage_chan, &batch_empty);
 	wait_for_processing();
 
 	wait_for_storage_batch_close(K_SECONDS(WAIT_TIMEOUT));
@@ -1606,7 +1606,7 @@ void test_storage_batch_error_when_paused_should_close_session(void)
 
 	setup_cloud_paused();
 
-	publish_and_assert(&STORAGE_CHAN, &batch_error);
+	publish_and_assert(&storage_chan, &batch_error);
 	wait_for_processing();
 
 	wait_for_storage_batch_close(K_SECONDS(WAIT_TIMEOUT));
@@ -1624,7 +1624,7 @@ void test_storage_batch_busy_when_paused_should_handle(void)
 
 	setup_cloud_paused();
 
-	publish_and_assert(&STORAGE_CHAN, &batch_busy);
+	publish_and_assert(&storage_chan, &batch_busy);
 	wait_for_processing();
 
 	/* BUSY message should be handled but not close the session

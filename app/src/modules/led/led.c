@@ -43,7 +43,7 @@ static void led_callback(const struct zbus_channel *chan);
  */
 ZBUS_LISTENER_DEFINE(led, led_callback);
 
-ZBUS_CHAN_DEFINE(LED_CHAN,
+ZBUS_CHAN_DEFINE(led_chan,
 		 struct led_msg,
 		 NULL,
 		 NULL,
@@ -52,7 +52,7 @@ ZBUS_CHAN_DEFINE(LED_CHAN,
 );
 
 /* Observe channels */
-ZBUS_CHAN_ADD_OBS(LED_CHAN, led, 0);
+ZBUS_CHAN_ADD_OBS(led_chan, led, 0);
 
 static struct k_work_delayable blink_work;
 
@@ -146,7 +146,7 @@ static void blink_timer_handler(struct k_work *work)
 /* Function called when there is a message received on a channel that the module listens to */
 static void led_callback(const struct zbus_channel *chan)
 {
-	if (&LED_CHAN == chan) {
+	if (&led_chan == chan) {
 		int err;
 		const struct led_msg *led_msg = zbus_chan_const_msg(chan);
 

@@ -18,7 +18,7 @@ extern "C" {
 
 /* Channels provided by this module */
 ZBUS_CHAN_DECLARE(
-	LOCATION_CHAN
+	location_chan
 );
 
 #define MAC_ADDR_LEN 6

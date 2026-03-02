@@ -26,7 +26,7 @@ The Location module implements a state machine with the following states and tra
 
 ## Messages
 
-The location module publishes and receives messages over the zbus channel `LOCATION_CHAN`. All module message types are defined in `location.h` and used within `location.c`.
+The location module publishes and receives messages over the zbus channel `location_chan`. All module message types are defined in `location.h` and used within `location.c`.
 
 ### Input messages
 

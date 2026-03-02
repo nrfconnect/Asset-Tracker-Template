@@ -35,7 +35,7 @@ void power_shell_listener_callback(const struct zbus_channel *chan)
 
 ZBUS_LISTENER_DEFINE(power_shell_listener, power_shell_listener_callback);
 
-ZBUS_CHAN_ADD_OBS(POWER_CHAN, power_shell_listener, 0);
+ZBUS_CHAN_ADD_OBS(power_chan, power_shell_listener, 0);
 
 static int cmd_power_sample(const struct shell *shell, size_t argc, char **argv)
 {
@@ -47,7 +47,7 @@ static int cmd_power_sample(const struct shell *shell, size_t argc, char **argv)
 		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST,
 	};
 
-	err = zbus_chan_pub(&POWER_CHAN, &msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&power_chan, &msg, PUB_TIMEOUT);
 	if (err) {
 		shell_print(shell, "Failed to send request: %d", err);
 		return err;

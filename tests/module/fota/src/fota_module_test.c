@@ -25,7 +25,7 @@ FAKE_VALUE_FUNC(int, fota_download_cancel);
 FAKE_VOID_FUNC1(callback_t, int);
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(fota_subscriber);
-ZBUS_CHAN_ADD_OBS(FOTA_CHAN, fota_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(fota_chan, fota_subscriber, 0);
 
 LOG_MODULE_REGISTER(fota_module_test, 4);
 
@@ -87,7 +87,7 @@ void setUp(void)
 
 void tearDown(void)
 {
-	/* Check that no events are sent on FOTA_CHAN for some elongated amount of time */
+	/* Check that no events are sent on fota_chan for some elongated amount of time */
 	no_events_expect(3600);
 
 	/* Reset DuTs internal state between each test case */
@@ -112,7 +112,7 @@ static void event_expect(enum fota_msg_type expected_fota_type)
 		return;
 	}
 
-	if (chan != &FOTA_CHAN) {
+	if (chan != &fota_chan) {
 		LOG_ERR("Received message from wrong channel");
 		TEST_FAIL();
 	}
@@ -138,7 +138,7 @@ static void no_events_expect(uint32_t time_in_seconds)
 
 static void event_send(enum fota_msg_type msg)
 {
-	int err = zbus_chan_pub(&FOTA_CHAN, &msg, K_SECONDS(1));
+	int err = zbus_chan_pub(&fota_chan, &msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }

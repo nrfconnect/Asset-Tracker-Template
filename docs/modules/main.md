@@ -20,16 +20,16 @@ The Main module uses the following zbus channels, both for subscribing to incomi
 
 | Zbus Channels          | Description                                                                                |
 |------------------------|--------------------------------------------------------------------------------------------|
-| **BUTTON_CHAN**        | Process user button presses to trigger data samples or sending.                            |
-| **CLOUD_CHAN**         | Receive connectivity status and cloud responses. Trigger device shadow polling.            |
-| **STORAGE_CHAN**       | Control the storage module and receive status responses.                                   |
-| **ENVIRONMENTAL_CHAN** | Request sensor data from the environmental module.                                         |
-| **FOTA_CHAN**          | Poll for FOTA updates, manage the FOTA process, and apply updates.                         |
-| **LED_CHAN**           | Update LED patterns to indicate system state.                                              |
-| **LOCATION_CHAN**      | Request new location data when samples are due.                                            |
-| **NETWORK_CHAN**       | Control LTE network connection and track cellular connectivity events.                     |
-| **POWER_CHAN**         | Request battery status and initiate low-power mode.                                        |
-| **TIMER_CHAN**         | Handle timer events for sampling.                                                          |
+| **button_chan**        | Process user button presses to trigger data samples or sending.                            |
+| **cloud_chan**         | Receive connectivity status and cloud responses. Trigger device shadow polling.            |
+| **storage_chan**       | Control the storage module and receive status responses.                                   |
+| **environmental_chan** | Request sensor data from the environmental module.                                         |
+| **fota_chan**          | Poll for FOTA updates, manage the FOTA process, and apply updates.                         |
+| **led_chan**           | Update LED patterns to indicate system state.                                              |
+| **location_chan**      | Request new location data when samples are due.                                            |
+| **network_chan**       | Control LTE network connection and track cellular connectivity events.                     |
+| **power_chan**         | Request battery status and initiate low-power mode.                                        |
+| **timer_chan**         | Handle timer events for sampling.                                                          |
 
 ## LED status indicators
 

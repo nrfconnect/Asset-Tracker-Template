@@ -32,7 +32,7 @@ FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
 
 /* Define the channels for testing */
-ZBUS_CHAN_DEFINE(POWER_CHAN,
+ZBUS_CHAN_DEFINE(power_chan,
 		 struct power_msg,
 		 NULL,
 		 NULL,
@@ -40,7 +40,7 @@ ZBUS_CHAN_DEFINE(POWER_CHAN,
 		 ZBUS_MSG_INIT(0)
 );
 
-ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
+ZBUS_CHAN_DEFINE(environmental_chan,
 		 struct environmental_msg,
 		 NULL,
 		 NULL,
@@ -48,7 +48,7 @@ ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
 		 ZBUS_MSG_INIT(0)
 );
 
-ZBUS_CHAN_DEFINE(LOCATION_CHAN,
+ZBUS_CHAN_DEFINE(location_chan,
 		 struct location_msg,
 		 NULL,
 		 NULL,
@@ -67,11 +67,11 @@ ZBUS_LISTENER_DEFINE(power_test_listener, dummy_cb);
 ZBUS_LISTENER_DEFINE(environmental_test_listener, dummy_cb);
 ZBUS_LISTENER_DEFINE(location_test_listener, dummy_cb);
 
-ZBUS_CHAN_ADD_OBS(STORAGE_CHAN, storage_test_listener, 0);
-ZBUS_CHAN_ADD_OBS(STORAGE_DATA_CHAN, storage_test_listener, 0);
-ZBUS_CHAN_ADD_OBS(POWER_CHAN, power_test_listener, 0);
-ZBUS_CHAN_ADD_OBS(ENVIRONMENTAL_CHAN, environmental_test_listener, 0);
-ZBUS_CHAN_ADD_OBS(LOCATION_CHAN, location_test_listener, 0);
+ZBUS_CHAN_ADD_OBS(storage_chan, storage_test_listener, 0);
+ZBUS_CHAN_ADD_OBS(storage_data_chan, storage_test_listener, 0);
+ZBUS_CHAN_ADD_OBS(power_chan, power_test_listener, 0);
+ZBUS_CHAN_ADD_OBS(environmental_chan, environmental_test_listener, 0);
+ZBUS_CHAN_ADD_OBS(location_chan, location_test_listener, 0);
 
 static double received_battery_samples[ARRAY_SIZE(battery_samples)];
 static uint8_t received_battery_samples_count;
@@ -122,7 +122,7 @@ static void request_batch_and_assert(void)
 		.session_id = 0x11111111,
 	};
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &request_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &request_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	TEST_ASSERT_EQUAL(STORAGE_BATCH_REQUEST, received_msg.type);
@@ -133,7 +133,7 @@ static void close_batch_and_assert(uint32_t session_id)
 	int err;
 	struct storage_msg close_msg = { .type = STORAGE_BATCH_CLOSE, .session_id = session_id };
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &close_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	TEST_ASSERT_EQUAL(STORAGE_BATCH_CLOSE, received_msg.type);
@@ -143,7 +143,7 @@ static void storage_chan_cb(const struct zbus_channel *chan)
 {
 	const struct storage_msg *msg = zbus_chan_const_msg(chan);
 
-	if ((chan != &STORAGE_CHAN) && (chan != &STORAGE_DATA_CHAN)) {
+	if ((chan != &storage_chan) && (chan != &storage_data_chan)) {
 		return;
 	}
 
@@ -225,7 +225,7 @@ void setUp(void)
 	struct storage_msg clear_msg = { .type = STORAGE_CLEAR };
 
 	/* Clear storage backend before each test */
-	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &clear_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_MSEC(500));
 
@@ -257,11 +257,11 @@ void test_store_retrieve_battery(void)
 		msg.percentage = battery_samples[i];
 
 		/* Store battery data */
-		err = zbus_chan_pub(&POWER_CHAN, &msg, K_SECONDS(1));
+		err = zbus_chan_pub(&power_chan, &msg, K_SECONDS(1));
 		TEST_ASSERT_EQUAL(0, err);
 	}
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &flush_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &flush_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	k_sleep(K_SECONDS(10));
@@ -289,10 +289,10 @@ void test_store_retrieve_environmental(void)
 		populate_env_message(i, &env_msg);
 
 		/* Store environmental data */
-		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+		publish_and_assert(&environmental_chan, &env_msg);
 	}
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &flush_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &flush_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	k_sleep(K_SECONDS(10));
@@ -331,16 +331,16 @@ void test_receive_mixed_data(void)
 		populate_all_messages(i, &bat_msg, &env_msg, &loc_msg);
 
 		/* Store battery data */
-		publish_and_assert(&POWER_CHAN, &bat_msg);
+		publish_and_assert(&power_chan, &bat_msg);
 
 		/* Store environmental data */
-		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+		publish_and_assert(&environmental_chan, &env_msg);
 
 		/* Store location data */
-		publish_and_assert(&LOCATION_CHAN, &loc_msg);
+		publish_and_assert(&location_chan, &loc_msg);
 	}
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &flush_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &flush_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	k_sleep(K_SECONDS(10));
@@ -393,7 +393,7 @@ void test_storage_batch_request_empty(void)
 	};
 
 	/* Request batch data */
-	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	TEST_ASSERT_EQUAL(STORAGE_BATCH_REQUEST, received_msg.type);
@@ -421,7 +421,7 @@ void test_storage_batch_request_and_retrieve(void)
 		populate_env_message(i, &env_msg);
 
 		/* Store environmental data */
-		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+		publish_and_assert(&environmental_chan, &env_msg);
 	}
 
 	/* Request batch data */
@@ -446,7 +446,7 @@ void test_storage_batch_request_and_retrieve(void)
 	close_batch_and_assert(received_msg.session_id);
 
 	/* Clean up after test */
-	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &clear_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Allow for storage clear to complete */
@@ -472,7 +472,7 @@ void test_storage_batch_request_multiple(void)
 	size_t total_samples_received = 0;
 
 	/* Clear storage at the beginning to ensure clean state */
-	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &clear_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_SECONDS(1));
 
@@ -480,7 +480,7 @@ void test_storage_batch_request_multiple(void)
 		populate_env_message(i, &env_msg);
 
 		/* Store environmental data */
-		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+		publish_and_assert(&environmental_chan, &env_msg);
 	}
 
 	while (total_samples_received < num_samples) {
@@ -491,7 +491,7 @@ void test_storage_batch_request_multiple(void)
 		memset(&received_env_samples, 0, sizeof(received_env_samples));
 
 		/* Request batch data */
-		err = zbus_chan_pub(&STORAGE_CHAN, &request_msg, K_SECONDS(1));
+		err = zbus_chan_pub(&storage_chan, &request_msg, K_SECONDS(1));
 		TEST_ASSERT_EQUAL(0, err);
 
 		TEST_ASSERT_EQUAL(STORAGE_BATCH_REQUEST, received_msg.type);
@@ -528,7 +528,7 @@ void test_storage_batch_request_multiple(void)
 	TEST_ASSERT_EQUAL(num_samples, total_samples_received);
 
 	/* Second request should return empty since all data was consumed */
-	err = zbus_chan_pub(&STORAGE_CHAN, &request_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &request_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	TEST_ASSERT_EQUAL(STORAGE_BATCH_REQUEST, received_msg.type);
@@ -541,7 +541,7 @@ void test_storage_batch_request_multiple(void)
 	close_batch_and_assert(received_msg.session_id);
 
 	/* Clean up after test */
-	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &clear_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Allow for storage clear to complete */
@@ -554,7 +554,7 @@ void test_storage_batch_clear_when_empty(void)
 	struct storage_msg request = { .type = STORAGE_BATCH_REQUEST, .session_id = 0x33333333 };
 
 	/* Request batch data when storage is empty */
-	err = zbus_chan_pub(&STORAGE_CHAN, &request, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &request, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Allow handling */
@@ -583,7 +583,7 @@ void test_storage_batch_request_mixed_data(void)
 	uint8_t total_location_received = 0;
 
 	/* Clear storage at the beginning to ensure clean state */
-	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &clear_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_SECONDS(1));
 
@@ -591,13 +591,13 @@ void test_storage_batch_request_mixed_data(void)
 		populate_all_messages(i, &bat_msg, &env_msg, &loc_msg);
 
 		/* Store battery data */
-		publish_and_assert(&POWER_CHAN, &bat_msg);
+		publish_and_assert(&power_chan, &bat_msg);
 
 		/* Store environmental data */
-		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+		publish_and_assert(&environmental_chan, &env_msg);
 
 		/* Store location data */
-		publish_and_assert(&LOCATION_CHAN, &loc_msg);
+		publish_and_assert(&location_chan, &loc_msg);
 	}
 
 	k_sleep(K_SECONDS(10));
@@ -613,7 +613,7 @@ void test_storage_batch_request_mixed_data(void)
 		memset(&received_env_samples, 0, sizeof(received_env_samples));
 		memset(&received_location_samples, 0, sizeof(received_location_samples));
 
-		err = zbus_chan_pub(&STORAGE_CHAN, &batch_msg, K_SECONDS(1));
+		err = zbus_chan_pub(&storage_chan, &batch_msg, K_SECONDS(1));
 		TEST_ASSERT_EQUAL(0, err);
 
 		TEST_ASSERT_EQUAL(STORAGE_BATCH_REQUEST, received_msg.type);
@@ -684,7 +684,7 @@ void test_storage_batch_request_mixed_data(void)
 	TEST_ASSERT_EQUAL(total_samples_expected, total_samples_received);
 
 	/* Final request should return empty */
-	err = zbus_chan_pub(&STORAGE_CHAN, &batch_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &batch_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_SECONDS(1));
 	TEST_ASSERT_EQUAL(STORAGE_BATCH_EMPTY, received_msg.type);
@@ -693,7 +693,7 @@ void test_storage_batch_request_mixed_data(void)
 	close_batch_and_assert(batch_msg.session_id);
 
 	/* Clean up after test */
-	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &clear_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Allow for storage clear to complete */
@@ -723,11 +723,11 @@ void test_store_retrieve_location(void)
 		msg = location_samples[i];
 
 		/* Store location data */
-		err = zbus_chan_pub(&LOCATION_CHAN, &msg, K_SECONDS(1));
+		err = zbus_chan_pub(&location_chan, &msg, K_SECONDS(1));
 		TEST_ASSERT_EQUAL(0, err);
 	}
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &flush_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &flush_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	k_sleep(K_SECONDS(10));
@@ -770,11 +770,11 @@ void test_storage_batch_busy_when_batch_active(void)
 	/* Add some data to storage */
 	for (size_t i = 0; i < 5; i++) {
 		populate_env_message(i, &env_msg);
-		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+		publish_and_assert(&environmental_chan, &env_msg);
 	}
 
 			/* First batch request - should succeed */
-	err = zbus_chan_pub(&STORAGE_CHAN, &first_request, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &first_request, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Wait for response */
@@ -783,7 +783,7 @@ void test_storage_batch_busy_when_batch_active(void)
 	TEST_ASSERT_EQUAL(0x55555555, received_msg.session_id);
 
 	/* Second batch request while first is active - should get BUSY */
-	err = zbus_chan_pub(&STORAGE_CHAN, &second_request, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &second_request, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Wait for response */
@@ -794,7 +794,7 @@ void test_storage_batch_busy_when_batch_active(void)
 	TEST_ASSERT_EQUAL(0x66666666, received_msg.session_id);
 
 	/* Clean up - close the first session */
-	err = zbus_chan_pub(&STORAGE_CHAN, &close_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &close_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_MSEC(100));
 }
@@ -814,25 +814,25 @@ void test_storage_batch_timeout_releases_busy_session(void)
 	};
 
 	/* Clean slate */
-	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &clear_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_MSEC(100));
 
 	/* Add some data so session opens successfully */
 	for (size_t i = 0; i < 3; i++) {
 		populate_env_message(i, &env_msg);
-		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+		publish_and_assert(&environmental_chan, &env_msg);
 	}
 
 	/* Start the first batch session */
-	err = zbus_chan_pub(&STORAGE_CHAN, &first_request, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &first_request, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_MSEC(200));
 	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
 	TEST_ASSERT_EQUAL(first_request.session_id, received_msg.session_id);
 
 	/* Second batch session request while first is active should result in BUSY response */
-	err = zbus_chan_pub(&STORAGE_CHAN, &second_request, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &second_request, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_MSEC(200));
 	TEST_ASSERT_EQUAL(STORAGE_BATCH_BUSY, received_msg.type);
@@ -845,10 +845,10 @@ void test_storage_batch_timeout_releases_busy_session(void)
 
 	/* Add one sample to storage */
 	populate_env_message(0, &env_msg);
-	publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+	publish_and_assert(&environmental_chan, &env_msg);
 
 	/* Now a new session request should be successful */
-	err = zbus_chan_pub(&STORAGE_CHAN, &second_request, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &second_request, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_SECONDS(1));
 	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
@@ -873,15 +873,15 @@ void test_storage_stores_samples_while_batch_session_active(void)
 	};
 	size_t items_read;
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &clear_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &clear_msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_MSEC(100));
 
 	/* Put 1 sample in storage and start a batch session */
 	populate_env_message(0, &env_msg);
-	publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+	publish_and_assert(&environmental_chan, &env_msg);
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &first_request, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &first_request, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_MSEC(200));
 	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
@@ -898,14 +898,14 @@ void test_storage_stores_samples_while_batch_session_active(void)
 	/* While the batch session is active, publish new samples */
 	for (size_t i = 1; i < 4; i++) {
 		populate_env_message(i, &env_msg);
-		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+		publish_and_assert(&environmental_chan, &env_msg);
 	}
 
 	/* Close the session */
 	close_batch_and_assert(first_request.session_id);
 
 	/* Request a new batch and verify it contains the samples published while active */
-	err = zbus_chan_pub(&STORAGE_CHAN, &second_request, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &second_request, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 	k_sleep(K_MSEC(200));
 	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
@@ -942,7 +942,7 @@ void test_storage_threshold(void)
 	};
 	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
 
-	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Wait for handling */
@@ -951,7 +951,7 @@ void test_storage_threshold(void)
 	/* Write until threshold is reached */
 	for (size_t i = 0; i < 5; i++) {
 		populate_env_message(i, &env_msg);
-		publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+		publish_and_assert(&environmental_chan, &env_msg);
 	}
 
 	/* Wait for handling */
@@ -964,7 +964,7 @@ void test_storage_threshold(void)
 
 	/* Send more data */
 	populate_env_message(5, &env_msg);
-	publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+	publish_and_assert(&environmental_chan, &env_msg);
 
 	/* Wait for handling */
 	k_sleep(K_MSEC(100));
@@ -976,7 +976,7 @@ void test_storage_threshold(void)
 
 	/* Reset threshold to 0 and verify no further threshold messages are sent */
 	msg.data_len = 0;
-	err = zbus_chan_pub(&STORAGE_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&storage_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Wait for handling */
@@ -984,7 +984,7 @@ void test_storage_threshold(void)
 
 	/* Send more data */
 	populate_env_message(6, &env_msg);
-	publish_and_assert(&ENVIRONMENTAL_CHAN, &env_msg);
+	publish_and_assert(&environmental_chan, &env_msg);
 
 	/* Wait for handling */
 	k_sleep(K_MSEC(100));

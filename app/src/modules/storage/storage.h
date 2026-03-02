@@ -28,7 +28,7 @@ enum storage_msg_type {
 	STORAGE_SET_THRESHOLD,
 
 	/* Command to flush stored data one stored item at the time.
-	 * The data will be pushed out as a STORAGE_DATA message on STORAGE_DATA_CHAN.
+	 * The data will be pushed out as a STORAGE_DATA message on storage_data_chan.
 	 */
 	STORAGE_FLUSH,
 
@@ -163,8 +163,8 @@ int storage_batch_read(struct storage_data_item *out_item,
 #define MSG_TO_STORAGE_MSG_PTR(_msg)	(const struct storage_msg *)_msg
 
 /* Declare the storage channels */
-ZBUS_CHAN_DECLARE(STORAGE_CHAN);
-ZBUS_CHAN_DECLARE(STORAGE_DATA_CHAN);
+ZBUS_CHAN_DECLARE(storage_chan);
+ZBUS_CHAN_DECLARE(storage_data_chan);
 
 #ifdef __cplusplus
 }

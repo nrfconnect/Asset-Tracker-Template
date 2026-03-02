@@ -22,7 +22,7 @@ extern "C" {
 
 /* Channels provided by this module */
 ZBUS_CHAN_DECLARE(
-	LED_CHAN
+	led_chan
 );
 
 enum led_msg_type {

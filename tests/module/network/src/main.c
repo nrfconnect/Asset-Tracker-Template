@@ -35,7 +35,7 @@ FAKE_VALUE_FUNC(int, lte_lc_connect_async, lte_lc_evt_handler_t);
 FAKE_VALUE_FUNC(int, lte_lc_pdn_default_ctx_events_enable);
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(test_subscriber);
-ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, test_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(network_chan, test_subscriber, 0);
 
 #define FAKE_TIME_MS			1723099642000
 #define FAKE_RSRP_IDX_MAX		97
@@ -233,7 +233,7 @@ static void wait_for_and_check_msg(struct network_msg *msg, enum network_msg_typ
 			return;
 		}
 
-		if (chan != &NETWORK_CHAN) {
+		if (chan != &network_chan) {
 			LOG_ERR("Received message from wrong channel");
 			TEST_FAIL();
 		}
@@ -306,7 +306,7 @@ void test_network_connected(void)
 	int err;
 
 	/* First, ensure we are disconnected and idle */
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg_tx, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg_tx, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* The test thread needs to yield to allow the message to be processed */
@@ -315,7 +315,7 @@ void test_network_connected(void)
 	/* Then, trigger connection */
 	msg_tx.type = NETWORK_CONNECT;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg_tx, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg_tx, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Now wait for the connected message */
@@ -420,7 +420,7 @@ void test_network_disconnect_reconnect(void)
 	int err;
 
 	/* First, ensure we are disconnected */
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* The test thread needs to yield to allow the message to be processed in the network
@@ -431,7 +431,7 @@ void test_network_disconnect_reconnect(void)
 	/* Then, connect */
 	msg.type = NETWORK_CONNECT;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	wait_for_and_check_msg(&msg, NETWORK_CONNECTED);
@@ -443,7 +443,7 @@ void test_system_mode_request(void)
 	struct network_msg msg = { .type = NETWORK_SYSTEM_MODE_REQUEST, };
 	int err;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	wait_for_and_check_msg(&msg, NETWORK_SYSTEM_MODE_RESPONSE);
@@ -457,7 +457,7 @@ static void system_mode_set_test(enum network_msg_type msg_type, enum lte_lc_sys
 	int err;
 
 	/* Ensure that the module is disconnected and idle */
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* The test thread needs to yield to allow the message to be processed in the network
@@ -467,7 +467,7 @@ static void system_mode_set_test(enum network_msg_type msg_type, enum lte_lc_sys
 
 	msg.type = msg_type;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	k_sleep(K_MSEC(10));
@@ -475,7 +475,7 @@ static void system_mode_set_test(enum network_msg_type msg_type, enum lte_lc_sys
 	/* Request the system mode */
 	msg.type = NETWORK_SYSTEM_MODE_REQUEST;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	wait_for_and_check_msg(&msg, NETWORK_SYSTEM_MODE_RESPONSE);
@@ -506,7 +506,7 @@ void test_disconnect_while_searching(void)
 	};
 
 	/* Ensure we are disconnected and idle */
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	k_sleep(K_MSEC(100));
@@ -514,7 +514,7 @@ void test_disconnect_while_searching(void)
 	/* Start searching */
 	msg.type = NETWORK_CONNECT;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	k_sleep(K_MSEC(100));
@@ -522,7 +522,7 @@ void test_disconnect_while_searching(void)
 	/* Stop searching / Disconnect */
 	msg.type = NETWORK_DISCONNECT;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Verify we receive the disconnected event confirming the action */
@@ -539,7 +539,7 @@ void test_connect_from_idle(void)
 	struct network_msg msg_rx;
 
 	/* Ensure we are disconnected and idle */
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	k_sleep(K_MSEC(100));
@@ -547,7 +547,7 @@ void test_connect_from_idle(void)
 	/* Send connect request */
 	msg.type = NETWORK_CONNECT;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Verify we eventually connect */

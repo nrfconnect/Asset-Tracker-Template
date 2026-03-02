@@ -23,7 +23,7 @@
  */
 #include "fota.h"
 
-ZBUS_CHAN_DEFINE(FOTA_CHAN,
+ZBUS_CHAN_DEFINE(fota_chan,
 		 enum fota_msg_type,
 		 NULL,
 		 NULL,
@@ -47,8 +47,8 @@ BUILD_ASSERT(sizeof(CONFIG_APP_CLOUD_MQTT_CLIENT_ID) <= CONFIG_APP_CLOUD_MQTT_CL
 ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
 
 #define CHANNEL_LIST(X)						\
-		X(NETWORK_CHAN,	struct network_msg)		\
-		X(CLOUD_CHAN, struct cloud_msg)
+		X(network_chan,	struct network_msg)		\
+		X(cloud_chan, struct cloud_msg)
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
@@ -61,7 +61,7 @@ CHANNEL_LIST(ADD_OBSERVERS)
 #define SUBSCRIBE_TOPIC_ID 2469
 
 /* Define channels provided by this module */
-ZBUS_CHAN_DEFINE(CLOUD_CHAN,
+ZBUS_CHAN_DEFINE(cloud_chan,
 		 struct cloud_msg,
 		 NULL,
 		 NULL,
@@ -108,7 +108,7 @@ enum priv_cloud_msg {
  * ensure state transitions only happen from the cloud  module thread where the state machine
  * is running.
  */
-ZBUS_CHAN_DEFINE(PRIV_CLOUD_CHAN,
+ZBUS_CHAN_DEFINE(priv_cloud_chan,
 		 enum priv_cloud_msg,
 		 NULL,
 		 NULL,
@@ -307,7 +307,7 @@ static void connect_to_cloud(const struct cloud_state *state_object)
 		LOG_ERR("Failed connecting to MQTT, error code: %d", err);
 	}
 
-	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&priv_cloud_chan, &msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -343,7 +343,7 @@ static void backoff_timer_work_fn(struct k_work *work)
 
 	ARG_UNUSED(work);
 
-	err = zbus_chan_pub(&PRIV_CLOUD_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&priv_cloud_chan, &msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -391,7 +391,7 @@ static void on_mqtt_connack(enum mqtt_conn_return_code return_code, bool session
 		return;
 	}
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&cloud_chan, &cloud_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -407,7 +407,7 @@ static void on_mqtt_disconnect(int result)
 		.type = CLOUD_DISCONNECTED,
 	};
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&cloud_chan, &cloud_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -475,7 +475,7 @@ static enum smf_state_result state_running_run(void *o)
 {
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		if (msg.type == NETWORK_DISCONNECTED) {
@@ -501,7 +501,7 @@ static void state_disconnected_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+	err = zbus_chan_pub(&cloud_chan, &cloud_msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -515,7 +515,7 @@ static enum smf_state_result state_disconnected_run(void *o)
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-	if ((state_object->chan == &NETWORK_CHAN) && (msg.type == NETWORK_CONNECTED)) {
+	if ((state_object->chan == &network_chan) && (msg.type == NETWORK_CONNECTED)) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
 
 		return SMF_EVENT_HANDLED;
@@ -540,7 +540,7 @@ static enum smf_state_result state_connecting_run(void *o)
 {
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
-	if (state_object->chan == &CLOUD_CHAN) {
+	if (state_object->chan == &cloud_chan) {
 		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
 
 		if (msg->type == CLOUD_CONNECTED) {
@@ -572,7 +572,7 @@ static enum smf_state_result state_connecting_attempt_run(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	if (state_object->chan == &PRIV_CLOUD_CHAN) {
+	if (state_object->chan == &priv_cloud_chan) {
 		const enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
 
 		if (msg == CLOUD_CONNECTION_ATTEMPTED) {
@@ -607,7 +607,7 @@ static enum smf_state_result state_connecting_backoff_run(void *o)
 {
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
-	if (state_object->chan == &PRIV_CLOUD_CHAN) {
+	if (state_object->chan == &priv_cloud_chan) {
 		const enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
 
 		if (msg == CLOUD_BACKOFF_EXPIRED) {
@@ -665,7 +665,7 @@ static enum smf_state_result state_connected_run(void *o)
 {
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
-	if (state_object->chan == &CLOUD_CHAN) {
+	if (state_object->chan == &cloud_chan) {
 		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
 
 		if (msg->type == CLOUD_DISCONNECTED) {

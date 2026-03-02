@@ -19,7 +19,7 @@
 LOG_MODULE_REGISTER(environmental, CONFIG_APP_ENVIRONMENTAL_LOG_LEVEL);
 
 /* Define channels provided by this module */
-ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
+ZBUS_CHAN_DEFINE(environmental_chan,
 		 struct environmental_msg,
 		 NULL,
 		 NULL,
@@ -31,7 +31,7 @@ ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
 ZBUS_MSG_SUBSCRIBER_DEFINE(environmental);
 
 /* Observe channels */
-ZBUS_CHAN_ADD_OBS(ENVIRONMENTAL_CHAN, environmental, 0);
+ZBUS_CHAN_ADD_OBS(environmental_chan, environmental, 0);
 
 #define MAX_MSG_SIZE sizeof(struct environmental_msg)
 
@@ -132,7 +132,7 @@ static void sample_sensors(const struct device *const bme680)
 	LOG_DBG("Temperature: %.2f C, Pressure: %.2f Pa, Humidity: %.2f %%",
 		msg.temperature, msg.pressure, msg.humidity);
 
-	err = zbus_chan_pub(&ENVIRONMENTAL_CHAN, &msg, PUB_TIMEOUT);
+	err = zbus_chan_pub(&environmental_chan, &msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -154,7 +154,7 @@ static enum smf_state_result state_running_run(void *obj)
 {
 	struct environmental_state_object const *state_object = obj;
 
-	if (&ENVIRONMENTAL_CHAN == state_object->chan) {
+	if (&environmental_chan == state_object->chan) {
 		struct environmental_msg msg = MSG_TO_ENVIRONMENTAL_MSG(state_object->msg_buf);
 
 		if (msg.type == ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST) {

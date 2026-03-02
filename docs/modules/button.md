@@ -4,7 +4,7 @@ The Button module provides button press event handling functionality for the app
 
 ## Messages
 
-The Button module communicates through the zbus channel `BUTTON_CHAN`.
+The Button module communicates through the zbus channel `button_chan`.
 
 ### Output messages
 

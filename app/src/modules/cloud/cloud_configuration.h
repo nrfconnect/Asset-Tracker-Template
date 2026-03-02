@@ -28,7 +28,7 @@ enum shadow_poll_type {
  * @brief Poll the device shadow for configuration updates.
  *
  * Requests the desired or delta section of the device shadow from nRF Cloud.
- * The response is published on CLOUD_CHAN as either:
+ * The response is published on cloud_chan as either:
  * - CLOUD_SHADOW_RESPONSE_DESIRED or CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED (for desired section)
  * - CLOUD_SHADOW_RESPONSE_DELTA or CLOUD_SHADOW_RESPONSE_EMPTY_DELTA (for delta section)
  *

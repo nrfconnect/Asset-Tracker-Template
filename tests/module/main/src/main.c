@@ -37,63 +37,63 @@ FAKE_VOID_FUNC(sys_reboot, int);
 LOG_MODULE_REGISTER(main_module_test, 4);
 
 /* Define the channels for testing */
-ZBUS_CHAN_DEFINE(POWER_CHAN,
+ZBUS_CHAN_DEFINE(power_chan,
 	struct power_msg,
 	NULL,
 	NULL,
 	ZBUS_OBSERVERS_EMPTY,
 	ZBUS_MSG_INIT(0)
 );
-ZBUS_CHAN_DEFINE(BUTTON_CHAN,
+ZBUS_CHAN_DEFINE(button_chan,
 	struct button_msg,
 	NULL,
 	NULL,
 	ZBUS_OBSERVERS_EMPTY,
 	ZBUS_MSG_INIT(0)
 );
-ZBUS_CHAN_DEFINE(NETWORK_CHAN,
+ZBUS_CHAN_DEFINE(network_chan,
 	struct network_msg,
 	NULL,
 	NULL,
 	ZBUS_OBSERVERS_EMPTY,
 	ZBUS_MSG_INIT(.type = NETWORK_DISCONNECTED)
 );
-ZBUS_CHAN_DEFINE(CLOUD_CHAN,
+ZBUS_CHAN_DEFINE(cloud_chan,
 	struct cloud_msg,
 	NULL,
 	NULL,
 	ZBUS_OBSERVERS_EMPTY,
 	ZBUS_MSG_INIT(.type = CLOUD_DISCONNECTED)
 );
-ZBUS_CHAN_DEFINE(ENVIRONMENTAL_CHAN,
+ZBUS_CHAN_DEFINE(environmental_chan,
 	struct environmental_msg,
 	NULL,
 	NULL,
 	ZBUS_OBSERVERS_EMPTY,
 	ZBUS_MSG_INIT(0)
 );
-ZBUS_CHAN_DEFINE(FOTA_CHAN,
+ZBUS_CHAN_DEFINE(fota_chan,
 	enum fota_msg_type,
 	NULL,
 	NULL,
 	ZBUS_OBSERVERS_EMPTY,
 	ZBUS_MSG_INIT(0)
 );
-ZBUS_CHAN_DEFINE(LOCATION_CHAN,
+ZBUS_CHAN_DEFINE(location_chan,
 	struct location_msg,
 	NULL,
 	NULL,
 	ZBUS_OBSERVERS_EMPTY,
 	ZBUS_MSG_INIT(0)
 );
-ZBUS_CHAN_DEFINE(LED_CHAN,
+ZBUS_CHAN_DEFINE(led_chan,
 	struct led_msg,
 	NULL,
 	NULL,
 	ZBUS_OBSERVERS_EMPTY,
 	ZBUS_MSG_INIT(0)
 );
-ZBUS_CHAN_DEFINE(STORAGE_CHAN,
+ZBUS_CHAN_DEFINE(storage_chan,
 	struct storage_msg,
 	NULL,
 	NULL,
@@ -109,7 +109,7 @@ static void send_cloud_connected(void)
 		.type = CLOUD_CONNECTED,
 	};
 
-	int err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+	int err = zbus_chan_pub(&cloud_chan, &cloud_msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }
@@ -120,7 +120,7 @@ static void send_cloud_disconnected(void)
 		.type = CLOUD_DISCONNECTED,
 	};
 
-	int err = zbus_chan_pub(&CLOUD_CHAN, &cloud_msg, K_SECONDS(1));
+	int err = zbus_chan_pub(&cloud_chan, &cloud_msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }
@@ -131,7 +131,7 @@ static void send_network_disconnected(void)
 		.type = NETWORK_DISCONNECTED,
 	};
 
-	int err = zbus_chan_pub(&NETWORK_CHAN, &network_msg, K_SECONDS(1));
+	int err = zbus_chan_pub(&network_chan, &network_msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }
@@ -142,7 +142,7 @@ static void send_location_search_done(void)
 		.type = LOCATION_SEARCH_DONE,
 	};
 
-	int err = zbus_chan_pub(&LOCATION_CHAN, &msg, K_SECONDS(1));
+	int err = zbus_chan_pub(&location_chan, &msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }
@@ -154,7 +154,7 @@ static void send_button_press_short(void)
 		.button_number = 1
 	};
 
-	int err = zbus_chan_pub(&BUTTON_CHAN, &button_msg, K_SECONDS(1));
+	int err = zbus_chan_pub(&button_chan, &button_msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }
@@ -166,7 +166,7 @@ static void send_button_press_long(void)
 		.button_number = 1
 	};
 
-	int err = zbus_chan_pub(&BUTTON_CHAN, &button_msg, K_SECONDS(1));
+	int err = zbus_chan_pub(&button_chan, &button_msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }
@@ -176,7 +176,7 @@ static void send_storage_threshold_reached(void)
 	struct storage_msg storage_msg = {
 		.type = STORAGE_THRESHOLD_REACHED,
 	};
-	int err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
+	int err = zbus_chan_pub(&storage_chan, &storage_msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }
@@ -186,7 +186,7 @@ static void send_storage_batch_close(void)
 	struct storage_msg storage_msg = {
 		.type = STORAGE_BATCH_CLOSE,
 	};
-	int err = zbus_chan_pub(&STORAGE_CHAN, &storage_msg, K_SECONDS(1));
+	int err = zbus_chan_pub(&storage_chan, &storage_msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }
@@ -197,7 +197,7 @@ static void send_fota_msg(enum fota_msg_type msg)
 
 	LOG_INF("Sending FOTA message: %d", msg);
 
-	err = zbus_chan_pub(&FOTA_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&fota_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	k_sleep(K_MSEC(100));
@@ -222,7 +222,7 @@ static void config_change_sampling_interval(uint32_t sampling_interval)
 
 	msg.response.buffer_data_len = encoded_len;
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&cloud_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 }
 
@@ -245,7 +245,7 @@ static void config_change_cloud_update_interval(uint32_t update_interval)
 
 	msg.response.buffer_data_len = encoded_len;
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&cloud_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 }
 
@@ -272,7 +272,7 @@ static void config_change_all(uint32_t update_interval, uint32_t sample_interval
 
 	msg.response.buffer_data_len = encoded_len;
 
-	err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&cloud_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 }
 

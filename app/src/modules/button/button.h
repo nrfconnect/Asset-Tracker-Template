@@ -36,7 +36,7 @@ struct button_msg {
 
 /* Channels provided by this module */
 ZBUS_CHAN_DECLARE(
-	BUTTON_CHAN
+	button_chan
 );
 
 #ifdef __cplusplus
