@@ -250,6 +250,18 @@ err = zbus_sub_wait_msg(&network, &network_state.chan,
 
 As with all the modules in the Asset Tracker Template with a state machine, the channel and the message contents are stored in the module's [state object](#state-object) in preparation to run the state handler, where the message will be processed.
 
+In modules that subscribe to multiple channels, a channel list macro is used to simplify subscribing to all the channels. The same macro is used to determine the size of a message buffer to handle the largest possible message. For example, in `app/src/main.c`:
+
+```c
+#define CHANNEL_LIST(X)	                               \
+        X(CLOUD_CHAN,           struct cloud_msg)      \
+        X(BUTTON_CHAN,          struct button_msg)     \
+        /* ... more channels ... */
+
+#define ADD_OBSERVERS(_chan, _type) ZBUS_CHAN_ADD_OBS(_chan, main_subscriber, 0);
+CHANNEL_LIST(ADD_OBSERVERS)
+```
+
 #### Listeners
 
 The listener is the simplest kind of observer. A listener receives a message synchronously and executes a callback in the sender's context. Listeners are only used by modules that do not have their own thread and that do not block when processing messages. When using a listener, care should also be taken to ensure that any callback does not add significantly to the stack size by using large local variables.
