@@ -92,7 +92,17 @@ enum cloud_msg_type {
 	 * The event can also carry command parameters to be reported to the cloud to acknowledge
 	 * command execution. The command type and parameters are encoded in the payload buffer.
 	 */
-	CLOUD_SHADOW_UPDATE_REPORTED,
+	CLOUD_SHADOW_SET_REPORTED_CONFIG,
+
+	/* Request to report the delta device configuration to the device shadow. The payload
+	 * contains CBOR-encoded configuration parameters that will be sent to the shadow's reported
+	 * section. The data is located in the .payload.buffer field with length specified in
+	 * .payload.buffer_data_len.
+	 *
+	 * The event can also carry command parameters to be reported to the cloud to acknowledge
+	 * command execution. The command type and parameters are encoded in the payload buffer.
+	 */
+	CLOUD_SHADOW_UPDATE_REPORTED_CONFIG,
 
 	/* Request to report the current device info to the device shadow.
 	 */
@@ -123,7 +133,8 @@ struct cloud_msg {
 	enum cloud_msg_type type;
 	union  {
 		/** Contains payload data to be sent to the cloud.
-		 *  payload is valid for CLOUD_PAYLOAD_JSON and CLOUD_SHADOW_UPDATE_REPORTED events.
+		 *  payload is valid for CLOUD_PAYLOAD_JSON and CLOUD_SHADOW_<>_REPORTED_CONFIG
+		 *  events.
 		 */
 		struct cloud_payload payload;
 

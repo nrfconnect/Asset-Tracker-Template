@@ -66,6 +66,54 @@ int cloud_configuration_poll(enum shadow_poll_type type)
 	return 0;
 }
 
+/*
+ * cloud_configuration_reported_set() is used to clear the existing reported/config section in the
+ * shadow and replace it with the new configuration. This is used when reporting the full device
+ * configuration to the shadow.
+ */
+int cloud_configuration_reported_set(const uint8_t *buffer, size_t buffer_len)
+{
+	int err;
+
+	if (!buffer || buffer_len == 0) {
+		return -EINVAL;
+	}
+
+	/* Hardcoded {"config": null} to clear the reported section on the cloud shadow. This is
+	 * used to clear out old configuration values from the shadow that are no longer used by the
+	 * application.
+	 */
+	static const uint8_t clear_reported_payload[9] = {
+		0xA1,                               /* map of 1 pair */
+		0x66,                               /* text string of length 6 */
+		0x63, 0x6F, 0x6E, 0x66, 0x69, 0x67, /* "config" */
+		0xF6                                /* null */
+	};
+
+	err = nrf_cloud_coap_patch("state/reported", NULL, clear_reported_payload,
+				   sizeof(clear_reported_payload), COAP_CONTENT_FORMAT_APP_CBOR,
+				   true, NULL, NULL);
+	if (err) {
+		LOG_ERR("nrf_cloud_coap_patch (clear reported), error: %d", err);
+		return err;
+	}
+
+	/* Update the reported section with the new configuration */
+	err = nrf_cloud_coap_patch("state/reported", NULL, buffer, buffer_len,
+				   COAP_CONTENT_FORMAT_APP_CBOR, true, NULL, NULL);
+	if (err) {
+		LOG_ERR("nrf_cloud_coap_patch (config report), error: %d", err);
+		return err;
+	}
+
+	return 0;
+}
+
+/*
+ * cloud_configuration_reported_update() is used to update the existing reported/config section in
+ * the shadow with the new configuration. This is used when reporting only the delta changes to the
+ * shadow.
+ */
 int cloud_configuration_reported_update(const uint8_t *buffer, size_t buffer_len)
 {
 	int err;
@@ -74,16 +122,12 @@ int cloud_configuration_reported_update(const uint8_t *buffer, size_t buffer_len
 		return -EINVAL;
 	}
 
-	LOG_DBG("Configuration: Reporting config to cloud");
+	LOG_DBG("Configuration: Reporting delta config to cloud");
 
-	err = nrf_cloud_coap_patch("state/reported", NULL,
-				   buffer, buffer_len,
-				   COAP_CONTENT_FORMAT_APP_CBOR,
-				   true,
-				   NULL,
-				   NULL);
+	err = nrf_cloud_coap_patch("state/reported", NULL, buffer, buffer_len,
+				   COAP_CONTENT_FORMAT_APP_CBOR, true, NULL, NULL);
 	if (err) {
-		LOG_ERR("nrf_cloud_coap_patch (config report), error: %d", err);
+		LOG_ERR("nrf_cloud_coap_patch (delta config report), error: %d", err);
 		return err;
 	}
 

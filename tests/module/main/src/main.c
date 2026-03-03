@@ -207,7 +207,7 @@ static void config_change_sampling_interval(uint32_t sampling_interval)
 {
 	int err;
 	struct cloud_msg msg = {
-		.type = CLOUD_SHADOW_RESPONSE_DESIRED,
+		.type = CLOUD_SHADOW_RESPONSE_DELTA,
 	};
 	struct config_params config = {
 		.sample_interval = sampling_interval,
@@ -230,7 +230,7 @@ static void config_change_cloud_update_interval(uint32_t update_interval)
 {
 	int err;
 	struct cloud_msg msg = {
-		.type = CLOUD_SHADOW_RESPONSE_DESIRED,
+		.type = CLOUD_SHADOW_RESPONSE_DELTA,
 	};
 	struct config_params config = {
 		.update_interval = update_interval,
@@ -303,8 +303,8 @@ static void restart_sample_timer(void)
 static void disable_sample_timer(void)
 {
 	config_change_sampling_interval(99999);
-	expect_cloud_event(CLOUD_SHADOW_RESPONSE_DESIRED);
-	expect_cloud_event(CLOUD_SHADOW_UPDATE_REPORTED);
+	expect_cloud_event(CLOUD_SHADOW_RESPONSE_DELTA);
+	expect_cloud_event(CLOUD_SHADOW_UPDATE_REPORTED_CONFIG);
 }
 
 void setUp(void)
@@ -618,8 +618,8 @@ void test_config_change(void)
 
 	/* Change sample interval and verify that the new interval is respected */
 	config_change_sampling_interval(300);
-	expect_cloud_event(CLOUD_SHADOW_RESPONSE_DESIRED);
-	expect_cloud_event(CLOUD_SHADOW_UPDATE_REPORTED);
+	expect_cloud_event(CLOUD_SHADOW_RESPONSE_DELTA);
+	expect_cloud_event(CLOUD_SHADOW_UPDATE_REPORTED_CONFIG);
 	expect_timer_event(TIMER_CONFIG_CHANGED);
 
 	k_sleep(K_SECONDS(300));
@@ -640,8 +640,8 @@ void test_config_change(void)
 
 	/* Change cloud update interval and verify that the new interval is respected */
 	config_change_cloud_update_interval(1000);
-	expect_cloud_event(CLOUD_SHADOW_RESPONSE_DESIRED);
-	expect_cloud_event(CLOUD_SHADOW_UPDATE_REPORTED);
+	expect_cloud_event(CLOUD_SHADOW_RESPONSE_DELTA);
+	expect_cloud_event(CLOUD_SHADOW_UPDATE_REPORTED_CONFIG);
 	expect_timer_event(TIMER_CONFIG_CHANGED);
 
 	k_sleep(K_SECONDS(1000));
@@ -666,7 +666,7 @@ void test_config_change(void)
 	config_change_all(500, 300, 3);
 	expect_storage_event(STORAGE_SET_THRESHOLD);
 	expect_cloud_event(CLOUD_SHADOW_RESPONSE_DELTA);
-	expect_cloud_event(CLOUD_SHADOW_UPDATE_REPORTED);
+	expect_cloud_event(CLOUD_SHADOW_UPDATE_REPORTED_CONFIG);
 	expect_timer_event(TIMER_CONFIG_CHANGED);
 
 	k_sleep(K_SECONDS(300));

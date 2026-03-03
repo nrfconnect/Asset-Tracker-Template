@@ -689,7 +689,15 @@ static void handle_cloud_channel_message(struct cloud_state_object const *state_
 			send_request_failed();
 		}
 		break;
-	case CLOUD_SHADOW_UPDATE_REPORTED:
+	case CLOUD_SHADOW_SET_REPORTED_CONFIG:
+		err = cloud_configuration_reported_set(msg->payload.buffer,
+							  msg->payload.buffer_data_len);
+		if (err) {
+			LOG_ERR("cloud_configuration_reported_set, error: %d", err);
+			send_request_failed();
+		}
+		break;
+	case CLOUD_SHADOW_UPDATE_REPORTED_CONFIG:
 		err = cloud_configuration_reported_update(msg->payload.buffer,
 							  msg->payload.buffer_data_len);
 		if (err) {

@@ -662,11 +662,12 @@ static void timer_send_data_stop(void)
 
 static void update_shadow_reported_section(const struct config_params *config,
 					   uint32_t command_type,
-					   uint32_t command_id)
+					   uint32_t command_id,
+					   enum cloud_msg_type report_type)
 {
 	int err;
 	struct cloud_msg cloud_msg = {
-		.type = CLOUD_SHADOW_UPDATE_REPORTED,
+		.type = report_type,
 	};
 	size_t encoded_len;
 
@@ -691,9 +692,15 @@ static void update_shadow_reported_section(const struct config_params *config,
 		return;
 	}
 
-	LOG_DBG("Configuration reported: update_interval=%d, sample_interval=%d, "
-		"storage_threshold=%d",
-		config->update_interval, config->sample_interval, config->storage_threshold);
+	if (config->sample_interval != 0) {
+		LOG_DBG("Reported sample_interval: %d", config->sample_interval);
+	}
+	if (config->update_interval != 0) {
+		LOG_DBG("Reported update_interval: %d", config->update_interval);
+	}
+	if (config->storage_threshold_valid) {
+		LOG_DBG("Reported storage_threshold: %d", config->storage_threshold);
+	}
 }
 
 static void config_apply(struct main_state *state_object, const struct config_params *config)
@@ -782,47 +789,95 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 					 const struct cloud_msg *msg)
 {
 	int err;
-	struct config_params config = { 0 };
+	struct config_params update_config = {0};
+	struct config_params reported_config = {0};
 	uint32_t command_type = 0;
 	uint32_t command_id = 0;
 
-	err = decode_shadow_parameters_from_cbor(msg->response.buffer,
-						 msg->response.buffer_data_len,
-						 &config,
-						 &command_type,
-						 &command_id);
-	if (err) {
-		LOG_ERR("Failed to parse shadow response, error: %d", err);
-		/* Don't treat shadow configuration errors as fatal as they can occur if the
-		 * format of the shadow changes.
-		 */
-		return;
-	}
-
-	config_apply(state_object, &config);
-
-	/* Only report the configuration values that were actually applied by the application.
-	 * Some parameters may be ignored or partially updated, so only the effective values
-	 * should be reported back to the cloud.
+	switch (msg->type) {
+	/* For DELTA response, apply the changes from the delta, execute any commands, and report
+	 * the updated configuration in the reported section.
+	 * Only report the changed parameters in the reported section.
 	 */
-	config.sample_interval = state_object->sample_interval_sec;
-	config.update_interval = state_object->update_interval_sec;
-	config.storage_threshold = state_object->storage_threshold;
-	config.storage_threshold_valid = true;
+	case CLOUD_SHADOW_RESPONSE_DELTA:
+		err = decode_shadow_parameters_from_cbor(
+			msg->response.buffer, msg->response.buffer_data_len, &update_config,
+			&command_type, &command_id);
+		if (err) {
+			LOG_ERR("Failed to parse shadow response, error: %d", err);
+			/* Don't treat shadow configuration errors as fatal as they can occur if the
+			 * format of the shadow changes.
+			 */
+			return;
+		}
 
-	/* Only process commands from delta responses, not from desired responses.
-	 * Delta responses contain only new commands that haven't been executed yet.
-	 * While desired responses may contain old commands that have already been executed.
-	 */
-	if (msg->type == CLOUD_SHADOW_RESPONSE_DELTA) {
-		/* Clear the shadow delta by reporting back the command to the cloud. */
-		update_shadow_reported_section(&config, command_type, command_id);
+		config_apply(state_object, &update_config);
+
+		reported_config.sample_interval =
+			(update_config.sample_interval) ? state_object->sample_interval_sec : 0;
+		reported_config.update_interval =
+			(update_config.update_interval) ? state_object->update_interval_sec : 0;
+		reported_config.storage_threshold = (update_config.storage_threshold_valid)
+							    ? state_object->storage_threshold
+							    : 0;
+		reported_config.storage_threshold_valid = update_config.storage_threshold_valid;
+
+		update_shadow_reported_section(&reported_config, command_type, command_id,
+					       CLOUD_SHADOW_UPDATE_REPORTED_CONFIG);
+
 		command_execute(command_type);
-	} else {
-		/* For desired responses (initial shadow poll), only report config without
-		 * commands since we haven't executed any new commands.
-		 */
-		update_shadow_reported_section(&config, 0, 0);
+
+		break;
+
+	/* For DESIRED response, apply the configuration and report the full current configuration
+	 * in the reported section.
+	 */
+	case CLOUD_SHADOW_RESPONSE_DESIRED:
+
+		err = decode_shadow_parameters_from_cbor(
+			msg->response.buffer, msg->response.buffer_data_len, &update_config,
+			&command_type, &command_id);
+		if (err) {
+			LOG_ERR("Failed to parse shadow response, error: %d", err);
+			/* Don't treat shadow configuration errors as fatal as they can occur if the
+			 * format of the shadow changes.
+			 */
+			return;
+		}
+
+		config_apply(state_object, &update_config);
+
+		reported_config.sample_interval = state_object->sample_interval_sec;
+		reported_config.update_interval = state_object->update_interval_sec;
+		reported_config.storage_threshold = state_object->storage_threshold;
+		reported_config.storage_threshold_valid = true;
+
+		update_shadow_reported_section(&reported_config, 0, 0,
+					       CLOUD_SHADOW_SET_REPORTED_CONFIG);
+
+		break;
+
+	/* For EMPTY_DELTA response, do nothing */
+	case CLOUD_SHADOW_RESPONSE_EMPTY_DELTA:
+		LOG_DBG("Received empty shadow delta response, no configuration changes to apply");
+		break;
+
+	/* For EMPTY_DESIRED response, report the current configuration in the reported section. */
+	case CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED:
+
+		reported_config.sample_interval = state_object->sample_interval_sec;
+		reported_config.update_interval = state_object->update_interval_sec;
+		reported_config.storage_threshold = state_object->storage_threshold;
+		reported_config.storage_threshold_valid = true;
+
+		update_shadow_reported_section(&reported_config, 0, 0,
+					       CLOUD_SHADOW_SET_REPORTED_CONFIG);
+
+		break;
+	default:
+		LOG_DBG("Received cloud message that is not a shadow response, ignoring: %d",
+			msg->type);
+		break;
 	}
 }
 
@@ -989,20 +1044,11 @@ static enum smf_state_result connected_run(void *o)
 		case CLOUD_SHADOW_RESPONSE_DESIRED:
 			__fallthrough;
 		case CLOUD_SHADOW_RESPONSE_DELTA:
-			handle_cloud_shadow_response(state_object, msg);
-
-			break;
+			 __fallthrough;
+		case CLOUD_SHADOW_RESPONSE_EMPTY_DELTA:
+			 __fallthrough;
 		case CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED:
-			LOG_DBG("Received empty shadow response from cloud");
-
-			struct config_params config = {
-				.update_interval = state_object->update_interval_sec,
-				.sample_interval = state_object->sample_interval_sec,
-				.storage_threshold = state_object->storage_threshold,
-				.storage_threshold_valid = true
-			};
-
-			update_shadow_reported_section(&config, 0, 0);
+			handle_cloud_shadow_response(state_object, msg);
 
 			return SMF_EVENT_HANDLED;
 		default:
