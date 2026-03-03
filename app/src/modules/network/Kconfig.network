@@ -62,6 +62,34 @@ config APP_NETWORK_NTN_PERIODIC_TN_SEARCH_INTERVAL_SECONDS
 	  Interval in seconds between terrestrial network
 	  searches while waiting for a LEO satellite pass.
 
+choice APP_NETWORK_NTN_LOCATION_FAILED_HANDLING
+	prompt "Location failed handling"
+	default APP_NETWORK_NTN_LOCATION_FAILED_LEO_THEN_GEO
+	help
+	  What to do when location request failed and no new location data is available for
+	  LEO satellite pass prediction and search.
+
+config APP_NETWORK_NTN_LOCATION_FAILED_USE_LEO
+	bool "LEO with previous location"
+	help
+	  Use previous location data for LEO satellite pass prediction and search.
+
+config APP_NETWORK_NTN_LOCATION_FAILED_USE_GEO
+	bool "Fallback to GEO"
+	help
+	  Fallback to GEO satellite search when location failed. The previous location data
+	  will be used by the modem.
+
+config APP_NETWORK_NTN_LOCATION_FAILED_LEO_THEN_GEO
+	bool "LEO then GEO"
+	help
+	  First try to search for a LEO satellite pass with the previous location data. If no LEO
+	  satellite pass is found, fall back to GEO satellite search.
+	  Note that TLE data must be available and usable accoring to
+	  CONFIG_APP_NETWORK_NTN_TLE_STALE_HANDLING.
+
+endchoice # APP_NETWORK_NTN_LOCATION_FAILED_HANDLING
+
 config APP_NETWORK_NTN_TLE_STALE_HOURS
 	int "TLE freshness threshold in hours"
 	default 168
