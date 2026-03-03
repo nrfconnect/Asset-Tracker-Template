@@ -41,7 +41,7 @@ state STATE_RUNNING {
             state STATE_NTN_SEARCH_PREPARE {
                 STATE_NTN_SEARCH_PREPARE : NTN_LOCATION_NEEDED / send NETWORK_LOCATION_NEEDED
                 STATE_NTN_SEARCH_PREPARE : NETWORK_LOCATION_DATA / ntn_location_set(), estimate_next_pass()
-                STATE_NTN_SEARCH_PREPARE : NETWORK_LOCATION_FAILED / start_geo_or_maybe_reset()
+                STATE_NTN_SEARCH_PREPARE : NETWORK_LOCATION_FAILED / handle_location_failed()
 
                 STATE_NTN_SEARCH_PREPARE --> STATE_NTN_SEARCH_LEO: NTN_LEO_SATELLITE_PASS_UPCOMING
                 STATE_NTN_SEARCH_PREPARE --> STATE_DISCONNECTED_WAITING_FOR_LEO: NTN_WAIT_FOR_SATELLITE_PASS / leo_satellite_search_timer_start()
