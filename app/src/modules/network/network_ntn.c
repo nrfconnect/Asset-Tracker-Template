@@ -35,7 +35,6 @@ ZBUS_CHAN_DEFINE(NETWORK_CHAN,
 
 /* Private channel for internal state machine events */
 enum priv_network_ntn_msg {
-	LEO_SATELLITE_PASS_UPCOMING,
 	PERIODIC_TN_SEARCH,
 	NTN_LEO_SATELLITE_PASS_UPCOMING,
 	NTN_SEARCH_GEO_START,
@@ -264,7 +263,7 @@ static void leo_satellite_search_timer_work_fn(struct k_work *work)
 {
 	ARG_UNUSED(work);
 
-	priv_ntn_msg_send(LEO_SATELLITE_PASS_UPCOMING);
+	priv_ntn_msg_send(NTN_LEO_SATELLITE_PASS_UPCOMING);
 }
 
 static void periodic_tn_search_timer_work_fn(struct k_work *work)
@@ -330,15 +329,24 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 
 		break;
 	case LTE_LC_EVT_MODEM_EVENT:
-		if (evt->modem_evt.type == LTE_LC_MODEM_EVT_RESET_LOOP) {
+		switch (evt->modem_evt.type) {
+		case LTE_LC_MODEM_EVT_RESET_LOOP:
 			LOG_WRN("The modem has detected a reset loop!");
 			network_status_notify(NETWORK_MODEM_RESET_LOOP);
-		} else if (evt->modem_evt.type == LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE) {
+
+			break;
+		case LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE:
 			LOG_DBG("LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE");
 			network_status_notify(NETWORK_LIGHT_SEARCH_DONE);
-		} else if (evt->modem_evt.type == LTE_LC_MODEM_EVT_SEARCH_DONE) {
+
+			break;
+		case LTE_LC_MODEM_EVT_SEARCH_DONE:
 			LOG_DBG("LTE_LC_MODEM_EVT_SEARCH_DONE");
 			network_status_notify(NETWORK_SEARCH_DONE);
+
+			break;
+		default:
+			break;
 		}
 
 		break;
@@ -475,8 +483,7 @@ static void periodic_tn_search_timer_cancel(void)
 
 /* NTN action helpers */
 
-static void store_tle_data(struct network_state_object *state_object,
-			   const struct network_msg *msg)
+static void store_tle_data(struct network_state_object *state_object, const struct network_msg *msg)
 {
 	int64_t now_ms;
 	int err;
@@ -510,9 +517,9 @@ static int start_geo_search(void)
 	return network_connect();
 }
 
-static void start_geo_or_maybe_reset(void)
+static void handle_location_failed(void)
 {
-	/* TODO: Check CONFIG_APP_NETWORK_NTN_TLE_STALE_HANDLING and act accordingly. */
+	/* TODO: Check CONFIG_APP_NETWORK_NTN_LOCATION_FAILED_HANDLING and act accordingly. */
 	priv_ntn_msg_send(NTN_SEARCH_GEO_START);
 }
 
@@ -620,15 +627,14 @@ static enum smf_state_result state_disconnected_run(void *obj)
 		enum priv_network_ntn_msg priv_msg =
 			*(const enum priv_network_ntn_msg *)state_object->msg_buf;
 
-		if (priv_msg == LEO_SATELLITE_PASS_UPCOMING) {
+		if (priv_msg == NTN_LEO_SATELLITE_PASS_UPCOMING) {
 			err = network_disconnect();
 			if (err) {
 				LOG_ERR("network_disconnect, error: %d", err);
 				SEND_FATAL_ERROR();
 			}
 
-			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_DISCONNECTED_NTN_SEARCH]);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_NTN_SEARCH_LEO]);
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -708,7 +714,7 @@ static void state_disconnected_searching_tn_entry(void *obj)
 	LOG_DBG("%s", __func__);
 
 	/* Set the system mode to only use LTE-M access technology */
-	err = lte_lc_system_mode_set(CONFIG_LTE_NETWORK_MODE_LTE_M_NBIOT_GPS,
+	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_LTEM_NBIOT_GPS,
 				     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
 	if (err) {
 		LOG_ERR("lte_lc_system_mode_set, error: %d", err);
@@ -716,9 +722,9 @@ static void state_disconnected_searching_tn_entry(void *obj)
 	}
 
 	/* Start searching for a suitable terrestrial network */
-	err = lte_lc_connect_async(lte_lc_evt_handler);
+	err = network_connect();
 	if (err) {
-		LOG_ERR("lte_lc_connect_async, error: %d", err);
+		LOG_ERR("network_connect, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
 }
@@ -734,6 +740,15 @@ static enum smf_state_result state_disconnected_searching_tn_run(void *obj)
 		case NETWORK_CONNECT_TN:
 			return SMF_EVENT_HANDLED;
 
+		case NETWORK_SEARCH_DONE:
+			if (state_object->waiting_for_leo) {
+				smf_set_state(SMF_CTX(state_object),
+					      &states[STATE_DISCONNECTED_WAITING_FOR_LEO]);
+
+				return SMF_EVENT_HANDLED;
+			}
+
+			break;
 		default:
 			break;
 		}
@@ -825,8 +840,7 @@ static enum smf_state_result state_disconnected_ntn_search_run(void *obj)
 
 		switch (priv_msg) {
 		case NTN_SEARCH_GEO_START:
-			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_NTN_SEARCH_GEO]);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_NTN_SEARCH_GEO]);
 
 			return SMF_EVENT_HANDLED;
 
@@ -866,7 +880,7 @@ static enum smf_state_result state_ntn_search_prepare_run(void *obj)
 			return SMF_EVENT_HANDLED;
 
 		case NETWORK_LOCATION_FAILED:
-			start_geo_or_maybe_reset();
+			handle_location_failed();
 
 			return SMF_EVENT_HANDLED;
 
@@ -886,8 +900,7 @@ static enum smf_state_result state_ntn_search_prepare_run(void *obj)
 			return SMF_EVENT_HANDLED;
 
 		case NTN_LEO_SATELLITE_PASS_UPCOMING:
-			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_NTN_SEARCH_LEO]);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_NTN_SEARCH_LEO]);
 
 			return SMF_EVENT_HANDLED;
 
@@ -1093,6 +1106,7 @@ static void network_ntn_module_thread(void)
 	if (task_wdt_id < 0) {
 		LOG_ERR("Failed to add task to watchdog: %d", task_wdt_id);
 		SEND_FATAL_ERROR();
+
 		return;
 	}
 
