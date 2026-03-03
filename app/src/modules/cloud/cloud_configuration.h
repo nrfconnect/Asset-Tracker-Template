@@ -39,6 +39,21 @@ enum shadow_poll_type {
 int cloud_configuration_poll(enum shadow_poll_type type);
 
 /**
+ * @brief Set the reported section of the device shadow.
+ *
+ * Sends device configuration or command acknowledgment to the cloud's shadow
+ * reported section using CBOR format.
+ * @note Replaces the reported/config section with the provided buffer, all configuration fields
+ * that are not included in the buffer will be removed from the shadow.
+ *
+ * @param buffer Pointer to CBOR-encoded payload buffer
+ * @param buffer_len Length of the payload data in bytes
+ *
+ * @return 0 on success, negative error code on failure
+ */
+int cloud_configuration_reported_set(const uint8_t *buffer, size_t buffer_len);
+
+/**
  * @brief Update the reported section of the device shadow.
  *
  * Sends device configuration or command acknowledgment to the cloud's shadow

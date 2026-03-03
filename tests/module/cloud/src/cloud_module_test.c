@@ -1059,7 +1059,7 @@ void test_shadow_update_reported_should_call_patch(void)
 {
 	const uint8_t test_cbor_payload[] = {0xa3, 0x01, 0x02, 0x03, 0x04};
 	struct cloud_msg update_msg = {
-		.type = CLOUD_SHADOW_UPDATE_REPORTED,
+		.type = CLOUD_SHADOW_UPDATE_REPORTED_CONFIG,
 		.payload = {
 			.buffer_data_len = sizeof(test_cbor_payload)
 		}
@@ -1091,6 +1091,44 @@ void test_shadow_update_reported_should_call_patch(void)
 	TEST_ASSERT_EQUAL_UINT8_ARRAY(test_cbor_payload, nrf_cloud_coap_patch_fake.arg2_val,
 				      sizeof(test_cbor_payload));
 }
+
+void test_shadow_set_reported_should_call_patch(void)
+{
+	const uint8_t test_cbor_payload[] = {0xa3, 0x04, 0x03, 0x02, 0x01};
+	struct cloud_msg update_msg = {
+		.type = CLOUD_SHADOW_SET_REPORTED_CONFIG,
+		.payload = {
+			.buffer_data_len = sizeof(test_cbor_payload)
+		}
+	};
+
+	/* Copy test payload into message buffer */
+	memcpy(update_msg.payload.buffer, test_cbor_payload, sizeof(test_cbor_payload));
+
+	/* Connect to cloud */
+	test_should_transition_from_disconnected_to_connected_ready();
+
+	/* Send shadow update reported request */
+	publish_and_assert(&cloud_chan, &update_msg);
+
+	/* Give cloud module time to process the request */
+	wait_for_processing();
+
+	/* Verify that nrf_cloud_coap_patch was called twice (once to clear, once to set) */
+	TEST_ASSERT_EQUAL(2, nrf_cloud_coap_patch_fake.call_count);
+
+	/* Verify the patch was called with correct parameters */
+	TEST_ASSERT_EQUAL_STRING("state/reported", nrf_cloud_coap_patch_fake.arg0_val);
+	TEST_ASSERT_NULL(nrf_cloud_coap_patch_fake.arg1_val); /* app_id is NULL */
+	TEST_ASSERT_EQUAL(sizeof(test_cbor_payload), nrf_cloud_coap_patch_fake.arg3_val);
+	TEST_ASSERT_EQUAL(COAP_CONTENT_FORMAT_APP_CBOR, nrf_cloud_coap_patch_fake.arg4_val);
+	TEST_ASSERT_TRUE(nrf_cloud_coap_patch_fake.arg5_val); /* confirmable = true */
+
+	/* Verify buffer contents match (not pointer, since message is copied) */
+	TEST_ASSERT_EQUAL_UINT8_ARRAY(test_cbor_payload, nrf_cloud_coap_patch_fake.arg2_val,
+				      sizeof(test_cbor_payload));
+}
+
 
 /* Test that cloud module correctly handles LOCATION_CLOUD_REQUEST with cellular data */
 void test_location_cloud_request_cellular_data(void)

@@ -148,11 +148,11 @@
 			<text x="5.17" y="580.12" class="st2" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED</text>		</g>
 		<g id="shape35-46" v:mID="35" v:groupContext="shape" transform="translate(69.7455,-350.158)">
 			<title>Sheet.35</title>
-			<desc>CLOUD_SHADOW_UPDATE_REPORTED</desc>
+			<desc>CLOUD_SHADOW_UPDATE_REPORTED_CONFIG</desc>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
 			<v:textRect cx="91.8436" cy="577.717" width="183.69" height="12.7559"/>
 			<rect x="0" y="571.339" width="183.687" height="12.7559" class="st1"/>
-			<text x="14.72" y="580.12" class="st2" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>CLOUD_SHADOW_UPDATE_REPORTED</text>		</g>
+			<text x="14.72" y="580.12" class="st2" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>CLOUD_SHADOW_UPDATE_REPORTED_CONFIG</text>		</g>
 		<g id="shape36-49" v:mID="36" v:groupContext="shape" transform="translate(260.654,-323.866)">
 			<title>Sheet.36</title>
 			<desc>Report device configurations PATCH (state/reported)</desc>
@@ -248,11 +248,11 @@
 			<text x="13.16" y="580.12" class="st2" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>CLOUD_SHADOW_RESPONSE_DESIRED</text>		</g>
 		<g id="shape104-123" v:mID="104" v:groupContext="shape" transform="translate(70.3142,-177.953)">
 			<title>Sheet.104</title>
-			<desc>CLOUD_SHADOW_UPDATE_REPORTED</desc>
+			<desc>CLOUD_SHADOW_UPDATE_REPORTED_CONFIG</desc>
 			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
 			<v:textRect cx="91.8436" cy="577.717" width="183.69" height="12.7559"/>
 			<rect x="0" y="571.339" width="183.687" height="12.7559" class="st1"/>
-			<text x="14.72" y="580.12" class="st2" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>CLOUD_SHADOW_UPDATE_REPORTED</text>		</g>
+			<text x="14.72" y="580.12" class="st2" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>CLOUD_SHADOW_UPDATE_REPORTED_CONFIG</text>		</g>
 		<g id="shape105-126" v:mID="105" v:groupContext="shape" v:layerMember="0" transform="translate(61.2455,-220.709)">
 			<title>Dynamic connector.105</title>
 			<path d="M6.68 577.45 L7.04 577.45 L201.3 576.54" class="st12"/>
