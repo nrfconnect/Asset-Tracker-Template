@@ -44,6 +44,7 @@ def test_shell(dut_cloud, hex_file):
     dut_cloud.uart.flush()
     reset_device()
     dut_cloud.uart.wait_for_str_with_retries("Connected to Cloud", max_retries=3, timeout=240, reset_func=reset_device)
+    dut_cloud.uart.flush()
     dut_cloud.uart.wait_for_str(patterns_boot, timeout=120)
     dut_cloud.uart.flush()
     dut_cloud.uart.wait_for_str(patterns_boot_done, timeout=20)
