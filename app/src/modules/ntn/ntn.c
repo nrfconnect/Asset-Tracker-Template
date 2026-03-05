@@ -607,7 +607,9 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	uint32_t location_validity_time;
 	uint64_t current_time = k_uptime_get();
 
-	if (state->location_validity_end_time > current_time) {
+	if (state->location_validity_end_time == 0) {
+		location_validity_time = 0;  /* Infinite validity */
+	} else if (state->location_validity_end_time > current_time) {
 		location_validity_time =
 			(uint32_t)(state->location_validity_end_time - current_time) / MSEC_PER_SEC;
 	} else {
@@ -1178,9 +1180,8 @@ static enum smf_state_result state_gnss_run(void *obj)
 			memcpy(&state->last_pvt, &msg->pvt, sizeof(state->last_pvt));
 			state->has_valid_gnss = true;
 
-			state->location_validity_end_time =
-				k_uptime_get() +
-				CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS * MSEC_PER_SEC;
+			state->location_validity_end_time = CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS == 0 ? 
+				0 : k_uptime_get() + CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS * MSEC_PER_SEC;
 
 			/* Transition based on state flag */
 			if (state->run_sgp4_after_gnss) {
@@ -1228,9 +1229,8 @@ static enum smf_state_result state_gnss_run(void *obj)
 				state->has_valid_gnss = true;
 			}
 
-			state->location_validity_end_time =
-				k_uptime_get() +
-				CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS * MSEC_PER_SEC;
+			state->location_validity_end_time = CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS == 0 ? 
+				0 : k_uptime_get() + CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS * MSEC_PER_SEC;
 
 			/* Transition based on state flag */
 			if (state->run_sgp4_after_gnss) {
@@ -1743,9 +1743,9 @@ static enum smf_state_result state_idle_run(void *obj)
 
 		if (msg->type == LOCATION_REQUEST) {
 			uint64_t current_time = k_uptime_get();
-			if (current_time < state->location_validity_end_time) {
-			LOG_DBG("NTN location is still valid, skipping location request");
-
+			if (state->location_validity_end_time == 0 || 
+			    current_time < state->location_validity_end_time) {
+				LOG_DBG("NTN location is still valid, skipping location request");
 				return SMF_EVENT_HANDLED;
 			}
 
