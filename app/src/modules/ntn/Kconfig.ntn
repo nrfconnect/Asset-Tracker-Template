@@ -136,6 +136,13 @@ config APP_NTN_DEFAULT_ALTITUDE_1000
 	  The value is multiplied by 1000 to handle decimal places.
 	  For example, 130.798 is represented as 130798.
 
+config APP_NTN_USB_KEEPALIVE_ENABLE
+	bool "Enable USB keepalive"
+	help
+	  Enable USB keepalive feature. This is needed for Windows 11 setup to keep
+	  the USB connection alive. Not needed for other operating systems.
+
+
 module = APP_NTN
 module-str = NTN
 source "subsys/logging/Kconfig.template.log_config"

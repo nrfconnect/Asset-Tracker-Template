@@ -1037,7 +1037,9 @@ static void state_running_entry(void *obj)
 
 	ntn_register_handler(ntn_event_handler);
 
+#if defined(CONFIG_APP_NTN_USB_KEEPALIVE_ENABLE)
 	k_work_submit(&keepalive_timer_work);
+#endif
 
 	err = lte_lc_power_off();
 		if (err) {
@@ -1117,7 +1119,6 @@ static enum smf_state_result state_running_run(void *obj)
 			k_timer_start(&state->keepalive_timer,
 					K_SECONDS(300),
 					K_NO_WAIT);
-
 			break;
 		case GNSS_TRIGGER:
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
