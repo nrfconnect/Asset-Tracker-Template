@@ -263,11 +263,9 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTRATION_DENIED) {
 			/* cereg 3 */
 			LOG_DBG("LTE_LC_NW_REG_REGISTRATION_DENIED");
-			ntn_msg_publish(NETWORK_CONNECTION_FAILED);
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NO_SUITABLE_CELL) {
 			/* cereg 91 */
 			LOG_DBG("LTE_LC_NW_REG_NO_SUITABLE_CELL");
-			ntn_msg_publish(NETWORK_CONNECTION_FAILED);
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_UNKNOWN) {
 			/* cereg 4 */
 			LOG_DBG("LTE_LC_NW_REG_UNKNOWN");
