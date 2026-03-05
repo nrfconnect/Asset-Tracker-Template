@@ -1129,10 +1129,6 @@ static enum smf_state_result state_running_run(void *obj)
 			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
 
 			break;
-		case GNSS_TIMEOUT:
-			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-
-			break;
 		case NTN_SHELL_SET_TIME:
 			reschedule_next_pass(state, msg->time_of_pass);
 
@@ -1182,6 +1178,56 @@ static enum smf_state_result state_gnss_run(void *obj)
 			/* Store GNSS data */
 			memcpy(&state->last_pvt, &msg->pvt, sizeof(state->last_pvt));
 			state->has_valid_gnss = true;
+
+			state->location_validity_end_time =
+				k_uptime_get() +
+				CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS * MSEC_PER_SEC;
+
+			/* Transition based on state flag */
+			if (state->run_sgp4_after_gnss) {
+				smf_set_state(SMF_CTX(state), &states[STATE_SGP4]);
+			} else {
+				smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+			}
+		} else if (msg->type == GNSS_TIMEOUT){
+			/* If state machine has valid gnss, then use last pvt */
+			/* Else fallback to hardcoded ones */
+			/* TODO: use Kconfig for hardcoeded values? */
+			if (!state->has_valid_gnss) {
+				/* Populate state->last_pvt with Kconfig values (converting from scaled integers) */
+				state->last_pvt.latitude  = (double)CONFIG_APP_NTN_DEFAULT_LATITUDE_1000000 / 1000000.0;
+				state->last_pvt.longitude = (double)CONFIG_APP_NTN_DEFAULT_LONGITUDE_1000000 / 1000000.0;
+				state->last_pvt.altitude  = (float)CONFIG_APP_NTN_DEFAULT_ALTITUDE_1000 / 1000.0f;
+
+				state->last_pvt.accuracy = 5.0f;       /* 1 km fallback accuracy */
+
+				/* Populate time from current system time */
+				int64_t now_ms;
+				if (date_time_now(&now_ms) == 0) {
+					time_t now = now_ms / 1000;
+					struct tm tm_now;
+
+					gmtime_r(&now, &tm_now);
+
+					state->last_pvt.datetime.year    = tm_now.tm_year + 1900;
+					state->last_pvt.datetime.month   = tm_now.tm_mon + 1;
+					state->last_pvt.datetime.day     = tm_now.tm_mday;
+					state->last_pvt.datetime.hour    = tm_now.tm_hour;
+					state->last_pvt.datetime.minute  = tm_now.tm_min;
+					state->last_pvt.datetime.seconds = tm_now.tm_sec;
+				}
+
+				state->last_pvt.flags |= NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID;
+
+				state->has_valid_gnss = true;
+
+				LOG_WRN("Using hardcoded GNSS fallback: lat=%.6f lon=%.6f alt=%.2f",
+					(double)state->last_pvt.latitude,
+					(double)state->last_pvt.longitude,
+					(double)state->last_pvt.altitude);
+
+				state->has_valid_gnss = true;
+			}
 
 			state->location_validity_end_time =
 				k_uptime_get() +

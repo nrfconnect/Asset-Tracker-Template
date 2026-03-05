@@ -112,6 +112,30 @@ config APP_NTN_SEND_1200_BYTES
 	help
 	  Send big amount of data.
 
+config APP_NTN_DEFAULT_LATITUDE_1000000
+	int "Default latitude for fallback location (multiplied by 1000000)"
+	default 63421007
+	help
+	  Default latitude value used when GNSS fix is not available.
+	  The value is multiplied by 1000000 to handle decimal places.
+	  For example, 63.421007 is represented as 63421007.
+
+config APP_NTN_DEFAULT_LONGITUDE_1000000
+	int "Default longitude for fallback location (multiplied by 1000000)"
+	default 10436379
+	help
+	  Default longitude value used when GNSS fix is not available.
+	  The value is multiplied by 1000000 to handle decimal places.
+	  For example, 10.436379 is represented as 10436379.
+
+config APP_NTN_DEFAULT_ALTITUDE_1000
+	int "Default altitude for fallback location (multiplied by 1000)"
+	default 130798
+	help
+	  Default altitude value (in meters) used when GNSS fix is not available.
+	  The value is multiplied by 1000 to handle decimal places.
+	  For example, 130.798 is represented as 130798.
+
 module = APP_NTN
 module-str = NTN
 source "subsys/logging/Kconfig.template.log_config"
