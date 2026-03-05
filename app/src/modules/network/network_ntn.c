@@ -517,10 +517,25 @@ static int start_geo_search(void)
 	return network_connect();
 }
 
-static void handle_location_failed(void)
+static void handle_location_failed(struct network_state_object *state_object)
 {
-	/* TODO: Check CONFIG_APP_NETWORK_NTN_LOCATION_FAILED_HANDLING and act accordingly. */
-	priv_ntn_msg_send(NTN_SEARCH_GEO_START);
+	int err;
+
+	err = ntn_location_set(state_object->location.latitude,
+			       state_object->location.longitude,
+			       state_object->location.altitude, 0);
+	if (err) {
+		LOG_ERR("ntn_location_set, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+
+	if (IS_ENABLED(CONFIG_APP_NETWORK_NTN_LOCATION_FAILED_USE_LEO)) {
+		estimate_next_pass(state_object);
+	} else if (IS_ENABLED(CONFIG_APP_NETWORK_NTN_LOCATION_FAILED_USE_GEO)) {
+		priv_ntn_msg_send(NTN_SEARCH_GEO_START);
+	} else {
+		LOG_ERR("Handling not implemented");
+	}
 }
 
 /* State handlers */
@@ -528,6 +543,18 @@ static void handle_location_failed(void)
 static void state_running_entry(void *obj)
 {
 	int err;
+	struct lte_lc_cellular_profile tn_profile = {
+		.id = 0,
+		.act = LTE_LC_ACT_LTEM | LTE_LC_ACT_NBIOT,
+		.uicc = (CONFIG_APP_NETWORK_TN_SIM_TYPE == 0) ? LTE_LC_UICC_PHYSICAL :
+							      LTE_LC_UICC_SOFTSIM,
+	};
+	struct lte_lc_cellular_profile ntn_profile = {
+		.id = 1,
+		.act = LTE_LC_ACT_NTN,
+		.uicc = (CONFIG_APP_NETWORK_NTN_SIM_TYPE == 0) ? LTE_LC_UICC_PHYSICAL :
+							       LTE_LC_UICC_SOFTSIM,
+	};
 
 	ARG_UNUSED(obj);
 
@@ -548,6 +575,16 @@ static void state_running_entry(void *obj)
 		LOG_ERR("lte_lc_pdn_default_ctx_events_enable, error: %d", err);
 
 		return;
+	}
+
+	err = lte_lc_cellular_profile_configure(&tn_profile);
+	if (err) {
+		LOG_ERR("lte_lc_cellular_profile_configure, error for TN: %d", err);
+	}
+
+	err = lte_lc_cellular_profile_configure(&ntn_profile);
+	if (err) {
+		LOG_ERR("lte_lc_cellular_profile_configure, error for NTN: %d", err);
 	}
 
 	k_work_init_delayable(&leo_satellite_search_timer_work, leo_satellite_search_timer_work_fn);
@@ -880,7 +917,7 @@ static enum smf_state_result state_ntn_search_prepare_run(void *obj)
 			return SMF_EVENT_HANDLED;
 
 		case NETWORK_LOCATION_FAILED:
-			handle_location_failed();
+			handle_location_failed(state_object);
 
 			return SMF_EVENT_HANDLED;
 
