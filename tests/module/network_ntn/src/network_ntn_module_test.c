@@ -41,6 +41,7 @@ FAKE_VALUE_FUNC(int, lte_lc_system_mode_set, enum lte_lc_system_mode,
 		enum lte_lc_system_mode_preference);
 FAKE_VALUE_FUNC(int, lte_lc_pdn_default_ctx_events_enable);
 FAKE_VALUE_FUNC(int, lte_lc_func_mode_set, enum lte_lc_func_mode);
+FAKE_VALUE_FUNC(int, lte_lc_func_mode_get, enum lte_lc_func_mode *);
 FAKE_VOID_FUNC(ntn_register_handler, ntn_evt_handler_t);
 FAKE_VALUE_FUNC(int, ntn_location_set, double, double, float, uint32_t);
 FAKE_VALUE_FUNC(int, lte_lc_cellular_profile_configure, struct lte_lc_cellular_profile *);
@@ -64,6 +65,7 @@ static lte_lc_evt_handler_t lte_evt_handler;
 static ntn_evt_handler_t ntn_evt_handler;
 static enum lte_lc_system_mode current_fake_system_mode = FAKE_SYSTEM_MODE_DEFAULT;
 static enum lte_lc_pdn_evt_type previous_fake_pdn_type;
+static enum lte_lc_func_mode current_fake_functional_mode = LTE_LC_FUNC_MODE_OFFLINE;
 
 /* Custom fakes */
 
@@ -125,6 +127,8 @@ static int lte_lc_func_mode_set_custom_fake(enum lte_lc_func_mode mode)
 		}
 	}
 
+	current_fake_functional_mode = mode;
+
 	if (lte_evt_handler && pdn_evt_changed) {
 		lte_evt_handler(&evt);
 	}
@@ -153,9 +157,18 @@ static int lte_lc_func_mode_set_no_network_custom_fake(enum lte_lc_func_mode mod
 		}
 	}
 
+	current_fake_functional_mode = mode;
+
 	if (lte_evt_handler && send_event) {
 		lte_evt_handler(&evt);
 	}
+
+	return 0;
+}
+
+static int lte_lc_func_mode_get_custom_fake(enum lte_lc_func_mode *mode)
+{
+	*mode = current_fake_functional_mode;
 
 	return 0;
 }
@@ -279,6 +292,7 @@ void setUp(void)
 	RESET_FAKE(nrf_modem_lib_init);
 	RESET_FAKE(ntn_register_handler);
 	RESET_FAKE(ntn_location_set);
+	RESET_FAKE(lte_lc_func_mode_get);
 
 	date_time_now_fake.custom_fake = date_time_now_custom_fake;
 	lte_lc_register_handler_fake.custom_fake = lte_lc_register_handler_custom_fake;
@@ -288,8 +302,10 @@ void setUp(void)
 	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_custom_fake;
 	lte_lc_pdn_default_ctx_events_enable_fake.custom_fake =
 		lte_lc_pdn_default_ctx_events_enable_custom_fake;
+	lte_lc_func_mode_get_fake.custom_fake = lte_lc_func_mode_get_custom_fake;
 
 	previous_fake_pdn_type = LTE_LC_EVT_PDN_ESM_ERROR;
+	current_fake_functional_mode = LTE_LC_FUNC_MODE_OFFLINE;
 
 	k_sleep(K_MSEC(500));
 }
@@ -592,7 +608,7 @@ void test_no_suitable_cell_returns_to_idle(void)
 	TEST_ASSERT_EQUAL(2, lte_lc_system_mode_set_fake.call_count);
 	TEST_ASSERT_EQUAL(LTE_LC_SYSTEM_MODE_LTEM_NBIOT_GPS, lte_lc_system_mode_set_fake.arg0_val);
 
-	TEST_ASSERT_EQUAL(3, lte_lc_func_mode_set_fake.call_count);
+	TEST_ASSERT_EQUAL(4, lte_lc_func_mode_set_fake.call_count);
 	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_ACTIVATE_LTE, lte_lc_func_mode_set_fake.arg0_val);
 }
 

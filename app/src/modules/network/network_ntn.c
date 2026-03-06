@@ -510,6 +510,36 @@ static void estimate_next_pass(struct network_state_object *state_object)
 
 static int start_geo_search(void)
 {
+	int err;
+	enum lte_lc_system_mode current_mode;
+	enum lte_lc_func_mode current_functional_mode;
+	enum lte_lc_system_mode_preference dummy_preference;
+
+	/* Ensure correct system mode is set `*/
+	err = lte_lc_system_mode_get(&current_mode, &dummy_preference);
+	if (err) {
+		LOG_ERR("lte_lc_system_mode_get, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+
+	err = lte_lc_func_mode_get(&current_functional_mode);
+	if (err) {
+		LOG_ERR("lte_lc_func_mode_get, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+
+	if (current_mode != LTE_LC_SYSTEM_MODE_NTN_NBIOT) {
+		/* Functional mode might already be set to OFFLINE_KEEP_REG, so ignore errors */
+		(void)lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
+
+		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT,
+					     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+		if (err) {
+			LOG_ERR("lte_lc_system_mode_set, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
+	}
+
 	return network_connect();
 }
 
@@ -856,6 +886,13 @@ static enum smf_state_result state_disconnected_ntn_search_run(void *obj)
 
 		switch (msg.type) {
 		case NETWORK_NTN_NO_SUITABLE_CELL:
+			int err;
+
+			err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
+			if (err) {
+				LOG_ERR("lte_lc_func_mode_set, error: %d", err);
+			}
+
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_IDLE]);
 
 			return SMF_EVENT_HANDLED;
@@ -906,12 +943,22 @@ static enum smf_state_result state_ntn_search_prepare_run(void *obj)
 			state_object->location.valid = true;
 			state_object->location.unix_time_ms = msg.timestamp;
 
+			err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_DEACTIVATE_GNSS);
+			if (err) {
+				LOG_ERR("lte_lc_func_mode_set, error: %d", err);
+			}
+
 			estimate_next_pass(state_object);
 
 			return SMF_EVENT_HANDLED;
 
 		case NETWORK_LOCATION_FAILED:
 			handle_location_failed(state_object);
+
+			err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_DEACTIVATE_GNSS);
+			if (err) {
+				LOG_ERR("lte_lc_func_mode_set, error: %d", err);
+			}
 
 			return SMF_EVENT_HANDLED;
 
