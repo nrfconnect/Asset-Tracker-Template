@@ -143,7 +143,6 @@ static void state_disconnected_searching_tn_exit(void *obj);
 
 static void state_disconnected_waiting_for_leo_entry(void *obj);
 static enum smf_state_result state_disconnected_waiting_for_leo_run(void *obj);
-static void state_disconnected_waiting_for_leo_exit(void *obj);
 
 static void state_disconnected_ntn_search_entry(void *obj);
 static enum smf_state_result state_disconnected_ntn_search_run(void *obj);
@@ -186,7 +185,7 @@ static const struct smf_state states[] = {
 	[STATE_DISCONNECTED_WAITING_FOR_LEO] =
 		SMF_CREATE_STATE(state_disconnected_waiting_for_leo_entry,
 				 state_disconnected_waiting_for_leo_run,
-				 state_disconnected_waiting_for_leo_exit,
+				 NULL,
 				 &states[STATE_DISCONNECTED],
 				 NULL),
 	[STATE_DISCONNECTED_NTN_SEARCH] =
@@ -387,6 +386,8 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 /* NTN library event handler (runs on system workqueue) */
 static void ntn_evt_handler(const struct ntn_evt *evt)
 {
+	LOG_DBG("ntn_evt_handler, type: %d", evt->type);
+
 	if (evt->type == NTN_EVT_LOCATION_REQUEST && evt->location_request.requested) {
 		priv_ntn_msg_send(NTN_LOCATION_NEEDED);
 	}
@@ -476,11 +477,6 @@ static void periodic_tn_search_timer_start(void)
 			K_SECONDS(CONFIG_APP_NETWORK_NTN_PERIODIC_TN_SEARCH_INTERVAL_SECONDS));
 }
 
-static void periodic_tn_search_timer_cancel(void)
-{
-	k_work_cancel_delayable(&periodic_tn_search_timer_work);
-}
-
 /* NTN action helpers */
 
 static void store_tle_data(struct network_state_object *state_object, const struct network_msg *msg)
@@ -547,13 +543,13 @@ static void state_running_entry(void *obj)
 		.id = 0,
 		.act = LTE_LC_ACT_LTEM | LTE_LC_ACT_NBIOT,
 		.uicc = (CONFIG_APP_NETWORK_TN_SIM_TYPE == 0) ? LTE_LC_UICC_PHYSICAL :
-							      LTE_LC_UICC_SOFTSIM,
+								LTE_LC_UICC_SOFTSIM,
 	};
 	struct lte_lc_cellular_profile ntn_profile = {
 		.id = 1,
 		.act = LTE_LC_ACT_NTN,
 		.uicc = (CONFIG_APP_NETWORK_NTN_SIM_TYPE == 0) ? LTE_LC_UICC_PHYSICAL :
-							       LTE_LC_UICC_SOFTSIM,
+								 LTE_LC_UICC_SOFTSIM,
 	};
 
 	ARG_UNUSED(obj);
@@ -819,6 +815,7 @@ static enum smf_state_result state_disconnected_waiting_for_leo_run(void *obj)
 			*(const enum priv_network_ntn_msg *)state_object->msg_buf;
 
 		if (priv_msg == PERIODIC_TN_SEARCH) {
+			periodic_tn_search_timer_start();
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_DISCONNECTED_SEARCHING_TN]);
 
@@ -827,15 +824,6 @@ static enum smf_state_result state_disconnected_waiting_for_leo_run(void *obj)
 	}
 
 	return SMF_EVENT_PROPAGATE;
-}
-
-static void state_disconnected_waiting_for_leo_exit(void *obj)
-{
-	ARG_UNUSED(obj);
-
-	LOG_DBG("%s", __func__);
-
-	periodic_tn_search_timer_cancel();
 }
 
 static void state_disconnected_ntn_search_entry(void *obj)
@@ -849,6 +837,12 @@ static void state_disconnected_ntn_search_entry(void *obj)
 	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
 	if (err) {
 		LOG_ERR("lte_lc_system_mode_set, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+
+	err = network_connect();
+	if (err) {
+		LOG_ERR("network_connect, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
 }
@@ -932,6 +926,25 @@ static enum smf_state_result state_ntn_search_prepare_run(void *obj)
 
 		switch (priv_msg) {
 		case NTN_LOCATION_NEEDED:
+			err = network_disconnect();
+			if (err) {
+				LOG_ERR("network_connect, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_GPS,
+						     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+			if (err) {
+				LOG_ERR("lte_lc_system_mode_set, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
+			if (err) {
+				LOG_ERR("lte_lc_func_mode_set, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
 			network_status_notify(NETWORK_LOCATION_NEEDED);
 
 			return SMF_EVENT_HANDLED;

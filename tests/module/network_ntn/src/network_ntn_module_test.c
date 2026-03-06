@@ -43,6 +43,7 @@ FAKE_VALUE_FUNC(int, lte_lc_pdn_default_ctx_events_enable);
 FAKE_VALUE_FUNC(int, lte_lc_func_mode_set, enum lte_lc_func_mode);
 FAKE_VOID_FUNC(ntn_register_handler, ntn_evt_handler_t);
 FAKE_VALUE_FUNC(int, ntn_location_set, double, double, float, uint32_t);
+FAKE_VALUE_FUNC(int, lte_lc_cellular_profile_configure, struct lte_lc_cellular_profile *);
 
 /* Test subscriber on the public channel */
 ZBUS_MSG_SUBSCRIBER_DEFINE(test_subscriber);
@@ -62,6 +63,7 @@ enum priv_network_ntn_msg {
 static lte_lc_evt_handler_t lte_evt_handler;
 static ntn_evt_handler_t ntn_evt_handler;
 static enum lte_lc_system_mode current_fake_system_mode = FAKE_SYSTEM_MODE_DEFAULT;
+static enum lte_lc_pdn_evt_type previous_fake_pdn_type;
 
 /* Custom fakes */
 
@@ -107,14 +109,23 @@ static int lte_lc_func_mode_set_custom_fake(enum lte_lc_func_mode mode)
 			.cid = 0,
 		},
 	};
+	bool pdn_evt_changed = false;
 
 	if (mode == LTE_LC_FUNC_MODE_ACTIVATE_LTE) {
-		evt.pdn.type = LTE_LC_EVT_PDN_ACTIVATED;
+		if (previous_fake_pdn_type != LTE_LC_EVT_PDN_ACTIVATED) {
+			evt.pdn.type = LTE_LC_EVT_PDN_ACTIVATED;
+			previous_fake_pdn_type = LTE_LC_EVT_PDN_ACTIVATED;
+			pdn_evt_changed = true;
+		}
 	} else {
-		evt.pdn.type = LTE_LC_EVT_PDN_DEACTIVATED;
+		if (previous_fake_pdn_type != LTE_LC_EVT_PDN_DEACTIVATED) {
+			evt.pdn.type = LTE_LC_EVT_PDN_DEACTIVATED;
+			previous_fake_pdn_type = LTE_LC_EVT_PDN_DEACTIVATED;
+			pdn_evt_changed = true;
+		}
 	}
 
-	if (lte_evt_handler) {
+	if (lte_evt_handler && pdn_evt_changed) {
 		lte_evt_handler(&evt);
 	}
 
@@ -129,14 +140,20 @@ static int lte_lc_func_mode_set_no_network_custom_fake(enum lte_lc_func_mode mod
 			.type = LTE_LC_MODEM_EVT_SEARCH_DONE,
 		},
 	};
+	bool send_event = false;
 
 	if (mode == LTE_LC_FUNC_MODE_ACTIVATE_LTE) {
 		evt.modem_evt.type = LTE_LC_MODEM_EVT_SEARCH_DONE;
+		send_event = true;
 	} else {
-		evt.pdn.type = LTE_LC_EVT_PDN_DEACTIVATED;
+		if (previous_fake_pdn_type != LTE_LC_EVT_PDN_DEACTIVATED) {
+			evt.pdn.type = LTE_LC_EVT_PDN_DEACTIVATED;
+			previous_fake_pdn_type = LTE_LC_EVT_PDN_DEACTIVATED;
+			send_event = true;
+		}
 	}
 
-	if (lte_evt_handler) {
+	if (lte_evt_handler && send_event) {
 		lte_evt_handler(&evt);
 	}
 
@@ -258,6 +275,7 @@ void setUp(void)
 	RESET_FAKE(lte_lc_system_mode_set);
 	RESET_FAKE(lte_lc_register_handler);
 	RESET_FAKE(lte_lc_func_mode_set);
+	RESET_FAKE(lte_lc_cellular_profile_configure);
 	RESET_FAKE(nrf_modem_lib_init);
 	RESET_FAKE(ntn_register_handler);
 	RESET_FAKE(ntn_location_set);
@@ -270,6 +288,8 @@ void setUp(void)
 	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_custom_fake;
 	lte_lc_pdn_default_ctx_events_enable_fake.custom_fake =
 		lte_lc_pdn_default_ctx_events_enable_custom_fake;
+
+	previous_fake_pdn_type = LTE_LC_EVT_PDN_ESM_ERROR;
 
 	k_sleep(K_MSEC(500));
 }
@@ -308,7 +328,6 @@ void test_psm_params_update(void)
 		},
 	};
 
-	TEST_ASSERT_NOT_NULL(lte_evt_handler);
 	lte_evt_handler(&evt);
 
 	wait_for_msg_of_type(&msg, NETWORK_PSM_PARAMS);
@@ -330,7 +349,6 @@ void test_edrx_params_forwarded(void)
 		},
 	};
 
-	TEST_ASSERT_NOT_NULL(lte_evt_handler);
 	lte_evt_handler(&evt);
 
 	wait_for_msg_of_type(&msg, NETWORK_EDRX_PARAMS);
@@ -348,8 +366,6 @@ void test_uicc_failure(void)
 		.type = LTE_LC_EVT_NW_REG_STATUS,
 		.nw_reg_status = LTE_LC_NW_REG_UICC_FAIL,
 	};
-
-	TEST_ASSERT_NOT_NULL(lte_evt_handler);
 	lte_evt_handler(&evt);
 
 	wait_for_msg_of_type(&msg, NETWORK_UICC_FAILURE);
@@ -424,14 +440,18 @@ void test_ntn_location_needed_publishes_on_network_chan(void)
 void test_ntn_location_data_calls_ntn_location_set(void)
 {
 	publish_network_msg(NETWORK_DISCONNECT);
+
+	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_no_network_custom_fake;
+
 	publish_network_msg(NETWORK_CONNECT_NTN);
 
 	TEST_ASSERT_EQUAL(0, ntn_location_set_fake.call_count);
 
+
 	/* Send NETWORK_LOCATION_DATA */
 	publish_network_location_data(FAKE_LATITUDE, FAKE_LONGITUDE, FAKE_ALTITUDE);
 
-	TEST_ASSERT_GREATER_OR_EQUAL(1, ntn_location_set_fake.call_count);
+	TEST_ASSERT_EQUAL(1, ntn_location_set_fake.call_count);
 	TEST_ASSERT_FLOAT_WITHIN(0.1f, (float)FAKE_LATITUDE,
 				 (float)ntn_location_set_fake.arg0_val);
 	TEST_ASSERT_FLOAT_WITHIN(0.1f, (float)FAKE_LONGITUDE,
@@ -447,6 +467,8 @@ void test_ntn_search_no_suitable_cell_returns_to_idle_to_connect_tn(void)
 
 	TEST_ASSERT_EQUAL(0, lte_lc_system_mode_set_fake.call_count);
 
+	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_no_network_custom_fake;
+
 	publish_network_msg(NETWORK_CONNECT_NTN);
 
 	TEST_ASSERT_EQUAL(1, lte_lc_system_mode_set_fake.call_count);
@@ -460,6 +482,8 @@ void test_ntn_search_no_suitable_cell_returns_to_idle_to_connect_tn(void)
 
 	/* Going back to IDLE */
 	publish_network_msg(NETWORK_NTN_NO_SUITABLE_CELL);
+
+	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_custom_fake;
 
 	/* NETWORK_CONNECT_TN is only handled in the IDLE state */
 	publish_network_msg(NETWORK_CONNECT_TN);
@@ -486,7 +510,7 @@ void test_leo_pass_upcoming_triggers_leo_search(void)
 	/* Expected that both disconnect and connect calls are made. The important thing is that the
 	 * last call is ACTIVATE_LTE.
 	 */
-	TEST_ASSERT_EQUAL(3, lte_lc_func_mode_set_fake.call_count);
+	TEST_ASSERT_EQUAL(4, lte_lc_func_mode_set_fake.call_count);
 	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG,
 			  lte_lc_func_mode_set_fake.arg0_history[1]);
 	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_ACTIVATE_LTE, lte_lc_func_mode_set_fake.arg0_val);
@@ -495,10 +519,11 @@ void test_leo_pass_upcoming_triggers_leo_search(void)
 void test_wait_for_leo_periodic_tn_search(void)
 {
 	publish_network_msg(NETWORK_DISCONNECT);
-	publish_network_msg(NETWORK_CONNECT_NTN);
 
 	/* Do not connect automatically. Needed to get reapeated periodic TN searches. */
 	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_no_network_custom_fake;
+
+	publish_network_msg(NETWORK_CONNECT_NTN);
 
 	/* Use a date_time_now fake that makes the LEO timer delay very large,
 	 * preventing NTN_LEO_SATELLITE_PASS_UPCOMING from firing immediately.
@@ -507,15 +532,15 @@ void test_wait_for_leo_periodic_tn_search(void)
 
 	publish_priv_chan_msg(NTN_WAIT_FOR_SATELLITE_PASS);
 
+	/* Test that we get 3 periodic TN searches */
 	for (int i = 0; i < 3; i++) {
-		printk("Waiting for periodic TN search %d\n", i);
 		/* Wait for CONFIG_APP_NETWORK_NTN_PERIODIC_TN_SEARCH_INTERVAL_SECONDS seconds */
 		k_sleep(K_SECONDS(CONFIG_APP_NETWORK_NTN_PERIODIC_TN_SEARCH_INTERVAL_SECONDS));
 
 		TEST_ASSERT_EQUAL(2 + i, lte_lc_system_mode_set_fake.call_count);
 		TEST_ASSERT_EQUAL(LTE_LC_SYSTEM_MODE_LTEM_NBIOT_GPS,
 				  lte_lc_system_mode_set_fake.arg0_val);
-		TEST_ASSERT_EQUAL(2 + i, lte_lc_func_mode_set_fake.call_count);
+		TEST_ASSERT_EQUAL(3 + i, lte_lc_func_mode_set_fake.call_count);
 		TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_ACTIVATE_LTE,
 				  lte_lc_func_mode_set_fake.arg0_val);
 	}
@@ -544,13 +569,16 @@ void test_no_suitable_cell_returns_to_idle(void)
 	};
 
 	publish_network_msg(NETWORK_DISCONNECT);
+
+	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_no_network_custom_fake;
+
 	publish_network_msg(NETWORK_CONNECT_NTN);
 
 	TEST_ASSERT_EQUAL(1, lte_lc_system_mode_set_fake.call_count);
 	TEST_ASSERT_EQUAL(LTE_LC_SYSTEM_MODE_NTN_NBIOT, lte_lc_system_mode_set_fake.arg0_val);
 
-	TEST_ASSERT_EQUAL(1, lte_lc_func_mode_set_fake.call_count);
-	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG, lte_lc_func_mode_set_fake.arg0_val);
+	TEST_ASSERT_EQUAL(2, lte_lc_func_mode_set_fake.call_count);
+	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_ACTIVATE_LTE, lte_lc_func_mode_set_fake.arg0_val);
 
 	lte_evt_handler(&evt);
 
@@ -564,7 +592,7 @@ void test_no_suitable_cell_returns_to_idle(void)
 	TEST_ASSERT_EQUAL(2, lte_lc_system_mode_set_fake.call_count);
 	TEST_ASSERT_EQUAL(LTE_LC_SYSTEM_MODE_LTEM_NBIOT_GPS, lte_lc_system_mode_set_fake.arg0_val);
 
-	TEST_ASSERT_EQUAL(2, lte_lc_func_mode_set_fake.call_count);
+	TEST_ASSERT_EQUAL(3, lte_lc_func_mode_set_fake.call_count);
 	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_ACTIVATE_LTE, lte_lc_func_mode_set_fake.arg0_val);
 }
 
