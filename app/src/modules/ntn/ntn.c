@@ -1080,7 +1080,7 @@ static void state_running_entry(void *obj)
 	struct lte_lc_cellular_profile tn_profile = {
 			.id = 0,
 			.act = LTE_LC_ACT_LTEM | LTE_LC_ACT_NBIOT,
-			.uicc = LTE_LC_UICC_SOFTSIM,
+			.uicc = LTE_LC_UICC_PHYSICAL,
 		};
 
 	/* Set TN profile */
@@ -1288,13 +1288,6 @@ static void state_tn_entry(void *obj)
 		}
 
 		break;
-	}
-
-	/* Select softsim for terrestrial mode */
-	err = nrf_modem_at_printf("AT%%CSUS=2");
-	if (err) {
-		LOG_ERR("Failed to select softsim, error: %d", err);
-		return;
 	}
 
 	err = nrf_modem_at_printf("AT%%XBANDLOCK=0");
@@ -1552,7 +1545,7 @@ static void state_sgp4_entry(void *obj)
 	LOG_INF("End: %s", end_time_str);
 	LOG_INF("Max elevation: %.2f degrees at %s", next_pass.max_elevation, max_el_time_str);
 
-	char time_str[32];
+	char time_str[64];
 	snprintk(time_str, sizeof(time_str), "%04d-%02d-%02d-%02d:%02d:%02d",
 		max_el_tm.tm_year + 1900,
 		max_el_tm.tm_mon + 1,
@@ -1743,7 +1736,7 @@ static enum smf_state_result state_idle_run(void *obj)
 
 		if (msg->type == LOCATION_REQUEST) {
 			uint64_t current_time = k_uptime_get();
-			if (state->location_validity_end_time == 0 || 
+			if (state->location_validity_end_time == 0 ||
 			    current_time < state->location_validity_end_time) {
 				LOG_DBG("NTN location is still valid, skipping location request");
 				return SMF_EVENT_HANDLED;

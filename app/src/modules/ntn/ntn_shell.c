@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+#define _XOPEN_SOURCE
+
 #include <zephyr/kernel.h>
 #include <zephyr/shell/shell.h>
 #include <zephyr/logging/log.h>
