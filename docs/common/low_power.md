@@ -99,42 +99,18 @@ uart:~$ pm suspend uart@8000  # Suspend UART1
 
 ### Wi-Fi scanning optimization (Thingy:91 X using the nRF7002)
 
-On Thingy:91 X, Wi-Fi scanning is used for location services. By default, a full Wi-Fi scan across all bands can take a significant amount of time ~8 seconds and consume significant power (~55 mA during active scanning). The following optimizations can dramatically reduce scan time and power consumption with some tradeoff in discoverability.
+On Thingy:91 X, Wi-Fi scanning is used for location services. A full Wi-Fi scan across all bands can take 5-10 seconds which consume significant power. To reduce scan time and power consumption, the application restricts scanning to the 2.4 GHz band by default.
 
 For detailed information on Wi-Fi scan timing, channels, and dwell times, see the [Wi-Fi scan operation documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/protocols/wifi/scan_mode/scan_operation.html).
 
-#### Configuring dwell times
+#### 2.4 GHz band scanning (default)
 
-Dwell time determines how long the radio listens on each channel. The application enables `CONFIG_LOCATION_METHOD_WIFI_SCANNING_PARAMS_OVERRIDE` by default, which uses these values:
+The application sets `CONFIG_NRF_WIFI_2G_BAND` by default to restrict Wi-Fi scanning to the 2.4 GHz band. This is a deliberate optimization for location services:
 
-- **Active dwell time:** 50 ms (range: 5-1000 ms)
-- **Passive dwell time:** 260 ms (range: 10-1000 ms)
+- **Most commercial APs and hotspots use channels 1, 6, and 11**, the standard non-overlapping 2.4 GHz channels. Scanning the 2.4 GHz band provides sufficient AP coverage for location services in the vast majority of applications.
+- **Active scanning is used by default**, which is preferred for moving devices. Since the device may not stay in range of an AP for long, active scanning (which sends probe requests and receives probe responses) discovers APs significantly faster than passive scanning (which waits for beacons).
 
-The 260 ms passive dwell time is set to cover at least two beacon intervals (102.4 ms beacon interval + ~30 ms channel contention) × 2, providing reliable AP detection for a mobile Asset Tracker.
-If you only want to cover one beacon interval, 130ms passive dwell time is sufficient.
-
-To customize dwell times, add to your board configuration file (e.g., `boards/thingy91x_nrf9151_ns.conf`):
-
-```config
-CONFIG_LOCATION_METHOD_WIFI_SCANNING_DWELL_TIME_ACTIVE=50
-CONFIG_LOCATION_METHOD_WIFI_SCANNING_DWELL_TIME_PASSIVE=130
-```
-
-Shorter dwell times reduce scan duration and power consumption but may miss APs with weaker signals.
-
-#### Restricting to 2.4 GHz band only
-
-For a lot of location use cases, scanning only the 2.4 GHz band is sufficient and much faster:
-
-- **2.4 GHz APs are more common** in residential and commercial environments
-- **Scan time reduces from ~8s to ~1s** (with 260ms passive and 50ms active dwell time)
-- **5 GHz channels require passive scanning** due to regulatory restrictions, which is slower
-
-To restrict scanning to 2.4 GHz only, add to your board configuration:
-
-```config
-CONFIG_NRF_WIFI_2G_BAND=y
-```
+If your use case requires 5 GHz AP coverage, remove `CONFIG_NRF_WIFI_2G_BAND=y` from the board configuration file (e.g., `boards/thingy91x_nrf9151_ns.conf`).
 
 ## Optimization best practices
 
