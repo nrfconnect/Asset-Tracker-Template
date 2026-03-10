@@ -520,8 +520,6 @@ Memfault is a device observability platform that complements traditional debuggi
 
 To build the application with support for Memfault, you need to build with the Memfault overlay `overlay-memfault.conf`. If you want to capture and send modem traces to Memfault on coredumps, you can include the overlay `overlay-publish-modem-traces-to-memfault.conf`.
 
-If you also want to upload the [Embedded Trace Buffer](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/debug/etb_trace.html), you can include the overlay `overlay-etb.conf`.
-
 > [!IMPORTANT]
 > Enabling Memfault will increase your device's data usage.
 > This is especially true when using the modem trace upload feature, which can send upwards of 1 MB of modem trace data in case of application crashes.
@@ -531,7 +529,7 @@ For detailed build instructions and how to configure the project key, refer to t
 To build with all available Memfault functionality:
 
 ```bash
-west build -p -b <board> -- -DEXTRA_CONF_FILE="overlay-memfault.conf;overlay-upload-modem-traces-to-memfault.conf;overlay-etb.conf" -DCONFIG_MEMFAULT_NCS_PROJECT_KEY=\"<project-key>\"
+west build -p -b <board> -- -DEXTRA_CONF_FILE="overlay-memfault.conf;overlay-upload-modem-traces-to-memfault.conf" -DCONFIG_MEMFAULT_NCS_PROJECT_KEY=\"<project-key>\"
 ```
 
 Screen capture from a coredump received in Memfault:
