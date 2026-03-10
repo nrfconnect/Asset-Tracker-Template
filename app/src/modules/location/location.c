@@ -478,6 +478,11 @@ static void location_event_handler(const struct location_event_data *event_data)
 		break;
 	case LOCATION_EVT_TIMEOUT:
 		LOG_DBG("Getting location timed out");
+
+		if (event_data->method == LOCATION_METHOD_GNSS) {
+			message_send(LOCATION_GNSS_SEARCH_FAILED);
+		}
+
 		message_send(LOCATION_SEARCH_DONE);
 		break;
 	case LOCATION_EVT_ERROR:
@@ -486,6 +491,10 @@ static void location_event_handler(const struct location_event_data *event_data)
 								    event_data->method);
 
 		location_print_data_details(event_data->method, &event_data->error.details);
+
+		if (event_data->method == LOCATION_METHOD_GNSS) {
+			message_send(LOCATION_GNSS_SEARCH_FAILED);
+		}
 
 		message_send(LOCATION_SEARCH_DONE);
 		break;

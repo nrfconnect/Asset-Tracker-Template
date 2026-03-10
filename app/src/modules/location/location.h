@@ -53,6 +53,9 @@ enum location_msg_type {
 	 */
 	LOCATION_GNSS_DATA,
 
+	/* A GNSS search has failed or timed out. */
+	LOCATION_GNSS_SEARCH_FAILED,
+
 	/* Input message types */
 
 	/* Request to initiate a location search operation. This will start the configured
