@@ -805,12 +805,6 @@ void test_leo_search_to_connected(void)
 void test_tn_failed_to_leo_search_to_connected(void)
 {
 	struct network_msg msg = { 0 };
-	struct lte_lc_evt evt = {
-		.type = LTE_LC_EVT_MODEM_EVENT,
-		.modem_evt = {
-			.type = LTE_LC_MODEM_EVT_SEARCH_DONE,
-		},
-	};
 
 	publish_network_msg(NETWORK_DISCONNECT);
 
@@ -823,11 +817,6 @@ void test_tn_failed_to_leo_search_to_connected(void)
 
 	TEST_ASSERT_EQUAL(1, lte_lc_func_mode_set_fake.call_count);
 	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_ACTIVATE_LTE, lte_lc_func_mode_set_fake.arg0_val);
-
-	lte_evt_handler(&evt);
-
-	wait_for_msg_of_type(&msg, NETWORK_SEARCH_DONE);
-	TEST_ASSERT_EQUAL(NETWORK_SEARCH_DONE, msg.type);
 
 	publish_network_msg(NETWORK_SEARCH_STOP);
 
@@ -845,6 +834,129 @@ void test_tn_failed_to_leo_search_to_connected(void)
 	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_custom_fake;
 
 	publish_priv_chan_msg(NTN_LEO_SATELLITE_PASS_UPCOMING);
+
+	wait_for_msg_of_type(&msg, NETWORK_CONNECTED);
+	TEST_ASSERT_EQUAL(NETWORK_CONNECTED, msg.type);
+}
+
+void test_geo_search_to_connected(void)
+{
+	struct network_msg msg = { 0 };
+
+	publish_network_msg(NETWORK_DISCONNECT);
+
+	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_no_network_custom_fake;
+
+	publish_network_msg(NETWORK_CONNECT_NTN);
+
+	TEST_ASSERT_EQUAL(1, lte_lc_system_mode_set_fake.call_count);
+	TEST_ASSERT_EQUAL(LTE_LC_SYSTEM_MODE_NTN_NBIOT, lte_lc_system_mode_set_fake.arg0_val);
+
+	TEST_ASSERT_EQUAL(2, lte_lc_func_mode_set_fake.call_count);
+	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_ACTIVATE_LTE, lte_lc_func_mode_set_fake.arg0_val);
+
+	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_custom_fake;
+
+	publish_priv_chan_msg(NTN_SEARCH_GEO_START);
+
+	wait_for_msg_of_type(&msg, NETWORK_CONNECTED);
+	TEST_ASSERT_EQUAL(NETWORK_CONNECTED, msg.type);
+
+	/* Verify we can cleanly disconnect from GEO */
+	publish_network_msg(NETWORK_DISCONNECT);
+
+	wait_for_msg_of_type(&msg, NETWORK_DISCONNECTED);
+	TEST_ASSERT_EQUAL(NETWORK_DISCONNECTED, msg.type);
+}
+
+void test_periodic_tn_search_finds_tn(void)
+{
+	struct network_msg msg = { 0 };
+
+	publish_network_msg(NETWORK_DISCONNECT);
+
+	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_no_network_custom_fake;
+
+	publish_network_msg(NETWORK_CONNECT_NTN);
+
+	date_time_now_fake.custom_fake = date_time_now_far_future_fake;
+
+	publish_priv_chan_msg(NTN_WAIT_FOR_SATELLITE_PASS);
+
+	/* Switch to normal fake so the periodic TN search connects successfully */
+	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_custom_fake;
+
+	k_sleep(K_SECONDS(CONFIG_APP_NETWORK_NTN_PERIODIC_TN_SEARCH_INTERVAL_SECONDS));
+
+	wait_for_msg_of_type(&msg, NETWORK_CONNECTED);
+	TEST_ASSERT_EQUAL(NETWORK_CONNECTED, msg.type);
+}
+
+void test_disconnect_during_ntn_search(void)
+{
+	struct network_msg msg = { 0 };
+
+	publish_network_msg(NETWORK_DISCONNECT);
+
+	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_no_network_custom_fake;
+
+	publish_network_msg(NETWORK_CONNECT_NTN);
+
+	TEST_ASSERT_EQUAL(1, lte_lc_system_mode_set_fake.call_count);
+	TEST_ASSERT_EQUAL(LTE_LC_SYSTEM_MODE_NTN_NBIOT, lte_lc_system_mode_set_fake.arg0_val);
+
+	TEST_ASSERT_EQUAL(2, lte_lc_func_mode_set_fake.call_count);
+	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_ACTIVATE_LTE, lte_lc_func_mode_set_fake.arg0_val);
+
+	/* DISCONNECT from NTN_SEARCH_PREPARE is handled by state_disconnected_run */
+	publish_network_msg(NETWORK_DISCONNECT);
+
+	TEST_ASSERT_EQUAL(3, lte_lc_func_mode_set_fake.call_count);
+	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG,
+			  lte_lc_func_mode_set_fake.arg0_val);
+
+	/* Verify we returned to IDLE by sending CONNECT_TN */
+	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_custom_fake;
+
+	publish_network_msg(NETWORK_CONNECT_TN);
+
+	wait_for_msg_of_type(&msg, NETWORK_CONNECTED);
+	TEST_ASSERT_EQUAL(NETWORK_CONNECTED, msg.type);
+}
+
+void test_no_suitable_cell_during_leo_returns_to_idle(void)
+{
+	struct network_msg msg = { 0 };
+	struct lte_lc_evt evt = {
+		.type = LTE_LC_EVT_NW_REG_STATUS,
+		.nw_reg_status = LTE_LC_NW_REG_NO_SUITABLE_CELL,
+	};
+
+	publish_network_msg(NETWORK_DISCONNECT);
+
+	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_no_network_custom_fake;
+
+	publish_network_msg(NETWORK_CONNECT_NTN);
+
+	TEST_ASSERT_EQUAL(1, lte_lc_system_mode_set_fake.call_count);
+	TEST_ASSERT_EQUAL(LTE_LC_SYSTEM_MODE_NTN_NBIOT, lte_lc_system_mode_set_fake.arg0_val);
+
+	/* Transition from PREPARE to LEO */
+	publish_priv_chan_msg(NTN_LEO_SATELLITE_PASS_UPCOMING);
+
+	TEST_ASSERT_EQUAL(3, lte_lc_func_mode_set_fake.call_count);
+	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_ACTIVATE_LTE, lte_lc_func_mode_set_fake.arg0_val);
+
+	/* Fire no suitable cell from modem while in LEO search */
+	lte_evt_handler(&evt);
+
+	wait_for_msg_of_type(&msg, NETWORK_NTN_NO_SUITABLE_CELL);
+	TEST_ASSERT_EQUAL(NETWORK_NTN_NO_SUITABLE_CELL, msg.type);
+
+	/* Verify we returned to IDLE by sending CONNECT_TN */
+	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_custom_fake;
+
+	publish_network_msg(NETWORK_CONNECT_TN);
 
 	wait_for_msg_of_type(&msg, NETWORK_CONNECTED);
 	TEST_ASSERT_EQUAL(NETWORK_CONNECTED, msg.type);
