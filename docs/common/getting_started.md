@@ -115,12 +115,6 @@ You can build the application with different overlays to enable or disable certa
 Debug build with Memfault:
 
 ```shell
-west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.conf;overlay-upload-modem-traces-to-memfault.conf;overlay-etb.conf" -DCONFIG_MEMFAULT_NCS_PROJECT_KEY=\"memfault-project-key\"
-```
-
-Build with Memfault, sending modem traces to Memfault and enabling ETB traces:
-
-```shell
 west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.conf;overlay-upload-modem-traces-to-memfault.conf" -DCONFIG_MEMFAULT_NCS_PROJECT_KEY=\"memfault-project-key\"
 ```
 
