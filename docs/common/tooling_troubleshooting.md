@@ -368,7 +368,7 @@ Secure faults will display:
 
 For more information, refer the following documentation:
 
-- [TF-M Documentation](https://tf-m-user-guide.trustedfirmware.org/)
+- [TF-M Documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/tfm/introduction/readme.html#repositories)
 - [nRF Connect SDK TF-M Guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/security/tfm/index.html)
 
 > [!NOTE]
