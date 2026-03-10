@@ -1,0 +1,30 @@
+# Check links in Markdown files (docs, README, etc.)
+name: Markdown link check
+
+on:
+  pull_request:
+    paths:
+      - '**.md'
+  push:
+    branches:
+      - main
+    paths:
+      - '**.md'
+
+jobs:
+  linkcheck:
+    name: Check Markdown links
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Lychee link checker
+        uses: lycheeverse/lychee-action@v2
+        with:
+          fail: true
+          # Don't fail on 403 (Forbidden), 429 (rate limit), or 200
+          args: --accept "200,403,429" --verbose --no-progress './**/*.md'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

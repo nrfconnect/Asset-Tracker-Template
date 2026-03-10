@@ -130,7 +130,7 @@ curl 'https://api.provisioning.nrfcloud.com/v1/claimed-devices/YOUR_DEVICE_ID/pr
 -d '{"request": {"cloudAccessKeyGeneration": {"secTag": 16842753}}}'
 ```
 
-For detailed API documentation, see [nRF Cloud REST API](https://api.nrfcloud.com/docs).
+For detailed API documentation, see [nRF Cloud REST API](https://api-docs.nrfcloud.com/).
 
 ## Unclaiming a device
 
