@@ -556,6 +556,16 @@ static void handle_location_failed(struct network_state_object *state_object)
 		estimate_next_pass(state_object);
 	} else if (IS_ENABLED(CONFIG_APP_NETWORK_NTN_LOCATION_FAILED_USE_GEO)) {
 		priv_ntn_msg_send(NTN_SEARCH_GEO_START);
+	} else if (IS_ENABLED(CONFIG_APP_NETWORK_NTN_LOCATION_FAILED_USE_STATIC_LOCATION)) {
+		double lat = CONFIG_APP_NETWORK_NTN_STATIC_LOCATION_LATITUDE / 1000000.0f;
+		double lon = CONFIG_APP_NETWORK_NTN_STATIC_LOCATION_LONGITUDE / 1000000.0f;
+		float alt = CONFIG_APP_NETWORK_NTN_STATIC_LOCATION_ALTITUDE;
+
+		err = ntn_location_set(lat, lon, alt, 0);
+		if (err) {
+			LOG_ERR("ntn_location_set, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
 	} else {
 		LOG_ERR("Handling not implemented");
 	}
@@ -950,12 +960,12 @@ static enum smf_state_result state_ntn_search_prepare_run(void *obj)
 			return SMF_EVENT_HANDLED;
 
 		case NETWORK_LOCATION_FAILED:
-			handle_location_failed(state_object);
-
 			err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_DEACTIVATE_GNSS);
 			if (err) {
 				LOG_ERR("lte_lc_func_mode_set, error: %d", err);
 			}
+
+			handle_location_failed(state_object);
 
 			return SMF_EVENT_HANDLED;
 

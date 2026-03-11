@@ -564,16 +564,29 @@ void test_wait_for_leo_periodic_tn_search(void)
 
 void test_location_failed_in_prepare(void)
 {
+	float expected_lat =
+		CONFIG_APP_NETWORK_NTN_STATIC_LOCATION_LATITUDE / 1000000.0f;
+	float expected_lon =
+		CONFIG_APP_NETWORK_NTN_STATIC_LOCATION_LONGITUDE / 1000000.0f;
+	float expected_alt = CONFIG_APP_NETWORK_NTN_STATIC_LOCATION_ALTITUDE;
+
 	publish_network_msg(NETWORK_DISCONNECT);
 
 	TEST_ASSERT_EQUAL(1, lte_lc_func_mode_set_fake.call_count);
 	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG, lte_lc_func_mode_set_fake.arg0_val);
 
+	lte_lc_func_mode_set_fake.custom_fake = lte_lc_func_mode_set_no_network_custom_fake;
+
 	publish_network_msg(NETWORK_CONNECT_NTN);
 	publish_network_msg(NETWORK_LOCATION_FAILED);
 
-	TEST_ASSERT_EQUAL(2, lte_lc_func_mode_set_fake.call_count);
-	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_ACTIVATE_LTE, lte_lc_func_mode_set_fake.arg0_val);
+	TEST_ASSERT_EQUAL(3, lte_lc_func_mode_set_fake.call_count);
+	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_DEACTIVATE_GNSS, lte_lc_func_mode_set_fake.arg0_val);
+
+	TEST_ASSERT_EQUAL(2, ntn_location_set_fake.call_count);
+	TEST_ASSERT_FLOAT_WITHIN(0.001f, expected_lat, ntn_location_set_fake.arg0_val);
+	TEST_ASSERT_FLOAT_WITHIN(0.001f, expected_lon, ntn_location_set_fake.arg1_val);
+	TEST_ASSERT_FLOAT_WITHIN(0.1f, expected_alt, ntn_location_set_fake.arg2_val);
 }
 
 void test_no_suitable_cell_returns_to_idle(void)

@@ -53,7 +53,30 @@ config APP_NETWORK_NTN_LOCATION_FAILED_LEO_THEN_GEO
 	  Note that TLE data must be available and usable accoring to
 	  CONFIG_APP_NETWORK_NTN_TLE_STALE_HANDLING.
 
+config APP_NETWORK_NTN_LOCATION_FAILED_USE_STATIC_LOCATION
+	bool "Use static location"
+	help
+	  Use a static location for the device. The module will continue to use the static location until
+	  the location is updated.
+
 endchoice # APP_NETWORK_NTN_LOCATION_FAILED_HANDLING
+
+config APP_NETWORK_NTN_STATIC_LOCATION_LATITUDE
+	int "Static location latitude (degrees x 1 000 000)"
+	help
+	  Static location latitude in degrees multiplied by 1000000.
+	  For example, 63.418575 degrees is 63418575.
+
+config APP_NETWORK_NTN_STATIC_LOCATION_LONGITUDE
+	int "Static location longitude (degrees x 1 000 000)"
+	help
+	  Static location longitude in degrees multiplied by 1000000.
+	  For example, 10.401742 degrees is 10401742.
+
+config APP_NETWORK_NTN_STATIC_LOCATION_ALTITUDE
+	int "Static location altitude in meters"
+	help
+	  Static location altitude in meters above sea level.
 
 config APP_NETWORK_NTN_TLE_STALE_HOURS
 	int "TLE freshness threshold in hours"
