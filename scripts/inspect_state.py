@@ -126,7 +126,7 @@ MODULES = [
         function_name="main",
         variable_name="main_state",
         states_array_name="states",
-        enum_type_name="state"
+        enum_type_name="app_state"
     ),
     ModuleConfig(
         name="Cloud",
