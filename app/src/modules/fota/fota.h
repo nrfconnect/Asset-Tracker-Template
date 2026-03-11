@@ -49,6 +49,9 @@ enum fota_msg_type {
 	 */
 	FOTA_DOWNLOAD_REJECTED,
 
+	/* Event notified when FOTA module is ready to use */
+	FOTA_MODULE_READY,
+
 	/* Input message types */
 
 	/* Request to poll cloud for any available firmware updates. */

@@ -364,6 +364,9 @@ void test_module_init(void)
 	/* Verify that location_init was called */
 	TEST_ASSERT_EQUAL(1, location_init_fake.call_count);
 	TEST_ASSERT_NOT_NULL(registered_handler);
+
+	/* Verify that ready message was published */
+	verify_location_status(LOCATION_MODULE_READY);
 }
 
 /* Test location search trigger handling */

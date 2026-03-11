@@ -153,6 +153,11 @@ static void invoke_nrf_cloud_fota_callback_stub_reboot(enum nrf_cloud_fota_reboo
 	test_fota_ctx.reboot_fn(status);
 }
 
+void test_fota_module_should_publish_ready(void)
+{
+	event_expect(FOTA_MODULE_READY);
+}
+
 void test_fota_module_should_return_no_available_job(void)
 {
 	/* Given */

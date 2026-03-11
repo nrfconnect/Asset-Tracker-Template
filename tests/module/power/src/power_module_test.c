@@ -141,6 +141,9 @@ void test_module_init(void)
 	 */
 	TEST_ASSERT_EQUAL(1, nrf_fuel_gauge_init_fake.call_count);
 	TEST_ASSERT_EQUAL(1, mfd_npm13xx_add_callback_fake.call_count);
+
+	/* Verify that the module published a ready message */
+	check_power_event(POWER_MODULE_READY);
 }
 
 void test_power_percentage_sample(void)
