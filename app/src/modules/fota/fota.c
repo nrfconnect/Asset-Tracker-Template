@@ -361,6 +361,14 @@ static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
 				SEND_FATAL_ERROR();
 			}
 
+			const enum fota_msg_type msg = FOTA_MODULE_READY;
+
+			err = zbus_chan_pub(&fota_chan, &msg, PUB_TIMEOUT);
+			if (err) {
+				LOG_ERR("zbus_chan_pub, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_WAITING_FOR_POLL_REQUEST]);
 

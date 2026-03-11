@@ -295,6 +295,17 @@ static void state_running_entry(void *obj)
 		return;
 	}
 
+	const struct location_msg ready_msg = {
+		.type = LOCATION_MODULE_READY
+	};
+
+	err = zbus_chan_pub(&location_chan, &ready_msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
 	LOG_DBG("Location library initialized");
 }
 

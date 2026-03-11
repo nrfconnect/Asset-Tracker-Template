@@ -39,7 +39,6 @@ config APP_NETWORK_MSG_PROCESSING_TIMEOUT_SECONDS
 
 config APP_NETWORK_SEARCH_NETWORK_ON_STARTUP
 	bool "Search for network on startup"
-	default y
 	help
 	  If enabled, the module will search for a network on startup.
 	  If disabled, network search must be triggered by a NETWORK_CONNECT message.

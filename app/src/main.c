@@ -76,6 +76,21 @@ ZBUS_CHAN_DEFINE(timer_chan,
  */
 #define MSG_TO_TIMER_TYPE(msg)	(*(const enum timer_msg_type *)msg)
 
+enum priv_main_msg_type {
+	/* All modules have signaled that they are ready. */
+	MAIN_MODULES_READY,
+};
+
+ZBUS_CHAN_DEFINE(priv_main_chan,
+		 enum priv_main_msg_type,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
+
+#define MSG_TO_PRIV_MAIN_TYPE(msg)	(*(const enum priv_main_msg_type *)msg)
+
 /* Define the channels that the module subscribes to, their associated message types
  * and the subscriber that will receive the messages on the channel.
  * We use the X-macros to make the code more maintainable.
@@ -87,7 +102,9 @@ ZBUS_CHAN_DEFINE(timer_chan,
 	X(network_chan,		struct network_msg)		\
 	X(location_chan,	struct location_msg)		\
 	X(storage_chan,		struct storage_msg)		\
-	X(timer_chan,		enum timer_msg_type)
+	X(power_chan,		struct power_msg)		\
+	X(timer_chan,		enum timer_msg_type)		\
+	X(priv_main_chan,	enum priv_main_msg_type)
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE				MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
@@ -114,6 +131,7 @@ static K_WORK_DELAYABLE_DEFINE(timer_send_data_work, timer_send_data_work_fn);
 static K_WORK_DELAYABLE_DEFINE(timer_sample_data_work, timer_sample_data_work_fn);
 
 /* Forward declarations of state handlers */
+static enum smf_state_result waiting_for_modules_init_run(void *o);
 static void running_entry(void *o);
 static enum smf_state_result running_run(void *o);
 static void running_exit(void *o);
@@ -158,6 +176,8 @@ static enum smf_state_result fota_applying_image_run(void *o);
 static void fota_rebooting_entry(void *o);
 
 enum app_state {
+	/* Waiting for module initialization */
+	STATE_WAITING_FOR_MODULES_INIT,
 	/* Main application is running */
 	STATE_RUNNING,
 		/* No cloud connectivity */
@@ -234,10 +254,25 @@ struct main_state {
 	 * Initial SHADOW_GET_DESIRED and FOTA_POLL_REQUEST
 	 */
 	bool cloud_synced_on_connect;
+
+	/* Flags to track if each module is ready */
+	struct {
+		bool fota_ready;
+		bool power_ready;
+		bool location_ready;
+	} modules_ready;
 };
 
 /* Construct state table */
 static const struct smf_state states[] = {
+	/* Initial state, waiting for modules to initialize */
+	[STATE_WAITING_FOR_MODULES_INIT] = SMF_CREATE_STATE(
+		NULL,
+		waiting_for_modules_init_run,
+		NULL,
+		NULL,
+		NULL
+	),
 	/* Top-level states */
 	[STATE_RUNNING] = SMF_CREATE_STATE(
 		running_entry,
@@ -881,19 +916,90 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 	}
 }
 
+/* Check whether all modules that need time to initialize have reported ready.
+ * If so, publish MAIN_MODULES_READY message to transition out of the waiting for modules state.
+ */
+static void check_modules_ready(const struct main_state *state_object)
+{
+	const enum priv_main_msg_type msg = MAIN_MODULES_READY;
+	int err;
+
+	if (state_object->modules_ready.fota_ready &&
+	    state_object->modules_ready.power_ready &&
+	    state_object->modules_ready.location_ready) {
+		err = zbus_chan_pub(&priv_main_chan, &msg, PUB_TIMEOUT);
+		if (err) {
+			LOG_ERR("Failed to publish MAIN_MODULES_READY message, error: %d", err);
+			SEND_FATAL_ERROR();
+			return;
+		}
+	}
+}
+
 /* Zephyr State Machine framework handlers */
+
+/* STATE_WAITING_FOR_MODULES_INIT */
+static enum smf_state_result waiting_for_modules_init_run(void *o)
+{
+	struct main_state *state_object = (struct main_state *)o;
+
+	/* Update the extended state per module, and check if all modules are ready. */
+	if (state_object->chan == &fota_chan) {
+		if (MSG_TO_FOTA_TYPE(state_object->msg_buf) == FOTA_MODULE_READY) {
+			state_object->modules_ready.fota_ready = true;
+			check_modules_ready(state_object);
+			return SMF_EVENT_HANDLED;
+		}
+	} else if (state_object->chan == &power_chan) {
+		const struct power_msg *msg = MSG_TO_POWER_MSG_PTR(state_object->msg_buf);
+
+		if (msg->type == POWER_MODULE_READY) {
+			state_object->modules_ready.power_ready = true;
+			check_modules_ready(state_object);
+			return SMF_EVENT_HANDLED;
+		}
+	} else if (state_object->chan == &location_chan) {
+		const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+
+		if (msg->type == LOCATION_MODULE_READY) {
+			state_object->modules_ready.location_ready = true;
+			check_modules_ready(state_object);
+			return SMF_EVENT_HANDLED;
+		}
+
+	/* If all modules are ready, we can transition to the running state. */
+	} else if (state_object->chan == &priv_main_chan &&
+		   MSG_TO_PRIV_MAIN_TYPE(state_object->msg_buf) == MAIN_MODULES_READY) {
+		smf_set_state(SMF_CTX(state_object), &states[STATE_RUNNING]);
+		return SMF_EVENT_HANDLED;
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
 
 /* STATE_RUNNING - Top level state */
 
 static void running_entry(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
+	int err;
 
 	ARG_UNUSED(o);
 	LOG_DBG("%s", __func__);
 
 	timer_send_data_start(state_object->update_interval_sec);
 	state_object->sync_start_time = k_uptime_seconds();
+
+	const struct network_msg network_msg = {
+		.type = NETWORK_CONNECT
+	};
+
+	err = zbus_chan_pub(&network_chan, &network_msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("Failed to publish network connect message, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 }
 
 static enum smf_state_result running_run(void *o)
@@ -1674,7 +1780,7 @@ int main(void)
 		return -EFAULT;
 	}
 
-	smf_set_initial(SMF_CTX(&main_state), &states[STATE_RUNNING]);
+	smf_set_initial(SMF_CTX(&main_state), &states[STATE_WAITING_FOR_MODULES_INIT]);
 
 	while (1) {
 		err = task_wdt_feed(task_wdt_id);

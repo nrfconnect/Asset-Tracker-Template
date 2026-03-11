@@ -147,6 +147,28 @@ static void send_location_search_done(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
+static void send_location_ready(void)
+{
+	struct location_msg msg = {
+		.type = LOCATION_MODULE_READY,
+	};
+
+	int err = zbus_chan_pub(&location_chan, &msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+static void send_power_ready(void)
+{
+	struct power_msg msg = {
+		.type = POWER_MODULE_READY,
+	};
+
+	int err = zbus_chan_pub(&power_chan, &msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
 static void send_button_press_short(void)
 {
 	struct button_msg button_msg = {
@@ -313,6 +335,11 @@ void setUp(void)
 	RESET_FAKE(task_wdt_feed);
 	RESET_FAKE(task_wdt_add);
 	RESET_FAKE(sys_reboot);
+
+	/* Send ready messages for all relevant modules */
+	send_location_ready();
+	send_power_ready();
+	send_fota_msg(FOTA_MODULE_READY);
 
 	/* Ensure clean disconnected state */
 	send_cloud_disconnected();

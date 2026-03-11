@@ -27,6 +27,9 @@ enum power_msg_type {
 	 */
 	POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE = 0x1,
 
+	/* Power module is ready to use */
+	POWER_MODULE_READY,
+
 	/* Input message types */
 
 	/* Request to retrieve the current battery percentage. The response is sent as a
@@ -57,6 +60,7 @@ struct power_msg {
 };
 
 #define MSG_TO_POWER_MSG(_msg)	(*(const struct power_msg *)_msg)
+#define MSG_TO_POWER_MSG_PTR(_msg)	((const struct power_msg *)_msg)
 
 #ifdef __cplusplus
 }

@@ -258,6 +258,17 @@ static void state_running_entry(void *obj)
 		SEND_FATAL_ERROR();
 		return;
 	}
+
+	const struct power_msg msg = {
+		.type = POWER_MODULE_READY
+	};
+
+	err = zbus_chan_pub(&power_chan, &msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 }
 
 static enum smf_state_result state_running_run(void *obj)
