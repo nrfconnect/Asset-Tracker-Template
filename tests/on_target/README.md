@@ -46,9 +46,11 @@ export NRFCLOUD_API_KEY=<your_nrfcloud_api_key>
 
 Run desired tests, example commands
 ```shell
+# Use -m "not slow" to skip long-running tests (FOTA, memfault, etc.)
 pytest -s -v -m "not slow" tests
 pytest -s -v -m "not slow" tests/test_functional/test_network_reconnect.py
 pytest -s -v -m "not slow" tests/test_functional/test_sampling.py
+# Use -m "slow" to run only the long-running tests
 pytest -s -v -m "slow" tests/test_functional/test_fota.py::test_full_mfw_fota
 ```
 
