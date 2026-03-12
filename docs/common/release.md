@@ -21,7 +21,6 @@ The Asset Tracker Template generates multiple firmware artifacts for different h
 | **Artifact name** | **Hardware platform** | **Description** | **Use case** |
 |-------------------|----------------------|----------------|--------------|
 | `asset-tracker-template-{VERSION}-debug-thingy91x-nrf91.hex` | Thingy:91 X (nRF9151) | Debug build with enhanced logging and diagnostic features. **Note: This build uploads diagnostic and crash data to Memfault using Nordic's account and is intended for internal use only.** | Development debugging and issue investigation |
-| `asset-tracker-template-{VERSION}-mqtt-thingy91x-nrf91.hex` | Thingy:91 X (nRF9151) | Firmware with MQTT cloud connectivity instead of CoAP | Testing MQTT-based cloud communication |
 
 #### Specialized configuration variants
 

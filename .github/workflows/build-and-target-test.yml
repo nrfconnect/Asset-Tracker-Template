@@ -3,11 +3,15 @@ name: Build and Test
 on:
   workflow_dispatch:
     inputs:
-      build_all:
-        description: Build all board configurations
-        type: boolean
+      build_type:
+        description: "Build scope: minimal (thingy91x only), release (all boards, no test builds), all (everything)"
+        type: choice
+        options:
+          - minimal
+          - release
+          - all
         required: true
-        default: false
+        default: minimal
       device_thingy91x:
         description: 'Test thingy91x'
         type: boolean
@@ -46,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       devices: ${{ steps.setup.outputs.devices }}
-      build_all: ${{ steps.setup.outputs.build_all == 'true' }}
+      build_type: ${{ steps.setup.outputs.build_type }}
       push_memory_badges: ${{ steps.setup.outputs.push_memory_badges == 'true' }}
     steps:
       - name: Setup
@@ -57,11 +61,11 @@ jobs:
           push_memory_badges=false
           if [[ $SCHEDULED == true ]]; then
             devices="thingy91x nrf9151dk ppk_thingy91x gnss_nrf9151dk prov_thingy91x"
-            build_all=true
+            build_type=all
             push_memory_badges=true
           elif [[ $PUSH == true ]]; then
             devices="thingy91x"
-            build_all=false
+            build_type=minimal
           else
             # Build devices list from selected checkboxes
             devices=""
@@ -82,20 +86,20 @@ jobs:
             fi
             # Trim leading space
             devices=$(echo "$devices" | xargs)
-            build_all=${{ inputs.build_all }}
+            build_type=${{ inputs.build_type }}
           fi
           echo "devices=$devices"
-          echo "build_all=$build_all"
+          echo "build_type=$build_type"
           echo "push_memory_badges=$push_memory_badges"
           echo "devices=$devices" >> $GITHUB_OUTPUT
-          echo "build_all=$build_all" >> $GITHUB_OUTPUT
+          echo "build_type=$build_type" >> $GITHUB_OUTPUT
           echo "push_memory_badges=$push_memory_badges" >> $GITHUB_OUTPUT
   build:
     needs: setup
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
-      build_all: ${{ needs.setup.outputs.build_all == 'true' }}
+      build_type: ${{ needs.setup.outputs.build_type }}
       push_memory_badges: ${{ needs.setup.outputs.push_memory_badges == 'true' }}
   test:
     permissions:
@@ -109,4 +113,3 @@ jobs:
       artifact_fw_version: ${{ needs.build.outputs.version }}
       artifact_run_id: ${{ needs.build.outputs.run_id }}
       devices: ${{ needs.setup.outputs.devices }}
-      test_all: ${{ needs.setup.outputs.build_all == 'true' }}
