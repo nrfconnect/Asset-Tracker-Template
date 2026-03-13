@@ -37,6 +37,11 @@ on:
         type: boolean
         required: false
         default: false
+      test_all:
+        description: 'Run all tests (including tests marked as slow)'
+        type: boolean
+        required: false
+        default: false
 
   schedule:
     - cron: "0 0 * * *"
@@ -52,6 +57,7 @@ jobs:
       devices: ${{ steps.setup.outputs.devices }}
       build_type: ${{ steps.setup.outputs.build_type }}
       push_memory_badges: ${{ steps.setup.outputs.push_memory_badges == 'true' }}
+      test_all: ${{ steps.setup.outputs.test_all == 'true' }}
     steps:
       - name: Setup
         id: setup
@@ -63,6 +69,7 @@ jobs:
             devices="thingy91x nrf9151dk ppk_thingy91x gnss_nrf9151dk prov_thingy91x"
             build_type=all
             push_memory_badges=true
+            test_all=true
           elif [[ $PUSH == true ]]; then
             devices="thingy91x"
             build_type=minimal
@@ -87,13 +94,16 @@ jobs:
             # Trim leading space
             devices=$(echo "$devices" | xargs)
             build_type=${{ inputs.build_type }}
+            test_all=${{ inputs.test_all }}
           fi
           echo "devices=$devices"
           echo "build_type=$build_type"
           echo "push_memory_badges=$push_memory_badges"
+          echo "test_all=${test_all:-false}"
           echo "devices=$devices" >> $GITHUB_OUTPUT
           echo "build_type=$build_type" >> $GITHUB_OUTPUT
           echo "push_memory_badges=$push_memory_badges" >> $GITHUB_OUTPUT
+          echo "test_all=${test_all:-false}" >> $GITHUB_OUTPUT
   build:
     needs: setup
     uses: ./.github/workflows/build.yml
@@ -113,3 +123,4 @@ jobs:
       artifact_fw_version: ${{ needs.build.outputs.version }}
       artifact_run_id: ${{ needs.build.outputs.run_id }}
       devices: ${{ needs.setup.outputs.devices }}
+      test_all: ${{ needs.setup.outputs.test_all == 'true' }}
