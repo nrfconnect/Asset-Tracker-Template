@@ -9,7 +9,7 @@ on:
       artifact_fw_version:
         type: string
         required: true
-      test_all:
+      run_nightly_tests:
         type: boolean
         required: false
         default: false
@@ -33,8 +33,8 @@ on:
         description: The run ID of the workflow to fetch artifacts from
         type: string
         required: true
-      test_all:
-        description: Run all tests
+      run_nightly_tests:
+        description: Include slow tests for the selected boards
         type: boolean
         required: false
         default: false
@@ -117,7 +117,7 @@ jobs:
           nrfutil install trace
 
       - name: Upload symbol file to Memfault
-        if: ${{ matrix.device == 'thingy91x' && inputs.test_all }}
+        if: ${{ matrix.device == 'thingy91x' && inputs.run_nightly_tests }}
         working-directory: asset-tracker-template/tests/on_target/artifacts
         run: |
           memfault \
@@ -140,7 +140,7 @@ jobs:
         working-directory: asset-tracker-template/tests/on_target
         run: |
           mkdir -p results
-          if [[ ${{ inputs.test_all }} == true ]]; then
+          if [[ ${{ inputs.run_nightly_tests }} == true ]]; then
             pytest_marker=()
           else
             pytest_marker=(-m "not slow")

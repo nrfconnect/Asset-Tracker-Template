@@ -3,20 +3,11 @@ name: Build and Test
 on:
   workflow_dispatch:
     inputs:
-      build_type:
-        description: "Build scope: minimal (thingy91x only), release (all boards, no test builds), all (everything)"
-        type: choice
-        options:
-          - minimal
-          - release
-          - all
-        required: true
-        default: minimal
       device_thingy91x:
         description: 'Test thingy91x'
         type: boolean
         required: false
-        default: true
+        default: false
       device_nrf9151dk:
         description: 'Test nrf9151dk'
         type: boolean
@@ -37,11 +28,19 @@ on:
         type: boolean
         required: false
         default: false
-      test_all:
-        description: 'Run all tests (including tests marked as slow)'
+      run_nightly_tests:
+        description: 'Include slow tests for the selected boards'
         type: boolean
         required: false
         default: false
+
+  workflow_call:
+    inputs:
+      build_type:
+        description: 'Override build scope (leave empty to auto-derive from selected devices)'
+        type: string
+        required: false
+        default: ""
 
   schedule:
     - cron: "0 0 * * *"
@@ -57,7 +56,7 @@ jobs:
       devices: ${{ steps.setup.outputs.devices }}
       build_type: ${{ steps.setup.outputs.build_type }}
       push_memory_badges: ${{ steps.setup.outputs.push_memory_badges == 'true' }}
-      test_all: ${{ steps.setup.outputs.test_all == 'true' }}
+      run_nightly_tests: ${{ steps.setup.outputs.run_nightly_tests == 'true' }}
     steps:
       - name: Setup
         id: setup
@@ -67,12 +66,11 @@ jobs:
           push_memory_badges=false
           if [[ $SCHEDULED == true ]]; then
             devices="thingy91x nrf9151dk ppk_thingy91x gnss_nrf9151dk prov_thingy91x"
-            build_type=all
             push_memory_badges=true
-            test_all=true
+            run_nightly_tests=true
           elif [[ $PUSH == true ]]; then
             devices="thingy91x"
-            build_type=minimal
+            build_type=all
           else
             # Build devices list from selected checkboxes
             devices=""
@@ -93,17 +91,45 @@ jobs:
             fi
             # Trim leading space
             devices=$(echo "$devices" | xargs)
-            build_type=${{ inputs.build_type }}
-            test_all=${{ inputs.test_all }}
+            if [[ -z "$devices" ]]; then
+              echo "ERROR: At least one device must be selected"
+              exit 1
+            fi
+            run_nightly_tests=${{ inputs.run_nightly_tests }}
           fi
+
+          # Derive build_type unless explicitly overridden via workflow_call input.
+          # minimal: thingy91x base firmware only (sufficient when only thingy91x-family devices selected)
+          # release: only set explicitly via workflow_call (e.g. release workflow)
+          # all:     builds everything
+          only_thingy91x_family=false
+          for d in $devices; do
+            if [[ "$d" == "thingy91x" || "$d" == "ppk_thingy91x" || "$d" == "prov_thingy91x" ]]; then
+              only_thingy91x_family=true
+            else
+              only_thingy91x_family=false
+              break
+            fi
+          done
+
+          if [[ -n "${build_type:-}" ]]; then
+            : # build_type already set (e.g. push or schedule)
+          elif [[ -n "${{ inputs.build_type }}" ]]; then
+            build_type=${{ inputs.build_type }}
+          elif [[ "$only_thingy91x_family" == "true" && "${run_nightly_tests:-false}" != "true" ]]; then
+            build_type=minimal
+          else
+            build_type=all
+          fi
+
           echo "devices=$devices"
           echo "build_type=$build_type"
           echo "push_memory_badges=$push_memory_badges"
-          echo "test_all=${test_all:-false}"
+          echo "run_nightly_tests=${run_nightly_tests:-false}"
           echo "devices=$devices" >> $GITHUB_OUTPUT
           echo "build_type=$build_type" >> $GITHUB_OUTPUT
           echo "push_memory_badges=$push_memory_badges" >> $GITHUB_OUTPUT
-          echo "test_all=${test_all:-false}" >> $GITHUB_OUTPUT
+          echo "run_nightly_tests=${run_nightly_tests:-false}" >> $GITHUB_OUTPUT
   build:
     needs: setup
     uses: ./.github/workflows/build.yml
@@ -123,4 +149,4 @@ jobs:
       artifact_fw_version: ${{ needs.build.outputs.version }}
       artifact_run_id: ${{ needs.build.outputs.run_id }}
       devices: ${{ needs.setup.outputs.devices }}
-      test_all: ${{ needs.setup.outputs.test_all == 'true' }}
+      run_nightly_tests: ${{ needs.setup.outputs.run_nightly_tests == 'true' }}

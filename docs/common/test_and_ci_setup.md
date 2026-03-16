@@ -20,7 +20,7 @@ The CI pipeline is triggered as follows:
 
 - Pull Request: `build.yml`, `sonarcloud.yml`, `compliance.yml`. No target tests are run on PR to avoid instabilities.
 - Push to main: `build-and-target-test.yml`, `sonarcloud.yml`. Only "fast" target tests are run. Avoiding excessively time-consuming tests.
-- Nightly: `build-and-target-test.yml`. Full set of target tests. Includes "slow" tests such as the full modem FOTA test and the power consumption test.
+- Nightly: `build-and-target-test.yml`. Full set of target tests. Includes slow tests such as the full modem FOTA test and the power consumption test.
 
 ### Hardware Tests
 
