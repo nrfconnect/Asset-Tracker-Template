@@ -185,7 +185,7 @@ jobs:
               ../artifacts/ram_report_thingy91x.html
 
       - name: Build nrf9151dk firmware
-        if: ${{ env.build_type == 'release' || env.build_type == 'all' }}
+        if: ${{ env.build_type == 'minimal' || env.build_type == 'release' || env.build_type == 'all' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: nrf9151dk/nrf9151/ns
