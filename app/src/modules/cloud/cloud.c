@@ -393,7 +393,7 @@ static inline int attempt_timestamp_to_unix_ms(int64_t *uptime_ms)
 	return 0;
 }
 
-#if defined(CONFIG_APP_POWER)
+#if (defined(CONFIG_APP_POWER) || defined(CONFIG_APP_ENVIRONMENTAL))
 static int handle_data_timestamp(int64_t *timestamp_ms)
 {
 	int err;
@@ -424,11 +424,12 @@ static int handle_data_timestamp(int64_t *timestamp_ms)
 	} else if (IS_ENABLED(CONFIG_APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_DROP)) {
 		LOG_WRN("Dropping data with invalid timestamp");
 		return 0;
-	} else { /* Default behavior: APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_DROP */
+	} else {
+		/* Default behavior: APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_DROP */
 		return err;
 	}
 }
-#endif /* CONFIG_APP_POWER */
+#endif /* CONFIG_APP_POWER || CONFIG_APP_ENVIRONMENTAL */
 
 /* Storage handling functions */
 
