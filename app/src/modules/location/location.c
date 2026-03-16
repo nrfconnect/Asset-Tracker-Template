@@ -49,8 +49,8 @@ ZBUS_CHAN_DEFINE(location_chan,
 
 /* Private channel message types for internal state management. */
 enum priv_location_msg {
-	/* Modem has completed initialization. */
-	LOCATION_PRIV_MODEM_INITIALIZED,
+	/* Modem functional mode has been set. */
+	LOCATION_PRIV_CFUN_REQUIRED_SET,
 };
 
 /* Create private location channel for internal messaging that is not intended for external use. */
@@ -83,28 +83,25 @@ CHANNEL_LIST(ADD_OBSERVERS)
 
 /* Forward declarations */
 static void location_event_handler(const struct location_event_data *event_data);
-static void on_modem_init(int ret, void *ctx);
+static void on_cfun(int mode, void *ctx);
 
-NRF_MODEM_LIB_ON_INIT(location_modem_init_hook, on_modem_init, NULL);
+NRF_MODEM_LIB_ON_CFUN(location_cfun_hook, on_cfun, NULL);
 
-static void on_modem_init(int ret, void *ctx)
+static void on_cfun(int mode, void *ctx)
 {
 	int err;
-	enum priv_location_msg msg = LOCATION_PRIV_MODEM_INITIALIZED;
+	enum priv_location_msg msg = LOCATION_PRIV_CFUN_REQUIRED_SET;
 
 	ARG_UNUSED(ctx);
 
-	if (ret) {
-		LOG_ERR("Modem init failed: %d, location module cannot initialize", ret);
-		return;
-	}
+	if ((mode == LTE_LC_FUNC_MODE_NORMAL) || (mode == LTE_LC_FUNC_MODE_ACTIVATE_LTE)) {
+		err = zbus_chan_pub(&priv_location_chan, &msg, PUB_TIMEOUT);
+		if (err) {
+			LOG_ERR("zbus_chan_pub, error: %d", err);
+			SEND_FATAL_ERROR();
 
-	err = zbus_chan_pub(&priv_location_chan, &msg, PUB_TIMEOUT);
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
+			return;
+		}
 	}
 }
 
@@ -112,8 +109,8 @@ static void on_modem_init(int ret, void *ctx)
 
 /* Location module states */
 enum location_module_state {
-	/* Waiting for modem initialization */
-	STATE_WAITING_FOR_MODEM_INIT,
+	/* Waiting for modem functional mode to be set */
+	STATE_WAITING_FOR_CFUN,
 	/* The module is running */
 	STATE_RUNNING,
 		/* Location search is inactive. */
@@ -137,7 +134,7 @@ struct location_state_object {
 };
 
 /* Forward declarations of state handlers */
-static enum smf_state_result state_waiting_for_modem_init_run(void *obj);
+static enum smf_state_result state_waiting_for_cfun_run(void *obj);
 static void state_running_entry(void *obj);
 static void state_location_search_inactive_entry(void *obj);
 static enum smf_state_result state_location_search_inactive_run(void *obj);
@@ -146,9 +143,9 @@ static enum smf_state_result state_location_search_active_run(void *obj);
 
 /* Construct state table */
 static const struct smf_state states[] = {
-	[STATE_WAITING_FOR_MODEM_INIT] =
+	[STATE_WAITING_FOR_CFUN] =
 		SMF_CREATE_STATE(NULL,
-				 state_waiting_for_modem_init_run,
+				 state_waiting_for_cfun_run,
 				 NULL,
 				 NULL,
 				 NULL),
@@ -262,15 +259,15 @@ static void message_send(enum location_msg_type msg_type)
 
 /* State handlers */
 
-static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
+static enum smf_state_result state_waiting_for_cfun_run(void *obj)
 {
 	struct location_state_object *state_object = obj;
 
 	if (state_object->chan == &priv_location_chan) {
 		enum priv_location_msg msg = *(const enum priv_location_msg *)state_object->msg_buf;
 
-		if (msg == LOCATION_PRIV_MODEM_INITIALIZED) {
-			LOG_DBG("Modem initialized, transitioning to running state");
+		if (msg == LOCATION_PRIV_CFUN_REQUIRED_SET) {
+			LOG_DBG("CFUN set, transitioning to running state");
 			smf_set_state(SMF_CTX(state_object), &states[STATE_RUNNING]);
 
 			return SMF_EVENT_HANDLED;
@@ -569,7 +566,7 @@ static void location_module_thread(void)
 	}
 
 	/* Initialize the state machine */
-	smf_set_initial(SMF_CTX(&location_state), &states[STATE_WAITING_FOR_MODEM_INIT]);
+	smf_set_initial(SMF_CTX(&location_state), &states[STATE_WAITING_FOR_CFUN]);
 
 	while (true) {
 		err = task_wdt_feed(task_wdt_id);
