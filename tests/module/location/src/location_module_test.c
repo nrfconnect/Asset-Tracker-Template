@@ -45,14 +45,14 @@ FAKE_VOID_FUNC(location_config_defaults_set, struct location_config *,
 /* Store the registered event handler */
 static location_event_handler_t registered_handler;
 
-/* NRF_MODEM_LIB_ON_INIT creates a structure with the callback.
- * We can access it to invoke the modem init callback in tests.
+/* NRF_MODEM_LIB_ON_CFUN creates a structure with the callback.
+ * We can access it to invoke the CFUN callback in tests.
  */
-struct nrf_modem_lib_init_cb {
-	void (*callback)(int ret, void *ctx);
+struct nrf_modem_lib_at_cfun_cb {
+	void (*callback)(int mode, void *ctx);
 	void *context;
 };
-extern struct nrf_modem_lib_init_cb nrf_modem_hook_location_modem_init_hook;
+extern struct nrf_modem_lib_at_cfun_cb nrf_modem_at_cfun_hook_location_cfun_hook;
 
 /* Custom fake for location_init to store the handler */
 static int custom_location_init(location_event_handler_t handler)
@@ -335,11 +335,11 @@ void setUp(void)
 		/* Purge all messages from the channel */
 	}
 
-	/* Initialize the location module by calling the modem init callback
+	/* Initialize the location module by calling the CFUN callback
 	 * via the hook structure
 	 */
-	nrf_modem_hook_location_modem_init_hook.callback(0,
-		nrf_modem_hook_location_modem_init_hook.context);
+	nrf_modem_at_cfun_hook_location_cfun_hook.callback(1,
+		nrf_modem_at_cfun_hook_location_cfun_hook.context);
 
 	wait_for_initialization();
 }

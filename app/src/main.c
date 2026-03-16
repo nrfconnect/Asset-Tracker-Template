@@ -988,24 +988,12 @@ static enum smf_state_result waiting_for_modules_init_run(void *o)
 static void running_entry(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
-	int err;
 
 	ARG_UNUSED(o);
 	LOG_DBG("%s", __func__);
 
 	timer_send_data_start(state_object->update_interval_sec);
 	state_object->sync_start_time = k_uptime_seconds();
-
-	const struct network_msg network_msg = {
-		.type = NETWORK_CONNECT
-	};
-
-	err = zbus_chan_pub(&network_chan, &network_msg, PUB_TIMEOUT);
-	if (err) {
-		LOG_ERR("Failed to publish network connect message, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
-	}
 }
 
 static enum smf_state_result running_run(void *o)
