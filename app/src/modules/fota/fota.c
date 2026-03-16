@@ -64,6 +64,7 @@ ZBUS_CHAN_DEFINE(priv_fota_chan,
 	X(fota_chan,		enum fota_msg_type)			\
 	X(priv_fota_chan,	enum priv_fota_msg)			\
 
+/* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
 
 /* Add the fota subscriber as observer to all the channels in the list. */
