@@ -10,6 +10,7 @@ state STATE_RUNNING{
     state STATE_CONNECTING {
 
         state STATE_CONNECTING_ATTEMPT {
+            STATE_CONNECTING_ATTEMPT : entry / connection_attempts++
 
             state STATE_PROVISIONED {
                 STATE_PROVISIONED : entry / connect_to_cloud()
@@ -29,14 +30,14 @@ state STATE_RUNNING{
 
             [*] --> STATE_PROVISIONED
 
-            STATE_CONNECTING --> STATE_DISCONNECTED : NETWORK_DISCONNECTED
-
         }
 
         state STATE_CONNECTING_BACKOFF {
             STATE_CONNECTING_BACKOFF --> STATE_PROVISIONED : CLOUD_BACKOFF_EXPIRED && !provisioning_ongoing
             STATE_CONNECTING_BACKOFF --> STATE_PROVISIONING : CLOUD_BACKOFF_EXPIRED && provisioning_ongoing
         }
+
+        STATE_CONNECTING --> STATE_DISCONNECTED : NETWORK_DISCONNECTED
 
         [*] --> STATE_CONNECTING_ATTEMPT
 

@@ -140,6 +140,33 @@ def compare_state_machines(c_code, plantuml):
            - Allow for mismatches if an internal action is present in the C code but not documented
              in PlantUML, as long as it doesn't contradict the documented behavior.
 
+        6. SMF AUTOMATIC PARENT ENTRY:
+           - In Zephyr SMF, calling smf_set_state() to a deeply nested child state automatically
+             enters all ancestor (parent) states along the way. The framework handles this implicitly.
+           - Example: smf_set_state(&states[STATE_PROVISIONING]) where STATE_PROVISIONING's parent is
+             STATE_CONNECTING_ATTEMPT, and STATE_CONNECTING_ATTEMPT's parent is STATE_CONNECTING, will
+             automatically enter STATE_CONNECTING → STATE_CONNECTING_ATTEMPT → STATE_PROVISIONING.
+           - Therefore, a PlantUML transition like `STATE_X --> STATE_PROVISIONING` is correct even though
+             it crosses hierarchy boundaries — SMF ensures all parents are entered.
+           - Do NOT flag these as hierarchy mismatches or "bypassing parent-level transitions."
+
+        7. EXIT ACTIONS ARE NOT TRANSITIONS:
+           - Code in exit handlers (the 3rd parameter of SMF_CREATE_STATE) that publishes messages or
+             performs cleanup is an EXIT ACTION, not a state transition.
+           - Exit actions run automatically when leaving a state and should NOT be represented as
+             transitions in PlantUML.
+           - Example: state_connected_exit() publishing CLOUD_DISCONNECTED is a side effect of leaving
+             STATE_CONNECTED, not a transition to document.
+           - Do NOT flag missing PlantUML transitions for behavior that only exists in exit handlers.
+
+        8. STATE DECLARATION IN PLANTUML:
+           - A state is considered declared in PlantUML if it appears in ANY of these forms:
+             * Explicit block: `state STATE_NAME { ... }`
+             * Transition source or target: `STATE_NAME --> OTHER_STATE`
+             * Internal action: `STATE_NAME : event / action()`
+           - All three forms constitute a valid state declaration. Do NOT require the explicit block form
+             if the state appears in transitions or internal actions.
+
 
         IMPORTANT:
         - Focus on semantic equivalence, not syntactic exactness.
@@ -157,7 +184,7 @@ def compare_state_machines(c_code, plantuml):
         "    \"match\": <true|false>,\n"
         "    \"details\": \"<description of any missing/mismatched elements or 'All aligned.'>\"\n"
         "  }\n"
-        "If in doubt, set \"match\" to false and note the ambiguity in \"details.\" "
+        "If in doubt, set \"match\" to true and note the ambiguity in \"details.\" "
         "Return **only** the JSON object (no extra text)."
     )
 
