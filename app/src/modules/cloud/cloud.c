@@ -57,15 +57,13 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
 
 /* Define the channels that the module subscribes to, their associated message types
  * and the subscriber that will receive the messages on the channel.
- * environmental_chan, power_chan, and location_chan are optional and are only included if the
- * corresponding module is enabled.
  */
-#define CHANNEL_LIST(X)										\
-					 X(network_chan,	struct network_msg)		\
-					 X(cloud_chan,		struct cloud_msg)		\
-					 X(storage_chan,	struct storage_msg)		\
-					 X(location_chan,	struct location_msg)		\
-					 X(storage_data_chan,	struct storage_msg)
+#define CHANNEL_LIST(X)						\
+	X(network_chan,		struct network_msg)		\
+	X(cloud_chan,		struct cloud_msg)		\
+	X(storage_chan,		struct storage_msg)		\
+	X(location_chan,	struct location_msg)		\
+	X(storage_data_chan,	struct storage_msg)
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
