@@ -153,6 +153,14 @@ MODULES = [
         enum_type_name="network_module_state"
     ),
     ModuleConfig(
+        name="Network NTN",
+        file_name="network_ntn.c",
+        function_name="network_ntn_module_thread",
+        variable_name="network_state",
+        states_array_name="states",
+        enum_type_name="network_module_state"
+    ),
+    ModuleConfig(
         name="FOTA",
         file_name="fota.c",
         function_name="fota_module_thread",
