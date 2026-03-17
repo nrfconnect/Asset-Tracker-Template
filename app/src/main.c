@@ -311,7 +311,7 @@ static const struct smf_state states[] = {
 		connected_run,
 		NULL,
 		&states[STATE_RUNNING],
-		&states[STATE_CONNECTED_WAITING]
+		&states[STATE_CONNECTED_SENDING]
 	),
 	/* Connected operation states */
 	[STATE_CONNECTED_SAMPLING] = SMF_CREATE_STATE(

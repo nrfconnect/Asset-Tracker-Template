@@ -329,6 +329,25 @@ static void disable_sample_timer(void)
 	expect_cloud_event(CLOUD_SHADOW_UPDATE_REPORTED_CONFIG);
 }
 
+/* Connect to cloud and complete the initial data dispatch cycle.
+ * STATE_CONNECTED_SENDING is the initial child state of STATE_CONNECTED,
+ * so connecting always triggers an immediate data dispatch via cloud_send_now().
+ */
+static void connect_to_cloud(void)
+{
+	send_cloud_connected();
+	expect_cloud_event(CLOUD_CONNECTED);
+
+	/* Expect events from connected_sending_entry -> cloud_send_now() */
+	expect_storage_event(STORAGE_BATCH_REQUEST);
+	expect_fota_event(FOTA_POLL_REQUEST);
+	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
+
+	/* Complete the send cycle to transition to STATE_CONNECTED_WAITING */
+	send_storage_batch_close();
+	expect_storage_event(STORAGE_BATCH_CLOSE);
+}
+
 void setUp(void)
 {
 	RESET_FAKE(dk_buttons_init);
@@ -372,13 +391,16 @@ void test_init_first_connection(void)
 	expect_cloud_event(CLOUD_SHADOW_UPDATE_REPORTED_DEVICE);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DESIRED);
+
+	/* STATE_CONNECTED_SENDING dispatches stored data on connection */
+	expect_storage_event(STORAGE_BATCH_REQUEST);
+	expect_fota_event(FOTA_POLL_REQUEST);
+	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
 }
 
 void test_short_button_press_connected(void)
 {
-	/* Connect to cloud */
-	send_cloud_connected();
-	expect_cloud_event(CLOUD_CONNECTED);
+	connect_to_cloud();
 
 	/* Short button press should trigger sampling immediately */
 	send_button_press_short();
@@ -392,9 +414,7 @@ void test_short_button_press_connected(void)
 
 void test_long_button_press_connected(void)
 {
-	/* Connect to cloud */
-	send_cloud_connected();
-	expect_cloud_event(CLOUD_CONNECTED);
+	connect_to_cloud();
 
 	/* Long button press should trigger sending start and cloud poll */
 	send_button_press_long();
@@ -405,11 +425,9 @@ void test_long_button_press_connected(void)
 
 void test_threshold_reached_connected(void)
 {
-	/* Connect to cloud */
-	send_cloud_connected();
-	expect_cloud_event(CLOUD_CONNECTED);
+	connect_to_cloud();
 
-	/* Long button press should trigger sending start and cloud poll */
+	/* Threshold reached should trigger sending start and cloud poll */
 	send_storage_threshold_reached();
 	expect_storage_event(STORAGE_THRESHOLD_REACHED);
 	expect_storage_event(STORAGE_BATCH_REQUEST);
@@ -446,9 +464,7 @@ void test_threshold_reached_disconnected(void)
 
 void test_fota_downloading(void)
 {
-	/* Connect to cloud */
-	send_cloud_connected();
-	expect_cloud_event(CLOUD_CONNECTED);
+	connect_to_cloud();
 
 	/* Transition to STATE_FOTA_DOWNLOADING */
 	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
@@ -465,7 +481,16 @@ void test_fota_downloading(void)
 	send_fota_msg(FOTA_DOWNLOAD_CANCELED);
 	expect_fota_event(FOTA_DOWNLOAD_CANCELED);
 
-	/* Should restore to previous state (connected waiting) and resume operation */
+	/* Resuming to STATE_CONNECTED enters STATE_CONNECTED_SENDING first */
+	expect_storage_event(STORAGE_BATCH_REQUEST);
+	expect_fota_event(FOTA_POLL_REQUEST);
+	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
+
+	/* Complete send cycle to transition to STATE_CONNECTED_WAITING */
+	send_storage_batch_close();
+	expect_storage_event(STORAGE_BATCH_CLOSE);
+
+	/* Then sampling resumes */
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
@@ -474,9 +499,7 @@ void test_fota_downloading(void)
 
 void test_fota_waiting_for_network_disconnect(void)
 {
-	/* Connect to cloud */
-	send_cloud_connected();
-	expect_cloud_event(CLOUD_CONNECTED);
+	connect_to_cloud();
 
 	/* Transition to STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT */
 	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
@@ -510,9 +533,7 @@ void test_fota_waiting_for_network_disconnect(void)
 
 void test_fota_waiting_for_network_disconnect_to_apply_image(void)
 {
-	/* Connect to cloud */
-	send_cloud_connected();
-	expect_cloud_event(CLOUD_CONNECTED);
+	connect_to_cloud();
 
 	/* Transition to STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE */
 	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
@@ -551,9 +572,7 @@ void test_fota_waiting_for_network_disconnect_to_apply_image(void)
 
 void test_sensor_timer_multiple_expiries(void)
 {
-	/* Connect to cloud */
-	send_cloud_connected();
-	expect_cloud_event(CLOUD_CONNECTED);
+	connect_to_cloud();
 
 	/* Dont want cloud timer to interfere */
 	restart_cloud_timer();
@@ -582,9 +601,7 @@ void test_sensor_timer_multiple_expiries(void)
 
 void test_cloud_timer_multiple_expiries(void)
 {
-	/* Connect to cloud */
-	send_cloud_connected();
-	expect_cloud_event(CLOUD_CONNECTED);
+	connect_to_cloud();
 
 	disable_sample_timer();
 	expect_timer_event(TIMER_CONFIG_CHANGED);
@@ -607,9 +624,7 @@ void test_cloud_timer_multiple_expiries(void)
 
 void test_sampling_during_cloud_send(void)
 {
-	/* Connect to cloud */
-	send_cloud_connected();
-	expect_cloud_event(CLOUD_CONNECTED);
+	connect_to_cloud();
 
 	/* Trigger cloud send */
 	send_button_press_long();
@@ -635,9 +650,7 @@ void test_sampling_during_cloud_send(void)
 
 void test_config_change(void)
 {
-	/* Connect to cloud */
-	send_cloud_connected();
-	expect_cloud_event(CLOUD_CONNECTED);
+	connect_to_cloud();
 
 	/* Restart timers to know the exact timing for the next triggers */
 	restart_cloud_timer();
