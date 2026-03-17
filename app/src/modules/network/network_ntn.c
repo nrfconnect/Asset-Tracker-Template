@@ -42,14 +42,7 @@ enum priv_network_ntn_msg {
 	NTN_SEARCH_GEO_START,
 	NTN_WAIT_FOR_SATELLITE_PASS,
 	NTN_LOCATION_NEEDED,
-};
-
-enum network_connection_type {
-	NETWORK_CONN_TYPE_DISCONNECTED = 0x0,
-
-	NETWORK_CONN_TYPE_TN,
-	NETWORK_CONN_TYPE_NTN_LEO,
-	NETWORK_CONN_TYPE_NTN_GEO,
+	NETWORK_CONNECTED_NOTIFY,
 };
 
 ZBUS_CHAN_DEFINE(PRIV_NETWORK_NTN_CHAN,
@@ -64,7 +57,7 @@ ZBUS_CHAN_DEFINE(PRIV_NETWORK_NTN_CHAN,
 ZBUS_MSG_SUBSCRIBER_DEFINE(network);
 
 #define CHANNEL_LIST(X)								\
-	X(NETWORK_CHAN,			struct network_msg)			\
+	X(network_chan,			struct network_msg)			\
 	X(PRIV_NETWORK_NTN_CHAN,	enum priv_network_ntn_msg)
 
 #define ADD_OBSERVERS(_chan, _type)	ZBUS_CHAN_ADD_OBS(_chan, network, 0);
@@ -228,7 +221,24 @@ static void network_status_notify(enum network_msg_type status)
 		.type = status,
 	};
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+}
+
+static void network_connected_notify(enum network_connection_type connection_type)
+{
+	int err;
+	struct network_msg msg = {
+		.type = NETWORK_CONNECTED,
+		.connection_type = connection_type,
+	};
+
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -241,7 +251,7 @@ static void network_msg_send(const struct network_msg *msg)
 {
 	int err;
 
-	err = zbus_chan_pub(&NETWORK_CHAN, msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, msg, K_SECONDS(1));
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -296,7 +306,8 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		switch (evt->pdn.type) {
 		case LTE_LC_EVT_PDN_ACTIVATED:
 			LOG_DBG("PDN connection activated");
-			network_status_notify(NETWORK_CONNECTED);
+
+			priv_ntn_msg_send(NETWORK_CONNECTED_NOTIFY);
 
 			break;
 
@@ -320,7 +331,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 
 		case LTE_LC_EVT_PDN_RESUMED:
 			LOG_DBG("PDN connection resumed");
-			network_status_notify(NETWORK_CONNECTED);
+			priv_ntn_msg_send(NETWORK_CONNECTED_NOTIFY);
 
 			break;
 
@@ -628,7 +639,7 @@ static enum smf_state_result state_running_run(void *obj)
 {
 	struct network_state_object *state_object = obj;
 
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		switch (msg.type) {
@@ -665,13 +676,11 @@ static enum smf_state_result state_disconnected_run(void *obj)
 	int err;
 	struct network_state_object *state_object = obj;
 
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		switch (msg.type) {
 		case NETWORK_CONNECTED:
-			state_object->connection_type = NETWORK_CONN_TYPE_TN;
-
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
 
 			return SMF_EVENT_HANDLED;
@@ -693,11 +702,14 @@ static enum smf_state_result state_disconnected_run(void *obj)
 		default:
 			break;
 		}
-	} else if (state_object->chan == &PRIV_NETWORK_NTN_CHAN) {
+	}
+
+	if (state_object->chan == &PRIV_NETWORK_NTN_CHAN) {
 		enum priv_network_ntn_msg priv_msg =
 			*(const enum priv_network_ntn_msg *)state_object->msg_buf;
 
-		if (priv_msg == NTN_LEO_SATELLITE_PASS_UPCOMING) {
+		switch (priv_msg) {
+		case NTN_LEO_SATELLITE_PASS_UPCOMING:
 			err = network_disconnect();
 			if (err) {
 				LOG_ERR("network_disconnect, error: %d", err);
@@ -707,6 +719,15 @@ static enum smf_state_result state_disconnected_run(void *obj)
 			smf_set_state(SMF_CTX(state_object), &states[STATE_NTN_SEARCH_LEO]);
 
 			return SMF_EVENT_HANDLED;
+
+		case NETWORK_CONNECTED_NOTIFY:
+			network_connected_notify(state_object->connection_type);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
+
+			return SMF_EVENT_HANDLED;
+
+		default:
+			break;
 		}
 	}
 
@@ -718,7 +739,7 @@ static enum smf_state_result state_disconnected_idle_run(void *obj)
 	int err;
 	struct network_state_object *state_object = obj;
 
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		switch (msg.type) {
@@ -778,8 +799,7 @@ static enum smf_state_result state_disconnected_idle_run(void *obj)
 static void state_disconnected_searching_tn_entry(void *obj)
 {
 	int err;
-
-	ARG_UNUSED(obj);
+	struct network_state_object *state_object = (struct network_state_object *)obj;
 
 	LOG_DBG("%s", __func__);
 
@@ -790,6 +810,8 @@ static void state_disconnected_searching_tn_entry(void *obj)
 		LOG_ERR("lte_lc_system_mode_set, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
+
+	state_object->connection_type = NETWORK_CONN_TYPE_TN;
 
 	/* Start searching for a suitable terrestrial network */
 	err = network_connect();
@@ -803,7 +825,7 @@ static enum smf_state_result state_disconnected_searching_tn_run(void *obj)
 {
 	struct network_state_object *state_object = obj;
 
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		switch (msg.type) {
@@ -888,7 +910,7 @@ static enum smf_state_result state_disconnected_ntn_search_run(void *obj)
 {
 	struct network_state_object *state_object = obj;
 
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		switch (msg.type) {
@@ -932,7 +954,7 @@ static enum smf_state_result state_ntn_search_prepare_run(void *obj)
 	int err;
 	struct network_state_object *state_object = obj;
 
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		switch (msg.type) {
@@ -1051,6 +1073,8 @@ static void state_ntn_search_leo_entry(void *obj)
 	}
 #endif
 
+	state_object->connection_type = NETWORK_CONN_TYPE_NTN_LEO;
+
 	err = network_connect();
 	if (err) {
 		LOG_ERR("network_connect, error: %d", err);
@@ -1064,13 +1088,11 @@ static enum smf_state_result state_ntn_search_leo_run(void *obj)
 {
 	struct network_state_object *state_object = obj;
 
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		if (msg.type == NETWORK_CONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
-
-			state_object->connection_type = NETWORK_CONN_TYPE_NTN_LEO;
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -1083,9 +1105,11 @@ static void state_ntn_search_geo_entry(void *obj)
 {
 	int err;
 
-	ARG_UNUSED(obj);
+	struct network_state_object *state_object = (struct network_state_object *)obj;
 
 	LOG_DBG("%s", __func__);
+
+	state_object->connection_type = NETWORK_CONN_TYPE_NTN_GEO;
 
 	err = start_geo_search();
 	if (err) {
@@ -1098,12 +1122,10 @@ static enum smf_state_result state_ntn_search_geo_run(void *obj)
 {
 	struct network_state_object *state_object = obj;
 
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		if (msg.type == NETWORK_CONNECTED) {
-			state_object->connection_type = NETWORK_CONN_TYPE_NTN_GEO;
-
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
 
 			return SMF_EVENT_HANDLED;
@@ -1128,7 +1150,7 @@ static enum smf_state_result state_connected_run(void *obj)
 {
 	struct network_state_object *state_object = obj;
 
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		switch (msg.type) {
@@ -1172,7 +1194,7 @@ static enum smf_state_result state_disconnecting_run(void *obj)
 {
 	struct network_state_object *state_object = obj;
 
-	if (state_object->chan == &NETWORK_CHAN) {
+	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
 		if (msg.type == NETWORK_DISCONNECTED) {
@@ -1204,7 +1226,7 @@ static void network_ntn_module_thread(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_NETWORK_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	static struct network_state_object network_state;
+	static struct network_state_object network_state = { 0 };
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, network_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {

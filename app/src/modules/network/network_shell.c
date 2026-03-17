@@ -44,7 +44,7 @@ static int cmd_connect_ntn(const struct shell *sh, size_t argc, char **argv)
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	if (err) {
 		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
 

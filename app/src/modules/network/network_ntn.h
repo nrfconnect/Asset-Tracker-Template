@@ -25,7 +25,7 @@ extern "C" {
 
 /* Channels provided by this module */
 ZBUS_CHAN_DECLARE(
-	NETWORK_CHAN
+	network_chan
 );
 
 /** Network module message types. */
@@ -174,6 +174,13 @@ struct network_location {
 	float altitude;
 };
 
+/* Network connection type. */
+enum network_connection_type {
+	NETWORK_CONN_TYPE_TN,
+	NETWORK_CONN_TYPE_NTN_LEO,
+	NETWORK_CONN_TYPE_NTN_GEO,
+};
+
 /** Network module message structure. */
 struct network_msg {
 	/** Message type. */
@@ -181,7 +188,7 @@ struct network_msg {
 
 	union {
 		/** Contains the currently configured system mode.
-		 *  system_mode is set for NETWORK_SYSTEM_MODE_RESPONSE events
+		 *  system_mode is set for NETWORK_SYSTEM_MODE_RESPONSE events,
 		 */
 		enum lte_lc_system_mode system_mode;
 
@@ -204,6 +211,12 @@ struct network_msg {
 		 *  Valid for NETWORK_TLE_DATA events.
 		 */
 		struct network_tle tle;
+
+		/** Connection type.
+		 *  Valid for NETWORK_CONNECTED messages and contains the type of connection that
+		 *  the modem is currently using.
+		 */
+		enum network_connection_type connection_type;
 	};
 
 	/** Timestamp when the sample was taken in milliseconds.

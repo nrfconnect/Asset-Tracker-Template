@@ -48,7 +48,7 @@ FAKE_VALUE_FUNC(int, lte_lc_cellular_profile_configure, struct lte_lc_cellular_p
 
 /* Test subscriber on the public channel */
 ZBUS_MSG_SUBSCRIBER_DEFINE(test_subscriber);
-ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, test_subscriber, 0);
+ZBUS_CHAN_ADD_OBS(network_chan, test_subscriber, 0);
 
 /* Use of private channel is a temporary workaround to allow testing until SGP4 is implemented. */
 ZBUS_CHAN_DECLARE(PRIV_NETWORK_NTN_CHAN);
@@ -212,7 +212,7 @@ static void publish_network_msg(enum network_msg_type type)
 	int err;
 	struct network_msg msg = { .type = type };
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Allow the module time to process the message */
@@ -232,7 +232,7 @@ static void publish_network_location_data(double lat, double lon, float alt)
 		.timestamp = FAKE_TIME_MS,
 	};
 
-	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Allow the module time to process the message */
@@ -264,7 +264,7 @@ static void wait_for_msg_of_type(struct network_msg *msg, enum network_msg_type 
 			return;
 		}
 
-		if (chan != &NETWORK_CHAN) {
+		if (chan != &network_chan) {
 			TEST_FAIL();
 		}
 
