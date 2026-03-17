@@ -36,18 +36,17 @@ Alternatively, you can download pre-built firmware binaries from the latest rele
 
 ## Setting up the development environment
 
-To build the firmware from source, you need the nRF Connect SDK development environment ([setup guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation.html)). There are two options for setting up and building the project. For a detailed walkthrough, see the [Getting Started Guide](docs/common/getting_started.md).
+There are two options for setting up and building the project.
 
 ### Option 1: nRF Connect for VS Code (Recommended)
 
 Use the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) extension for an integrated development experience:
 
-1. Open VS Code and go to the **nRF Connect** extension.
-2. Select **Create New Application** → **Browse nRF Connect SDK add-on Index**.
-3. Search for **Asset Tracker Template** and create the project.
-4. Use the **Actions** panel in the extension to build and flash the application.
-
-For more details, see the [Getting Started Guide](docs/common/getting_started.md).
+1. To install the nRF Connect SDK and its toolchain using nRF Connect for VS Code, follow [extension documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/get_started/quick_setup.html) or [Installing nRF Connect SDK and VS Code exercise] (https://academy.nordicsemi.com/courses/nrf-connect-sdk-fundamentals/lessons/lesson-1-nrf-connect-sdk-introduction/topic/exercise-1-1/) on Nordic Developer Academy.
+2. Open VS Code and go to the **nRF Connect** extension.
+3. Select **Create New Application** → **Browse nRF Connect SDK add-on Index**.
+4. Search for **Asset Tracker Template** and create the project.
+5. Use the **Actions** panel in the extension to build and flash the application.
 
 ### Option 2: Command line
 
@@ -102,6 +101,8 @@ west build --pristine --board nrf9151dk/nrf9151/ns
 west flash --erase
 ```
 </details>
+
+For more details, see the [Getting Started Guide](docs/common/getting_started.md).
 
 ### Provision device to nRF Cloud
 
