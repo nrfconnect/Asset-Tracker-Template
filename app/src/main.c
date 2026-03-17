@@ -462,9 +462,9 @@ static void waiting_entry_common(const struct main_state *state_object)
 
 	/* Reschedule the next sample trigger */
 
-	/* Special case: sample_start_time == 0 means first sample, trigger immediately */
+	/* Special case: sample_start_time == 0 means first sample, trigger with a small delay */
 	if (state_object->sample_start_time == 0) {
-		time_remaining = 0;
+		time_remaining = 5;
 	} else {
 		time_elapsed = k_uptime_seconds() - state_object->sample_start_time;
 
