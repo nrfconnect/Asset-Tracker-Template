@@ -1,7 +1,0 @@
-@startuml
-state STATE_RUNNING {
-    STATE_RUNNING : ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST / sample_sensors()
-}
-
-[*] --> STATE_RUNNING
-@enduml
