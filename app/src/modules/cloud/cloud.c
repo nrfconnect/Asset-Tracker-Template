@@ -157,6 +157,8 @@ struct cloud_state_object {
 
 	/* Connection backoff time */
 	uint32_t backoff_time;
+
+
 };
 
 /* Forward declarations of state handlers */
@@ -829,14 +831,29 @@ static void state_disconnected_entry(void *obj)
 
 static enum smf_state_result state_disconnected_run(void *obj)
 {
-	struct cloud_state_object const *state_object = obj;
-	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+	struct cloud_state_object *state_object = obj;
 
-	if ((state_object->chan == &network_chan) && (msg.type == NETWORK_CONNECTED)) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
+	if (state_object->chan == &network_chan) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-		return SMF_EVENT_HANDLED;
+		if (msg.type == NETWORK_CONNECTED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
+
+			return SMF_EVENT_HANDLED;
+		}
 	}
+
+#if defined(CONFIG_NRF_CLOUD_AGNSS) && defined(CONFIG_APP_LOCATION)
+	if (state_object->chan == &location_chan) {
+		const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+
+		if (msg->type == LOCATION_AGNSS_REQUEST) {
+			cloud_location_agnss_cache(msg);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+#endif /* CONFIG_NRF_CLOUD_AGNSS && CONFIG_APP_LOCATION */
 
 	return SMF_EVENT_PROPAGATE;
 }
@@ -865,6 +882,18 @@ static enum smf_state_result state_connecting_run(void *obj)
 			return SMF_EVENT_HANDLED;
 		}
 	}
+
+#if defined(CONFIG_NRF_CLOUD_AGNSS) && defined(CONFIG_APP_LOCATION)
+	if (state_object->chan == &location_chan) {
+		const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+
+		if (msg->type == LOCATION_AGNSS_REQUEST) {
+			cloud_location_agnss_cache(msg);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+#endif /* CONFIG_NRF_CLOUD_AGNSS && CONFIG_APP_LOCATION */
 
 	return SMF_EVENT_PROPAGATE;
 }
@@ -1089,6 +1118,10 @@ static void state_connected_ready_entry(void *obj)
 
 		return;
 	}
+
+#if defined(CONFIG_NRF_CLOUD_AGNSS) && defined(CONFIG_APP_LOCATION)
+	cloud_location_agnss_process_cached();
+#endif /* CONFIG_NRF_CLOUD_AGNSS && CONFIG_APP_LOCATION */
 }
 
 static enum smf_state_result state_connected_ready_run(void *obj)
@@ -1187,6 +1220,18 @@ static enum smf_state_result state_connected_paused_run(void *obj)
 			return SMF_EVENT_HANDLED;
 		}
 	}
+
+#if defined(CONFIG_NRF_CLOUD_AGNSS) && defined(CONFIG_APP_LOCATION)
+	if (state_object->chan == &location_chan) {
+		const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+
+		if (msg->type == LOCATION_AGNSS_REQUEST) {
+			cloud_location_agnss_cache(msg);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+#endif /* CONFIG_NRF_CLOUD_AGNSS && CONFIG_APP_LOCATION */
 
 	if (state_object->chan == &storage_chan) {
 		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
