@@ -52,14 +52,12 @@ config APP_NETWORK_NTN_LOCATION_FAILED_LEO_THEN_GEO
 	  satellite pass is found, fall back to GEO satellite search.
 	  Note that TLE data must be available and usable accoring to
 	  CONFIG_APP_NETWORK_NTN_TLE_STALE_HANDLING.
-
-config APP_NETWORK_NTN_LOCATION_FAILED_USE_STATIC_LOCATION
-	bool "Use static location"
-	help
-	  Use a static location for the device. The module will continue to use the static location until
-	  the location is updated.
-
 endchoice # APP_NETWORK_NTN_LOCATION_FAILED_HANDLING
+
+config APP_NETWORK_NTN_USE_STATIC_LOCATION_ON_GNSS_FAILURE
+	bool "Use static location on GNSS failure"
+	help
+	  Use a static location for the device on GNSS failure. The module will continue to use the static location until the location is updated.
 
 config APP_NETWORK_NTN_STATIC_LOCATION_LATITUDE
 	int "Static location latitude (degrees x 1 000 000)"

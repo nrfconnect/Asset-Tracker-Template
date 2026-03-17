@@ -24,8 +24,10 @@ BUILD_ASSERT(CONFIG_APP_NETWORK_WATCHDOG_TIMEOUT_SECONDS >
 	     CONFIG_APP_NETWORK_MSG_PROCESSING_TIMEOUT_SECONDS,
 	     "Watchdog timeout must be greater than maximum message processing time");
 
+#define STATIC_LOCATION_SCALE	1000000.0f
+
 /* Public channel */
-ZBUS_CHAN_DEFINE(NETWORK_CHAN,
+ZBUS_CHAN_DEFINE(network_chan,
 		 struct network_msg,
 		 NULL,
 		 NULL,
@@ -544,28 +546,26 @@ static void handle_location_failed(struct network_state_object *state_object)
 {
 	int err;
 
+	if (IS_ENABLED(CONFIG_APP_NETWORK_NTN_USE_STATIC_LOCATION_ON_GNSS_FAILURE)) {
+		state_object->location.latitude =
+			CONFIG_APP_NETWORK_NTN_STATIC_LOCATION_LATITUDE / STATIC_LOCATION_SCALE;
+		state_object->location.longitude =
+			CONFIG_APP_NETWORK_NTN_STATIC_LOCATION_LONGITUDE / STATIC_LOCATION_SCALE;
+		state_object->location.altitude =
+			CONFIG_APP_NETWORK_NTN_STATIC_LOCATION_ALTITUDE;
+	}
+
 	err = ntn_location_set(state_object->location.latitude,
-			       state_object->location.longitude,
-			       state_object->location.altitude, 0);
+			state_object->location.longitude,
+			state_object->location.altitude, 0);
 	if (err) {
 		LOG_ERR("ntn_location_set, error: %d", err);
-		SEND_FATAL_ERROR();
 	}
 
 	if (IS_ENABLED(CONFIG_APP_NETWORK_NTN_LOCATION_FAILED_USE_LEO)) {
 		estimate_next_pass(state_object);
 	} else if (IS_ENABLED(CONFIG_APP_NETWORK_NTN_LOCATION_FAILED_USE_GEO)) {
 		priv_ntn_msg_send(NTN_SEARCH_GEO_START);
-	} else if (IS_ENABLED(CONFIG_APP_NETWORK_NTN_LOCATION_FAILED_USE_STATIC_LOCATION)) {
-		double lat = CONFIG_APP_NETWORK_NTN_STATIC_LOCATION_LATITUDE / 1000000.0f;
-		double lon = CONFIG_APP_NETWORK_NTN_STATIC_LOCATION_LONGITUDE / 1000000.0f;
-		float alt = CONFIG_APP_NETWORK_NTN_STATIC_LOCATION_ALTITUDE;
-
-		err = ntn_location_set(lat, lon, alt, 0);
-		if (err) {
-			LOG_ERR("ntn_location_set, error: %d", err);
-			SEND_FATAL_ERROR();
-		}
 	} else {
 		LOG_ERR("Handling not implemented");
 	}
