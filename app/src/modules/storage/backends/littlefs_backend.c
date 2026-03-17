@@ -63,24 +63,27 @@ static struct fs_mount_t *mountpoint =
  */
 static int littlefs_mount(struct fs_mount_t *mp)
 {
-
-#if !DT_NODE_EXISTS(LFS_NODE) || !(FSTAB_ENTRY_DT_MOUNT_FLAGS(LFS_NODE) & FS_MOUNT_FLAG_AUTOMOUNT)
 	int ret;
 
 	ret = fs_mount(mp);
-	if (ret < 0) {
-		LOG_ERR("Failed to mount id %" PRIuPTR " at %s: %d\n", (uintptr_t)mp->storage_dev,
-			mp->mnt_point, ret);
-
-		return ret;
+	switch (ret) {
+	case 0:
+		LOG_INF("%s mounted", mp->mnt_point);
+		break;
+	case -EBUSY:
+		LOG_INF("%s already mounted", mp->mnt_point);
+		ret = 0;
+		break;
+	case -ENOSPC:
+		LOG_ERR("LittleFS mount failed: no free space on backing partition. "
+			"Increase littlefs_storage partition size.");
+		break;
+	default:
+		LOG_ERR("LittleFS mount failed: %d", ret);
+		break;
 	}
 
-	LOG_INF("%s mount: %d\n", mp->mnt_point, ret);
-#else
-	LOG_INF("%s automounted\n", mp->mnt_point);
-#endif
-
-	return 0;
+	return ret;
 }
 
 /*
