@@ -312,6 +312,35 @@ static void handle_gnss_location_data(const struct location_msg *location_msg)
 }
 #endif /* CONFIG_LOCATION_METHOD_GNSS */
 
+#if defined(CONFIG_NRF_CLOUD_AGNSS)
+static struct location_msg agnss_req_cached;
+static bool agnss_req_pending;
+
+void cloud_location_agnss_cache(const struct location_msg *msg)
+{
+	if (msg->type != LOCATION_AGNSS_REQUEST) {
+		return;
+	}
+
+	LOG_DBG("Caching A-GNSS request");
+
+	agnss_req_cached = *msg;
+	agnss_req_pending = true;
+}
+
+void cloud_location_agnss_process_cached(void)
+{
+	if (!agnss_req_pending) {
+		return;
+	}
+
+	LOG_DBG("Processing cached A-GNSS request");
+
+	agnss_req_pending = false;
+	handle_agnss_request(&agnss_req_cached.agnss_request);
+}
+#endif /* CONFIG_NRF_CLOUD_AGNSS */
+
 void cloud_location_handle_message(const struct location_msg *msg)
 {
 	switch (msg->type) {

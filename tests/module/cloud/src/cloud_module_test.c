@@ -406,6 +406,8 @@ void setUp(void)
 	RESET_FAKE(storage_batch_read);
 	RESET_FAKE(nrf_cloud_coap_sensor_send);
 	RESET_FAKE(nrf_cloud_coap_location_get);
+	RESET_FAKE(nrf_cloud_coap_agnss_data_get);
+	RESET_FAKE(location_agnss_data_process);
 
 	nrf_cloud_client_id_get_fake.custom_fake = nrf_cloud_client_id_get_custom_fake;
 	nrf_provisioning_init_fake.custom_fake = nrf_provisioning_init_custom_fake;
@@ -1692,6 +1694,39 @@ void test_storage_batch_busy_when_paused_should_handle(void)
 
 	/* Verify no close message was sent */
 	TEST_ASSERT_EQUAL(0, k_sem_count_get(&storage_batch_closed));
+}
+
+void test_agnss_request_cached_while_disconnected_and_sent_on_connect(void)
+{
+	struct location_msg agnss_msg = {
+		.type = LOCATION_AGNSS_REQUEST,
+		.agnss_request = {
+			.data_flags = 0x3f,
+			.system_count = 1,
+			.system = {
+				[0] = {
+					.system_id = 1, /* GPS */
+					.sv_mask_ephe = 0xffffffff,
+					.sv_mask_alm = 0xffffffff,
+				},
+			},
+		},
+	};
+
+	/* Publish A-GNSS request while disconnected */
+	publish_and_assert(&location_chan, &agnss_msg);
+	wait_for_processing();
+
+	/* Verify no CoAP call was made while disconnected */
+	TEST_ASSERT_EQUAL(0, nrf_cloud_coap_agnss_data_get_fake.call_count);
+
+	/* Connect to cloud - the cached A-GNSS request should be sent */
+	setup_cloud();
+	wait_for_processing();
+
+	/* Verify the cached A-GNSS request was sent after connecting */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_agnss_data_get_fake.call_count);
+	TEST_ASSERT_EQUAL(1, location_agnss_data_process_fake.call_count);
 }
 
 /* This is required to be added to each test. That is because unity's
