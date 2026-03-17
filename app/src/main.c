@@ -108,6 +108,7 @@ static void timer_sample_start(uint32_t delay_sec);
 static void timer_send_data_start(uint32_t delay_sec);
 static void timer_sample_stop(void);
 static void timer_send_data_stop(void);
+static void gnss_enable(void);
 
 /* Delayable work used to schedule triggers */
 static K_WORK_DELAYABLE_DEFINE(timer_send_data_work, timer_send_data_work_fn);
@@ -440,6 +441,10 @@ static void sampling_begin_common(struct main_state *state_object,
 #endif /* CONFIG_APP_LED */
 
 	state_object->sample_start_time = k_uptime_seconds();
+
+	if (IS_ENABLED(CONFIG_LOCATION_METHOD_GNSS)) {
+		gnss_enable();
+	}
 
 	err = zbus_chan_pub(&location_chan, &location_msg, PUB_TIMEOUT);
 	if (err) {
@@ -881,6 +886,26 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 	}
 }
 
+static void gnss_enable(void)
+{
+	int err;
+
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
+	if (err) {
+		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
+	}
+}
+
+static void gnss_disable(void)
+{
+	int err;
+
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_DEACTIVATE_GNSS);
+	if (err) {
+		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
+	}
+}
+
 /* Zephyr State Machine framework handlers */
 
 /* STATE_RUNNING - Top level state */
@@ -919,6 +944,70 @@ static enum smf_state_result running_run(void *o)
 			 * connection.
 			 */
 			state_object->cloud_synced_on_connect = false;
+		}
+		}
+
+	if (state_object->chan == &network_chan) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		if (msg.type == NETWORK_LOCATION_NEEDED) {
+			int err;
+			struct location_msg location_msg = {
+				.type = LOCATION_GNSS_SEARCH_TRIGGER,
+			};
+
+			/* Ensure GNSS is enabled */
+			gnss_enable();
+
+			LOG_DBG("Received NETWORK_LOCATION_NEEDED event, requesting GNSS location");
+
+			err = zbus_chan_pub(&location_chan, &location_msg, PUB_TIMEOUT);
+			if (err) {
+				LOG_ERR("zbus_chan_pub error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	if (state_object->chan == &location_chan) {
+		const struct location_msg *location_msg =
+			MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+
+		if (location_msg->type == LOCATION_GNSS_SEARCH_FAILED) {
+			int err;
+			struct network_msg network_msg = {
+				.type = NETWORK_LOCATION_FAILED,
+			};
+
+			gnss_disable();
+
+			err = zbus_chan_pub(&network_chan, &network_msg, PUB_TIMEOUT);
+			if (err) {
+				LOG_ERR("zbus_chan_pub error: %d", err);
+
+				return SMF_EVENT_HANDLED;
+			}
+		} else if (location_msg->type == LOCATION_GNSS_DATA) {
+			int err;
+			struct network_msg network_msg = {
+				.type = NETWORK_LOCATION_DATA,
+				.location = {
+					.latitude = location_msg->gnss_data.latitude,
+					.longitude = location_msg->gnss_data.longitude,
+					.altitude =
+					location_msg->gnss_data.details.gnss.pvt_data.altitude,
+				},
+			};
+
+			gnss_disable();
+
+			err = zbus_chan_pub(&network_chan, &network_msg, PUB_TIMEOUT);
+			if (err) {
+				LOG_ERR("zbus_chan_pub error: %d", err);
+				SEND_FATAL_ERROR();
+			}
 		}
 	}
 
