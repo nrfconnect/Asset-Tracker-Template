@@ -70,7 +70,7 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
         reset_device()
 
         # Wait for storage automount
-        dut_cloud.uart.wait_for_str("/att_storage automounted", timeout=60)
+        dut_cloud.uart.wait_for_str("Automount /att_storage succeeded", timeout=60)
 
         # Clear buffer
         dut_cloud.uart.write(clear_str)
