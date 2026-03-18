@@ -24,6 +24,9 @@
 #endif /* CONFIG_MEMFAULT */
 
 #include "app_common.h"
+#ifdef CONFIG_APP_INSPECT_SHELL
+#include "app_inspect.h"
+#endif /* CONFIG_APP_INSPECT_SHELL */
 #include "cloud.h"
 #include "cloud_internal.h"
 #include "cloud_configuration.h"
@@ -236,6 +239,41 @@ static const struct smf_state states[] = {
 				 &states[STATE_CONNECTED],
 				 NULL),
 };
+
+#if defined(CONFIG_APP_INSPECT_SHELL)
+static struct cloud_state_object *cloud_state_ctx;
+
+static const char *cloud_state_to_string(enum cloud_module_state state)
+{
+	switch (state) {
+	case STATE_RUNNING:
+		return "STATE_RUNNING";
+	case STATE_DISCONNECTED:
+		return "STATE_DISCONNECTED";
+	case STATE_CONNECTING:
+		return "STATE_CONNECTING";
+	case STATE_CONNECTING_ATTEMPT:
+		return "STATE_CONNECTING_ATTEMPT";
+	case STATE_PROVISIONED:
+		return "STATE_PROVISIONED";
+	case STATE_PROVISIONING:
+		return "STATE_PROVISIONING";
+	case STATE_CONNECTING_BACKOFF:
+		return "STATE_CONNECTING_BACKOFF";
+	case STATE_CONNECTED:
+		return "STATE_CONNECTED";
+	case STATE_CONNECTED_READY:
+		return "STATE_CONNECTED_READY";
+	case STATE_CONNECTED_PAUSED:
+		return "STATE_CONNECTED_PAUSED";
+	default:
+		return "STATE_UNKNOWN";
+	}
+}
+
+APP_INSPECT_MODULE_REGISTER_STATE(cloud, cloud_state_ctx, states,
+					  enum cloud_module_state, cloud_state_to_string);
+#endif /* CONFIG_APP_INSPECT_SHELL */
 
 static void cloud_wdt_callback(int channel_id, void *user_data)
 {
@@ -1228,6 +1266,10 @@ static void cloud_module_thread(void)
 		(CONFIG_APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	static struct cloud_state_object cloud_state;
+
+#if defined(CONFIG_APP_INSPECT_SHELL)
+	cloud_state_ctx = &cloud_state;
+#endif /* CONFIG_APP_INSPECT_SHELL */
 
 	LOG_DBG("Cloud module task started");
 

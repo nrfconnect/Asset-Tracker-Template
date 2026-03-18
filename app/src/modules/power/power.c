@@ -26,6 +26,9 @@
 
 #include "lp803448_model.h"
 #include "app_common.h"
+#ifdef CONFIG_APP_INSPECT_SHELL
+#include "app_inspect.h"
+#endif /* CONFIG_APP_INSPECT_SHELL */
 #include "power.h"
 #include "fuel_gauge_state.h"
 
@@ -176,6 +179,28 @@ static const struct smf_state states[] = {
 				 NULL,
 				 NULL),
 };
+
+#if defined(CONFIG_APP_INSPECT_SHELL)
+static struct power_state_object *power_state_ctx;
+
+static const char *power_state_to_string(enum power_module_state state)
+{
+	switch (state) {
+	case STATE_WAITING_FOR_MODEM_INIT:
+		return "STATE_WAITING_FOR_MODEM_INIT";
+	case STATE_RUNNING:
+		return "STATE_RUNNING";
+	default:
+		return "STATE_UNKNOWN";
+	}
+}
+
+APP_INSPECT_MODULE_REGISTER_STATE(power,
+				  power_state_ctx,
+				  states,
+				  enum power_module_state,
+				  power_state_to_string);
+#endif /* CONFIG_APP_INSPECT_SHELL */
 
 /* State handlers */
 
@@ -589,6 +614,10 @@ static void power_module_thread(void)
 		(CONFIG_APP_POWER_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	static struct power_state_object power_state;
+
+#if defined(CONFIG_APP_INSPECT_SHELL)
+	power_state_ctx = &power_state;
+#endif /* CONFIG_APP_INSPECT_SHELL */
 
 	LOG_DBG("Power module task started");
 

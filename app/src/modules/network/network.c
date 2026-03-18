@@ -15,6 +15,9 @@
 #include "modem/lte_lc.h"
 #include "modem/modem_info.h"
 #include "app_common.h"
+#ifdef CONFIG_APP_INSPECT_SHELL
+#include "app_inspect.h"
+#endif /* CONFIG_APP_INSPECT_SHELL */
 #include "network.h"
 
 /* Register log module */
@@ -125,6 +128,37 @@ static const struct smf_state states[] = {
 				 &states[STATE_RUNNING],
 				 NULL), /* No initial transition */
 };
+
+#if defined(CONFIG_APP_INSPECT_SHELL)
+static struct network_state_object *network_state_ctx;
+
+static const char *network_state_to_string(enum network_module_state state)
+{
+	switch (state) {
+	case STATE_RUNNING:
+		return "STATE_RUNNING";
+	case STATE_DISCONNECTED:
+		return "STATE_DISCONNECTED";
+	case STATE_DISCONNECTED_IDLE:
+		return "STATE_DISCONNECTED_IDLE";
+	case STATE_DISCONNECTED_SEARCHING:
+		return "STATE_DISCONNECTED_SEARCHING";
+	case STATE_CONNECTED:
+		return "STATE_CONNECTED";
+	case STATE_DISCONNECTING:
+		return "STATE_DISCONNECTING";
+	default:
+		return "STATE_UNKNOWN";
+	}
+}
+
+APP_INSPECT_MODULE_REGISTER_STATE(
+				  network,
+				  network_state_ctx,
+				  states,
+				  enum network_module_state,
+				  network_state_to_string);
+#endif /* CONFIG_APP_INSPECT_SHELL */
 
 static void network_status_notify(enum network_msg_type status)
 {
@@ -534,6 +568,10 @@ static void network_module_thread(void)
 		(CONFIG_APP_NETWORK_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	static struct network_state_object network_state;
+
+#if defined(CONFIG_APP_INSPECT_SHELL)
+	network_state_ctx = &network_state;
+#endif /* CONFIG_APP_INSPECT_SHELL */
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, network_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {

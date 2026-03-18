@@ -13,6 +13,9 @@
 #include <date_time.h>
 
 #include "app_common.h"
+#ifdef CONFIG_APP_INSPECT_SHELL
+#include "app_inspect.h"
+#endif /* CONFIG_APP_INSPECT_SHELL */
 #include "environmental.h"
 
 /* Register log module */
@@ -77,6 +80,26 @@ static enum smf_state_result state_running_run(void *obj);
 static const struct smf_state states[] = {
 	[STATE_RUNNING] = SMF_CREATE_STATE(NULL, state_running_run, NULL, NULL, NULL),
 };
+
+#if defined(CONFIG_APP_INSPECT_SHELL)
+static struct environmental_state_object *environmental_state_ctx;
+
+static const char *environmental_state_to_string(enum environmental_module_state state)
+{
+	switch (state) {
+	case STATE_RUNNING:
+		return "STATE_RUNNING";
+	default:
+		return "STATE_UNKNOWN";
+	}
+}
+
+APP_INSPECT_MODULE_REGISTER_STATE(env,
+				  environmental_state_ctx,
+				  states,
+				  enum environmental_module_state,
+				  environmental_state_to_string);
+#endif /* CONFIG_APP_INSPECT_SHELL */
 
 static void sample_sensors(const struct device *const bme680)
 {
@@ -180,6 +203,10 @@ static void env_module_thread(void)
 	static struct environmental_state_object environmental_state = {
 		.bme680 = DEVICE_DT_GET(DT_NODELABEL(bme680)),
 	};
+
+#if defined(CONFIG_APP_INSPECT_SHELL)
+	environmental_state_ctx = &environmental_state;
+#endif /* CONFIG_APP_INSPECT_SHELL */
 
 	LOG_DBG("Environmental module task started");
 

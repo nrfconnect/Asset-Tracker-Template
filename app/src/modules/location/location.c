@@ -16,6 +16,9 @@
 #include <modem/nrf_modem_lib.h>
 
 #include "app_common.h"
+#ifdef CONFIG_APP_INSPECT_SHELL
+#include "app_inspect.h"
+#endif /* CONFIG_APP_INSPECT_SHELL */
 #include "modem/lte_lc.h"
 #include "location.h"
 #include "location_helper.h"
@@ -168,6 +171,32 @@ static const struct smf_state states[] = {
 				 &states[STATE_RUNNING],
 				 NULL),
 };
+
+#if defined(CONFIG_APP_INSPECT_SHELL)
+static struct location_state_object *location_state_ctx;
+
+static const char *location_state_to_string(enum location_module_state state)
+{
+	switch (state) {
+	case STATE_WAITING_FOR_CFUN:
+		return "STATE_WAITING_FOR_CFUN";
+	case STATE_RUNNING:
+		return "STATE_RUNNING";
+	case STATE_LOCATION_SEARCH_INACTIVE:
+		return "STATE_LOCATION_SEARCH_INACTIVE";
+	case STATE_LOCATION_SEARCH_ACTIVE:
+		return "STATE_LOCATION_SEARCH_ACTIVE";
+	default:
+		return "STATE_UNKNOWN";
+	}
+}
+
+APP_INSPECT_MODULE_REGISTER_STATE(location,
+				  location_state_ctx,
+				  states,
+				  enum location_module_state,
+				  location_state_to_string);
+#endif /* CONFIG_APP_INSPECT_SHELL */
 
 static void location_wdt_callback(int channel_id, void *user_data)
 {
@@ -555,6 +584,10 @@ static void location_module_thread(void)
 		(CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	static struct location_state_object location_state;
+
+#if defined(CONFIG_APP_INSPECT_SHELL)
+	location_state_ctx = &location_state;
+#endif /* CONFIG_APP_INSPECT_SHELL */
 
 	LOG_DBG("Location module task started");
 

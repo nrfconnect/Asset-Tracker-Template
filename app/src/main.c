@@ -13,6 +13,9 @@
 #include <zephyr/sys/reboot.h>
 
 #include "app_common.h"
+#ifdef CONFIG_APP_INSPECT_SHELL
+#include "app_inspect.h"
+#endif /* CONFIG_APP_INSPECT_SHELL */
 #include "button.h"
 #include "modules/button/button.h"
 #include "modules/storage/storage.h"
@@ -379,6 +382,54 @@ static const struct smf_state states[] = {
 		NULL
 	),
 };
+
+#if defined(CONFIG_APP_INSPECT_SHELL)
+static struct main_state *main_state_ctx;
+
+static const char *main_state_to_string(enum app_state state)
+{
+	switch (state) {
+	case STATE_WAITING_FOR_MODULES_INIT:
+		return "STATE_WAITING_FOR_MODULES_INIT";
+	case STATE_RUNNING:
+		return "STATE_RUNNING";
+	case STATE_DISCONNECTED:
+		return "STATE_DISCONNECTED";
+	case STATE_DISCONNECTED_SAMPLING:
+		return "STATE_DISCONNECTED_SAMPLING";
+	case STATE_DISCONNECTED_WAITING:
+		return "STATE_DISCONNECTED_WAITING";
+	case STATE_CONNECTED:
+		return "STATE_CONNECTED";
+	case STATE_CONNECTED_SAMPLING:
+		return "STATE_CONNECTED_SAMPLING";
+	case STATE_CONNECTED_WAITING:
+		return "STATE_CONNECTED_WAITING";
+	case STATE_CONNECTED_SENDING:
+		return "STATE_CONNECTED_SENDING";
+	case STATE_FOTA:
+		return "STATE_FOTA";
+	case STATE_FOTA_DOWNLOADING:
+		return "STATE_FOTA_DOWNLOADING";
+	case STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT:
+		return "STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT";
+	case STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE:
+		return "STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE";
+	case STATE_FOTA_APPLYING_IMAGE:
+		return "STATE_FOTA_APPLYING_IMAGE";
+	case STATE_FOTA_REBOOTING:
+		return "STATE_FOTA_REBOOTING";
+	default:
+		return "STATE_UNKNOWN";
+	}
+}
+
+APP_INSPECT_MODULE_REGISTER_STATE(main,
+				  main_state_ctx,
+				  states,
+				  enum app_state,
+				  main_state_to_string);
+#endif /* CONFIG_APP_INSPECT_SHELL */
 
 /* Static helper function */
 
@@ -1759,6 +1810,10 @@ int main(void)
 		(CONFIG_APP_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	static struct main_state main_state;
+
+#if defined(CONFIG_APP_INSPECT_SHELL)
+	main_state_ctx = &main_state;
+#endif /* CONFIG_APP_INSPECT_SHELL */
 
 	main_state.sample_interval_sec = CONFIG_APP_SAMPLING_INTERVAL_SECONDS;
 	main_state.update_interval_sec = CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS;

@@ -17,6 +17,9 @@
 #include "storage_backend.h"
 #include "storage_data_types.h"
 #include "app_common.h"
+#ifdef CONFIG_APP_INSPECT_SHELL
+#include "app_inspect.h"
+#endif /* CONFIG_APP_INSPECT_SHELL */
 
 #ifdef CONFIG_APP_POWER
 #include "power.h"
@@ -200,6 +203,28 @@ static const struct smf_state states[] = {
 				 &states[STATE_RUNNING],
 				 NULL),
 };
+
+#if defined(CONFIG_APP_INSPECT_SHELL)
+static struct storage_state *storage_state_ctx;
+
+static const char *storage_state_to_string(enum storage_module_state state)
+{
+	switch (state) {
+	case STATE_RUNNING:
+		return "STATE_RUNNING";
+	case STATE_BUFFER_IDLE:
+		return "STATE_BUFFER_IDLE";
+	case STATE_BUFFER_PIPE_ACTIVE:
+		return "STATE_BUFFER_PIPE_ACTIVE";
+	default:
+		return "STATE_UNKNOWN";
+	}
+}
+
+APP_INSPECT_MODULE_REGISTER_STATE(storage, storage_state_ctx,
+					  states, enum storage_module_state,
+					  storage_state_to_string);
+#endif /* CONFIG_APP_INSPECT_SHELL */
 
 /* Static helper functions */
 static void task_wdt_callback(int channel_id, void *user_data)
@@ -968,6 +993,10 @@ static void storage_thread(void)
 		(CONFIG_APP_STORAGE_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	static struct storage_state storage_state;
+
+#if defined(CONFIG_APP_INSPECT_SHELL)
+	storage_state_ctx = &storage_state;
+#endif /* CONFIG_APP_INSPECT_SHELL */
 
 	storage_state.buffer_threshold_limit = CONFIG_APP_STORAGE_INITIAL_THRESHOLD;
 

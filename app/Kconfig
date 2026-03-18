@@ -17,6 +17,7 @@ rsource "src/modules/environmental/Kconfig.environmental"
 rsource "src/modules/button/Kconfig.button"
 rsource "src/modules/storage/Kconfig.storage"
 rsource "src/modules/sgp4/Kconfig.sgp4"
+rsource "src/inspect/Kconfig.inspect"
 endmenu
 
 menu "Zephyr Kernel"
