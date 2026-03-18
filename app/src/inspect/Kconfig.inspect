@@ -1,0 +1,16 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menu "Inspect"
+
+config APP_INSPECT_SHELL
+	bool "Inspect shell command"
+	depends on SHELL
+	default y
+	help
+	  Enable the 'att_inspect' shell command.
+
+endmenu # Inspect
