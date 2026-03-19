@@ -31,7 +31,7 @@ Each firmware variant includes the following set of artifacts:
 
 | **Artifact name** | **Hardware platform** | **Description** | **Use case** |
 |-------------------|----------------------|----------------|--------------|
-| `asset-tracker-template-{VERSION}-debug-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | Debug build with enhanced logging and diagnostic features. **Note: This build uploads diagnostic and crash data to Memfault using Nordic's account and is intended for internal use only.** | Development debugging and issue investigation |
+| `asset-tracker-template-{VERSION}-debug-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | Debug build with enhanced logging and diagnostic features. Includes Memfault integration for crash reporting and device monitoring. Diagnostic data is routed via CoAP to the Memfault project linked to your nRF Cloud account. | Development debugging and issue investigation |
 
 #### Specialized configuration variants
 
