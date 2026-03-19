@@ -101,7 +101,7 @@ ZBUS_CHAN_DEFINE(priv_main_chan,
 #define CHANNEL_LIST(X)						\
 	X(cloud_chan,		struct cloud_msg)		\
 	X(button_chan,		struct button_msg)		\
-	X(fota_chan,		enum fota_msg_type)		\
+	X(fota_chan,		struct fota_msg)		\
 	X(network_chan,		struct network_msg)		\
 	X(location_chan,	struct location_msg)		\
 	X(storage_chan,		struct storage_msg)		\
@@ -468,7 +468,7 @@ static void poll_shadow_send(enum cloud_msg_type type)
 static void poll_triggers_send(void)
 {
 	int err;
-	enum fota_msg_type fota_msg = FOTA_POLL_REQUEST;
+	struct fota_msg fota_msg = { .type = FOTA_POLL_REQUEST };
 
 	err = zbus_chan_pub(&fota_chan, &fota_msg, PUB_TIMEOUT);
 	if (err) {
@@ -1156,7 +1156,7 @@ static void connected_entry(void *o)
 	if (!state_object->cloud_synced_on_connect) {
 
 		int err;
-		enum fota_msg_type fota_msg = FOTA_POLL_REQUEST;
+		struct fota_msg fota_msg = { .type = FOTA_POLL_REQUEST };
 		struct cloud_msg cloud_msg = {
 			.type = CLOUD_SHADOW_UPDATE_REPORTED_DEVICE
 		};
@@ -1742,7 +1742,7 @@ static void fota_applying_image_entry(void *o)
 	LOG_DBG("%s", __func__);
 
 	int err;
-	enum fota_msg_type msg = FOTA_IMAGE_APPLY;
+	struct fota_msg msg = { .type = FOTA_IMAGE_APPLY };
 
 	err = zbus_chan_pub(&fota_chan, &msg, PUB_TIMEOUT);
 	if (err) {

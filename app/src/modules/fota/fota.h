@@ -64,7 +64,11 @@ enum fota_msg_type {
 	FOTA_DOWNLOAD_CANCEL,
 };
 
-#define MSG_TO_FOTA_TYPE(_msg) (*(const enum fota_msg_type *)_msg)
+struct fota_msg {
+	enum fota_msg_type type;
+};
+
+#define MSG_TO_FOTA_TYPE(_msg) (((const struct fota_msg *)_msg)->type)
 
 #ifdef __cplusplus
 }
