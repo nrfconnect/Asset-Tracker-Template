@@ -1,16 +1,30 @@
 # Asset Tracker Template
 
-**Oncommit**
-
-[![Target tests](https://github.com/nrfconnect/Asset-Tracker-Template/actions/workflows/build-and-target-test.yml/badge.svg)](https://github.com/nrfconnect/Asset-Tracker-Template/actions/workflows/build-and-target-test.yml)
-
-**Nightly**
-
-[![Target_tests](https://github.com/nrfconnect/Asset-Tracker-Template/actions/workflows/build-and-target-test.yml/badge.svg?event=schedule)](https://github.com/nrfconnect/Asset-Tracker-Template/actions/workflows/build-and-target-test.yml?query=branch%3Amain+event%3Aschedule)
-[![Power Consumption Badge](https://img.shields.io/endpoint?url=https://nrfconnect.github.io/Asset-Tracker-Template/power_badge.json)](https://nrfconnect.github.io/Asset-Tracker-Template/power_measurements_plot.html)
-
-[![RAM Usage thingy91x](https://img.shields.io/endpoint?url=https://nrfconnect.github.io/Asset-Tracker-Template/ram_badge.json)](https://nrfconnect.github.io/Asset-Tracker-Template/ram_memory_view.html)
-[![FLASH Usage thingy91x](https://img.shields.io/endpoint?url=https://nrfconnect.github.io/Asset-Tracker-Template/flash_badge.json)](https://nrfconnect.github.io/Asset-Tracker-Template/flash_memory_view.html)
+<table>
+  <tr>
+    <th>Project</th>
+    <td>
+      <a href="https://github.com/nrfconnect/Asset-Tracker-Template/releases"><img src="https://img.shields.io/github/v/release/nrfconnect/Asset-Tracker-Template" alt="Release"></a>
+      <a href="https://sonarcloud.io/dashboard?id=nrfconnect_Asset-Tracker-Template"><img src="https://sonarcloud.io/api/project_badges/measure?project=nrfconnect_Asset-Tracker-Template&metric=alert_status" alt="Quality Gate"></a>
+      <a href="https://sonarcloud.io/dashboard?id=nrfconnect_Asset-Tracker-Template"><img src="https://sonarcloud.io/api/project_badges/measure?project=nrfconnect_Asset-Tracker-Template&metric=coverage" alt="Coverage"></a>
+    </td>
+  </tr>
+  <tr>
+    <th>CI</th>
+    <td>
+      <a href="https://github.com/nrfconnect/Asset-Tracker-Template/actions/workflows/build-and-target-test.yml?query=branch%3Amain+event%3Apush"><img src="https://img.shields.io/github/actions/workflow/status/nrfconnect/Asset-Tracker-Template/build-and-target-test.yml?event=push&branch=main&label=on-commit" alt="On-commit"></a>
+      <a href="https://github.com/nrfconnect/Asset-Tracker-Template/actions/workflows/build-and-target-test.yml?query=branch%3Amain+event%3Aschedule"><img src="https://img.shields.io/github/actions/workflow/status/nrfconnect/Asset-Tracker-Template/build-and-target-test.yml?event=schedule&branch=main&label=nightly" alt="Nightly"></a>
+    </td>
+  </tr>
+  <tr>
+    <th>Metrics</th>
+    <td>
+      <a href="https://nrfconnect.github.io/Asset-Tracker-Template/power_measurements_plot.html"><img src="https://img.shields.io/endpoint?url=https://nrfconnect.github.io/Asset-Tracker-Template/power_badge.json" alt="PSM Current"></a>
+      <a href="https://nrfconnect.github.io/Asset-Tracker-Template/ram_memory_view.html"><img src="https://img.shields.io/endpoint?url=https://nrfconnect.github.io/Asset-Tracker-Template/ram_badge.json" alt="RAM Usage thingy91x"></a>
+      <a href="https://nrfconnect.github.io/Asset-Tracker-Template/flash_memory_view.html"><img src="https://img.shields.io/endpoint?url=https://nrfconnect.github.io/Asset-Tracker-Template/flash_badge.json" alt="FLASH Usage thingy91x"></a>
+    </td>
+  </tr>
+</table>
 
 ## Overview
 
