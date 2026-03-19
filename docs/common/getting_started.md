@@ -124,8 +124,10 @@ You can build the application with different overlays to enable or disable certa
 Debug build with Memfault:
 
 ```shell
-west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.conf;overlay-upload-modem-traces-to-memfault.conf" -DCONFIG_MEMFAULT_NCS_PROJECT_KEY=\"memfault-project-key\"
+west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.conf;overlay-upload-modem-traces-to-memfault.conf"
 ```
+
+> Note: By default, Memfault data is routed via CoAP to the Memfault project linked to your provisioned nRF Cloud account (see below for provisioning steps). To override this, set `CONFIG_MEMFAULT_NCS_PROJECT_KEY="YOUR_PROJECT_KEY"`.
 
 ## Provision device to nRF Cloud
 
