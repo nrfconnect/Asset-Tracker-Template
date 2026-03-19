@@ -76,7 +76,7 @@ To add a new zbus event, complete the following procedure:
     #define CHANNEL_LIST(X)      \
     X(cloud_chan,  struct cloud_msg)  \
     X(button_chan,  struct button_msg)  \
-    X(fota_chan,  enum fota_msg_type)  \
+    X(fota_chan,  struct fota_msg)  \
     X(network_chan,  struct network_msg)  \
     X(location_chan, struct location_msg)  \
     X(storage_chan,  struct storage_msg)  \

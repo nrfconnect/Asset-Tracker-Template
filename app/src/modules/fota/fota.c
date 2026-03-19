@@ -38,7 +38,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(fota);
 
 /* Define FOTA channel */
 ZBUS_CHAN_DEFINE(fota_chan,
-		 enum fota_msg_type,
+		 struct fota_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
@@ -64,7 +64,7 @@ ZBUS_CHAN_DEFINE(priv_fota_chan,
  * and the subscriber that will receive the messages on the channel.
  */
 #define CHANNEL_LIST(X)							\
-	X(fota_chan,		enum fota_msg_type)			\
+	X(fota_chan,		struct fota_msg)				\
 	X(priv_fota_chan,	enum priv_fota_msg)			\
 
 /* Calculate the maximum message size from the list of channels */
@@ -261,7 +261,7 @@ NRF_MODEM_LIB_ON_INIT(fota_modem_init_hook, on_modem_init, NULL);
 static void fota_reboot(enum nrf_cloud_fota_reboot_status status)
 {
 	int err;
-	enum fota_msg_type evt = FOTA_SUCCESS_REBOOT_NEEDED;
+	struct fota_msg evt = { .type = FOTA_SUCCESS_REBOOT_NEEDED };
 
 	LOG_DBG("Reboot requested with FOTA status %d", status);
 
@@ -275,7 +275,7 @@ static void fota_reboot(enum nrf_cloud_fota_reboot_status status)
 static void fota_status(enum nrf_cloud_fota_status status, const char *const status_details)
 {
 	int err;
-	enum fota_msg_type evt = { 0 };
+	struct fota_msg evt = { 0 };
 
 	LOG_DBG("FOTA status: %d, details: %s", status, status_details ? status_details : "None");
 
@@ -283,27 +283,27 @@ static void fota_status(enum nrf_cloud_fota_status status, const char *const sta
 	case NRF_CLOUD_FOTA_DOWNLOADING:
 		LOG_DBG("Downloading firmware update");
 
-		evt = FOTA_DOWNLOADING_UPDATE;
+		evt.type = FOTA_DOWNLOADING_UPDATE;
 		break;
 	case NRF_CLOUD_FOTA_FAILED:
 		LOG_WRN("Firmware download failed");
 
-		evt = FOTA_DOWNLOAD_FAILED;
+		evt.type = FOTA_DOWNLOAD_FAILED;
 		break;
 	case NRF_CLOUD_FOTA_CANCELED:
 		LOG_WRN("Firmware download canceled");
 
-		evt = FOTA_DOWNLOAD_CANCELED;
+		evt.type = FOTA_DOWNLOAD_CANCELED;
 		break;
 	case NRF_CLOUD_FOTA_REJECTED:
 		LOG_WRN("Firmware update rejected");
 
-		evt = FOTA_DOWNLOAD_REJECTED;
+		evt.type = FOTA_DOWNLOAD_REJECTED;
 		break;
 	case NRF_CLOUD_FOTA_TIMED_OUT:
 		LOG_WRN("Firmware download timed out");
 
-		evt = FOTA_DOWNLOAD_TIMED_OUT;
+		evt.type = FOTA_DOWNLOAD_TIMED_OUT;
 		break;
 	case NRF_CLOUD_FOTA_SUCCEEDED:
 		LOG_DBG("Firmware update succeeded");
@@ -316,7 +316,7 @@ static void fota_status(enum nrf_cloud_fota_status status, const char *const sta
 	case NRF_CLOUD_FOTA_FMFU_VALIDATION_NEEDED:
 		LOG_DBG("Full Modem FOTA Update validation needed, network disconnect required");
 
-		evt = FOTA_IMAGE_APPLY_NEEDED;
+		evt.type = FOTA_IMAGE_APPLY_NEEDED;
 		break;
 	default:
 		LOG_DBG("Unknown FOTA status: %d", status);
@@ -401,7 +401,7 @@ static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
 				SEND_FATAL_ERROR();
 			}
 
-			const enum fota_msg_type msg = FOTA_MODULE_READY;
+			const struct fota_msg msg = { .type = FOTA_MODULE_READY };
 
 			err = zbus_chan_pub(&fota_chan, &msg, PUB_TIMEOUT);
 			if (err) {
@@ -464,7 +464,7 @@ static void state_polling_for_update_entry(void *obj)
 	} else if (err) {
 		LOG_DBG("No FOTA job available");
 
-		enum fota_msg_type evt = FOTA_NO_AVAILABLE_UPDATE;
+		struct fota_msg evt = { .type = FOTA_NO_AVAILABLE_UPDATE };
 
 		err = zbus_chan_pub(&fota_chan, &evt, PUB_TIMEOUT);
 		if (err) {

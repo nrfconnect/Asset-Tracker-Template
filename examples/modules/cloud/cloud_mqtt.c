@@ -24,7 +24,7 @@
 #include "fota.h"
 
 ZBUS_CHAN_DEFINE(fota_chan,
-		 enum fota_msg_type,
+		 struct fota_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
