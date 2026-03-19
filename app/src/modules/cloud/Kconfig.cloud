@@ -140,6 +140,14 @@ config APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS
 	  Maximum time allowed for processing a single message in the module's state machine.
 	  The value must be smaller than CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS.
 
+if MEMFAULT
+
+# Set Memfault software_version prefix from the VERSION file in the application
+config MEMFAULT_NCS_FW_VERSION_PREFIX
+	default "$(APPVERSION)+" if "$(APPVERSION)" != ""
+
+endif # MEMFAULT
+
 module = APP_CLOUD
 module-str = Cloud
 source "subsys/logging/Kconfig.template.log_config"
