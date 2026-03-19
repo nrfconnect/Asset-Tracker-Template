@@ -121,12 +121,12 @@ int priv_expect_fota_event(void)
 {
 	int err;
 	const struct zbus_channel *chan;
-	enum fota_msg_type fota_msg_type;
+	struct fota_msg fota_msg;
 
 	/* Allow the test thread to sleep so that the DUT's thread is allowed to run. */
 	k_sleep(K_MSEC(100));
 
-	err = zbus_sub_wait_msg(&fota_subscriber, &chan, &fota_msg_type, K_MSEC(100000));
+	err = zbus_sub_wait_msg(&fota_subscriber, &chan, &fota_msg, K_MSEC(100000));
 	if (err == -ENOMSG) {
 		LOG_ERR("No FOTA event received");
 		return -1;
@@ -141,7 +141,7 @@ int priv_expect_fota_event(void)
 		return -3;
 	}
 
-	return fota_msg_type;
+	return fota_msg.type;
 }
 
 int priv_expect_storage_event(void)
@@ -289,9 +289,9 @@ static void expect_no_fota_events(void)
 {
 	int err;
 	const struct zbus_channel *chan;
-	enum fota_msg_type fota_msg_type;
+	struct fota_msg fota_msg;
 
-	err = zbus_sub_wait_msg(&fota_subscriber, &chan, &fota_msg_type, K_MSEC(10000));
+	err = zbus_sub_wait_msg(&fota_subscriber, &chan, &fota_msg, K_MSEC(10000));
 	if (err == -ENOMSG) {
 		return;
 	} else if (err) {
@@ -301,7 +301,7 @@ static void expect_no_fota_events(void)
 		return;
 	}
 
-	LOG_ERR("Received unexpected FOTA event: %d", fota_msg_type);
+	LOG_ERR("Received unexpected FOTA event: %d", fota_msg.type);
 	TEST_FAIL();
 }
 
@@ -440,9 +440,9 @@ void purge_fota_events(void)
 	while (true) {
 		int err;
 		const struct zbus_channel *chan;
-		enum fota_msg_type fota_msg_type;
+		struct fota_msg fota_msg;
 
-		err = zbus_sub_wait_msg(&fota_subscriber, &chan, &fota_msg_type, K_NO_WAIT);
+		err = zbus_sub_wait_msg(&fota_subscriber, &chan, &fota_msg, K_NO_WAIT);
 		if (err == -ENOMSG) {
 			break;
 		} else if (err) {

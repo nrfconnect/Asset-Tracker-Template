@@ -73,7 +73,7 @@ ZBUS_CHAN_DEFINE(environmental_chan,
 	ZBUS_MSG_INIT(0)
 );
 ZBUS_CHAN_DEFINE(fota_chan,
-	enum fota_msg_type,
+	struct fota_msg,
 	NULL,
 	NULL,
 	ZBUS_OBSERVERS_EMPTY,
@@ -213,11 +213,12 @@ static void send_storage_batch_close(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-static void send_fota_msg(enum fota_msg_type msg)
+static void send_fota_msg(enum fota_msg_type msg_type)
 {
 	int err;
+	struct fota_msg msg = { .type = msg_type };
 
-	LOG_INF("Sending FOTA message: %d", msg);
+	LOG_INF("Sending FOTA message: %d", msg_type);
 
 	err = zbus_chan_pub(&fota_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);

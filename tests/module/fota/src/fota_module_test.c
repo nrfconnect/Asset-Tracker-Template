@@ -69,7 +69,7 @@ void setUp(void)
 	nrf_cloud_fota_poll_init_fake.custom_fake = init_custom_fake;
 
 	const struct zbus_channel *chan;
-	enum fota_msg_type received_msg;
+	struct fota_msg received_msg;
 
 	while (zbus_sub_wait_msg(&fota_subscriber, &chan, &received_msg, K_NO_WAIT) == 0) {
 		/* Purge all messages from the channel */
@@ -99,7 +99,7 @@ static void event_expect(enum fota_msg_type expected_fota_type)
 {
 	int err;
 	const struct zbus_channel *chan;
-	enum fota_msg_type fota_msg;
+	struct fota_msg fota_msg;
 
 	err = zbus_sub_wait_msg(&fota_subscriber, &chan, &fota_msg, K_MSEC(1000));
 	if (err == -ENOMSG) {
@@ -117,28 +117,29 @@ static void event_expect(enum fota_msg_type expected_fota_type)
 		TEST_FAIL();
 	}
 
-	TEST_ASSERT_EQUAL(expected_fota_type, fota_msg);
+	TEST_ASSERT_EQUAL(expected_fota_type, fota_msg.type);
 }
 
 static void no_events_expect(uint32_t time_in_seconds)
 {
 	int err;
 	const struct zbus_channel *chan;
-	enum fota_msg_type fota_msg;
+	struct fota_msg fota_msg;
 
 	/* Allow the test thread to sleep so that the DUT's thread is allowed to run. */
 	k_sleep(K_SECONDS(time_in_seconds));
 
 	err = zbus_sub_wait_msg(&fota_subscriber, &chan, &fota_msg, K_MSEC(1000));
 	if (err == 0) {
-		LOG_ERR("Received fota event with type %d", fota_msg);
+		LOG_ERR("Received fota event with type %d", fota_msg.type);
 		TEST_FAIL();
 	}
 }
 
 static void event_send(enum fota_msg_type msg)
 {
-	int err = zbus_chan_pub(&fota_chan, &msg, K_SECONDS(1));
+	struct fota_msg fota_msg = { .type = msg };
+	int err = zbus_chan_pub(&fota_chan, &fota_msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }
