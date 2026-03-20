@@ -202,12 +202,12 @@ int priv_expect_timer_event(void)
 {
 	int err;
 	const struct zbus_channel *chan;
-	enum timer_msg_type timer_msg_type;
+	struct timer_msg timer_msg;
 
 	/* Allow the test thread to sleep so that the DUT's thread is allowed to run. */
 	k_sleep(K_MSEC(100));
 
-	err = zbus_sub_wait_msg(&timer_subscriber, &chan, &timer_msg_type, K_MSEC(10000));
+	err = zbus_sub_wait_msg(&timer_subscriber, &chan, &timer_msg, K_MSEC(10000));
 	if (err == -ENOMSG) {
 		LOG_ERR("No timer event received");
 		return -1;
@@ -222,7 +222,7 @@ int priv_expect_timer_event(void)
 		return -3;
 	}
 
-	return timer_msg_type;
+	return timer_msg.type;
 }
 
 static void expect_no_location_events(void)
@@ -349,9 +349,9 @@ static void expect_no_timer_events(void)
 {
 	int err;
 	const struct zbus_channel *chan;
-	enum timer_msg_type timer_msg_type;
+	struct timer_msg timer_msg;
 
-	err = zbus_sub_wait_msg(&timer_subscriber, &chan, &timer_msg_type, K_MSEC(10000));
+	err = zbus_sub_wait_msg(&timer_subscriber, &chan, &timer_msg, K_MSEC(10000));
 	if (err == -ENOMSG) {
 		return;
 	} else if (err) {
@@ -361,7 +361,7 @@ static void expect_no_timer_events(void)
 		return;
 	}
 
-	LOG_ERR("Received unexpected timer event: %d", timer_msg_type);
+	LOG_ERR("Received unexpected timer event: %d", timer_msg.type);
 	TEST_FAIL();
 }
 
@@ -497,9 +497,9 @@ void purge_timer_events(void)
 	while (true) {
 		int err;
 		const struct zbus_channel *chan;
-		enum timer_msg_type timer_msg_type;
+		struct timer_msg timer_msg;
 
-		err = zbus_sub_wait_msg(&timer_subscriber, &chan, &timer_msg_type, K_NO_WAIT);
+		err = zbus_sub_wait_msg(&timer_subscriber, &chan, &timer_msg, K_NO_WAIT);
 		if (err == -ENOMSG) {
 			break;
 		} else if (err) {

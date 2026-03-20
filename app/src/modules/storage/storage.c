@@ -93,8 +93,12 @@ BUILD_ASSERT(CONFIG_APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS >
 #define ADD_OBSERVERS(_n, _chan, _t, _dt, _c, _e) ZBUS_CHAN_ADD_OBS(_chan, storage_subscriber, 0);
 
 /* Private storage channel message types */
-enum priv_storage_msg {
+enum priv_storage_msg_type {
 	STORAGE_BATCH_SESSION_TIMEOUT,
+};
+
+struct priv_storage_msg {
+	enum priv_storage_msg_type type;
 };
 
 /* Add storage_subscriber as observer to each enabled channel.
@@ -122,11 +126,11 @@ ZBUS_CHAN_DEFINE(storage_data_chan,
 
 /* Create private storage channel for internal messaging */
 ZBUS_CHAN_DEFINE(priv_storage_chan,
-		 enum priv_storage_msg,
+		 struct priv_storage_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS(storage_subscriber),
-		 STORAGE_BATCH_SESSION_TIMEOUT
+		 ZBUS_MSG_INIT(0)
 );
 
 /* Forward declarations of state handlers */
@@ -241,7 +245,7 @@ static void session_timeout_work_fn(struct k_work *work)
 	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
 	struct storage_state *state = CONTAINER_OF(dwork, struct storage_state,
 						   session_timeout_work);
-	enum priv_storage_msg msg = STORAGE_BATCH_SESSION_TIMEOUT;
+	struct priv_storage_msg msg = { .type = STORAGE_BATCH_SESSION_TIMEOUT };
 
 	if (state->current_session.session_id == 0) {
 		LOG_WRN("Session timeout fired but no active session");
@@ -944,9 +948,10 @@ static enum smf_state_result state_buffer_pipe_active_run(void *o)
 	}
 
 	if (state_object->chan == &priv_storage_chan) {
-		enum priv_storage_msg priv_msg = *(enum priv_storage_msg *)state_object->msg_buf;
+		const struct priv_storage_msg *priv_msg =
+			(const struct priv_storage_msg *)state_object->msg_buf;
 
-		if (priv_msg == STORAGE_BATCH_SESSION_TIMEOUT) {
+		if (priv_msg->type == STORAGE_BATCH_SESSION_TIMEOUT) {
 			struct storage_msg close_msg = {0};
 
 			close_msg.type = STORAGE_BATCH_CLOSE;

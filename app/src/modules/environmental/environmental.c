@@ -178,9 +178,10 @@ static enum smf_state_result state_running_run(void *obj)
 	struct environmental_state_object const *state_object = obj;
 
 	if (&environmental_chan == state_object->chan) {
-		struct environmental_msg msg = MSG_TO_ENVIRONMENTAL_MSG(state_object->msg_buf);
+		const struct environmental_msg *msg =
+			(const struct environmental_msg *)state_object->msg_buf;
 
-		if (msg.type == ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST) {
+		if (msg->type == ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST) {
 			LOG_DBG("Environmental values sample request received, getting data");
 			sample_sensors(state_object->bme680);
 

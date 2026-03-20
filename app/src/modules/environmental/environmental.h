@@ -57,8 +57,6 @@ struct environmental_msg {
 	int64_t timestamp;
 };
 
-#define MSG_TO_ENVIRONMENTAL_MSG(_msg)	(*(const struct environmental_msg *)_msg)
-
 
 #ifdef __cplusplus
 }

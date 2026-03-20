@@ -18,7 +18,7 @@ extern "C" {
  *
  * These messages are used for internal communication within the cloud module.
  */
-enum priv_cloud_msg {
+enum priv_cloud_msg_type {
 	CLOUD_CONNECTION_FAILED,
 	CLOUD_CONNECTION_SUCCESS,
 	CLOUD_NOT_AUTHENTICATED,
@@ -26,6 +26,10 @@ enum priv_cloud_msg {
 	CLOUD_PROVISIONING_FAILED,
 	CLOUD_BACKOFF_EXPIRED,
 	CLOUD_SEND_REQUEST_FAILED,
+};
+
+struct priv_cloud_msg {
+	enum priv_cloud_msg_type type;
 };
 
 /* Private cloud channel - declared in cloud.c */

@@ -19,14 +19,14 @@ LOG_MODULE_DECLARE(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 static void nrf_provisioning_callback(const struct nrf_provisioning_callback_data *event)
 {
 	int err;
-	enum priv_cloud_msg msg = CLOUD_PROVISIONING_FINISHED;
-	enum network_msg_type nw_msg = NETWORK_DISCONNECT;
+	struct priv_cloud_msg msg = { .type = CLOUD_PROVISIONING_FINISHED };
+	struct network_msg nw_msg = { .type = NETWORK_DISCONNECT };
 
 	switch (event->type) {
 	case NRF_PROVISIONING_EVENT_NEED_LTE_DEACTIVATED:
 		LOG_WRN("nRF Provisioning requires device to deactivate LTE");
 
-		nw_msg = NETWORK_DISCONNECT;
+		nw_msg.type = NETWORK_DISCONNECT;
 
 		err = zbus_chan_pub(&network_chan, &nw_msg, PUB_TIMEOUT);
 		if (err) {
@@ -38,7 +38,7 @@ static void nrf_provisioning_callback(const struct nrf_provisioning_callback_dat
 	case NRF_PROVISIONING_EVENT_NEED_LTE_ACTIVATED:
 		LOG_WRN("nRF Provisioning requires device to activate LTE");
 
-		nw_msg = NETWORK_CONNECT;
+		nw_msg.type = NETWORK_CONNECT;
 
 		err = zbus_chan_pub(&network_chan, &nw_msg, PUB_TIMEOUT);
 		if (err) {
@@ -50,7 +50,7 @@ static void nrf_provisioning_callback(const struct nrf_provisioning_callback_dat
 	case NRF_PROVISIONING_EVENT_DONE:
 		LOG_DBG("Provisioning finished");
 
-		msg = CLOUD_PROVISIONING_FINISHED;
+		msg.type = CLOUD_PROVISIONING_FINISHED;
 
 		k_sleep(K_SECONDS(10));
 
@@ -59,7 +59,7 @@ static void nrf_provisioning_callback(const struct nrf_provisioning_callback_dat
 		LOG_WRN("No commands from the nRF Provisioning Service to process");
 		LOG_WRN("Treating as provisioning finished");
 
-		msg = CLOUD_PROVISIONING_FINISHED;
+		msg.type = CLOUD_PROVISIONING_FINISHED;
 
 		/* Workaround: Wait some seconds before sending finished message.
 		 * This is needed to be able to connect to getting authorized when connecting
@@ -76,7 +76,7 @@ static void nrf_provisioning_callback(const struct nrf_provisioning_callback_dat
 		 * The process will need to be restarted via the device shadow
 		 * with an acceptable number of commands in the provisioning service list.
 		 */
-		msg = CLOUD_PROVISIONING_FINISHED;
+		msg.type = CLOUD_PROVISIONING_FINISHED;
 
 		/* Workaround: Wait some seconds before sending finished message.
 		 * This is needed to be able to connect to getting authorized when connecting
@@ -88,13 +88,13 @@ static void nrf_provisioning_callback(const struct nrf_provisioning_callback_dat
 	case NRF_PROVISIONING_EVENT_FAILED:
 		LOG_ERR("Provisioning failed");
 
-		msg = CLOUD_PROVISIONING_FAILED;
+		msg.type = CLOUD_PROVISIONING_FAILED;
 
 		break;
 	case NRF_PROVISIONING_EVENT_FAILED_NO_VALID_DATETIME:
 		LOG_ERR("Provisioning failed, no valid datetime reference");
 
-		msg = CLOUD_PROVISIONING_FAILED;
+		msg.type = CLOUD_PROVISIONING_FAILED;
 		break;
 	case NRF_PROVISIONING_EVENT_FAILED_DEVICE_NOT_CLAIMED:
 		LOG_WRN("Provisioning failed, device not claimed");
@@ -102,7 +102,7 @@ static void nrf_provisioning_callback(const struct nrf_provisioning_callback_dat
 		LOG_WRN("\r\n\n%.*s.%.*s\r\n", event->token->attest_sz, event->token->attest,
 					       event->token->cose_sz, event->token->cose);
 
-		msg = CLOUD_PROVISIONING_FAILED;
+		msg.type = CLOUD_PROVISIONING_FAILED;
 
 
 		break;

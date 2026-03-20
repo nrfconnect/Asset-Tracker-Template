@@ -46,14 +46,18 @@ ZBUS_CHAN_DEFINE(fota_chan,
 );
 
 /* Private channel message types for internal state management. */
-enum priv_fota_msg {
+enum priv_fota_msg_type {
 	/* Modem has completed initialization. */
 	FOTA_PRIV_MODEM_INITIALIZED,
 };
 
+struct priv_fota_msg {
+	enum priv_fota_msg_type type;
+};
+
 /* Create private fota channel for internal messaging that is not intended for external use. */
 ZBUS_CHAN_DEFINE(priv_fota_chan,
-		 enum priv_fota_msg,
+		 struct priv_fota_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
@@ -65,7 +69,7 @@ ZBUS_CHAN_DEFINE(priv_fota_chan,
  */
 #define CHANNEL_LIST(X)							\
 	X(fota_chan,		struct fota_msg)				\
-	X(priv_fota_chan,	enum priv_fota_msg)			\
+	X(priv_fota_chan,	struct priv_fota_msg)			\
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
@@ -235,7 +239,7 @@ APP_INSPECT_MODULE_REGISTER_STATE(fota,
 static void on_modem_init(int ret, void *ctx)
 {
 	int err;
-	enum priv_fota_msg msg = FOTA_PRIV_MODEM_INITIALIZED;
+	struct priv_fota_msg msg = { .type = FOTA_PRIV_MODEM_INITIALIZED };
 
 	ARG_UNUSED(ctx);
 
@@ -360,9 +364,9 @@ static enum smf_state_result state_running_run(void *obj)
 	struct fota_state_object const *state_object = obj;
 
 	if (&fota_chan == state_object->chan) {
-		const enum fota_msg_type msg_type = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
 
-		if (msg_type == FOTA_DOWNLOAD_CANCEL) {
+		if (msg->type == FOTA_DOWNLOAD_CANCEL) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CANCELING]);
 
 			return SMF_EVENT_HANDLED;
@@ -385,13 +389,13 @@ static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
 	struct fota_state_object *state_object = obj;
 
 	if (&priv_fota_chan == state_object->chan) {
-		const enum priv_fota_msg msg_type =
-			*(const enum priv_fota_msg *)(state_object->msg_buf);
+		const struct priv_fota_msg *msg =
+			(const struct priv_fota_msg *)state_object->msg_buf;
 
 		/* Wait for modem initialization to complete before processing pending FOTA job.
 		 * This ensures the modem DFU result callback has been invoked.
 		 */
-		if (msg_type == FOTA_PRIV_MODEM_INITIALIZED) {
+		if (msg->type == FOTA_PRIV_MODEM_INITIALIZED) {
 			LOG_DBG("Modem initialized, processing pending FOTA job");
 
 			int err = nrf_cloud_fota_poll_process_pending(&state_object->fota_ctx);
@@ -401,9 +405,9 @@ static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
 				SEND_FATAL_ERROR();
 			}
 
-			const struct fota_msg msg = { .type = FOTA_MODULE_READY };
+			const struct fota_msg msg_out = { .type = FOTA_MODULE_READY };
 
-			err = zbus_chan_pub(&fota_chan, &msg, PUB_TIMEOUT);
+			err = zbus_chan_pub(&fota_chan, &msg_out, PUB_TIMEOUT);
 			if (err) {
 				LOG_ERR("zbus_chan_pub, error: %d", err);
 				SEND_FATAL_ERROR();
@@ -431,13 +435,14 @@ static enum smf_state_result state_waiting_for_poll_request_run(void *obj)
 	struct fota_state_object const *state_object = obj;
 
 	if (&fota_chan == state_object->chan) {
-		const enum fota_msg_type msg_type = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+		const struct fota_msg *msg =
+			(const struct fota_msg *)state_object->msg_buf;
 
-		if (msg_type == FOTA_POLL_REQUEST) {
+		if (msg->type == FOTA_POLL_REQUEST) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_POLLING_FOR_UPDATE]);
 
 			return SMF_EVENT_HANDLED;
-		} else if (msg_type == FOTA_DOWNLOAD_CANCEL) {
+		} else if (msg->type == FOTA_DOWNLOAD_CANCEL) {
 			LOG_DBG("No ongoing FOTA update, nothing to cancel");
 
 			return SMF_EVENT_HANDLED;
@@ -483,9 +488,9 @@ static enum smf_state_result state_polling_for_update_run(void *obj)
 	struct fota_state_object const *state_object = obj;
 
 	if (&fota_chan == state_object->chan) {
-		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
 
-		switch (evt) {
+		switch (msg->type) {
 		case FOTA_DOWNLOADING_UPDATE:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DOWNLOADING_UPDATE]);
 
@@ -520,9 +525,9 @@ static enum smf_state_result state_downloading_update_run(void *obj)
 	struct fota_state_object const *state_object = obj;
 
 	if (&fota_chan == state_object->chan) {
-		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
 
-		switch (evt) {
+		switch (msg->type) {
 		case FOTA_IMAGE_APPLY_NEEDED:
 			smf_set_state(SMF_CTX(state_object),
 					      &states[STATE_WAITING_FOR_IMAGE_APPLY]);
@@ -564,9 +569,9 @@ static enum smf_state_result state_waiting_for_image_apply_run(void *obj)
 	struct fota_state_object *state_object = obj;
 
 	if (&fota_chan == state_object->chan) {
-		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
 
-		if (evt == FOTA_IMAGE_APPLY) {
+		if (msg->type == FOTA_IMAGE_APPLY) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_IMAGE_APPLYING]);
 
 			return SMF_EVENT_HANDLED;
@@ -596,9 +601,9 @@ static enum smf_state_result state_image_applying_run(void *obj)
 	struct fota_state_object const *state_object = obj;
 
 	if (&fota_chan == state_object->chan) {
-		const enum fota_msg_type evt = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
 
-		if (evt == FOTA_SUCCESS_REBOOT_NEEDED) {
+		if (msg->type == FOTA_SUCCESS_REBOOT_NEEDED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_PENDING]);
 
 			return SMF_EVENT_HANDLED;
@@ -636,9 +641,9 @@ static enum smf_state_result state_canceling_run(void *obj)
 	struct fota_state_object const *state_object = obj;
 
 	if (&fota_chan == state_object->chan) {
-		const enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
 
-		if (msg == FOTA_DOWNLOAD_CANCELED) {
+		if (msg->type == FOTA_DOWNLOAD_CANCELED) {
 			smf_set_state(SMF_CTX(state_object),
 					      &states[STATE_WAITING_FOR_POLL_REQUEST]);
 

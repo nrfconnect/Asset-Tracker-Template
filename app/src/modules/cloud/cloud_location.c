@@ -129,7 +129,7 @@ static int wifi_ap_data_construct(struct wifi_scan_info *dest,
 static void send_request_failed(void)
 {
 	int err;
-	enum priv_cloud_msg cloud_msg = CLOUD_SEND_REQUEST_FAILED;
+	const struct priv_cloud_msg cloud_msg = { .type = CLOUD_SEND_REQUEST_FAILED };
 
 	err = zbus_chan_pub(&priv_cloud_chan, &cloud_msg, PUB_TIMEOUT);
 	if (err) {

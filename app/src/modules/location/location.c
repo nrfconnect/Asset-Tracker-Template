@@ -51,14 +51,18 @@ ZBUS_CHAN_DEFINE(location_chan,
 );
 
 /* Private channel message types for internal state management. */
-enum priv_location_msg {
+enum priv_location_msg_type {
 	/* Modem functional mode has been set. */
 	LOCATION_PRIV_CFUN_REQUIRED_SET,
 };
 
+struct priv_location_msg {
+	enum priv_location_msg_type type;
+};
+
 /* Create private location channel for internal messaging that is not intended for external use. */
 ZBUS_CHAN_DEFINE(priv_location_chan,
-		 enum priv_location_msg,
+		 struct priv_location_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS(location),
@@ -70,7 +74,7 @@ ZBUS_CHAN_DEFINE(priv_location_chan,
  */
 #define CHANNEL_LIST(X)								\
 	X(location_chan,	struct location_msg)			\
-	X(priv_location_chan,	enum priv_location_msg)			\
+	X(priv_location_chan,	struct priv_location_msg)			\
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
@@ -93,7 +97,7 @@ NRF_MODEM_LIB_ON_CFUN(location_cfun_hook, on_cfun, NULL);
 static void on_cfun(int mode, void *ctx)
 {
 	int err;
-	enum priv_location_msg msg = LOCATION_PRIV_CFUN_REQUIRED_SET;
+	struct priv_location_msg msg = { .type = LOCATION_PRIV_CFUN_REQUIRED_SET };
 
 	ARG_UNUSED(ctx);
 
@@ -293,9 +297,10 @@ static enum smf_state_result state_waiting_for_cfun_run(void *obj)
 	struct location_state_object *state_object = obj;
 
 	if (state_object->chan == &priv_location_chan) {
-		enum priv_location_msg msg = *(const enum priv_location_msg *)state_object->msg_buf;
+		const struct priv_location_msg *msg =
+			(const struct priv_location_msg *)state_object->msg_buf;
 
-		if (msg == LOCATION_PRIV_CFUN_REQUIRED_SET) {
+		if (msg->type == LOCATION_PRIV_CFUN_REQUIRED_SET) {
 			LOG_DBG("CFUN set, transitioning to running state");
 			smf_set_state(SMF_CTX(state_object), &states[STATE_RUNNING]);
 
@@ -349,7 +354,7 @@ static enum smf_state_result state_location_search_inactive_run(void *obj)
 
 	if (state_object->chan == &location_chan) {
 		const struct location_msg *location_msg =
-			MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+			(const struct location_msg *)state_object->msg_buf;
 
 		if (location_msg->type == LOCATION_SEARCH_CANCEL) {
 			LOG_DBG("Location search cancel received in inactive state, ignoring");
@@ -407,7 +412,7 @@ static enum smf_state_result state_location_search_active_run(void *obj)
 
 	if (state_object->chan == &location_chan) {
 		const struct location_msg *location_msg =
-			MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+			(const struct location_msg *)state_object->msg_buf;
 		int err;
 
 		if (location_msg->type == LOCATION_SEARCH_TRIGGER ||
