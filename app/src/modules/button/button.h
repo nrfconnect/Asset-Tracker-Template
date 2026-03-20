@@ -31,9 +31,6 @@ struct button_msg {
 	uint8_t button_number;
 };
 
-/** @brief Cast a pointer to a message to a button message */
-#define MSG_TO_BUTTON_MSG(_msg)	(*(const struct button_msg *)_msg)
-
 /* Channels provided by this module */
 ZBUS_CHAN_DECLARE(
 	button_chan

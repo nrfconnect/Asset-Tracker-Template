@@ -346,9 +346,9 @@ static enum smf_state_result state_running_run(void *obj)
 	struct network_state_object const *state_object = obj;
 
 	if (&network_chan == state_object->chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		switch (msg.type) {
+		switch (msg->type) {
 		case NETWORK_DISCONNECTED:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
 
@@ -381,9 +381,9 @@ static enum smf_state_result state_disconnected_run(void *obj)
 	struct network_state_object const *state_object = obj;
 
 	if (&network_chan == state_object->chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		switch (msg.type) {
+		switch (msg->type) {
 		case NETWORK_CONNECTED:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
 
@@ -420,9 +420,9 @@ static enum smf_state_result state_disconnected_searching_run(void *obj)
 	struct network_state_object const *state_object = obj;
 
 	if (&network_chan == state_object->chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		switch (msg.type) {
+		switch (msg->type) {
 		case NETWORK_CONNECT:
 			return SMF_EVENT_HANDLED;
 		case NETWORK_SEARCH_STOP: __fallthrough;
@@ -449,9 +449,9 @@ static enum smf_state_result state_disconnected_idle_run(void *obj)
 	struct network_state_object const *state_object = obj;
 
 	if (&network_chan == state_object->chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		switch (msg.type) {
+		switch (msg->type) {
 		case NETWORK_DISCONNECT:
 			return SMF_EVENT_HANDLED;
 		case NETWORK_CONNECT:
@@ -505,9 +505,9 @@ static enum smf_state_result state_connected_run(void *obj)
 	struct network_state_object const *state_object = obj;
 
 	if (&network_chan == state_object->chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		if (msg.type == NETWORK_DISCONNECT) {
+		if (msg->type == NETWORK_DISCONNECT) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTING]);
 
 			return SMF_EVENT_HANDLED;
@@ -538,9 +538,9 @@ static enum smf_state_result state_disconnecting_run(void *obj)
 	struct network_state_object const *state_object = obj;
 
 	if (&network_chan == state_object->chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		if (msg.type == NETWORK_DISCONNECTED) {
+		if (msg->type == NETWORK_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_IDLE]);
 
 			return SMF_EVENT_HANDLED;

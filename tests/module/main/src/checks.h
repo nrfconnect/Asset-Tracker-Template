@@ -11,11 +11,15 @@
 #include "storage.h"
 #include "cloud.h"
 
-/* Timer message type - must match the enum in project/app/src/main.c */
+/* Timer message type - must match the types in project/app/src/main.c */
 enum timer_msg_type {
 	TIMER_EXPIRED_SAMPLE_DATA,
 	TIMER_EXPIRED_CLOUD,
 	TIMER_CONFIG_CHANGED,
+};
+
+struct timer_msg {
+	enum timer_msg_type type;
 };
 
 /* Private functions that return the actual received values or negative error codes */

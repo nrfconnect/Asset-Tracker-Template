@@ -143,9 +143,10 @@ static void state_running_run(void *obj)
 	LOG_DBG("state_running_run");
 
 	if (&network_chan == state_object->chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg =
+			(const struct network_msg *)state_object->msg_buf;
 
-		switch (msg.type) {
+		switch (msg->type) {
 		case NETWORK_DISCONNECTED:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
 			break;
@@ -169,9 +170,10 @@ static void state_disconnected_run(void *obj)
 	LOG_DBG("state_disconnected_run");
 
 	if (&network_chan == state_object->chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg =
+			(const struct network_msg *)state_object->msg_buf;
 
-		switch (msg.type) {
+		switch (msg->type) {
 
 		case NETWORK_CONNECTED:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
@@ -192,9 +194,10 @@ static void state_disconnected_searching_run(void *obj)
 	LOG_DBG("state_disconnected_searching_run");
 
 	if (&network_chan == state_object->chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg =
+			(const struct network_msg *)state_object->msg_buf;
 
-		switch (msg.type) {
+		switch (msg->type) {
 
 		case NETWORK_CONNECT:
 			smf_set_handled(SMF_CTX(state_object));
@@ -217,9 +220,10 @@ static void state_disconnected_idle_run(void *obj)
 	LOG_DBG("state_disconnected_idle_run");
 
 	if (&network_chan == state_object->chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg =
+			(const struct network_msg *)state_object->msg_buf;
 
-		switch (msg.type) {
+		switch (msg->type) {
 		case NETWORK_DISCONNECT:
 			smf_set_handled(SMF_CTX(state_object));
 			break;
@@ -263,9 +267,10 @@ static void state_connected_run(void *obj)
 	LOG_DBG("state_connected_run");
 
 	if (&network_chan == state_object->chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg =
+			(const struct network_msg *)state_object->msg_buf;
 
-		switch (msg.type) {
+		switch (msg->type) {
 		case NETWORK_DISCONNECT:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTING]);
 			break;
@@ -282,9 +287,10 @@ static void state_disconnecting_run(void *obj)
 	LOG_DBG("state_disconnecting_run");
 
 	if (&network_chan == state_object->chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg =
+			(const struct network_msg *)state_object->msg_buf;
 
-		if (msg.type == NETWORK_DISCONNECTED) {
+		if (msg->type == NETWORK_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_IDLE]);
 		}
 	}

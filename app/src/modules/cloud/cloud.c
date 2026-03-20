@@ -94,11 +94,11 @@ ZBUS_CHAN_DEFINE(cloud_chan,
  * is running.
  */
 ZBUS_CHAN_DEFINE(priv_cloud_chan,
-		 enum priv_cloud_msg,
+		 struct priv_cloud_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS(cloud_subscriber),
-		 CLOUD_BACKOFF_EXPIRED
+		 ZBUS_MSG_INIT(0)
 );
 
 /* Connection attempt backoff timer is run as a delayable work on the system workqueue */
@@ -291,7 +291,7 @@ static void connect_to_cloud(const struct cloud_state_object *state_object)
 
 	int err;
 	char buf[NRF_CLOUD_CLIENT_ID_MAX_LEN];
-	enum priv_cloud_msg msg = CLOUD_CONNECTION_FAILED;
+	struct priv_cloud_msg msg = { .type = CLOUD_CONNECTION_FAILED };
 
 	err = nrf_cloud_client_id_get(buf, sizeof(buf));
 	if (err == 0) {
@@ -307,16 +307,16 @@ static void connect_to_cloud(const struct cloud_state_object *state_object)
 	if (err == 0) {
 		LOG_INF("nRF Cloud CoAP connection successful");
 
-		msg = CLOUD_CONNECTION_SUCCESS;
+		msg.type = CLOUD_CONNECTION_SUCCESS;
 	} else if (err == -EACCES || err == -ENOEXEC || err == -ECONNREFUSED) {
 		LOG_WRN("nrf_cloud_coap_connect, error: %d", err);
 		LOG_WRN("nRF Cloud CoAP connection failed, unauthorized or invalid credentials");
 
-		msg = CLOUD_NOT_AUTHENTICATED;
+		msg.type = CLOUD_NOT_AUTHENTICATED;
 	} else {
 		LOG_WRN("nRF Cloud CoAP connection refused");
 
-		msg = CLOUD_CONNECTION_FAILED;
+		msg.type = CLOUD_CONNECTION_FAILED;
 	}
 
 	err = zbus_chan_pub(&priv_cloud_chan, &msg, PUB_TIMEOUT);
@@ -349,7 +349,7 @@ static uint32_t calculate_backoff_time(uint32_t attempts)
 static void backoff_timer_work_fn(struct k_work *work)
 {
 	int err;
-	enum priv_cloud_msg msg = CLOUD_BACKOFF_EXPIRED;
+	const struct priv_cloud_msg msg = { .type = CLOUD_BACKOFF_EXPIRED };
 
 	ARG_UNUSED(work);
 
@@ -363,7 +363,7 @@ static void backoff_timer_work_fn(struct k_work *work)
 static void send_request_failed(void)
 {
 	int err;
-	enum priv_cloud_msg cloud_msg = CLOUD_SEND_REQUEST_FAILED;
+	const struct priv_cloud_msg cloud_msg = { .type = CLOUD_SEND_REQUEST_FAILED };
 
 	err = zbus_chan_pub(&priv_cloud_chan, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
@@ -375,7 +375,7 @@ static void send_request_failed(void)
 static void send_provisioned_msg(void)
 {
 	int err;
-	struct cloud_msg cloud_msg = {
+	const struct cloud_msg cloud_msg = {
 		.type = CLOUD_PROVISIONED,
 	};
 
@@ -700,7 +700,7 @@ static void handle_storage_data(const struct storage_msg *msg)
 static void handle_cloud_channel_message(struct cloud_state_object const *state_object)
 {
 	int err;
-	const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
+	const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
 	const bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
 
 	switch (msg->type) {
@@ -762,16 +762,16 @@ static void handle_cloud_channel_message(struct cloud_state_object const *state_
 
 static void handle_priv_cloud_message(struct cloud_state_object const *state_object)
 {
-	enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
+	const struct priv_cloud_msg *msg = (const struct priv_cloud_msg *)state_object->msg_buf;
 
-	if (msg == CLOUD_SEND_REQUEST_FAILED) {
+	if (msg->type == CLOUD_SEND_REQUEST_FAILED) {
 		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
 	}
 }
 
 static void handle_storage_channel_message(struct cloud_state_object const *state_object)
 {
-	const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
+	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 	switch (msg->type) {
 	case STORAGE_BATCH_AVAILABLE:
@@ -798,7 +798,7 @@ static void handle_storage_channel_message(struct cloud_state_object const *stat
 
 static void handle_storage_data_message(struct cloud_state_object const *state_object)
 {
-	const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
+	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 	if (msg->type == STORAGE_DATA) {
 		LOG_DBG("Storage data received, type: %d, size: %d",
@@ -810,12 +810,12 @@ static void handle_storage_data_message(struct cloud_state_object const *state_o
 static void network_connection_status_retain(struct cloud_state_object *state_object)
 {
 	if (state_object->chan == &network_chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		if (msg.type == NETWORK_DISCONNECTED || msg.type == NETWORK_CONNECTED) {
+		if (msg->type == NETWORK_DISCONNECTED || msg->type == NETWORK_CONNECTED) {
 			/* Update network status to retain the last connection status */
 			state_object->network_connected =
-				(msg.type == NETWORK_CONNECTED) ? true : false;
+				(msg->type == NETWORK_CONNECTED) ? true : false;
 		}
 	}
 }
@@ -850,7 +850,7 @@ static void state_running_entry(void *obj)
 static void state_disconnected_entry(void *obj)
 {
 	int err;
-	struct cloud_msg cloud_msg = {
+	const struct cloud_msg cloud_msg = {
 		.type = CLOUD_DISCONNECTED,
 	};
 
@@ -872,9 +872,9 @@ static enum smf_state_result state_disconnected_run(void *obj)
 	struct cloud_state_object *state_object = obj;
 
 	if (state_object->chan == &network_chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		if (msg.type == NETWORK_CONNECTED) {
+		if (msg->type == NETWORK_CONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
 
 			return SMF_EVENT_HANDLED;
@@ -883,7 +883,7 @@ static enum smf_state_result state_disconnected_run(void *obj)
 
 #if defined(CONFIG_NRF_CLOUD_AGNSS) && defined(CONFIG_APP_LOCATION)
 	if (state_object->chan == &location_chan) {
-		const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
 		if (msg->type == LOCATION_AGNSS_REQUEST) {
 			cloud_location_agnss_cache(msg);
@@ -912,9 +912,9 @@ static enum smf_state_result state_connecting_run(void *obj)
 	struct cloud_state_object *state_object = obj;
 
 	if (state_object->chan == &network_chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		if (msg.type == NETWORK_DISCONNECTED) {
+		if (msg->type == NETWORK_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
 
 			return SMF_EVENT_HANDLED;
@@ -923,7 +923,7 @@ static enum smf_state_result state_connecting_run(void *obj)
 
 #if defined(CONFIG_NRF_CLOUD_AGNSS) && defined(CONFIG_APP_LOCATION)
 	if (state_object->chan == &location_chan) {
-		const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
 		if (msg->type == LOCATION_AGNSS_REQUEST) {
 			cloud_location_agnss_cache(msg);
@@ -961,17 +961,18 @@ static enum smf_state_result state_connecting_provisioned_run(void *obj)
 	struct cloud_state_object *state_object = obj;
 
 	if (state_object->chan == &priv_cloud_chan) {
-		enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
+		const struct priv_cloud_msg *msg =
+			(const struct priv_cloud_msg *)state_object->msg_buf;
 
-		if (msg == CLOUD_NOT_AUTHENTICATED) {
+		if (msg->type == CLOUD_NOT_AUTHENTICATED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONING]);
 
 			return SMF_EVENT_HANDLED;
-		} else if (msg == CLOUD_CONNECTION_SUCCESS) {
+		} else if (msg->type == CLOUD_CONNECTION_SUCCESS) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
 
 			return SMF_EVENT_HANDLED;
-		} else if (msg == CLOUD_CONNECTION_FAILED) {
+		} else if (msg->type == CLOUD_CONNECTION_FAILED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
 
 			return SMF_EVENT_HANDLED;
@@ -1018,18 +1019,21 @@ static enum smf_state_result state_connecting_provisioning_run(void *obj)
 	struct cloud_state_object *state_object = obj;
 
 	if (state_object->chan == &priv_cloud_chan) {
-		enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
+		const struct priv_cloud_msg *msg =
+			(const struct priv_cloud_msg *)state_object->msg_buf;
 
-		if (msg == CLOUD_PROVISIONING_FINISHED) {
+		if (msg->type == CLOUD_PROVISIONING_FINISHED) {
 			send_provisioned_msg();
 			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONED]);
 
 			return SMF_EVENT_HANDLED;
-		} else if (msg == CLOUD_PROVISIONING_FAILED && state_object->network_connected) {
+		} else if (msg->type == CLOUD_PROVISIONING_FAILED &&
+			   state_object->network_connected) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
 
 			return SMF_EVENT_HANDLED;
-		} else if (msg == CLOUD_PROVISIONING_FAILED && !state_object->network_connected) {
+		} else if (msg->type == CLOUD_PROVISIONING_FAILED &&
+			   !state_object->network_connected) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
 
 			return SMF_EVENT_HANDLED;
@@ -1041,9 +1045,9 @@ static enum smf_state_result state_connecting_provisioning_run(void *obj)
 	 * from propagating up the state machine changing the cloud module's connectivity status.
 	 */
 	if (state_object->chan == &network_chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		if (msg.type == NETWORK_DISCONNECTED || msg.type == NETWORK_CONNECTED) {
+		if (msg->type == NETWORK_DISCONNECTED || msg->type == NETWORK_CONNECTED) {
 			return SMF_EVENT_HANDLED;
 		}
 	}
@@ -1075,17 +1079,19 @@ static enum smf_state_result state_connecting_backoff_run(void *obj)
 	struct cloud_state_object const *state_object = obj;
 
 	if (state_object->chan == &priv_cloud_chan) {
-		const enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
+		const struct priv_cloud_msg *msg =
+			(const struct priv_cloud_msg *)state_object->msg_buf;
 
 		/* If the backoff timer expired, we can either continue provisioning or
 		 * connect to cloud if already provisioned. The provisioning ongoing flag helps us
 		 * determine what substate of connecting attempt we are attempting to enter.
 		 */
-		if ((msg == CLOUD_BACKOFF_EXPIRED) && !state_object->provisioning_ongoing) {
+		if ((msg->type == CLOUD_BACKOFF_EXPIRED) && !state_object->provisioning_ongoing) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONED]);
 
 			return SMF_EVENT_HANDLED;
-		} else if ((msg == CLOUD_BACKOFF_EXPIRED) && state_object->provisioning_ongoing) {
+		} else if ((msg->type == CLOUD_BACKOFF_EXPIRED) &&
+			   state_object->provisioning_ongoing) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_PROVISIONING]);
 
 			return SMF_EVENT_HANDLED;
@@ -1172,9 +1178,9 @@ static enum smf_state_result state_connected_ready_run(void *obj)
 	}
 
 	if (state_object->chan == &network_chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		switch (msg.type) {
+		switch (msg->type) {
 		case NETWORK_DISCONNECTED:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_PAUSED]);
 
@@ -1208,7 +1214,7 @@ static enum smf_state_result state_connected_ready_run(void *obj)
 
 #if defined(CONFIG_APP_LOCATION)
 	if (state_object->chan == &location_chan) {
-		const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
 		if (msg->type == LOCATION_AGNSS_REQUEST) {
 			LOG_DBG("A-GNSS data request received");
@@ -1250,9 +1256,9 @@ static enum smf_state_result state_connected_paused_run(void *obj)
 	struct cloud_state_object const *state_object = obj;
 
 	if (state_object->chan == &network_chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		if (msg.type == NETWORK_CONNECTED) {
+		if (msg->type == NETWORK_CONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_READY]);
 
 			return SMF_EVENT_HANDLED;
@@ -1261,7 +1267,7 @@ static enum smf_state_result state_connected_paused_run(void *obj)
 
 #if defined(CONFIG_NRF_CLOUD_AGNSS) && defined(CONFIG_APP_LOCATION)
 	if (state_object->chan == &location_chan) {
-		const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
 		if (msg->type == LOCATION_AGNSS_REQUEST) {
 			cloud_location_agnss_cache(msg);
@@ -1272,7 +1278,7 @@ static enum smf_state_result state_connected_paused_run(void *obj)
 #endif /* CONFIG_NRF_CLOUD_AGNSS && CONFIG_APP_LOCATION */
 
 	if (state_object->chan == &storage_chan) {
-		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
+		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 		switch (msg->type) {
 		case STORAGE_BATCH_AVAILABLE:

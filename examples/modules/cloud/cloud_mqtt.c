@@ -66,7 +66,7 @@ ZBUS_CHAN_DEFINE(cloud_chan,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(.type = CLOUD_DISCONNECTED)
+		 ZBUS_MSG_INIT(0)
 );
 
 #if defined(CONFIG_APP_CLOUD_MQTT_PROVISION_CREDENTIALS)
@@ -98,9 +98,13 @@ NRF_MODEM_LIB_ON_INIT(att_cloud_mqtt_hook, on_modem_init, NULL);
 #endif /* CONFIG_APP_CLOUD_MQTT_PROVISION_CREDENTIALS */
 
 /* Enumerator to be used in privat cloud channel */
-enum priv_cloud_msg {
+enum priv_cloud_msg_type {
 	CLOUD_CONNECTION_ATTEMPTED,
 	CLOUD_BACKOFF_EXPIRED,
+};
+
+struct priv_cloud_msg {
+	enum priv_cloud_msg_type type;
 };
 
 /* Create private cloud channel for internal messaging that is not intended for external use.
@@ -109,11 +113,11 @@ enum priv_cloud_msg {
  * is running.
  */
 ZBUS_CHAN_DEFINE(priv_cloud_chan,
-		 enum priv_cloud_msg,
+		 struct priv_cloud_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS(cloud_subscriber),
-		 CLOUD_BACKOFF_EXPIRED
+		 ZBUS_MSG_INIT(0)
 );
 
 /* Connection attempt backoff timer is run as a delayable work on the system workqueue */
@@ -258,7 +262,7 @@ static void connect_to_cloud(const struct cloud_state *state_object)
 {
 	int err;
 	struct cloud_state *object = (struct cloud_state *)state_object;
-	enum priv_cloud_msg msg = CLOUD_CONNECTION_ATTEMPTED;
+	const struct priv_cloud_msg msg = { .type = CLOUD_CONNECTION_ATTEMPTED };
 	struct mqtt_helper_conn_params conn_params = {
 		.hostname.ptr = CONFIG_APP_CLOUD_MQTT_HOSTNAME,
 		.hostname.size = strlen(CONFIG_APP_CLOUD_MQTT_HOSTNAME),
@@ -339,7 +343,7 @@ static uint32_t calculate_backoff_time(uint32_t attempts)
 static void backoff_timer_work_fn(struct k_work *work)
 {
 	int err;
-	enum priv_cloud_msg msg = CLOUD_BACKOFF_EXPIRED;
+	const struct priv_cloud_msg msg = { .type = CLOUD_BACKOFF_EXPIRED };
 
 	ARG_UNUSED(work);
 
@@ -476,9 +480,9 @@ static enum smf_state_result state_running_run(void *o)
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
 	if (state_object->chan == &network_chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		if (msg.type == NETWORK_DISCONNECTED) {
+		if (msg->type == NETWORK_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
 
 			return SMF_EVENT_HANDLED;
@@ -513,12 +517,15 @@ static void state_disconnected_entry(void *o)
 static enum smf_state_result state_disconnected_run(void *o)
 {
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
-	struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-	if ((state_object->chan == &network_chan) && (msg.type == NETWORK_CONNECTED)) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
+	if (state_object->chan == &network_chan) {
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		return SMF_EVENT_HANDLED;
+		if (msg->type == NETWORK_CONNECTED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
+
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	return SMF_EVENT_PROPAGATE;
@@ -541,7 +548,7 @@ static enum smf_state_result state_connecting_run(void *o)
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
 	if (state_object->chan == &cloud_chan) {
-		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
+		const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
 
 		if (msg->type == CLOUD_CONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
@@ -573,9 +580,10 @@ static enum smf_state_result state_connecting_attempt_run(void *o)
 	LOG_DBG("%s", __func__);
 
 	if (state_object->chan == &priv_cloud_chan) {
-		const enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
+		const struct priv_cloud_msg *msg =
+			(const struct priv_cloud_msg *)state_object->msg_buf;
 
-		if (msg == CLOUD_CONNECTION_ATTEMPTED) {
+		if (msg->type == CLOUD_CONNECTION_ATTEMPTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_BACKOFF]);
 
 			return SMF_EVENT_HANDLED;
@@ -608,9 +616,10 @@ static enum smf_state_result state_connecting_backoff_run(void *o)
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
 	if (state_object->chan == &priv_cloud_chan) {
-		const enum priv_cloud_msg msg = *(const enum priv_cloud_msg *)state_object->msg_buf;
+		const struct priv_cloud_msg *msg =
+			(const struct priv_cloud_msg *)state_object->msg_buf;
 
-		if (msg == CLOUD_BACKOFF_EXPIRED) {
+		if (msg->type == CLOUD_BACKOFF_EXPIRED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING_ATTEMPT]);
 
 			return SMF_EVENT_HANDLED;
@@ -666,7 +675,7 @@ static enum smf_state_result state_connected_run(void *o)
 	const struct cloud_state *state_object = (const struct cloud_state *)o;
 
 	if (state_object->chan == &cloud_chan) {
-		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
+		const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
 
 		if (msg->type == CLOUD_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);

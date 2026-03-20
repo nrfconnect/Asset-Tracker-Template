@@ -58,9 +58,6 @@ struct cloud_msg {
 	};
 };
 
-/* Cast a pointer to a message to a pointer to a cloud message */
-#define MSG_TO_CLOUD_MSG_PTR(_msg)	((const struct cloud_msg *)_msg)
-
 #ifdef __cplusplus
 }
 #endif
