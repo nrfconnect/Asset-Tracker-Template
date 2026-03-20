@@ -48,14 +48,18 @@ ZBUS_CHAN_DEFINE(power_chan,
 );
 
 /* Private channel message types for internal state management. */
-enum priv_power_msg {
+enum priv_power_msg_type {
 	/* Modem has completed initialization. */
 	POWER_PRIV_MODEM_INITIALIZED,
 };
 
+struct priv_power_msg {
+	enum priv_power_msg_type type;
+};
+
 /* Create private power channel for internal messaging that is not intended for external use. */
 ZBUS_CHAN_DEFINE(priv_power_chan,
-		 enum priv_power_msg,
+		 struct priv_power_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
@@ -67,7 +71,7 @@ ZBUS_CHAN_DEFINE(priv_power_chan,
  */
 #define CHANNEL_LIST(X)							\
 	X(power_chan,		struct power_msg)			\
-	X(priv_power_chan,	enum priv_power_msg)			\
+	X(priv_power_chan,	struct priv_power_msg)			\
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
@@ -113,7 +117,7 @@ NRF_MODEM_LIB_ON_INIT(power_modem_init_hook, on_modem_init, NULL);
 static void on_modem_init(int ret, void *ctx)
 {
 	int err;
-	enum priv_power_msg msg = POWER_PRIV_MODEM_INITIALIZED;
+	struct priv_power_msg msg = { .type = POWER_PRIV_MODEM_INITIALIZED };
 
 	ARG_UNUSED(ctx);
 
@@ -209,9 +213,10 @@ static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
 	struct power_state_object *state_object = obj;
 
 	if (state_object->chan == &priv_power_chan) {
-		enum priv_power_msg msg = *(const enum priv_power_msg *)state_object->msg_buf;
+		const struct priv_power_msg *msg =
+			(const struct priv_power_msg *)state_object->msg_buf;
 
-		if (msg == POWER_PRIV_MODEM_INITIALIZED) {
+		if (msg->type == POWER_PRIV_MODEM_INITIALIZED) {
 			LOG_DBG("Modem initialized, transitioning to running state");
 			smf_set_state(SMF_CTX(state_object), &states[STATE_RUNNING]);
 
@@ -301,9 +306,9 @@ static enum smf_state_result state_running_run(void *obj)
 	struct power_state_object *state_object = obj;
 
 	if (&power_chan == state_object->chan) {
-		struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
+		const struct power_msg *msg = (const struct power_msg *)state_object->msg_buf;
 
-		if (msg.type == POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST) {
+		if (msg->type == POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST) {
 			LOG_DBG("Battery percentage sample request received, getting battery data");
 			sample(&state_object->fuel_gauge_ref_time);
 

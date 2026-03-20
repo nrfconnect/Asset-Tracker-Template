@@ -68,8 +68,6 @@ struct fota_msg {
 	enum fota_msg_type type;
 };
 
-#define MSG_TO_FOTA_TYPE(_msg) (((const struct fota_msg *)_msg)->type)
-
 #ifdef __cplusplus
 }
 #endif

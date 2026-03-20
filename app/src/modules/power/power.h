@@ -59,9 +59,6 @@ struct power_msg {
 	int64_t timestamp;
 };
 
-#define MSG_TO_POWER_MSG(_msg)	(*(const struct power_msg *)_msg)
-#define MSG_TO_POWER_MSG_PTR(_msg)	((const struct power_msg *)_msg)
-
 #ifdef __cplusplus
 }
 #endif

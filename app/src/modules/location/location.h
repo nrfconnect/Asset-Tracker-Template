@@ -202,9 +202,6 @@ struct location_msg {
 	int64_t timestamp;
 };
 
-#define MSG_TO_LOCATION_TYPE(_msg)	(((const struct location_msg *)_msg)->type)
-#define MSG_TO_LOCATION_MSG_PTR(_msg)	(((const struct location_msg *)_msg))
-
 #ifdef __cplusplus
 }
 #endif

@@ -80,7 +80,7 @@ To add a new zbus event, complete the following procedure:
     X(network_chan,  struct network_msg)  \
     X(location_chan, struct location_msg)  \
     X(storage_chan,  struct storage_msg)  \
-    X(timer_chan,  enum timer_msg_type) \
+    X(timer_chan,  struct timer_msg) \
     X(power_chan,  struct power_msg) \
     ```
 
@@ -88,9 +88,10 @@ To add a new zbus event, complete the following procedure:
 
     ```c
     if (state_object->chan == &power_chan) {
-        struct power_msg msg = MSG_TO_POWER_MSG(state_object->msg_buf);
+        const struct power_msg *msg =
+            (const struct power_msg *)state_object->msg_buf;
 
-        if (msg.type == POWER_VBUS_CONNECTED) {
+        if (msg->type == POWER_VBUS_CONNECTED) {
             LOG_DBG("VBUS connected, request white LED blinking rapidly for 10 seconds");
 
             struct led_msg led_msg = {
@@ -111,7 +112,7 @@ To add a new zbus event, complete the following procedure:
             }
 
             return SMF_EVENT_HANDLED;
-        } else if (msg.type == POWER_VBUS_DISCONNECTED) {
+        } else if (msg->type == POWER_VBUS_DISCONNECTED) {
             LOG_DBG("VBUS disconnected, request purple LED blinking slowly for 10 seconds");
 
             struct led_msg led_msg = {
@@ -346,8 +347,6 @@ To add your own module, complete the following steps:
         int32_t value;
     };
 
-    #define MSG_TO_DUMMY_MSG(_msg) (*(const struct dummy_msg *)_msg)
-
     #ifdef __cplusplus
     }
     #endif
@@ -434,9 +433,10 @@ To add your own module, complete the following steps:
         struct dummy_state *state_object = obj;
 
         if (&dummy_chan == state_object->chan) {
-            struct dummy_msg msg = MSG_TO_DUMMY_MSG(state_object->msg_buf);
+            const struct dummy_msg *msg =
+                (const struct dummy_msg *)state_object->msg_buf;
 
-            if (msg.type == DUMMY_SAMPLE_REQUEST) {
+            if (msg->type == DUMMY_SAMPLE_REQUEST) {
                 LOG_DBG("Received sample request");
                 state_object->current_value++;
 

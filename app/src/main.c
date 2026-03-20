@@ -66,33 +66,34 @@ enum timer_msg_type {
 	TIMER_CONFIG_CHANGED,
 };
 
+struct timer_msg {
+	enum timer_msg_type type;
+};
+
 ZBUS_CHAN_DEFINE(timer_chan,
-		 enum timer_msg_type,
+		 struct timer_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0)
 );
-
-/* Macro to extract the timer message type from the message buffer.
- * @param msg The message buffer to extract the type from.
- */
-#define MSG_TO_TIMER_TYPE(msg)	(*(const enum timer_msg_type *)msg)
 
 enum priv_main_msg_type {
 	/* All modules have signaled that they are ready. */
 	MAIN_MODULES_READY,
 };
 
+struct priv_main_msg {
+	enum priv_main_msg_type type;
+};
+
 ZBUS_CHAN_DEFINE(priv_main_chan,
-		 enum priv_main_msg_type,
+		 struct priv_main_msg,
 		 NULL,
 		 NULL,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0)
 );
-
-#define MSG_TO_PRIV_MAIN_TYPE(msg)	(*(const enum priv_main_msg_type *)msg)
 
 /* Define the channels that the module subscribes to, their associated message types
  * and the subscriber that will receive the messages on the channel.
@@ -105,8 +106,8 @@ ZBUS_CHAN_DEFINE(priv_main_chan,
 	X(network_chan,		struct network_msg)		\
 	X(location_chan,	struct location_msg)		\
 	X(storage_chan,		struct storage_msg)		\
-	X(timer_chan,		enum timer_msg_type)		\
-	X(priv_main_chan,	enum priv_main_msg_type)	\
+	X(timer_chan,		struct timer_msg)		\
+	X(priv_main_chan,	struct priv_main_msg)		\
 	IF_ENABLED(CONFIG_APP_POWER, (X(power_chan, struct power_msg)))
 
 /* Calculate the maximum message size from the list of channels */
@@ -673,7 +674,7 @@ static void cloud_send_now(struct main_state *state_object)
 static void timer_send_data_work_fn(struct k_work *work)
 {
 	int err;
-	enum timer_msg_type msg = TIMER_EXPIRED_CLOUD;
+	const struct timer_msg msg = { .type = TIMER_EXPIRED_CLOUD };
 
 	ARG_UNUSED(work);
 
@@ -689,7 +690,7 @@ static void timer_send_data_work_fn(struct k_work *work)
 static void timer_sample_data_work_fn(struct k_work *work)
 {
 	int err;
-	enum timer_msg_type msg = TIMER_EXPIRED_SAMPLE_DATA;
+	const struct timer_msg msg = { .type = TIMER_EXPIRED_SAMPLE_DATA };
 
 	ARG_UNUSED(work);
 
@@ -838,7 +839,7 @@ static void config_apply(struct main_state *state_object, const struct config_pa
 
 	/* Notify waiting states that configuration has changed and timers need restart */
 	if (interval_changed) {
-		enum timer_msg_type timer_msg = TIMER_CONFIG_CHANGED;
+		const struct timer_msg timer_msg = { .type = TIMER_CONFIG_CHANGED };
 
 		/* Reset sample start time so re-entering waiting state uses full new interval */
 		state_object->sample_start_time = k_uptime_seconds();
@@ -974,7 +975,7 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
  */
 static void check_modules_ready(const struct main_state *state_object)
 {
-	const enum priv_main_msg_type msg = MAIN_MODULES_READY;
+	const struct priv_main_msg msg = { .type = MAIN_MODULES_READY };
 	int err;
 
 	if (state_object->modules_ready.fota_ready &&
@@ -1000,14 +1001,16 @@ static enum smf_state_result waiting_for_modules_init_run(void *o)
 
 	/* Update the extended state per module, and check if all modules are ready. */
 	if (state_object->chan == &fota_chan) {
-		if (MSG_TO_FOTA_TYPE(state_object->msg_buf) == FOTA_MODULE_READY) {
+		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
+
+		if (msg->type == FOTA_MODULE_READY) {
 			state_object->modules_ready.fota_ready = true;
 			check_modules_ready(state_object);
 			return SMF_EVENT_HANDLED;
 		}
 #if defined(CONFIG_APP_POWER)
 	} else if (state_object->chan == &power_chan) {
-		const struct power_msg *msg = MSG_TO_POWER_MSG_PTR(state_object->msg_buf);
+		const struct power_msg *msg = (const struct power_msg *)state_object->msg_buf;
 
 		if (msg->type == POWER_MODULE_READY) {
 			state_object->modules_ready.power_ready = true;
@@ -1016,7 +1019,7 @@ static enum smf_state_result waiting_for_modules_init_run(void *o)
 		}
 #endif /* CONFIG_APP_POWER */
 	} else if (state_object->chan == &location_chan) {
-		const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
 		if (msg->type == LOCATION_MODULE_READY) {
 			state_object->modules_ready.location_ready = true;
@@ -1025,10 +1028,14 @@ static enum smf_state_result waiting_for_modules_init_run(void *o)
 		}
 
 	/* If all modules are ready, we can transition to the running state. */
-	} else if (state_object->chan == &priv_main_chan &&
-		   MSG_TO_PRIV_MAIN_TYPE(state_object->msg_buf) == MAIN_MODULES_READY) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_RUNNING]);
-		return SMF_EVENT_HANDLED;
+	} else if (state_object->chan == &priv_main_chan) {
+		const struct priv_main_msg *msg =
+			(const struct priv_main_msg *)state_object->msg_buf;
+
+		if (msg->type == MAIN_MODULES_READY) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_RUNNING]);
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	return SMF_EVENT_PROPAGATE;
@@ -1052,16 +1059,19 @@ static enum smf_state_result running_run(void *o)
 	struct main_state *state_object = (struct main_state *)o;
 
 	/* Handle FOTA download initiation at top level */
-	if (state_object->chan == &fota_chan &&
-	    MSG_TO_FOTA_TYPE(state_object->msg_buf) == FOTA_DOWNLOADING_UPDATE) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA]);
+	if (state_object->chan == &fota_chan) {
+		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
 
-		return SMF_EVENT_HANDLED;
+		if (msg->type == FOTA_DOWNLOADING_UPDATE) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA]);
+
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	/* Handle cloud provisioning completion */
 	if (state_object->chan == &cloud_chan) {
-		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
+		const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
 
 		if (msg->type == CLOUD_PROVISIONED) {
 			LOG_DBG("Device provisioning completed");
@@ -1102,7 +1112,7 @@ static enum smf_state_result disconnected_run(void *o)
 
 	/* Handle connectivity changes */
 	if (state_object->chan == &cloud_chan) {
-		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
+		const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
 
 		if (msg->type == CLOUD_CONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
@@ -1112,25 +1122,28 @@ static enum smf_state_result disconnected_run(void *o)
 	}
 
 	/* Restart cloud send timer while disconnected */
-	if (state_object->chan == &timer_chan &&
-	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_CLOUD) {
-		timer_send_data_start(state_object->update_interval_sec);
-		state_object->sync_start_time = k_uptime_seconds();
+	if (state_object->chan == &timer_chan) {
+		const struct timer_msg *msg = (const struct timer_msg *)state_object->msg_buf;
 
-		return SMF_EVENT_HANDLED;
+		if (msg->type == TIMER_EXPIRED_CLOUD) {
+			timer_send_data_start(state_object->update_interval_sec);
+			state_object->sync_start_time = k_uptime_seconds();
+
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	/* Ignore send trigers when disconnected */
 	if (state_object->chan == &button_chan) {
-		struct button_msg button_msg = MSG_TO_BUTTON_MSG(state_object->msg_buf);
+		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
-		if (button_msg.type == BUTTON_PRESS_LONG) {
+		if (msg->type == BUTTON_PRESS_LONG) {
 			return SMF_EVENT_HANDLED;
 		}
 	}
 
 	if (state_object->chan == &storage_chan) {
-		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
+		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 		if (msg->type == STORAGE_THRESHOLD_REACHED) {
 			return SMF_EVENT_HANDLED;
@@ -1185,7 +1198,7 @@ static enum smf_state_result connected_run(void *o)
 
 	/* Handle connectivity changes */
 	if (state_object->chan == &cloud_chan) {
-		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
+		const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
 
 		switch (msg->type) {
 		case CLOUD_DISCONNECTED:
@@ -1208,18 +1221,21 @@ static enum smf_state_result connected_run(void *o)
 	}
 
 	/* Handle periodic send at connectivity parent level */
-	if (state_object->chan == &timer_chan &&
-	    MSG_TO_TIMER_TYPE(state_object->msg_buf) == TIMER_EXPIRED_CLOUD) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_SENDING]);
+	if (state_object->chan == &timer_chan) {
+		const struct timer_msg *msg = (const struct timer_msg *)state_object->msg_buf;
 
-		return SMF_EVENT_HANDLED;
+		if (msg->type == TIMER_EXPIRED_CLOUD) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_SENDING]);
+
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	/* Handle long button press to send immediately */
 	if (state_object->chan == &button_chan) {
-		struct button_msg button_msg = MSG_TO_BUTTON_MSG(state_object->msg_buf);
+		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
-		if (button_msg.type == BUTTON_PRESS_LONG) {
+		if (msg->type == BUTTON_PRESS_LONG) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_SENDING]);
 
 			return SMF_EVENT_HANDLED;
@@ -1243,19 +1259,24 @@ static enum smf_state_result disconnected_sampling_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
-	if (state_object->chan == &location_chan &&
-	    MSG_TO_LOCATION_TYPE(state_object->msg_buf) == LOCATION_SEARCH_DONE) {
+	if (state_object->chan == &location_chan) {
+		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
-		sensor_triggers_send();
-		smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_WAITING]);
+		if (msg->type == LOCATION_SEARCH_DONE) {
+			sensor_triggers_send();
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_WAITING]);
 
-		return SMF_EVENT_HANDLED;
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	/* Ignore other triggers while sampling */
-	if (state_object->chan == &button_chan &&
-	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
-		return SMF_EVENT_HANDLED;
+	if (state_object->chan == &button_chan) {
+		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
+
+		if (msg->type == BUTTON_PRESS_SHORT) {
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	return SMF_EVENT_PROPAGATE;
@@ -1298,16 +1319,16 @@ static enum smf_state_result disconnected_waiting_run(void *o)
 	struct main_state *state_object = (struct main_state *)o;
 
 	if (state_object->chan == &timer_chan) {
-		enum timer_msg_type timer_type = MSG_TO_TIMER_TYPE(state_object->msg_buf);
+		const struct timer_msg *msg = (const struct timer_msg *)state_object->msg_buf;
 
-		if (timer_type == TIMER_EXPIRED_SAMPLE_DATA) {
+		if (msg->type == TIMER_EXPIRED_SAMPLE_DATA) {
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_DISCONNECTED_SAMPLING]);
 
 			return SMF_EVENT_HANDLED;
 		}
 
-		if (timer_type == TIMER_CONFIG_CHANGED) {
+		if (msg->type == TIMER_CONFIG_CHANGED) {
 			/* Re-enter state to restart timer with new interval */
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_DISCONNECTED_WAITING]);
@@ -1316,12 +1337,15 @@ static enum smf_state_result disconnected_waiting_run(void *o)
 		}
 	}
 
-	if (state_object->chan == &button_chan &&
-	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
-		smf_set_state(SMF_CTX(state_object),
-			      &states[STATE_DISCONNECTED_SAMPLING]);
+	if (state_object->chan == &button_chan) {
+		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
-		return SMF_EVENT_HANDLED;
+		if (msg->type == BUTTON_PRESS_SHORT) {
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_DISCONNECTED_SAMPLING]);
+
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	return SMF_EVENT_PROPAGATE;
@@ -1349,30 +1373,36 @@ static enum smf_state_result connected_sampling_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
-	if (state_object->chan == &location_chan &&
-	    MSG_TO_LOCATION_TYPE(state_object->msg_buf) == LOCATION_SEARCH_DONE) {
+	if (state_object->chan == &location_chan) {
+		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
-		sensor_triggers_send();
+		if (msg->type == LOCATION_SEARCH_DONE) {
+			sensor_triggers_send();
 
-		if (SMF_CTX(state_object)->previous == &states[STATE_CONNECTED_SENDING]) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_SENDING]);
-		} else {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_WAITING]);
+			if (SMF_CTX(state_object)->previous == &states[STATE_CONNECTED_SENDING]) {
+				smf_set_state(SMF_CTX(state_object),
+					      &states[STATE_CONNECTED_SENDING]);
+			} else {
+				smf_set_state(SMF_CTX(state_object),
+					      &states[STATE_CONNECTED_WAITING]);
+			}
+
+			return SMF_EVENT_HANDLED;
 		}
-
-
-		return SMF_EVENT_HANDLED;
 	}
 
 	/* Ignore other sample triggers while sampling */
-	if (state_object->chan == &button_chan &&
-	    MSG_TO_BUTTON_MSG(state_object->msg_buf).type == BUTTON_PRESS_SHORT) {
-		return SMF_EVENT_HANDLED;
+	if (state_object->chan == &button_chan) {
+		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
+
+		if (msg->type == BUTTON_PRESS_SHORT) {
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	/* Handle buffer limit reached to send immediately */
 	if (state_object->chan == &storage_chan) {
-		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
+		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 		if (msg->type == STORAGE_THRESHOLD_REACHED) {
 			smf_set_state(SMF_CTX(state_object),
@@ -1400,16 +1430,16 @@ static enum smf_state_result connected_waiting_run(void *o)
 	struct main_state *state_object = (struct main_state *)o;
 
 	if (state_object->chan == &timer_chan) {
-		enum timer_msg_type timer_type = MSG_TO_TIMER_TYPE(state_object->msg_buf);
+		const struct timer_msg *msg = (const struct timer_msg *)state_object->msg_buf;
 
-		if (timer_type == TIMER_EXPIRED_SAMPLE_DATA) {
+		if (msg->type == TIMER_EXPIRED_SAMPLE_DATA) {
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_CONNECTED_SAMPLING]);
 
 			return SMF_EVENT_HANDLED;
 		}
 
-		if (timer_type == TIMER_CONFIG_CHANGED) {
+		if (msg->type == TIMER_CONFIG_CHANGED) {
 			/* Re-enter state to restart timer with new interval */
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_CONNECTED_WAITING]);
@@ -1419,9 +1449,9 @@ static enum smf_state_result connected_waiting_run(void *o)
 	}
 
 	if (state_object->chan == &button_chan) {
-		struct button_msg button_msg = MSG_TO_BUTTON_MSG(state_object->msg_buf);
+		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
-		if (button_msg.type == BUTTON_PRESS_SHORT) {
+		if (msg->type == BUTTON_PRESS_SHORT) {
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_CONNECTED_SAMPLING]);
 
@@ -1431,7 +1461,7 @@ static enum smf_state_result connected_waiting_run(void *o)
 
 	/* Handle buffer limit reached to send immediately */
 	if (state_object->chan == &storage_chan) {
-		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
+		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 		if (msg->type == STORAGE_THRESHOLD_REACHED) {
 			smf_set_state(SMF_CTX(state_object),
@@ -1467,9 +1497,9 @@ static enum smf_state_result connected_sending_run(void *o)
 	struct main_state *state_object = (struct main_state *)o;
 
 	if (state_object->chan == &timer_chan) {
-		enum timer_msg_type timer_type = MSG_TO_TIMER_TYPE(state_object->msg_buf);
+		const struct timer_msg *msg = (const struct timer_msg *)state_object->msg_buf;
 
-		if (timer_type == TIMER_EXPIRED_SAMPLE_DATA) {
+		if (msg->type == TIMER_EXPIRED_SAMPLE_DATA) {
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_CONNECTED_SAMPLING]);
 
@@ -1477,15 +1507,15 @@ static enum smf_state_result connected_sending_run(void *o)
 		}
 
 		/* Ignore cloud send timer while sending as we are already sending */
-		if (timer_type == TIMER_EXPIRED_CLOUD) {
+		if (msg->type == TIMER_EXPIRED_CLOUD) {
 			return SMF_EVENT_HANDLED;
 		}
 	}
 
 	if (state_object->chan == &button_chan) {
-		struct button_msg button_msg = MSG_TO_BUTTON_MSG(state_object->msg_buf);
+		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
-		if (button_msg.type == BUTTON_PRESS_SHORT) {
+		if (msg->type == BUTTON_PRESS_SHORT) {
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_CONNECTED_SAMPLING]);
 
@@ -1493,13 +1523,13 @@ static enum smf_state_result connected_sending_run(void *o)
 		}
 
 		/* Ignore long press while sending as we are already sending */
-		if (button_msg.type == BUTTON_PRESS_LONG) {
+		if (msg->type == BUTTON_PRESS_LONG) {
 			return SMF_EVENT_HANDLED;
 		}
 	}
 
 	if (state_object->chan == &storage_chan) {
-		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
+		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 		/* Ignore STORAGE_THRESHOLD_REACHED messages while sending */
 		if (msg->type == STORAGE_THRESHOLD_REACHED) {
@@ -1559,9 +1589,9 @@ static enum smf_state_result fota_run(void *o)
 	const enum app_state resume_state = state_object->running_history;
 
 	if (state_object->chan == &fota_chan) {
-		enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
 
-		switch (msg) {
+		switch (msg->type) {
 		case FOTA_DOWNLOAD_CANCELED:
 			__fallthrough;
 		case FOTA_DOWNLOAD_REJECTED:
@@ -1582,7 +1612,7 @@ static enum smf_state_result fota_run(void *o)
 	 * cloud connection is lost during FOTA.
 	 */
 	if (state_object->chan == &cloud_chan) {
-		const struct cloud_msg *msg = MSG_TO_CLOUD_MSG_PTR(state_object->msg_buf);
+		const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
 
 		if (msg->type == CLOUD_DISCONNECTED) {
 			/* Figure out which state to return to in case FOTA is cancelled */
@@ -1629,9 +1659,9 @@ static enum smf_state_result fota_downloading_run(void *o)
 	const struct main_state *state_object = (const struct main_state *)o;
 
 	if (state_object->chan == &fota_chan) {
-		enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
 
-		switch (msg) {
+		switch (msg->type) {
 		case FOTA_SUCCESS_REBOOT_NEEDED:
 			smf_set_state(SMF_CTX(state_object),
 					      &states[STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT]);
@@ -1678,9 +1708,9 @@ static enum smf_state_result fota_waiting_for_network_disconnect_run(void *o)
 	const struct main_state *state_object = (const struct main_state *)o;
 
 	if (state_object->chan == &network_chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		if (msg.type == NETWORK_DISCONNECTED) {
+		if (msg->type == NETWORK_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
 
 			return SMF_EVENT_HANDLED;
@@ -1721,9 +1751,9 @@ static enum smf_state_result fota_waiting_for_network_disconnect_to_apply_image_
 	const struct main_state *state_object = (const struct main_state *)o;
 
 	if (state_object->chan == &network_chan) {
-		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		if (msg.type == NETWORK_DISCONNECTED) {
+		if (msg->type == NETWORK_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_APPLYING_IMAGE]);
 
 			return SMF_EVENT_HANDLED;
@@ -1758,9 +1788,9 @@ static enum smf_state_result fota_applying_image_run(void *o)
 	const struct main_state *state_object = (const struct main_state *)o;
 
 	if (state_object->chan == &fota_chan) {
-		enum fota_msg_type msg = MSG_TO_FOTA_TYPE(state_object->msg_buf);
+		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
 
-		if (msg == FOTA_SUCCESS_REBOOT_NEEDED) {
+		if (msg->type == FOTA_SUCCESS_REBOOT_NEEDED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
 
 			return SMF_EVENT_HANDLED;
