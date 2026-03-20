@@ -9,7 +9,9 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
+#if defined(CONFIG_LTE_LINK_CONTROL)
 #include <modem/lte_lc.h>
+#endif /* CONFIG_LTE_LINK_CONTROL */
 
 #ifdef __cplusplus
 extern "C" {
@@ -117,10 +119,12 @@ enum network_msg_type {
 struct network_msg {
 	enum network_msg_type type;
 	union {
+#if defined(CONFIG_LTE_LINK_CONTROL)
 		/** Contains the currently configured system mode.
 		 *  system_mode is set for NETWORK_SYSTEM_MODE_RESPONSE events
 		 */
 		enum lte_lc_system_mode system_mode;
+#endif /* CONFIG_LTE_LINK_CONTROL */
 
 		/** Contains the current PSM configuration.
 		 *  psm_cfg is valid for NETWORK_PSM_PARAMS events.

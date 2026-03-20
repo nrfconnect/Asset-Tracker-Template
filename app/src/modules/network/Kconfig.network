@@ -5,7 +5,7 @@
 #
 
 menu "Network"
-	depends on LTE_LINK_CONTROL
+	depends on LTE_LINK_CONTROL || MODEM_CELLULAR
 
 config APP_NETWORK_SHELL
 	bool "Network module shell commands"
@@ -39,6 +39,7 @@ config APP_NETWORK_MSG_PROCESSING_TIMEOUT_SECONDS
 
 config APP_NETWORK_SEARCH_NETWORK_ON_STARTUP
 	bool "Search for network on startup"
+	depends on LTE_LINK_CONTROL
 	default y
 	help
 	  If enabled, the module will search for a network on startup.

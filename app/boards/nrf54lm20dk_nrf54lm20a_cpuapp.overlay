@@ -1,0 +1,23 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+/ {
+	aliases {
+		modem = &modem;
+	};
+};
+
+&uart30 {
+	compatible = "nordic,nrf-uarte";
+	current-speed = <115200>;
+	hw-flow-control;
+	status = "okay";
+
+	modem: modem {
+		compatible = "nordic,nrf91-slm";
+		status = "okay";
+	};
+};

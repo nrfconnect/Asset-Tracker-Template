@@ -10,26 +10,15 @@
 #include <zephyr/smf.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <net/mqtt_helper.h>
+#if defined(CONFIG_APP_CLOUD_MQTT_PROVISION_CREDENTIALS)
 #include <modem/nrf_modem_lib.h>
 #include <modem/modem_key_mgmt.h>
+#endif /* CONFIG_APP_CLOUD_MQTT_PROVISION_CREDENTIALS */
 #include <hw_id.h>
 
 #include "cloud.h"
 #include "network.h"
 #include "app_common.h"
-
-/* Define FOTA and Location channels to avoid build warning due to the module being patched out
- * because they are not supported with the MQTT cloud.
- */
-#include "fota.h"
-
-ZBUS_CHAN_DEFINE(fota_chan,
-		 enum fota_msg_type,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
 
 /* Register log module */
 LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_MQTT_LOG_LEVEL);
@@ -262,8 +251,6 @@ static void connect_to_cloud(const struct cloud_state *state_object)
 	struct mqtt_helper_conn_params conn_params = {
 		.hostname.ptr = CONFIG_APP_CLOUD_MQTT_HOSTNAME,
 		.hostname.size = strlen(CONFIG_APP_CLOUD_MQTT_HOSTNAME),
-		.device_id.ptr = object->client_id,
-		.device_id.size = strlen(object->client_id),
 	};
 
 	/* Use static client ID if configured, otherwise get it dynamically */
@@ -286,6 +273,9 @@ static void connect_to_cloud(const struct cloud_state *state_object)
 
 		LOG_DBG("Using hardware ID as client ID: %s", object->client_id);
 	}
+
+	conn_params.device_id.ptr = object->client_id;
+	conn_params.device_id.size = strlen(object->client_id);
 
 	/* Prefix topics with the client ID so that the topics are unique per device.
 	 * This mitigates conflict between similar clients subscribing/publishing to the same

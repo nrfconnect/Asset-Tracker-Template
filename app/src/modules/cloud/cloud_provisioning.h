@@ -11,6 +11,8 @@
 extern "C" {
 #endif
 
+#if defined(CONFIG_NRF_PROVISIONING)
+
 /**
  * @brief Initialize nRF Cloud provisioning service.
  *
@@ -24,6 +26,13 @@ int cloud_provisioning_init(void);
  * @return 0 on success, negative error code otherwise.
  */
 int cloud_provisioning_trigger(void);
+
+#else /* CONFIG_NRF_PROVISIONING */
+
+static inline int cloud_provisioning_init(void) { return 0; }
+static inline int cloud_provisioning_trigger(void) { return 0; }
+
+#endif /* CONFIG_NRF_PROVISIONING */
 
 #ifdef __cplusplus
 }

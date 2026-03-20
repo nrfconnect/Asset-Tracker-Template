@@ -10,6 +10,7 @@
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/init.h>
 #include <zephyr/smf.h>
+#if defined(CONFIG_LOCATION)
 #include <modem/location.h>
 #include <nrf_modem_gnss.h>
 #include <date_time.h>
@@ -598,3 +599,127 @@ static void location_module_thread(void)
 K_THREAD_DEFINE(location_module_thread_id, CONFIG_APP_LOCATION_THREAD_STACK_SIZE,
 		location_module_thread, NULL, NULL, NULL,
 		K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+
+#else /* !CONFIG_LOCATION */
+
+/*
+ * Stub implementation when the Zephyr Location library is not available
+ * (e.g. nRF54LM20 over PPP — no local GNSS/cellular).
+ *
+ * Immediately signals MODULE_READY and responds to LOCATION_SEARCH_TRIGGER
+ * with LOCATION_SEARCH_DONE so that main.c's state machine proceeds normally.
+ */
+
+#include "app_common.h"
+#include "location.h"
+
+LOG_MODULE_REGISTER(location_module, CONFIG_APP_LOCATION_LOG_LEVEL);
+
+BUILD_ASSERT(CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS >
+	     CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS,
+	     "Watchdog timeout must be greater than maximum message processing time");
+
+/* Register subscriber */
+ZBUS_MSG_SUBSCRIBER_DEFINE(location);
+
+/* Define channels provided by this module */
+ZBUS_CHAN_DEFINE(location_chan,
+		 struct location_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0)
+);
+
+#define CHANNEL_LIST(X) \
+	X(location_chan, struct location_msg)
+
+#define MAX_MSG_SIZE MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
+
+#define ADD_OBSERVERS(_chan, _type) ZBUS_CHAN_ADD_OBS(_chan, location, 0);
+CHANNEL_LIST(ADD_OBSERVERS)
+
+static void location_wdt_callback(int channel_id, void *user_data)
+{
+	LOG_ERR("Watchdog expired, Channel: %d, Thread: %s",
+		channel_id, k_thread_name_get((k_tid_t)user_data));
+
+	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
+}
+
+static void message_send(enum location_msg_type msg_type)
+{
+	int err;
+	struct location_msg location_msg = {
+		.type = msg_type
+	};
+
+	err = zbus_chan_pub(&location_chan, &location_msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+static void location_module_thread(void)
+{
+	int err;
+	int task_wdt_id;
+	const uint32_t wdt_timeout_ms =
+		(CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
+	const uint32_t execution_time_ms =
+		(CONFIG_APP_LOCATION_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
+	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
+
+	LOG_DBG("Location module task started (stub)");
+
+	task_wdt_id = task_wdt_add(wdt_timeout_ms, location_wdt_callback,
+				   (void *)k_current_get());
+	if (task_wdt_id < 0) {
+		LOG_ERR("Failed to add task to watchdog: %d", task_wdt_id);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	/* Signal that the module is ready immediately */
+	message_send(LOCATION_MODULE_READY);
+
+	const struct zbus_channel *chan;
+	uint8_t msg_buf[MAX_MSG_SIZE];
+
+	while (true) {
+		err = task_wdt_feed(task_wdt_id);
+		if (err) {
+			LOG_ERR("Failed to feed the watchdog: %d", err);
+			SEND_FATAL_ERROR();
+			return;
+		}
+
+		err = zbus_sub_wait_msg(&location, &chan, msg_buf, zbus_wait_ms);
+		if (err == -ENOMSG) {
+			continue;
+		} else if (err) {
+			LOG_ERR("zbus_sub_wait, error: %d", err);
+			SEND_FATAL_ERROR();
+			return;
+		}
+
+		if (chan == &location_chan) {
+			const struct location_msg *msg = MSG_TO_LOCATION_MSG_PTR(msg_buf);
+
+			if (msg->type == LOCATION_SEARCH_TRIGGER ||
+			    msg->type == LOCATION_GNSS_SEARCH_TRIGGER) {
+				LOG_DBG("Location search trigger (stub) — "
+					"returning SEARCH_DONE in 1s");
+				k_sleep(K_SECONDS(1));
+				message_send(LOCATION_SEARCH_DONE);
+			}
+		}
+	}
+}
+
+K_THREAD_DEFINE(location_module_thread_id, CONFIG_APP_LOCATION_THREAD_STACK_SIZE,
+		location_module_thread, NULL, NULL, NULL,
+		K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+
+#endif /* CONFIG_LOCATION */

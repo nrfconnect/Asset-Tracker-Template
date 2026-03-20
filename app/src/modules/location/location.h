@@ -9,8 +9,10 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
+#if defined(CONFIG_LOCATION)
 #include <modem/location.h>
 #include <nrf_modem_gnss.h>
+#endif /* CONFIG_LOCATION */
 
 #ifdef __cplusplus
 extern "C" {
@@ -176,6 +178,7 @@ struct location_cloud_request_data {
 /* Structure to pass location data through zbus */
 struct location_msg {
 	enum location_msg_type type;
+#if defined(CONFIG_LOCATION)
 	union {
 		/** Contains cloud location request data with cellular and/or Wi-Fi information.
 		 *  cloud_request is valid for LOCATION_CLOUD_REQUEST events.
@@ -192,6 +195,7 @@ struct location_msg {
 		 */
 		struct location_data gnss_data;
 	};
+#endif /* CONFIG_LOCATION */
 
 	/** Timestamp when the sample was taken in milliseconds.
 	 *  This is either:
