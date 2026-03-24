@@ -10,7 +10,9 @@
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
 #include <modem/location.h>
+#if defined(CONFIG_LOCATION)
 #include <nrf_modem_gnss.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {

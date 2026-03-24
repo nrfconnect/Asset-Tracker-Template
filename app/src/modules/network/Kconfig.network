@@ -4,8 +4,23 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-menu "Network"
-	depends on LTE_LINK_CONTROL
+menuconfig APP_NETWORK
+	bool "LTE network module"
+	default y
+	help
+	  Enable the LTE-based network module that uses the nRF Modem Library
+	  and LTE Link Control for network connectivity.
+
+if APP_NETWORK
+
+config APP_NETWORK_PPP
+	bool "Use PPP networking with connection manager"
+	depends on NET_L2_PPP
+	depends on NET_CONNECTION_MANAGER
+	help
+	  Use the PPP-based network module that relies on Zephyr's
+	  connection manager for L4 connectivity events instead of
+	  the nRF Modem Library and LTE Link Control.
 
 config APP_NETWORK_SHELL
 	bool "Network module shell commands"
@@ -48,4 +63,4 @@ module = APP_NETWORK
 module-str = Network
 source "subsys/logging/Kconfig.template.log_config"
 
-endmenu # Network
+endif # APP_NETWORK

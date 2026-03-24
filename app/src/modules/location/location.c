@@ -219,6 +219,7 @@ static void agnss_request_send(const struct nrf_modem_gnss_agnss_data_frame *agn
 }
 #endif /* defined(CONFIG_NRF_CLOUD_AGNSS) */
 
+#if defined(CONFIG_LOCATION_METHOD_GNSS)
 static void gnss_location_send(const struct location_data *location_data)
 {
 	int err;
@@ -242,6 +243,7 @@ static void gnss_location_send(const struct location_data *location_data)
 		return;
 	}
 }
+#endif /* CONFIG_LOCATION_METHOD_GNSS */
 
 static void message_send(enum location_msg_type msg_type)
 {
