@@ -54,11 +54,12 @@ There are two options for setting up and building the project.
 
 ### Option 1: nRF Connect for VS Code (Recommended)
 
-Use the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) extension for an integrated development experience:
+Use the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) for an integrated development experience:
 
-1. To install the nRF Connect SDK and its toolchain using nRF Connect for VS Code, follow [extension documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/get_started/quick_setup.html) or [Installing nRF Connect SDK and VS Code exercise] (https://academy.nordicsemi.com/courses/nrf-connect-sdk-fundamentals/lessons/lesson-1-nrf-connect-sdk-introduction/topic/exercise-1-1/) on Nordic Developer Academy.
+1. To install the nRF Connect SDK and its toolchain using nRF Connect for VS Code, follow [extension documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/get_started/quick_setup.html) or [Installing nRF Connect SDK and VS Code exercise](https://academy.nordicsemi.com/courses/nrf-connect-sdk-fundamentals/lessons/lesson-1-nrf-connect-sdk-introduction/topic/exercise-1-1/) on Nordic Developer Academy.
 2. Open VS Code and go to the **nRF Connect** extension.
-3. Select **Create New Application** → **Browse nRF Connect SDK add-on Index**.
+3. Select **Create New Application**.
+4. Select **Browse nRF Connect SDK add-on Index**.
 4. Search for **Asset Tracker Template** and create the project.
 5. Use the **Actions** panel in the extension to build and flash the application.
 
