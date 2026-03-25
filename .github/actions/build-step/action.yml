@@ -5,14 +5,10 @@ inputs:
     type: string
     required: false
     default: "fookey"
-  memfault_fw_type:
-    type: string
+  memfault_release:
+    type: boolean
     required: false
-    default: "att-dev"
-  memfault_fw_version_prefix:
-    type: string
-    required: false
-    default: "0.0.0-dev"
+    default: false
   board:
     type: string
     required: true
@@ -68,9 +64,9 @@ runs:
           cp overlay-memfault.conf overlay-debug-att.conf
           cat overlay-upload-modem-traces-to-memfault.conf >> overlay-debug-att.conf
           echo CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${{ inputs.memfault_project_key }}\" >> overlay-debug-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_VERSION_AUTO=y >> overlay-debug-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_VERSION_PREFIX=\"${{ inputs.memfault_fw_version_prefix }}+\" >> overlay-debug-att.conf
-          echo CONFIG_MEMFAULT_NCS_FW_TYPE=\"${{ inputs.memfault_fw_type }}\" >> overlay-debug-att.conf
+          if [[ "${{ inputs.memfault_release }}" == "true" ]]; then
+            echo CONFIG_MEMFAULT_NCS_FW_VERSION_STATIC=y >> overlay-debug-att.conf
+          fi
           params+=("-DEXTRA_CONF_FILE=overlay-debug-att.conf")
         fi
         if [[ "${{ inputs.mqtt }}" == "true" ]]; then

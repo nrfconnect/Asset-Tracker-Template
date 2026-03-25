@@ -3,11 +3,6 @@ name: Build
 on:
   workflow_dispatch:
     inputs:
-      memfault_fw_type:
-        description: Memfault Firmware Type
-        type: string
-        required: false
-        default: "att-dev"
       build_type:
         description: "Build scope: minimal (thingy91x only), release (all boards, no test builds), all (everything)"
         type: choice
@@ -24,10 +19,6 @@ on:
         default: false
   workflow_call:
     inputs:
-      memfault_fw_type:
-        type: string
-        required: false
-        default: "att-dev"
       nrfsdk_sha_update:
         type: boolean
         required: false
@@ -144,15 +135,6 @@ jobs:
       - name: Set build type
         run: echo "build_type=${{ inputs.build_type || 'minimal' }}" >> $GITHUB_ENV
 
-      - name: Set MEMFAULT_FW_TYPE and MEMFAULT_FW_VERSION_PREFIX
-        shell: bash
-        run: |
-          if [[ -z "${{ inputs.memfault_fw_type }}" ]]; then
-            echo "MEMFAULT_FW_TYPE=att-dev" >> $GITHUB_ENV
-          else
-            echo "MEMFAULT_FW_TYPE=${{ inputs.memfault_fw_type }}" >> $GITHUB_ENV
-          fi
-
       # Asset Tracker Template firmware build
       - name: Build thingy91x firmware
         if: ${{ env.build_type == 'minimal' || env.build_type == 'release' || env.build_type == 'all' }}
@@ -199,8 +181,7 @@ jobs:
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           memfault_project_key: ${{ secrets.MEMFAULT_PROJECT_KEY }}
-          memfault_fw_type: ${{ env.MEMFAULT_FW_TYPE }}
-          memfault_fw_version_prefix: ${{ env.MEMFAULT_FW_VERSION_PREFIX }}
+          memfault_release: ${{ env.build_type == 'release' }}
           board: thingy91x/nrf9151/ns
           short_board: thingy91x
           version: ${{ env.VERSION }}-debug

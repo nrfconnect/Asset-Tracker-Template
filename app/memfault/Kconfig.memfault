@@ -1,0 +1,13 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+if MEMFAULT
+
+# Set Memfault software_version prefix from the VERSION file in the application
+config MEMFAULT_NCS_FW_VERSION_PREFIX
+	default "$(APPVERSION)+" if "$(APPVERSION)" != ""
+
+endif # MEMFAULT
