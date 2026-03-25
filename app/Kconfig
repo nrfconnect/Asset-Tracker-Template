@@ -18,6 +18,7 @@ rsource "src/modules/button/Kconfig.button"
 rsource "src/modules/storage/Kconfig.storage"
 rsource "src/modules/sgp4/Kconfig.sgp4"
 rsource "src/inspect/Kconfig.inspect"
+rsource "memfault/Kconfig.memfault"
 endmenu
 
 menu "Zephyr Kernel"
