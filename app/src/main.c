@@ -1080,6 +1080,7 @@ static enum smf_state_result running_run(void *o)
 			 * connection.
 			 */
 			state_object->cloud_synced_on_connect = false;
+			return SMF_EVENT_HANDLED;
 		}
 	}
 
@@ -1627,6 +1628,8 @@ static enum smf_state_result fota_run(void *o)
 			default:
 				break;
 			}
+
+			return SMF_EVENT_HANDLED;
 		} else if (msg->type == CLOUD_CONNECTED) {
 			switch (resume_state) {
 			case STATE_DISCONNECTED:
@@ -1639,6 +1642,8 @@ static enum smf_state_result fota_run(void *o)
 			default:
 				break;
 			}
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
 
