@@ -1314,6 +1314,8 @@ static void state_running_entry(void *obj)
 	int err;
 	int rc;
 	char ip_addr[64];
+	char cellularprfl_resp[128];
+	bool profiles_configured = false;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 	
 	LOG_DBG("%s", __func__);
@@ -1397,15 +1399,6 @@ static void state_running_entry(void *obj)
 			.uicc = LTE_LC_UICC_PHYSICAL,
 		};
 
-	/* Set NTN profile */
-	err = lte_lc_cellular_profile_configure(&ntn_profile);
-		if (err) {
-			LOG_ERR("Failed to set NTN profile, error: %d", err);
-
-			return;
-		}
-
-
 	/* Set TN SIM profile for LTE-M
 		* 2: Configure cellular profile
 		* 0: Cellular profile index
@@ -1422,13 +1415,41 @@ static void state_running_entry(void *obj)
 #endif
 		};
 
-	/* Set TN profile */
-	err = lte_lc_cellular_profile_configure(&tn_profile);
+	err = nrf_modem_at_cmd(cellularprfl_resp, sizeof(cellularprfl_resp), "AT%%CELLULARPRFL?");
+	if (err == 0) {
+		LOG_DBG("AT%%CELLULARPRFL? response: %s", cellularprfl_resp);
+		profiles_configured =
+			(strstr(cellularprfl_resp, "%CELLULARPRFL: 1,4,0") != NULL) &&
+#ifdef CONFIG_SOFTSIM
+			(strstr(cellularprfl_resp, "%CELLULARPRFL: 0,3,2") != NULL);
+#else
+			(strstr(cellularprfl_resp, "%CELLULARPRFL: 0,3,0") != NULL);
+#endif
+	} else if (nrf_modem_at_err(err) == 513) {
+		LOG_INF("No CELLULARPRFL profiles configured");
+	} else {
+		LOG_INF("Failed to read CELLULARPRFL, error: %d", err);
+	}
+
+	if (!profiles_configured) {
+		/* Set NTN profile */
+		err = lte_lc_cellular_profile_configure(&ntn_profile);
+		if (err) {
+			LOG_ERR("Failed to set NTN profile, error: %d", err);
+
+			return;
+		}
+
+		/* Set TN profile */
+		err = lte_lc_cellular_profile_configure(&tn_profile);
 		if (err) {
 			LOG_ERR("Failed to set TN profile, error: %d", err);
 
 			return;
 		}
+	} else {
+		LOG_INF("CELLULARPRFL already configured");
+	}
 
 	load_tle_from_kconfig(state);
 
