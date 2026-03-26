@@ -25,14 +25,29 @@ NRFCLOUD_API_KEY = os.getenv('NRFCLOUD_API_KEY')
 DUT_DEVICE_TYPE = os.getenv('DUT_DEVICE_TYPE')
 
 def get_uarts():
-    base_path = "/dev/serial/by-id"
+    # Handle platform-specific serial device paths
+    import platform
+
+    if platform.system() == "Darwin":  # macOS
+        base_path = "/dev"
+        pattern = "tty.*"
+    else:  # Linux
+        base_path = "/dev/serial/by-id"
+        pattern = None
+
     try:
-        serial_paths = [os.path.join(base_path, entry) for entry in os.listdir(base_path)]
+        if platform.system() == "Darwin":
+            serial_paths = [os.path.join(base_path, entry) for entry in os.listdir(base_path)
+                          if entry.startswith("tty.")]
+            logger.info(f"Found serial devices: {serial_paths}")
+        else:
+            serial_paths = [os.path.join(base_path, entry) for entry in os.listdir(base_path)]
     except (FileNotFoundError, PermissionError) as e:
         raise RuntimeError("Failed to list serial devices") from e
     if not UART_ID:
         raise RuntimeError("UART_ID not set")
     uarts = [x for x in sorted(serial_paths) if UART_ID in x]
+    logger.info(f"Found UARTs: {uarts}")
     return uarts
 
 def scan_log_for_assertions(log):
