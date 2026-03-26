@@ -19,6 +19,7 @@
 #include <nrf_modem_gnss.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/net/socket.h>
+#include <zephyr/sys/timeutil.h>
 #include <errno.h>
 #include <time.h>
 #include <app_version.h>
@@ -791,20 +792,9 @@ static int reschedule_next_pass(struct ntn_state_object *state, const char * con
 		return -EINVAL;
 	}
 
-	/* Convert to Unix timestamp using date_time API */
+	/* Convert parsed UTC time directly to a Unix timestamp. */
 	int64_t pass_timestamp;
-	struct tm *utc_time = &pass_time;
-	err = date_time_set(utc_time);
-	if (err) {
-		LOG_ERR("Failed to set date time: %d", err);
-		return err;
-	}
-	err = date_time_now(&pass_timestamp);
-	if (err) {
-		LOG_ERR("Failed to get timestamp: %d", err);
-		return err;
-	}
-	pass_timestamp = pass_timestamp / 1000; /* Convert from ms to seconds */
+	pass_timestamp = timeutil_timegm64(&pass_time);
 
 	/* Calculate time until pass */
 	int64_t seconds_until_pass = pass_timestamp - current_time;
