@@ -37,6 +37,7 @@ enum ntn_msg_type {
 	NTN_SHELL_SET_DATETIME, /* Set date time from shell */
 	NTN_SHELL_SET_GNSS_LOCATION, /* Set GNSS location from shell */
 	NTN_SHELL_SET_TLE, /* Set TLE from shell */
+	NTN_SHELL_SET_PEAK_OFFSET, /* Set NTN activation offset from shell */
 	NTN_SET_SIB32, /* Set SIB32 prediction data from shell or AT monitor */
 	KEEPALIVE_TIMER,     /* Keepalive timer */
 	RUN_SGP4, /* */
@@ -53,6 +54,7 @@ struct ntn_msg {
 	char tle_name[NTN_TLE_NAME_MAX_LEN];
 	char tle_line1[NTN_TLE_LINE_MAX_LEN];
 	char tle_line2[NTN_TLE_LINE_MAX_LEN];
+	int32_t peak_offset_seconds;
 	char sib32_data[NTN_SIB32_MAX_LEN];
 	struct nrf_modem_gnss_pvt_data_frame pvt;
 };

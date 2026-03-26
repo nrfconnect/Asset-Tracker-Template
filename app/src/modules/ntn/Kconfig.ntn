@@ -115,10 +115,12 @@ config APP_NTN_THINGY_ROCKS_ENDPOINT
 	  Use world.thingy.rocks endpoint.
 
 config APP_NTN_TIMER_NTN_VALUE_SECONDS
-	int "Timer value for NTN activation"
+	int "Default peak-time offset for NTN activation"
 	default 20
 	help
-	  Timer value for NTN activation
+	  Default offset in seconds between the predicted pass peak time and when
+	  the NTN activation timer should fire. A runtime override can replace this
+	  value through the `att_ntn set_peak_offset` shell command.
 
 config APP_NTN_WATCHDOG_TIMEOUT_SECONDS
 	int "NTN module watchdog timeout in seconds"

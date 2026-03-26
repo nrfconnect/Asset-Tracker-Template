@@ -146,6 +146,7 @@ struct ntn_state_object {
 	uint64_t location_validity_end_time;
 	bool run_sgp4_after_gnss;
 	float sgp4_min_elevation_deg;
+	int32_t ntn_peak_offset_seconds;
 	int64_t  modem_cell_found_time;
 	int64_t  modem_connectivity_time;
 	bool is_RRC_connected;
@@ -168,6 +169,7 @@ static struct ntn_state_object ntn_state = {
 	.has_valid_gnss = false,
 	.run_sgp4_after_gnss = true,
 	.sgp4_min_elevation_deg = SGP4_DEFAULT_MIN_ELEVATION_DEG,
+	.ntn_peak_offset_seconds = CONFIG_APP_NTN_TIMER_NTN_VALUE_SECONDS,
 	.is_RRC_connected = false,
 };
 static struct sat_data sib32_validation_sat_data;
@@ -782,6 +784,7 @@ static int reschedule_next_pass(struct ntn_state_object *state, const char * con
 {
 	int err;
 	int64_t current_time;
+	int32_t ntn_peak_offset_seconds = state->ntn_peak_offset_seconds;
 	
 	/* Get current time */
 	err = date_time_now(&current_time);
@@ -815,21 +818,21 @@ static int reschedule_next_pass(struct ntn_state_object *state, const char * con
 		return -ETIME;
 	}
 
-
 	/* Start GNSS timer to wake up 5 minutes before pass */
 	int64_t gnss_timeout_value = seconds_until_pass - (5 * 60);
 	k_timer_start(&state->gnss_timer,
 			K_SECONDS(gnss_timeout_value),
 			K_NO_WAIT);
 
-	/* Start LTE timer to wake up 20 seconds before pass */
-	int64_t ntn_timeout_value = seconds_until_pass - CONFIG_APP_NTN_TIMER_NTN_VALUE_SECONDS;
+	/* Start LTE timer using the configured peak-time offset. */
+	int64_t ntn_timeout_value = seconds_until_pass - ntn_peak_offset_seconds;
 	k_timer_start(&state->ntn_timer,
 			K_SECONDS(ntn_timeout_value),
 			K_NO_WAIT);
 
 	LOG_INF("GNSS timer set to wake up in %lld seconds", gnss_timeout_value);
-	LOG_INF("NTN timer set to wake up in %lld seconds", ntn_timeout_value);
+	LOG_INF("NTN timer set to wake up in %lld seconds using peak offset %ld seconds",
+		ntn_timeout_value, (long)ntn_peak_offset_seconds);
 
 	return 0;
 }
@@ -1455,6 +1458,12 @@ static enum smf_state_result state_running_run(void *obj)
 
 			break;
 		}
+		case NTN_SHELL_SET_PEAK_OFFSET:
+			state->ntn_peak_offset_seconds = msg->peak_offset_seconds;
+			LOG_INF("NTN peak-time offset updated to %ld seconds",
+				(long)state->ntn_peak_offset_seconds);
+
+			break;
 		case NTN_SET_SIB32:
 			if (update_cached_sib32(state, msg->sib32_data)) {
 				LOG_INF("Stored SIB32 prediction data; it will be preferred over TLE");

@@ -23,6 +23,7 @@ NTN shell commands under `att_ntn`:
 - `att_ntn gnss_trigger`: enter the GNSS state manually.
 - `att_ntn sgp4_trigger [min_elevation_deg]`: run SGP4 manually using the currently cached GNSS fix and prediction data. Defaults to `40` degrees if no threshold is provided.
 - `att_ntn idle_trigger`: force the NTN module back to the idle state manually.
+- `att_ntn set_peak_offset <seconds>`: override the NTN activation offset relative to predicted peak time. Positive values trigger before peak, negative values after peak.
 - `att_ntn set_time_of_pass "<YYYY-MM-DD-HH:MM:SS>"`: set the next time of pass manually.
 - `att_ntn set_datetime "<YYYY-MM-DD-HH:MM:SS>"`: set the modem date and time manually.
 - `att_ntn set_gnss_location <lat> <lon> <alt_m>`: inject a GNSS fix directly without running the GNSS state.
@@ -37,6 +38,7 @@ att_ntn gnss_trigger
 att_ntn sgp4_trigger
 att_ntn sgp4_trigger 50
 att_ntn idle_trigger
+att_ntn set_peak_offset 45
 att_ntn set_time_of_pass "2025-10-07-14:30:00"
 att_ntn set_datetime "2025-10-07-14:30:00"
 att_ntn set_gnss_location 57.7089 11.9746 15.0
