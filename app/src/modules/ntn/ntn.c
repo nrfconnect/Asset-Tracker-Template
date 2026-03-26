@@ -613,6 +613,12 @@ static int init_sat_data_for_prediction(struct ntn_state_object *state, struct s
 	if (state->has_valid_sib32) {
 		err = sat_data_init_atsib32(sat_data, state->sib32_data);
 		if (err == 0) {
+			/* Force the use of the serving satellite only.
+			 * Context is lost with satellite hopping.
+			 * First entry of SIB32 belongs to the serving satellite.
+			*/
+			sat_data->sat_count = MIN(sat_data->sat_count, 1);
+
 			err = sat_data_set_name(sat_data, "SIB32");
 			if (err) {
 				LOG_ERR("Failed to set SIB32 satellite name, error: %d", err);
