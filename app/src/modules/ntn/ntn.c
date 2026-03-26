@@ -1312,6 +1312,8 @@ static int connect_to_cloud(void)
 static void state_running_entry(void *obj)
 {
 	int err;
+	int rc;
+	char ip_addr[64];
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 	
 	LOG_DBG("%s", __func__);
@@ -1336,6 +1338,15 @@ static void state_running_entry(void *obj)
 		LOG_ERR("Failed to initialize the modem library, error: %d", err);
 
 		return;
+	}
+
+	rc = nrf_modem_at_scanf("AT+CGPADDR=0", "+CGPADDR: 0,\"%63[^\"]\"", ip_addr);
+	if (rc == 1) {
+		LOG_INF("Boot PDP context present: %s", ip_addr);
+	} else if (rc == 0) {
+		LOG_INF("Boot PDP context not present");
+	} else {
+		LOG_WRN("AT+CGPADDR=0 query failed, error: %d", rc);
 	}
 
 #if defined(CONFIG_TLE_VIA_HTTP)
