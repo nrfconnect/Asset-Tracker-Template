@@ -852,6 +852,64 @@ static int set_ntn_offline_mode(void)
 	return 0;
 }
 
+#if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
+static int configure_ntn_channel_select(void)
+{
+	int err;
+
+	err = nrf_modem_at_printf("AT%%CHSELECT=2,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
+	if (err == 0) {
+		return 0;
+	}
+
+	LOG_WRN("AT%%CHSELECT failed (%d), trying AT%%FREQRANGES fallback", err);
+
+	err = nrf_modem_at_printf("AT%%FREQRANGES=0");
+	if (err) {
+		LOG_ERR("Failed to clear AT%%FREQRANGES before programming, error: %d", err);
+		return err;
+	}
+
+	/*
+	 * Use an "allowed" satellite NB-IoT frequency range entry so the modem
+	 * searches only the configured NTN EARFCN when %CHSELECT is unavailable.
+	 */
+	err = nrf_modem_at_printf("AT%%FREQRANGES=1,6,,1,\"%i\",\"\"",
+				  CONFIG_APP_NTN_CHANNEL_SELECT);
+	if (err) {
+		LOG_ERR("Failed to set NTN channel using AT%%FREQRANGES, error: %d", err);
+		return err;
+	}
+
+	LOG_INF("Configured NTN channel using AT%%FREQRANGES fallback");
+
+	return 0;
+}
+
+static int clear_ntn_channel_select(void)
+{
+	int err;
+
+	err = nrf_modem_at_printf("AT%%CHSELECT=0");
+	if (err == 0) {
+		return 0;
+	}
+
+	LOG_WRN("AT%%CHSELECT clear failed (%d), trying AT%%FREQRANGES fallback", err);
+
+	err = nrf_modem_at_printf("AT%%FREQRANGES=0");
+	if (err) {
+		LOG_ERR("Failed to clear NTN channel selection using AT%%FREQRANGES, error: %d",
+			err);
+		return err;
+	}
+
+	LOG_INF("Cleared NTN channel selection using AT%%FREQRANGES fallback");
+
+	return 0;
+}
+#endif
+
 static int set_ntn_active_mode(struct ntn_state_object *state)
 {
 	int err;
@@ -940,7 +998,7 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 #endif
 
 #if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
-	err = nrf_modem_at_printf("AT%%CHSELECT=2,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
+	err = configure_ntn_channel_select();
 	if (err) {
 		LOG_ERR("Failed to set NTN channel, error: %d", err);
 
@@ -1664,9 +1722,9 @@ static void state_tn_entry(void *obj)
 		return;
 	}
 
-	err = nrf_modem_at_printf("AT%%CHSELECT=0");
+	err = clear_ntn_channel_select();
 	if (err) {
-		LOG_ERR("Failed to set NTN channel, error: %d", err);
+		LOG_ERR("Failed to clear NTN channel, error: %d", err);
 
 		return;
 	}
