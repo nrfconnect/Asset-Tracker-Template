@@ -145,6 +145,7 @@ struct ntn_state_object {
 	bool has_valid_gnss;
 	uint64_t location_validity_end_time;
 	bool run_sgp4_after_gnss;
+	float sgp4_min_elevation_deg;
 	int64_t  modem_cell_found_time;
 	int64_t  modem_connectivity_time;
 	bool is_RRC_connected;
@@ -166,6 +167,7 @@ static struct ntn_state_object ntn_state = {
 	.has_valid_sib32 = false,
 	.has_valid_gnss = false,
 	.run_sgp4_after_gnss = true,
+	.sgp4_min_elevation_deg = SGP4_DEFAULT_MIN_ELEVATION_DEG,
 	.is_RRC_connected = false,
 };
 static struct sat_data sib32_validation_sat_data;
@@ -1396,6 +1398,15 @@ static enum smf_state_result state_running_run(void *obj)
 
 			break;
 		case RUN_SGP4:
+			if (msg->sgp4_min_elevation_deg < 0.0f ||
+			    msg->sgp4_min_elevation_deg > 90.0f) {
+				LOG_WRN("Invalid SGP4 minimum elevation %.2f, using default %.2f",
+					(double)msg->sgp4_min_elevation_deg,
+					SGP4_DEFAULT_MIN_ELEVATION_DEG);
+				state->sgp4_min_elevation_deg = SGP4_DEFAULT_MIN_ELEVATION_DEG;
+			} else {
+				state->sgp4_min_elevation_deg = msg->sgp4_min_elevation_deg;
+			}
 			smf_set_state(SMF_CTX(state), &states[STATE_SGP4]);
 
 			break;
@@ -1860,7 +1871,8 @@ static void state_sgp4_entry(void *obj)
 		return;
 	}
 
-	LOG_INF("Using %s data to compute next pass", prediction_source);
+	LOG_INF("Using %s data to compute next pass with minimum elevation %.2f degrees",
+		prediction_source, (double)state->sgp4_min_elevation_deg);
 
 	err = date_time_now(&now_ms);
 	if (err) {
@@ -1880,7 +1892,8 @@ static void state_sgp4_entry(void *obj)
 			(double)state->last_pvt.latitude,
 			(double)state->last_pvt.longitude,
 			(double)state->last_pvt.altitude,
-			now_ms);
+			now_ms,
+			(double)state->sgp4_min_elevation_deg);
 		if (err) {
 			LOG_WRN("No pass found for satellite index %d, error: %d", i, err);
 			continue;

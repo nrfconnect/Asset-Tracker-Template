@@ -47,6 +47,7 @@ enum ntn_msg_type {
 /* NTN module message */
 struct ntn_msg {
 	enum ntn_msg_type type;
+	float sgp4_min_elevation_deg;
 	char time_of_pass[32];
 	char datetime[32];
 	char tle_name[NTN_TLE_NAME_MAX_LEN];

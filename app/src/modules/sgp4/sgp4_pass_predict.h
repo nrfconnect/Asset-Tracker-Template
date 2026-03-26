@@ -12,6 +12,7 @@
  #include <stdint.h>
  
  #define MAX_SATELLITES 4
+ #define SGP4_DEFAULT_MIN_ELEVATION_DEG 50.0
  
  struct next_pass {
 	 int64_t start_time_ms;
@@ -84,7 +85,8 @@ int sat_data_init_tle_at(struct sat_data *sat_data, const char *line1, const cha
   * @return 0 if the next pass is calculated successfully, negative error code otherwise
   */
  int sat_data_calculate_next_pass(struct sat_data *sat_data, int sat_index,
-	 double lat, double lon, double alt, int64_t start_time_ms);
+	 double lat, double lon, double alt, int64_t start_time_ms,
+	 double min_elevation_deg);
  
  
  /**

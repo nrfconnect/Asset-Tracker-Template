@@ -74,7 +74,8 @@ void test_nextpass_atsib_sateliot_1(void)
 	err = sat_data_init_atsib32(&data, atsib32);
 	TEST_ASSERT_EQUAL(0, err);
 	debug_print_satrec(&data, 0);
-	err = sat_data_calculate_next_pass(&data, 0, LAT_TRD, LON_TRD, ALT_TRD, FAKE_TIME_MS);
+	err = sat_data_calculate_next_pass(&data, 0, LAT_TRD, LON_TRD, ALT_TRD, FAKE_TIME_MS,
+		SGP4_DEFAULT_MIN_ELEVATION_DEG);
 	TEST_ASSERT_EQUAL(0, err);
 	LOG_INF("Next pass: %lld", data.next_pass.start_time_ms);
 	LOG_INF("End time: %lld", data.next_pass.end_time_ms);
@@ -103,7 +104,8 @@ void test_nextpass_tle_sateliot_1(void)
 	err = sat_data_init_tle(&data, line1, line2);
 	TEST_ASSERT_EQUAL(0, err);
 	debug_print_satrec(&data, 0);
-	err = sat_data_calculate_next_pass(&data, 0, LAT_TRD, LON_TRD, ALT_TRD, FAKE_TIME_MS);
+	err = sat_data_calculate_next_pass(&data, 0, LAT_TRD, LON_TRD, ALT_TRD, FAKE_TIME_MS,
+		SGP4_DEFAULT_MIN_ELEVATION_DEG);
 	TEST_ASSERT_EQUAL(0, err);
 	LOG_INF("Next pass: %lld", data.next_pass.start_time_ms);
 	LOG_INF("End time: %lld", data.next_pass.end_time_ms);

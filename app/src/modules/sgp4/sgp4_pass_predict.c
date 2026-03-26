@@ -465,8 +465,8 @@ cleanup:
 	 return 0;
  }
  
- int sat_data_calculate_next_pass(struct sat_data *sat_data, int sat_index, double lat_deg,
-	 double lon_deg, double alt_m, int64_t start_time_ms)
+int sat_data_calculate_next_pass(struct sat_data *sat_data, int sat_index, double lat_deg,
+	 double lon_deg, double alt_m, int64_t start_time_ms, double min_elevation_deg)
  {
 	 double r_station_ecef[3];
 	 double r[3], v[3];
@@ -496,6 +496,10 @@ cleanup:
 		 LOG_ERR("Invalid satellite index: %d", sat_index);
 		 return -EINVAL;
 	 }
+	 if (min_elevation_deg < 0.0 || min_elevation_deg > 90.0) {
+		 LOG_ERR("Invalid minimum elevation: %.2f", min_elevation_deg);
+		 return -EINVAL;
+	 }
 	 geodetic_to_ecef(lat, lon, alt_km, r_station_ecef);
  
 	 jd_from_unix_time_ms(start_time_ms, &jd_start, &jdfrac_start);
@@ -514,7 +518,7 @@ cleanup:
 		 current_jd = jd_current_start + (i / 1440.0);
 		 gmst = gstime(current_jd);
 		 calculate_look_angle(r, r_station_ecef, lat, lon, gmst, &elevation);
-		 if (elevation > 40.0) {
+		 if (elevation >= min_elevation_deg) {
 			 if (!in_pass) {
 				 in_pass = true;
 				 pass_start = start_time_ms + (i * 60 * 1000);

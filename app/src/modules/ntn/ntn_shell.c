@@ -16,6 +16,7 @@
 #include <time.h>
 
 #include "ntn.h"
+#include "sgp4_pass_predict.h"
 
 LOG_MODULE_DECLARE(ntn, CONFIG_APP_NTN_LOG_LEVEL);
 
@@ -73,6 +74,14 @@ static void print_set_sib32_help(const struct shell *sh)
 		    "\"SIBCONFIG: 32,\\\"00000001\\\",2,1,1138123,1529334,1391197,758633,13719,2572629918,28139,-3,120679,,11,11,,,,3,1138188,1686202,1399132,2534648,10028,2572728485,19572,-3,121275,,11,11,,,\"");
 }
 
+static void print_sgp4_trigger_help(const struct shell *sh)
+{
+	shell_print(sh, "Usage: att_ntn sgp4_trigger [min_elevation_deg]");
+	shell_print(sh, "Example: att_ntn sgp4_trigger 50");
+	shell_print(sh, "Default minimum elevation is %.1f degrees",
+		    SGP4_DEFAULT_MIN_ELEVATION_DEG);
+}
+
 static int cmd_ntn_trigger(const struct shell *sh, size_t argc, char **argv)
 {
 	ARG_UNUSED(argc);
@@ -94,11 +103,28 @@ static int cmd_ntn_trigger(const struct shell *sh, size_t argc, char **argv)
 
 static int cmd_sgp4_trigger(const struct shell *sh, size_t argc, char **argv)
 {
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
+	char *endptr;
+	double min_elevation_deg = SGP4_DEFAULT_MIN_ELEVATION_DEG;
+
+	if (argc > 2) {
+		print_sgp4_trigger_help(sh);
+		return 1;
+	}
+
+	if (argc == 2) {
+		errno = 0;
+		min_elevation_deg = strtod(argv[1], &endptr);
+		if (errno != 0 || *argv[1] == '\0' || *endptr != '\0' ||
+		    min_elevation_deg < 0.0 || min_elevation_deg > 90.0) {
+			shell_print(sh,
+				    "Invalid minimum elevation. Expected a value in range [0, 90]");
+			return 1;
+		}
+	}
 
 	struct ntn_msg msg = {
-		.type = RUN_SGP4
+		.type = RUN_SGP4,
+		.sgp4_min_elevation_deg = (float)min_elevation_deg,
 	};
 
 	int err = zbus_chan_pub(&NTN_CHAN, &msg, K_SECONDS(1));
@@ -107,7 +133,8 @@ static int cmd_sgp4_trigger(const struct shell *sh, size_t argc, char **argv)
 		return 1;
 	}
 
-	shell_print(sh, "Triggering SGP4 manually");
+	shell_print(sh, "Triggering SGP4 manually with minimum elevation %.2f degrees",
+		    min_elevation_deg);
 	return 0;
 }
 
@@ -328,7 +355,9 @@ static int cmd_set_datetime_manual(const struct shell *sh, size_t argc, char **a
 
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_att_ntn,
 	SHELL_CMD(ntn_trigger, NULL, "Trigger NTN state manually", cmd_ntn_trigger),
-	SHELL_CMD(sgp4_trigger, NULL, "Trigger SGP4 manually", cmd_sgp4_trigger),
+	SHELL_CMD(sgp4_trigger, NULL,
+		  "Trigger SGP4 manually [min_elevation_deg]",
+		  cmd_sgp4_trigger),
 	SHELL_CMD(gnss_trigger, NULL, "Trigger GNSS manually", cmd_gnss_trigger),
 	SHELL_CMD(idle_trigger, NULL, "Trigger IDLE state manually", cmd_idle_trigger),
 	SHELL_CMD(set_gnss_location, NULL, "Inject GNSS location without running GNSS", cmd_set_gnss_location_manual),

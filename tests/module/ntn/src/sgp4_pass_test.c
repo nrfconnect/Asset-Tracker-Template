@@ -69,7 +69,8 @@
 	 err = sat_data_init_tle(data, line1, line2);
 	 TEST_ASSERT_EQUAL(0, err);
  
-	 err = sat_data_calculate_next_pass(data, 0, 0.0, 0.0, 0.0, FAKE_TIME_MS);
+	 err = sat_data_calculate_next_pass(data, 0, 0.0, 0.0, 0.0, FAKE_TIME_MS,
+		 SGP4_DEFAULT_MIN_ELEVATION_DEG);
 	 TEST_ASSERT_EQUAL(0, err);
  
 	 int64_t start_time = data->next_pass.start_time_ms / 1000;
@@ -95,7 +96,8 @@
 	 TEST_ASSERT_EQUAL(0, sat_data_init_atsib32(&satellite, atsib32));
 	 TEST_ASSERT_EQUAL(0, sat_data_set_name(&satellite, "01A2D101"));
 	 TEST_ASSERT_EQUAL(0,
-		 sat_data_calculate_next_pass(&satellite, 0, 0.0, 0.0, 0.0, FAKE_TIME_MS));
+		 sat_data_calculate_next_pass(&satellite, 0, 0.0, 0.0, 0.0, FAKE_TIME_MS,
+			 SGP4_DEFAULT_MIN_ELEVATION_DEG));
 	 debug_print_next_pass(&satellite);
  }
  
@@ -107,7 +109,8 @@
 	 TEST_ASSERT_EQUAL(0, sat_data_init_atsib32(&satellite, atsib32));
 	 TEST_ASSERT_EQUAL(0, sat_data_set_name(&satellite, "01A2D101"));
 	 TEST_ASSERT_EQUAL(0,
-		 sat_data_calculate_next_pass(&satellite, 0, 0.0, 0.0, 0.0, FAKE_TIME_MS));
+		 sat_data_calculate_next_pass(&satellite, 0, 0.0, 0.0, 0.0, FAKE_TIME_MS,
+			 SGP4_DEFAULT_MIN_ELEVATION_DEG));
 	 debug_print_next_pass(&satellite);
  }
  
@@ -281,10 +284,14 @@
 	 int err;
 	 struct sat_data sat_data = {0};
  
-	 err = sat_data_calculate_next_pass(NULL, 0, 0.0, 0.0, 0.0, FAKE_TIME_MS);
+	 err = sat_data_calculate_next_pass(NULL, 0, 0.0, 0.0, 0.0, FAKE_TIME_MS,
+		 SGP4_DEFAULT_MIN_ELEVATION_DEG);
 	 TEST_ASSERT_EQUAL(-EINVAL, err);
-	 err = sat_data_calculate_next_pass(&sat_data, 0, 0.0, 0.0, 0.0, FAKE_TIME_MS);
+	 err = sat_data_calculate_next_pass(&sat_data, 0, 0.0, 0.0, 0.0, FAKE_TIME_MS,
+		 SGP4_DEFAULT_MIN_ELEVATION_DEG);
 	 TEST_ASSERT_EQUAL(-1, err);
+	 err = sat_data_calculate_next_pass(&sat_data, 0, 0.0, 0.0, 0.0, FAKE_TIME_MS, 91.0);
+	 TEST_ASSERT_EQUAL(-EINVAL, err);
 	 err =  sat_data_init_atsib32(NULL, NULL);
 	 TEST_ASSERT_EQUAL(-EINVAL, err);
 	 err = sat_data_init_atsib32(&sat_data, NULL);
