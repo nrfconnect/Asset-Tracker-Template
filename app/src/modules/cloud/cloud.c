@@ -774,10 +774,11 @@ static void network_connection_status_retain(struct cloud_state_object *state_ob
 	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-		if (msg.type == NETWORK_DISCONNECTED || msg.type == NETWORK_CONNECTED) {
-			/* Update network status to retain the last connection status */
-			state_object->network_connected =
-				(msg.type == NETWORK_CONNECTED) ? true : false;
+		if (msg.type == NETWORK_DISCONNECTED) {
+			state_object->network_connected = false;
+		} else if (msg.type == NETWORK_CONNECTED &&
+			   msg.connection_type == NETWORK_CONNECTION_TN) {
+			state_object->network_connected = true;
 		}
 	}
 }
@@ -836,7 +837,8 @@ static enum smf_state_result state_disconnected_run(void *obj)
 	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-		if (msg.type == NETWORK_CONNECTED) {
+		if (msg.type == NETWORK_CONNECTED &&
+		    msg.connection_type == NETWORK_CONNECTION_TN) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
 
 			return SMF_EVENT_HANDLED;
@@ -1214,7 +1216,8 @@ static enum smf_state_result state_connected_paused_run(void *obj)
 	if (state_object->chan == &network_chan) {
 		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
 
-		if (msg.type == NETWORK_CONNECTED) {
+		if (msg.type == NETWORK_CONNECTED &&
+		    msg.connection_type == NETWORK_CONNECTION_TN) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_READY]);
 
 			return SMF_EVENT_HANDLED;

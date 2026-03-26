@@ -263,6 +263,20 @@ struct main_state {
 #endif /* CONFIG_APP_POWER */
 		bool location_ready;
 	} modules_ready;
+
+	/* Cached GNSS position for NTN */
+	struct {
+		double latitude;
+		double longitude;
+		float altitude;
+		int64_t timestamp_ms;
+		bool valid;
+	} gnss_cache;
+
+	/* TN search has failed and an NTN fallback should be attempted
+	 * as soon as the current sampling cycle completes.
+	 */
+	bool ntn_fallback_pending;
 };
 
 /* Construct state table */
@@ -940,6 +954,46 @@ static void check_modules_ready(const struct main_state *state_object)
 	}
 }
 
+static void ntn_fallback_send(struct main_state *state_object)
+{
+	int err;
+	struct network_msg msg = {
+		.type = NETWORK_CONNECT_NTN,
+	};
+
+	state_object->ntn_fallback_pending = false;
+	state_object->sample_start_time = k_uptime_seconds();
+
+	if (state_object->gnss_cache.valid) {
+		LOG_INF("NTN fallback with cached GNSS fix");
+		msg.prev_location.latitude = state_object->gnss_cache.latitude;
+		msg.prev_location.longitude = state_object->gnss_cache.longitude;
+		msg.prev_location.altitude = state_object->gnss_cache.altitude;
+	} else {
+		double lat = (double)CONFIG_APP_NETWORK_NTN_STATIC_LATITUDE / 1000000.0;
+		double lon = (double)CONFIG_APP_NETWORK_NTN_STATIC_LONGITUDE / 1000000.0;
+		float alt = (float)CONFIG_APP_NETWORK_NTN_STATIC_ALTITUDE;
+
+		if (lat == 0.0 && lon == 0.0) {
+			LOG_WRN("No GNSS fix and no static fallback configured");
+			return;
+		}
+
+		LOG_INF("NTN fallback with static location: "
+			"lat=%.6f lon=%.6f alt=%.1f",
+			lat, lon, (double)alt);
+		msg.prev_location.latitude = lat;
+		msg.prev_location.longitude = lon;
+		msg.prev_location.altitude = alt;
+	}
+
+	err = zbus_chan_pub(&network_chan, &msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("Failed to publish NETWORK_CONNECT_NTN: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
 /* Zephyr State Machine framework handlers */
 
 /* STATE_WAITING_FOR_MODULES_INIT */
@@ -1022,6 +1076,34 @@ static enum smf_state_result running_run(void *o)
 		}
 	}
 
+	/* Cache GNSS fixes for NTN Doppler correction */
+	if (state_object->chan == &location_chan) {
+		const struct location_msg *loc_msg = MSG_TO_LOCATION_MSG_PTR(state_object->msg_buf);
+
+		if (loc_msg->type == LOCATION_GNSS_DATA) {
+			state_object->gnss_cache.latitude = loc_msg->gnss_data.latitude;
+			state_object->gnss_cache.longitude = loc_msg->gnss_data.longitude;
+			state_object->gnss_cache.altitude =
+				loc_msg->gnss_data.details.gnss.pvt_data.altitude;
+			state_object->gnss_cache.timestamp_ms = k_uptime_get();
+			state_object->gnss_cache.valid = true;
+
+			LOG_DBG("GNSS cache: lat=%.6f lon=%.6f alt=%.1f",
+				state_object->gnss_cache.latitude,
+				state_object->gnss_cache.longitude,
+				(double)state_object->gnss_cache.altitude);
+		}
+	}
+
+	/* Clear NTN fallback if TN connected after all */
+	if (state_object->chan == &network_chan) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		if (msg.type == NETWORK_CONNECTED && msg.connection_type == NETWORK_CONNECTION_TN) {
+			state_object->ntn_fallback_pending = false;
+		}
+	}
+
 	return SMF_EVENT_PROPAGATE;
 }
 
@@ -1069,7 +1151,7 @@ static enum smf_state_result disconnected_run(void *o)
 		return SMF_EVENT_HANDLED;
 	}
 
-	/* Ignore send trigers when disconnected */
+	/* Ignore send triggers when disconnected */
 	if (state_object->chan == &button_chan) {
 		struct button_msg button_msg = MSG_TO_BUTTON_MSG(state_object->msg_buf);
 
@@ -1082,6 +1164,21 @@ static enum smf_state_result disconnected_run(void *o)
 		const struct storage_msg *msg = MSG_TO_STORAGE_MSG_PTR(state_object->msg_buf);
 
 		if (msg->type == STORAGE_THRESHOLD_REACHED) {
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	if (state_object->chan == &network_chan) {
+		struct network_msg msg = MSG_TO_NETWORK_MSG(state_object->msg_buf);
+
+		if (msg.type == NETWORK_LIGHT_SEARCH_DONE || msg.type == NETWORK_SEARCH_DONE) {
+			state_object->ntn_fallback_pending = true;
+
+			if (SMF_CTX(state_object)->current !=
+			    &states[STATE_DISCONNECTED_SAMPLING]) {
+				ntn_fallback_send(state_object);
+			}
+
 			return SMF_EVENT_HANDLED;
 		}
 	}
@@ -1196,6 +1293,11 @@ static enum smf_state_result disconnected_sampling_run(void *o)
 	    MSG_TO_LOCATION_TYPE(state_object->msg_buf) == LOCATION_SEARCH_DONE) {
 
 		sensor_triggers_send();
+
+		if (state_object->ntn_fallback_pending) {
+			ntn_fallback_send(state_object);
+		}
+
 		smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_WAITING]);
 
 		return SMF_EVENT_HANDLED;
@@ -1308,7 +1410,6 @@ static enum smf_state_result connected_sampling_run(void *o)
 		} else {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_WAITING]);
 		}
-
 
 		return SMF_EVENT_HANDLED;
 	}

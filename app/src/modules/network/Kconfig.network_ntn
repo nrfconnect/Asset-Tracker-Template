@@ -1,0 +1,102 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menu "Network NTN"
+	depends on LTE_LINK_CONTROL
+
+config APP_NETWORK_NTN
+	bool "NTN GEO fallback network module"
+	depends on NTN
+	depends on APP_LOCATION
+	help
+	  Replace the standard network module with an NTN-aware variant that
+	  tries terrestrial networks first and falls back to NTN GEO (Skylo)
+	  when TN is unavailable. Requires NTN-capable modem firmware
+	  (mfw_nrf9151-ntn).
+
+if APP_NETWORK_NTN
+
+config APP_NETWORK_NTN_SHELL
+	bool "NTN network module shell commands"
+	default y if SHELL
+	help
+	  Enable shell commands for the NTN network module.
+
+config APP_NETWORK_NTN_THREAD_STACK_SIZE
+	int "Thread stack size"
+	default 2048
+	help
+	  Stack size for the NTN network module thread. Larger than
+	  the standard network module due to GNSS and NTN handling.
+
+config APP_NETWORK_NTN_WATCHDOG_TIMEOUT_SECONDS
+	int "Watchdog timeout"
+	default 600
+	help
+	  Timeout in seconds for the NTN network module watchdog.
+
+config APP_NETWORK_NTN_MSG_PROCESSING_TIMEOUT_SECONDS
+	int "Maximum message processing time"
+	default 570
+	help
+	  Maximum time allowed for processing a single message.
+	  Must be smaller than CONFIG_APP_NETWORK_NTN_WATCHDOG_TIMEOUT_SECONDS.
+
+config APP_NETWORK_NTN_TN_SEARCH_USE_LIGHT_SEARCH
+	bool "Use light search for TN before NTN fallback"
+	help
+	  If enabled, fall back to NTN after the modem completes a light search
+	  (faster, based on cell history). If disabled, wait for the full search
+	  to complete before falling back.
+
+config APP_NETWORK_NTN_TN_SEARCH_TIMEOUT_SECONDS
+	int "TN search timeout (seconds)"
+	default 90
+	help
+	  Maximum time to wait for terrestrial network search to complete.
+	  If neither a PDN connection nor a search done event is received
+	  within this time, the module falls back to NTN. This is a safety
+	  net in case modem domain events are not delivered.
+
+config APP_NETWORK_NTN_STATIC_LATITUDE
+	int "Static fallback latitude (microdegrees)"
+	default 0
+	help
+	  Latitude in microdegrees (degrees * 1000000) used as last
+	  resort when no GNSS fix is available.
+	  Example: 63430000 for 63.43 N.
+
+config APP_NETWORK_NTN_STATIC_LONGITUDE
+	int "Static fallback longitude (microdegrees)"
+	default 0
+	help
+	  Longitude in microdegrees (degrees * 1000000) used as last
+	  resort when no GNSS fix is available.
+	  Example: 10390000 for 10.39 E.
+
+config APP_NETWORK_NTN_STATIC_ALTITUDE
+	int "Static fallback altitude (meters)"
+	default 0
+	help
+	  Altitude in meters above WGS-84 ellipsoid used as last
+	  resort when no GNSS fix is available.
+	  Example: 50 for 50 meters.
+
+config APP_NETWORK_NTN_SEARCH_NETWORK_ON_STARTUP
+	bool "Search for network on startup"
+	default y
+	help
+	  If enabled, the module will search for a network on startup.
+	  If disabled, network search must be triggered by a NETWORK_CONNECT
+	  message.
+
+module = APP_NETWORK_NTN
+module-str = Network NTN
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # APP_NETWORK_NTN
+
+endmenu # Network NTN

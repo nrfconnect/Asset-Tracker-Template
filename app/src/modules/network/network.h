@@ -26,7 +26,10 @@ enum network_msg_type {
 	/* The device is disconnected from the network */
 	NETWORK_DISCONNECTED = 0x1,
 
-	/* The device is connected to the network and has an IP address */
+	/* The device is connected to the network and has an IP address.
+	 * The .connection_type field indicates whether the connection is
+	 * terrestrial or NTN.
+	 */
 	NETWORK_CONNECTED,
 
 	/* The modem has detected a reset loop with too many attach requests within a short time.
@@ -112,6 +115,16 @@ enum network_msg_type {
 	 * NETWORK_SYSTEM_MODE_RESPONSE message.
 	 */
 	NETWORK_SYSTEM_MODE_REQUEST,
+
+	/* Request to connect via NTN using a previously obtained location.
+	 * The .prev_location field must be populated with a valid position (lat, lon, alt).
+	 */
+	NETWORK_CONNECT_NTN,
+};
+
+enum network_connection_type {
+	NETWORK_CONNECTION_TN,
+	NETWORK_CONNECTION_NTN,
 };
 
 struct network_msg {
@@ -131,11 +144,24 @@ struct network_msg {
 		 *  edrx_cfg is valid for NETWORK_EDRX_PARAMS events.
 		 */
 		IF_ENABLED(CONFIG_LTE_LC_EDRX_MODULE, (struct lte_lc_edrx_cfg edrx_cfg));
+
+		/** Indicates whether the connection is terrestrial or NTN.
+		 *  connection_type is valid for NETWORK_CONNECTED events.
+		 */
+		enum network_connection_type connection_type;
+
+		/** Previously obtained location, required for NTN.
+		 *  prev_location is valid for NETWORK_CONNECT_NTN events.
+		 */
+		struct {
+			double latitude;
+			double longitude;
+			float altitude;
+		} prev_location;
 	};
 };
 
 #define MSG_TO_NETWORK_MSG(_msg)	(*(const struct network_msg *)_msg)
-
 
 #ifdef __cplusplus
 }
