@@ -880,12 +880,24 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	case LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG: __fallthrough;
 	case LTE_LC_FUNC_MODE_OFFLINE: __fallthrough;
 	case LTE_LC_FUNC_MODE_POWER_OFF:
+		// Set XOPCONF to skylo if flight mode or offline
+		err = nrf_modem_at_printf("AT%%XOPCONF=21");
+		if (err) {
+			LOG_ERR("Failed to set AT%%XOPCONF=21, error: %d", err);
+			return err;
+		}
 		break;
 	default:
 		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE);
 		if (err) {
 			LOG_ERR("lte_lc_func_mode_set, error: %d", err);
 
+			return err;
+		}
+
+		err = nrf_modem_at_printf("AT%%XOPCONF=21");
+		if (err) {
+			LOG_ERR("Failed to set AT%%XOPCONF=21, error: %d", err);
 			return err;
 		}
 
