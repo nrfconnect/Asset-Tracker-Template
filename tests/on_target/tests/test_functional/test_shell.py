@@ -21,12 +21,6 @@ def test_shell(dut_cloud, hex_file):
     flash_device(os.path.abspath(hex_file))
     dut_cloud.uart.xfactoryreset()
 
-    patterns_boot = [
-        "main: connected_sending_entry: connected_sending_entry",
-    ]
-    patterns_boot_done = [
-        "main: connected_waiting_entry: connected_waiting_entry",
-    ]
     patterns_button_press = [
         "main: connected_sampling_entry: connected_sampling_entry",
     ]
@@ -44,8 +38,7 @@ def test_shell(dut_cloud, hex_file):
     dut_cloud.uart.flush()
     reset_device()
     dut_cloud.uart.wait_for_str_with_retries("Connected to Cloud", max_retries=3, timeout=240, reset_func=reset_device)
-    dut_cloud.uart.wait_for_str(patterns_boot, timeout=120)
-    dut_cloud.uart.wait_for_str(patterns_boot_done, timeout=120)
+    dut_cloud.uart.wait_for_str_re(r"Next sample trigger in [1-9]\d* seconds", timeout=120)
 
     # Button press
     dut_cloud.uart.flush()
