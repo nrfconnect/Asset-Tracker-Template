@@ -1557,10 +1557,6 @@ static void fota_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 
-	/* Suspend all periodic activity while in FOTA */
-	timer_sample_stop();
-	timer_send_data_stop();
-
 #if defined(CONFIG_APP_LED)
 	int err;
 	/* Purple pattern during download - indefinite for ongoing process */
@@ -1745,10 +1741,6 @@ static void fota_waiting_for_network_disconnect_to_apply_image_entry(void *o)
 
 		return;
 	}
-
-	/* Ensure all timers are stopped while awaiting disconnect to apply image */
-	timer_sample_stop();
-	timer_send_data_stop();
 }
 
 static enum smf_state_result fota_waiting_for_network_disconnect_to_apply_image_run(void *o)
