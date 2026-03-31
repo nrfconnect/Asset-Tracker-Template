@@ -1243,6 +1243,17 @@ static enum smf_state_result connected_run(void *o)
 		}
 	}
 
+	/* Handle buffer limit reached to send immediately */
+	if (state_object->chan == &storage_chan) {
+		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
+
+		if (msg->type == STORAGE_THRESHOLD_REACHED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_SENDING]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
 	return SMF_EVENT_PROPAGATE;
 }
 
@@ -1379,15 +1390,7 @@ static enum smf_state_result connected_sampling_run(void *o)
 
 		if (msg->type == LOCATION_SEARCH_DONE) {
 			sensor_triggers_send();
-
-			if (SMF_CTX(state_object)->previous == &states[STATE_CONNECTED_SENDING]) {
-				smf_set_state(SMF_CTX(state_object),
-					      &states[STATE_CONNECTED_SENDING]);
-			} else {
-				smf_set_state(SMF_CTX(state_object),
-					      &states[STATE_CONNECTED_WAITING]);
-			}
-
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_WAITING]);
 			return SMF_EVENT_HANDLED;
 		}
 	}
@@ -1397,18 +1400,6 @@ static enum smf_state_result connected_sampling_run(void *o)
 		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
 		if (msg->type == BUTTON_PRESS_SHORT) {
-			return SMF_EVENT_HANDLED;
-		}
-	}
-
-	/* Handle buffer limit reached to send immediately */
-	if (state_object->chan == &storage_chan) {
-		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
-
-		if (msg->type == STORAGE_THRESHOLD_REACHED) {
-			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_CONNECTED_SENDING]);
-
 			return SMF_EVENT_HANDLED;
 		}
 	}
@@ -1460,18 +1451,6 @@ static enum smf_state_result connected_waiting_run(void *o)
 		}
 	}
 
-	/* Handle buffer limit reached to send immediately */
-	if (state_object->chan == &storage_chan) {
-		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
-
-		if (msg->type == STORAGE_THRESHOLD_REACHED) {
-			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_CONNECTED_SENDING]);
-
-			return SMF_EVENT_HANDLED;
-		}
-	}
-
 	return SMF_EVENT_PROPAGATE;
 }
 
@@ -1496,38 +1475,6 @@ static void connected_sending_entry(void *o)
 static enum smf_state_result connected_sending_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
-
-	if (state_object->chan == &timer_chan) {
-		const struct timer_msg *msg = (const struct timer_msg *)state_object->msg_buf;
-
-		if (msg->type == TIMER_EXPIRED_SAMPLE_DATA) {
-			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_CONNECTED_SAMPLING]);
-
-			return SMF_EVENT_HANDLED;
-		}
-
-		/* Ignore cloud send timer while sending as we are already sending */
-		if (msg->type == TIMER_EXPIRED_CLOUD) {
-			return SMF_EVENT_HANDLED;
-		}
-	}
-
-	if (state_object->chan == &button_chan) {
-		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
-
-		if (msg->type == BUTTON_PRESS_SHORT) {
-			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_CONNECTED_SAMPLING]);
-
-			return SMF_EVENT_HANDLED;
-		}
-
-		/* Ignore long press while sending as we are already sending */
-		if (msg->type == BUTTON_PRESS_LONG) {
-			return SMF_EVENT_HANDLED;
-		}
-	}
 
 	if (state_object->chan == &storage_chan) {
 		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;

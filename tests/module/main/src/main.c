@@ -623,7 +623,8 @@ void test_cloud_timer_multiple_expiries(void)
 	}
 }
 
-void test_sampling_during_cloud_send(void)
+/* During network activity, no location search should be triggered */
+void test_no_sampling_during_cloud_send(void)
 {
 	connect_to_cloud();
 
@@ -633,16 +634,11 @@ void test_sampling_during_cloud_send(void)
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
 
+	/* Try to trigger sampling */
 	send_button_press_short();
-	expect_location_event(LOCATION_SEARCH_TRIGGER);
-	/* Complete location search */
-	send_location_search_done();
-	expect_location_event(LOCATION_SEARCH_DONE);
-	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
-	expect_storage_event(STORAGE_BATCH_REQUEST);
-	expect_fota_event(FOTA_POLL_REQUEST);
-	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
+	/* Nothing should happen */
+	expect_no_events(500);
 
 	/* Close batch to signal send completion */
 	send_storage_batch_close();
