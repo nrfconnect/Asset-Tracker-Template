@@ -356,6 +356,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_SEARCHING) {
 			/* cereg 2 */
 			LOG_DBG("LTE_LC_NW_REG_SEARCHING");
+			ntn_msg_publish(NTN_CELL_FOUND);
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTRATION_DENIED) {
 			/* cereg 3 */
 			LOG_DBG("LTE_LC_NW_REG_REGISTRATION_DENIED");
