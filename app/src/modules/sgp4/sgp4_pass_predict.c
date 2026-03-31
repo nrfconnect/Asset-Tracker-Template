@@ -401,6 +401,7 @@
 	 /* Parse the SIB number */
 	 tok = next_token(&saveptr, ",");
 	 sibnr = strtol(tok, NULL, 10);
+	 LOG_INF("SIB Number is %d",sibnr);
 	 if (sibnr != 32) {
 		 LOG_ERR("Not a SIBCONFIG 32 string");
 		 ret = -EINVAL;
@@ -417,6 +418,7 @@
 	 /* Parse ephemeris struct count */
 	 tok = next_token(&saveptr, ",");
 	 sib_count = strtol(tok, NULL, 10);
+	 LOG_INF("SIB count is %d",sib_count);
  
 	 if (sib32 == NULL) {
 		 ret = sib_count;
@@ -509,34 +511,34 @@ int sat_data_calculate_next_pass(struct sat_data *sat_data, int sat_index, doubl
 	 jd_current_start = jd_start + jdfrac_start;
 	 minutes_offset_start = (jd_current_start - jd_epoch) * 1440.0;
  
-	 /* Check next 24 hours (1440 minutes) */
-	 for (int i = 0; i < 1440; i++) {
-		 minutes_since_epoch = minutes_offset_start + i;
+	 /* Check next 24 hours with 10 second granularity */
+	 for (int i = 0; i < 8640; i++) {
+		 minutes_since_epoch = minutes_offset_start + (i*10.0)/60.0;
 		 if (!(sgp4(&sat_data->satrec[sat_index], minutes_since_epoch, r, v))) {
 			 continue;
 		 }
-		 current_jd = jd_current_start + (i / 1440.0);
+		 current_jd = jd_current_start + (i / 8640.0);
 		 gmst = gstime(current_jd);
 		 calculate_look_angle(r, r_station_ecef, lat, lon, gmst, &elevation);
 		 if (elevation >= min_elevation_deg) {
 			 if (!in_pass) {
 				 in_pass = true;
-				 pass_start = start_time_ms + (i * 60 * 1000);
+				 pass_start = start_time_ms + (i * 10 * 1000);
 				 max_el = elevation;
 				 sat_data->next_pass.max_elevation_time_ms =
-					 start_time_ms + (i * 60 * 1000);
+					 start_time_ms + (i * 10 * 1000);
 			 } else {
 				 if (elevation > max_el) {
 					 max_el = elevation;
 					 sat_data->next_pass.max_elevation_time_ms =
-						 start_time_ms + (i * 60 * 1000);
+						 start_time_ms + (i * 10 * 1000);
 				 }
 			 }
 		 } else {
 			 if (in_pass) {
 				 /* Pass ended */
 				 sat_data->next_pass.start_time_ms = pass_start;
-				 sat_data->next_pass.end_time_ms = start_time_ms + (i * 60 * 1000);
+				 sat_data->next_pass.end_time_ms = start_time_ms + (i * 10 * 1000);
 				 sat_data->next_pass.max_elevation = max_el;
 				 return 0; /* Pass found */
 			 }
