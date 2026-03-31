@@ -1377,6 +1377,8 @@ static void state_running_entry(void *obj)
 		LOG_INF("Boot PDP context present: %s", ip_addr);
 	} else if (rc == 0) {
 		LOG_INF("Boot PDP context not present");
+	} else if (rc == -EBADMSG) {
+		LOG_INF("No stored PDP context for CID 10 yet");
 	} else {
 		LOG_WRN("AT+CGPADDR=10 query failed, error: %d", rc);
 	}
@@ -1461,8 +1463,10 @@ static void state_running_entry(void *obj)
 #else
 			(strstr(cellularprfl_resp, "%CELLULARPRFL: 0,3,0") != NULL);
 #endif
-	} else if (nrf_modem_at_err(err) == 513) {
-		LOG_INF("No CELLULARPRFL profiles configured");
+	} else if ((err > 0 && nrf_modem_at_err_type(err) == NRF_MODEM_AT_ERROR) ||
+		   (err > 0 && nrf_modem_at_err_type(err) == NRF_MODEM_AT_CME_ERROR &&
+		    nrf_modem_at_err(err) == 513)) {
+		LOG_INF("No cellular profiles configured");
 	} else {
 		LOG_INF("Failed to read CELLULARPRFL, error: %d", err);
 	}
