@@ -76,8 +76,8 @@ static void sib32_mon(const char *notif)
 		return;
 	}
 
-	if (strncmp(sib32, "SIBCONFIG:", strlen("SIBCONFIG:")) != 0) {
-		LOG_WRN("Ignoring AT monitor notification without SIBCONFIG payload");
+	if (strncmp(sib32, "SIBCONFIG: 32,", strlen("SIBCONFIG: 32,")) != 0) {
+		LOG_WRN("Ignoring AT monitor notification without SIB32 payload");
 		return;
 	}
 
