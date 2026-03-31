@@ -964,12 +964,7 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	case LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG: __fallthrough;
 	case LTE_LC_FUNC_MODE_OFFLINE: __fallthrough;
 	case LTE_LC_FUNC_MODE_POWER_OFF:
-		// Set XOPCONF to skylo if flight mode or offline
-		err = nrf_modem_at_printf("AT%%XOPCONF=21");
-		if (err) {
-			LOG_ERR("Failed to set AT%%XOPCONF=21, error: %d", err);
-			return err;
-		}
+
 		break;
 	default:
 		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE);
@@ -979,11 +974,6 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 			return err;
 		}
 
-		err = nrf_modem_at_printf("AT%%XOPCONF=21");
-		if (err) {
-			LOG_ERR("Failed to set AT%%XOPCONF=21, error: %d", err);
-			return err;
-		}
 
 		break;
 	}
@@ -1376,13 +1366,13 @@ static void state_running_entry(void *obj)
 		return;
 	}
 
-	rc = nrf_modem_at_scanf("AT+CGPADDR=0", "+CGPADDR: 0,\"%63[^\"]\"", ip_addr);
+	rc = nrf_modem_at_scanf("AT+CGPADDR=10", "+CGPADDR: 10,\"%63[^\"]\"", ip_addr);
 	if (rc == 1) {
 		LOG_INF("Boot PDP context present: %s", ip_addr);
 	} else if (rc == 0) {
 		LOG_INF("Boot PDP context not present");
 	} else {
-		LOG_WRN("AT+CGPADDR=0 query failed, error: %d", rc);
+		LOG_WRN("AT+CGPADDR=10 query failed, error: %d", rc);
 	}
 
 #if defined(CONFIG_TLE_VIA_HTTP)
@@ -1419,6 +1409,12 @@ static void state_running_entry(void *obj)
 			LOG_ERR("lte_lc_power_off, error: %d", err);
 
 			return;
+		}
+
+	/* Set XOPCONF to skylo, to allow context store */
+	err = nrf_modem_at_printf("AT%%XOPCONF=21");
+		if (err) {
+			LOG_ERR("Failed to set AT%%XOPCONF=21, error: %d", err);
 		}
 
 	/* Set NTN SIM profile.
