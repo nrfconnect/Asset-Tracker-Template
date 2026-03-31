@@ -130,7 +130,7 @@ static int cmd_sgp4_trigger(const struct shell *sh, size_t argc, char **argv)
 	}
 
 	struct ntn_msg msg = {
-		.type = RUN_SGP4,
+		.type = SGP4_TRIGGER,
 		.sgp4_min_elevation_deg = (float)min_elevation_deg,
 	};
 

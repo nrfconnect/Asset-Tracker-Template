@@ -134,6 +134,7 @@ struct ntn_state_object {
 	struct k_timer gnss_timer;
 	struct k_timer network_connection_timeout_timer;
 	struct k_timer tn_timeout_timer;
+	struct k_timer sgp4_timer;
 	int sock_fd;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
 	/* TLE storage */
@@ -158,6 +159,7 @@ static struct k_work ntn_timer_work;
 static struct k_work gnss_timer_work;
 static struct k_work network_connection_timeout_work;
 static struct k_work tn_timeout_work;
+static struct k_work sgp4_timer_work;
 
 static struct k_work gnss_location_work;
 static struct k_work gnss_timeout_work;
@@ -225,6 +227,23 @@ static const struct smf_state states[] = {
 
 /* Event handlers */
 
+/* Work handler for SGP4 timeout */
+static void sgp4_timeout_work_fn(struct k_work *work)
+{
+	struct ntn_msg msg = {
+		.type = SGP4_TRIGGER,
+		.sgp4_min_elevation_deg = (float)SGP4_DEFAULT_MIN_ELEVATION_DEG,
+	};
+
+	LOG_DBG("SGP4 timeout occured, transitioning to SGP4 work");
+	int err = zbus_chan_pub(&NTN_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to publish SGP4 message, error: %d", err);
+		return;
+	}
+
+}
+
 static void keepalive_timer_work_fn(struct k_work *work)
 {
 	int err;
@@ -279,6 +298,12 @@ static void tn_timeout_work_fn(struct k_work *work)
 static void keepalive_timer_handler(struct k_timer *timer)
 {
 	k_work_submit(&keepalive_timer_work);
+}
+
+/* Timer callback for SGP4 timeout */
+static void sgp4_timer_handler(struct k_timer *timer)
+{
+	k_work_submit(&sgp4_timer_work);
 }
 
 /* Timer callback for NTN connection */
@@ -1325,12 +1350,14 @@ static void state_running_entry(void *obj)
 	k_work_init(&gnss_timer_work, gnss_timer_work_fn);
 	k_work_init(&network_connection_timeout_work, network_connection_timeout_work_fn);
 	k_work_init(&tn_timeout_work, tn_timeout_work_fn);
+	k_work_init(&sgp4_timer_work, sgp4_timeout_work_fn);
 
 	k_timer_init(&state->keepalive_timer, keepalive_timer_handler, NULL);
 	k_timer_init(&state->ntn_timer, ntn_timer_handler, NULL);
 	k_timer_init(&state->gnss_timer, gnss_timer_handler, NULL);
 	k_timer_init(&state->network_connection_timeout_timer, network_connection_timeout_handler, NULL);
 	k_timer_init(&state->tn_timeout_timer, tn_timeout_timer_handler, NULL);
+	k_timer_init(&state->sgp4_timer, sgp4_timer_handler, NULL);
 
 	k_work_init(&gnss_location_work, gnss_location_work_handler);
 	k_work_init(&gnss_timeout_work, handle_gnss_timeout_work_fn);
@@ -1508,7 +1535,7 @@ static enum smf_state_result state_running_run(void *obj)
 			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
 
 			break;
-		case RUN_SGP4:
+		case SGP4_TRIGGER:
 			if (msg->sgp4_min_elevation_deg < 0.0f ||
 			    msg->sgp4_min_elevation_deg > 90.0f) {
 				LOG_WRN("Invalid SGP4 minimum elevation %.2f, using default %.2f",
@@ -2192,7 +2219,7 @@ static enum smf_state_result state_ntn_run(void *obj)
 	#if defined(CONFIG_SOFTSIM)
 			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
 	#else
-			smf_set_state(SMF_CTX(state), &states[STATE_SGP4]);
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 	#endif
 			return SMF_EVENT_HANDLED;
 
@@ -2247,7 +2274,7 @@ static enum smf_state_result state_ntn_run(void *obj)
 	#if defined(CONFIG_SOFTSIM)
 			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
 	#else
-			smf_set_state(SMF_CTX(state), &states[STATE_SGP4]);
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 	#endif
 
 			return SMF_EVENT_HANDLED;
@@ -2305,8 +2332,10 @@ static void state_ntn_exit(void *obj)
 	/* Set flag to run SGP4 after next GNSS fix */
 	state->run_sgp4_after_gnss = true;
 
-
-	// ntn_msg_publish(RUN_SGP4);
+	/* Start SGP4 timer */
+	k_timer_start(&state->sgp4_timer,
+		K_SECONDS(300),
+		K_NO_WAIT);
 }
 
 static void state_idle_entry(void *obj)
