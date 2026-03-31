@@ -609,6 +609,12 @@ static bool update_cached_sib32(struct ntn_state_object *state, const char *sib3
 	return true;
 }
 
+static void clear_cached_sib32(struct ntn_state_object *state)
+{
+	memset(state->sib32_data, 0, sizeof(state->sib32_data));
+	state->has_valid_sib32 = false;
+}
+
 static void load_tle_from_kconfig(struct ntn_state_object *state)
 {
 #if defined(CONFIG_APP_NTN_TLE_FROM_KCONFIG)
@@ -1605,6 +1611,15 @@ static enum smf_state_result state_running_run(void *obj)
 		case NTN_SET_SIB32:
 			if (update_cached_sib32(state, msg->sib32_data)) {
 				LOG_INF("Stored SIB32 prediction data; it will be preferred over TLE");
+			}
+
+			break;
+		case NTN_CLEAR_SIB32:
+			clear_cached_sib32(state);
+			if (state->has_valid_tle) {
+				LOG_INF("Cleared cached SIB32 prediction data; falling back to TLE");
+			} else {
+				LOG_INF("Cleared cached SIB32 prediction data");
 			}
 
 			break;

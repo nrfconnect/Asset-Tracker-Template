@@ -296,6 +296,29 @@ static int cmd_set_sib32_manual(const struct shell *sh, size_t argc, char **argv
 	return 0;
 }
 
+static int cmd_clear_sib32_manual(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argv);
+
+	if (argc != 1) {
+		shell_print(sh, "Usage: att_ntn clear_sib32");
+		return 1;
+	}
+
+	struct ntn_msg msg = {
+		.type = NTN_CLEAR_SIB32,
+	};
+	int err = zbus_chan_pub(&NTN_CHAN, &msg, K_SECONDS(1));
+
+	if (err) {
+		shell_print(sh, "Failed to publish clear SIB32 message, error: %d", err);
+		return 1;
+	}
+
+	shell_print(sh, "Cleared cached SIB32 prediction data");
+	return 0;
+}
+
 static int cmd_set_time_of_pass_manual(const struct shell *sh, size_t argc, char **argv)
 {
 	int err;
@@ -404,6 +427,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sub_att_ntn,
 	SHELL_CMD(set_gnss_location, NULL, "Inject GNSS location without running GNSS", cmd_set_gnss_location_manual),
 	SHELL_CMD(set_tle, NULL, "Provision one TLE manually; repeat up to 4 satellites", cmd_set_tle_manual),
 	SHELL_CMD(set_sib32, NULL, "Provision raw SIB32 prediction data", cmd_set_sib32_manual),
+	SHELL_CMD(clear_sib32, NULL, "Clear cached SIB32 so prediction can fall back to TLE", cmd_clear_sib32_manual),
 	SHELL_CMD(set_peak_offset, NULL, "Override NTN peak-time offset in seconds", cmd_set_peak_offset_manual),
 	SHELL_CMD(set_time_of_pass, NULL, "Set new time of pass (format: YYYY-MM-DD-HH:MM:SS)", cmd_set_time_of_pass_manual),
 	SHELL_CMD(set_datetime, NULL, "Set date time manually (format: YYYY-MM-DD-HH:MM:SS)", cmd_set_datetime_manual),

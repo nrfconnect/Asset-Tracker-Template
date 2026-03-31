@@ -39,6 +39,7 @@ enum ntn_msg_type {
 	NTN_SHELL_SET_TLE, /* Set TLE from shell */
 	NTN_SHELL_SET_PEAK_OFFSET, /* Set NTN activation offset from shell */
 	NTN_SET_SIB32, /* Set SIB32 prediction data from shell or AT monitor */
+	NTN_CLEAR_SIB32, /* Clear cached SIB32 prediction data */
 	KEEPALIVE_TIMER,     /* Keepalive timer */
 	SGP4_TRIGGER, /* */
 	GNSS_TRIGGER, /* */
