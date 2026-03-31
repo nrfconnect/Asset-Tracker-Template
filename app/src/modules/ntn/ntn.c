@@ -1514,9 +1514,7 @@ static void state_running_entry(void *obj)
 
 		return;
 	}
-#endif
 
-#ifdef CONFIG_SOFTSIM
 	/* Stop modem trace collection */
 	err = nrf_modem_lib_trace_level_set(NRF_MODEM_LIB_TRACE_LEVEL_OFF);
 	if (err) {
