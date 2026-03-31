@@ -1440,6 +1440,12 @@ static void state_running_entry(void *obj)
 			return;
 		}
 
+		/* Set IPv4 APN for NTN */
+		err = nrf_modem_at_printf("AT+CGDCONT=10,\"ip\",\"\"");
+		if (err) {
+			LOG_ERR("Failed to set NTN APN, error: %d", err);
+		}
+
 		/* Set TN profile */
 		err = lte_lc_cellular_profile_configure(&tn_profile);
 		if (err) {
