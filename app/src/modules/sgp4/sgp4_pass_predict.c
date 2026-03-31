@@ -9,7 +9,6 @@
  #include <stdlib.h>
  #include <errno.h>
  #include <stdio.h>
- #include <inttypes.h>
  #include <math.h>
  #include <date_time.h>
  #include "sgp4_pass_predict.h"
@@ -446,6 +445,7 @@ cleanup:
 	 int err;
 	 bool success;
  
+	 sat_data->satellite_ids[index] = sib32->satelliteId;
 	 sat_data->satrec[index].no_kozai = meanMotion2no_kozai(sib32->meanMotion);
 	 sat_data->satrec[index].ecco = eccentricity2ecco(sib32->eccentricity);
 	 sat_data->satrec[index].inclo = inclination2inclo(sib32->inclination);

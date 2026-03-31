@@ -2072,6 +2072,12 @@ static void state_sgp4_entry(void *obj)
 		selected_tle_name = state->tle_entries[best_sat_index].name;
 	}
 
+	if (strcmp(prediction_source, "SIB32") == 0 &&
+	    best_sat_index >= 0 && best_sat_index < sat_data->sat_count) {
+		LOG_INF("Next pass provisioned from SIB32 cell %s satellite ID %" PRId64,
+			sat_data->cell_id, sat_data->satellite_ids[best_sat_index]);
+	}
+
 	/* Format time for reschedule_next_pass */
 	time_t start_time = next_pass->start_time_ms / 1000;
 	time_t end_time = next_pass->end_time_ms / 1000;

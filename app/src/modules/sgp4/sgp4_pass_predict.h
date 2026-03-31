@@ -31,6 +31,7 @@
  struct sat_data {
 	 char sat_name[30];
 	 char cell_id[9];
+	 int64_t satellite_ids[MAX_SATELLITES];
 	 enum sat_status status;
 	 uint8_t sat_count;
 	 struct ElsetRec satrec[MAX_SATELLITES];
