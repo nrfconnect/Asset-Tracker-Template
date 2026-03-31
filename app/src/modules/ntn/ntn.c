@@ -1014,6 +1014,12 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 		return err;
 	}
 
+	/* Unsubscribe from location notifications */
+	err = nrf_modem_at_printf("AT%%LOCATION=0");
+	if (err) {
+		LOG_ERR("Failed to unsubscribe from location notifications, error: %d", err);
+	}
+
 #if defined(CONFIG_APP_NTN_BANDLOCK_ENABLE)
 	err = nrf_modem_at_printf("AT%%XBANDLOCK=1,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
 	if (err) {
