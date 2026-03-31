@@ -1190,7 +1190,7 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 	err = modem_info_string_get(MODEM_INFO_RSRP, rsrp, sizeof(rsrp));
 	if (err < 0) {
 		LOG_WRN("Failed to get modem RSRP, error: %d. Using fallback value.", err);
-		snprintk(rsrp, sizeof(rsrp), "-115");
+		snprintk(rsrp, sizeof(rsrp), "25");
 	}
 	err = modem_info_string_get(MODEM_INFO_CUR_BAND, band, sizeof(band));
 	if (err < 0) {
