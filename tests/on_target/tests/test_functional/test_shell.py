@@ -37,7 +37,13 @@ def test_shell(dut_cloud, hex_file):
     # Boot
     dut_cloud.uart.flush()
     reset_device()
+
+    # Wait for cloud connection, with retries if it fails
+    dut_cloud.uart.flush()
     dut_cloud.uart.wait_for_str_with_retries("Connected to Cloud", max_retries=3, timeout=240, reset_func=reset_device)
+
+    # Wait until connected and ready to sample
+    dut_cloud.uart.flush()
     dut_cloud.uart.wait_for_str_re(r"Next sample trigger in [1-9]\d* seconds", timeout=120)
 
     # Button press
