@@ -8,15 +8,17 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/logging/log_ctrl.h>
 #include <zephyr/zbus/zbus.h>
-#include <net/nrf_cloud_coap.h>
-#include <net/nrf_cloud_fota_poll.h>
-#include <zephyr/sys/reboot.h>
-#include <zephyr/dfu/mcuboot.h>
 #include <zephyr/task_wdt/task_wdt.h>
-#include <nrf_cloud_fota.h>
 #include <zephyr/smf.h>
 #include <net/fota_download.h>
 #include <modem/nrf_modem_lib.h>
+
+#if defined(CONFIG_APP_FOTA_TYPE_NRF_CLOUD)
+#include <net/nrf_cloud_fota_poll.h>
+#include <nrf_cloud_fota.h>
+#elif defined(CONFIG_APP_FOTA_TYPE_MEMFAULT)
+#include <memfault/nrfconnect_port/fota.h>
+#endif
 
 #include "app_common.h"
 #ifdef CONFIG_APP_INSPECT_SHELL
@@ -120,8 +122,10 @@ struct fota_state_object {
 	/* Buffer for last zbus message */
 	uint8_t msg_buf[MAX_MSG_SIZE];
 
+	#if defined(CONFIG_APP_FOTA_TYPE_NRF_CLOUD)
 	/* FOTA context */
 	struct nrf_cloud_fota_poll_ctx fota_ctx;
+	#endif
 };
 
 /* Forward declarations of state handlers */
@@ -262,6 +266,7 @@ NRF_MODEM_LIB_ON_INIT(fota_modem_init_hook, on_modem_init, NULL);
 
 /* FOTA support functions */
 
+#if defined(CONFIG_APP_FOTA_TYPE_NRF_CLOUD)
 static void fota_reboot(enum nrf_cloud_fota_reboot_status status)
 {
 	int err;
@@ -333,6 +338,44 @@ static void fota_status(enum nrf_cloud_fota_status status, const char *const sta
 		SEND_FATAL_ERROR();
 	}
 }
+#else
+void memfault_fota_download_callback(const struct fota_download_evt *evt)
+{
+	struct fota_msg fota_evt = { 0 };
+
+	switch (evt->id) {
+	case FOTA_DOWNLOAD_EVT_FINISHED:
+		LOG_DBG("Memfault FOTA download completed, reboot required");
+		fota_evt.type = FOTA_SUCCESS_REBOOT_NEEDED;
+		break;
+	case FOTA_DOWNLOAD_EVT_CANCELLED:
+		LOG_WRN("Memfault FOTA download canceled");
+		fota_evt.type = FOTA_DOWNLOAD_CANCELED;
+		break;
+	case FOTA_DOWNLOAD_EVT_ERROR:
+		switch (evt->cause) {
+		case FOTA_DOWNLOAD_ERROR_CAUSE_INVALID_UPDATE:
+		case FOTA_DOWNLOAD_ERROR_CAUSE_TYPE_MISMATCH:
+			LOG_WRN("Memfault FOTA update rejected, cause: %d", evt->cause);
+			fota_evt.type = FOTA_DOWNLOAD_REJECTED;
+			break;
+		default:
+			LOG_WRN("Memfault FOTA download failed, cause: %d", evt->cause);
+			fota_evt.type = FOTA_DOWNLOAD_FAILED;
+			break;
+		}
+		break;
+	default:
+		return;
+	}
+
+	int err = zbus_chan_pub(&fota_chan, &fota_evt, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+#endif /* CONFIG_APP_FOTA_TYPE_NRF_CLOUD */
 
 static void fota_wdt_callback(int channel_id, void *user_data)
 {
@@ -346,17 +389,23 @@ static void fota_wdt_callback(int channel_id, void *user_data)
 
 static void state_running_entry(void *obj)
 {
+	#if defined(CONFIG_APP_FOTA_TYPE_NRF_CLOUD)
 	int err;
 	struct fota_state_object *state_object = obj;
+	#endif
 
 	LOG_DBG("%s", __func__);
 
+	#if defined(CONFIG_APP_FOTA_TYPE_NRF_CLOUD)
 	/* Initialize the FOTA context */
 	err = nrf_cloud_fota_poll_init(&state_object->fota_ctx);
 	if (err) {
 		LOG_ERR("nrf_cloud_fota_poll_init failed: %d", err);
 		SEND_FATAL_ERROR();
 	}
+	#else
+	ARG_UNUSED(obj);
+	#endif
 }
 
 static enum smf_state_result state_running_run(void *obj)
@@ -398,16 +447,18 @@ static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
 		if (msg->type == FOTA_PRIV_MODEM_INITIALIZED) {
 			LOG_DBG("Modem initialized, processing pending FOTA job");
 
+			#if defined(CONFIG_APP_FOTA_TYPE_NRF_CLOUD)
 			int err = nrf_cloud_fota_poll_process_pending(&state_object->fota_ctx);
 
 			if (err < 0) {
 				LOG_ERR("nrf_cloud_fota_poll_process_pending failed: %d", err);
 				SEND_FATAL_ERROR();
 			}
+			#endif
 
 			const struct fota_msg msg_out = { .type = FOTA_MODULE_READY };
 
-			err = zbus_chan_pub(&fota_chan, &msg_out, PUB_TIMEOUT);
+			int err = zbus_chan_pub(&fota_chan, &msg_out, PUB_TIMEOUT);
 			if (err) {
 				LOG_ERR("zbus_chan_pub, error: %d", err);
 				SEND_FATAL_ERROR();
@@ -454,12 +505,13 @@ static enum smf_state_result state_waiting_for_poll_request_run(void *obj)
 
 static void state_polling_for_update_entry(void *obj)
 {
-	struct fota_state_object *state_object = obj;
-
 	LOG_DBG("%s", __func__);
+	int err;
 
+	#if defined(CONFIG_APP_FOTA_TYPE_NRF_CLOUD)
+	struct fota_state_object *state_object = obj;
 	/* Start the FOTA processing */
-	int err = nrf_cloud_fota_poll_process(&state_object->fota_ctx);
+	err = nrf_cloud_fota_poll_process(&state_object->fota_ctx);
 
 	if (err == -EINVAL) {
 		LOG_DBG("nrf_cloud_fota_poll_process, error: %d", err);
@@ -481,6 +533,41 @@ static void state_polling_for_update_entry(void *obj)
 	}
 
 	LOG_DBG("Job available, FOTA processing started");
+	#else
+	ARG_UNUSED(obj);
+
+	err = memfault_fota_start();
+	if (err < 0) {
+		LOG_WRN("memfault_fota_start failed: %d", err);
+		struct fota_msg evt = { .type = FOTA_DOWNLOAD_FAILED };
+
+		err = zbus_chan_pub(&fota_chan, &evt, PUB_TIMEOUT);
+		if (err) {
+			LOG_ERR("zbus_chan_pub, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
+		return;
+	} else if (err == 0) {
+		LOG_DBG("No Memfault FOTA job available");
+		struct fota_msg evt = { .type = FOTA_NO_AVAILABLE_UPDATE };
+
+		err = zbus_chan_pub(&fota_chan, &evt, PUB_TIMEOUT);
+		if (err) {
+			LOG_ERR("zbus_chan_pub, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
+		return;
+	}
+
+	LOG_DBG("Memfault FOTA job available, download started");
+	struct fota_msg evt = { .type = FOTA_DOWNLOADING_UPDATE };
+
+	err = zbus_chan_pub(&fota_chan, &evt, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+	#endif
 }
 
 static enum smf_state_result state_polling_for_update_run(void *obj)
@@ -493,6 +580,11 @@ static enum smf_state_result state_polling_for_update_run(void *obj)
 		switch (msg->type) {
 		case FOTA_DOWNLOADING_UPDATE:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DOWNLOADING_UPDATE]);
+
+			return SMF_EVENT_HANDLED;
+		case FOTA_DOWNLOAD_FAILED:
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_WAITING_FOR_POLL_REQUEST]);
 
 			return SMF_EVENT_HANDLED;
 		case FOTA_NO_AVAILABLE_UPDATE:
@@ -583,6 +675,7 @@ static enum smf_state_result state_waiting_for_image_apply_run(void *obj)
 
 static void state_image_applying_entry(void *obj)
 {
+	#if defined(CONFIG_APP_FOTA_TYPE_NRF_CLOUD)
 	struct fota_state_object *state_object = obj;
 
 	LOG_DBG("Applying downloaded firmware image");
@@ -594,6 +687,11 @@ static void state_image_applying_entry(void *obj)
 		LOG_ERR("nrf_cloud_fota_poll_update_apply, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
+	#else
+	ARG_UNUSED(obj);
+	LOG_ERR("Image apply requested for unsupported FOTA backend");
+	SEND_FATAL_ERROR();
+	#endif
 }
 
 static enum smf_state_result state_image_applying_run(void *obj)
@@ -663,8 +761,10 @@ static void fota_module_thread(void)
 		(CONFIG_APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	static struct fota_state_object fota_state = {
+		#if defined(CONFIG_APP_FOTA_TYPE_NRF_CLOUD)
 		.fota_ctx.reboot_fn = fota_reboot,
 		.fota_ctx.status_fn = fota_status,
+		#endif
 	};
 
 #if defined(CONFIG_APP_INSPECT_SHELL)
