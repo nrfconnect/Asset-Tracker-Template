@@ -6,9 +6,31 @@
 
 menuconfig APP_FOTA
 	bool "FOTA"
-	default y if (!BOARD_NATIVE_POSIX && NRF_CLOUD_FOTA_POLL)
+	default y if (!BOARD_NATIVE_POSIX && (NRF_CLOUD_FOTA_POLL || MEMFAULT_FOTA))
 
 if APP_FOTA
+
+choice APP_FOTA_TYPE
+	prompt "FOTA backend"
+	default APP_FOTA_TYPE_NRF_CLOUD if NRF_CLOUD_FOTA_POLL
+	default APP_FOTA_TYPE_MEMFAULT if MEMFAULT_FOTA
+	help
+	  Select which backend the FOTA module uses to discover and download firmware updates.
+
+config APP_FOTA_TYPE_NRF_CLOUD
+	bool "nRF Cloud FOTA"
+	depends on NRF_CLOUD_FOTA_POLL
+	help
+	  Use the nRF Cloud FOTA poll library as the FOTA backend.
+
+config APP_FOTA_TYPE_MEMFAULT
+	bool "Memfault FOTA"
+	depends on MEMFAULT_FOTA
+	depends on MEMFAULT_NCS_PROJECT_KEY != ""
+	select MEMFAULT_FOTA_DOWNLOAD_CALLBACK_CUSTOM
+	help
+	  Use Memfault Release Management as the FOTA backend.
+endchoice
 
 config APP_FOTA_THREAD_STACK_SIZE
 	int "Thread stack size"
