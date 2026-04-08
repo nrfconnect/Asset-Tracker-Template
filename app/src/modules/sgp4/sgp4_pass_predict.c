@@ -13,17 +13,17 @@
  #include <date_time.h>
  #include "sgp4_pass_predict.h"
  #include "SGP4.h"
- 
+
  #include <modem/at_monitor.h>
  #include <zephyr/logging/log.h>
- 
+
  #define DEG2RAD (3.14159265358979323846 / 180.0)
  #define RAD2DEG (180.0 / 3.14159265358979323846)
  #define XKMPER 6378.137  /* Earth radius in km */
  #define F (1.0/298.257223563) /* Flattening */
- 
+
  LOG_MODULE_REGISTER(sgp4_pass_predict, 4);
- 
+
  /* Internal datetime structure */
  struct datetime {
 	 int year;
@@ -33,7 +33,7 @@
 	 int minute;
 	 double second;
  };
- 
+
  /* 3GPP TS 36.331 ephemeris parameters format */
  struct sat_data_sib32 {
 	 int64_t satelliteId;
@@ -53,7 +53,7 @@
 	 int64_t referencePointLatitude;
 	 int64_t radius;
  };
- 
+
  /* SIBCONFIG 32 AT ephemeris struct field order */
  enum sib_ephemeris_field {
 	 FIELD_SATELLITE_ID = 0,
@@ -74,7 +74,7 @@
 	 FIELD_RADIUS = 15,
 	 FIELD_COUNT = 16,
  };
- 
+
  /* Converting parameters to ASN1 format (see 3GPP TS 36.331 )*/
  static double meanMotion2no_kozai(int64_t meanMotion)
  {
@@ -103,9 +103,9 @@
  }
  static double bStarDecimal2bstar(int64_t mantissa, int64_t exponent)
  {
-	 return (double)(mantissa * 1.0e-6 * pow(10.0, exponent));
+	 return (double)(mantissa * 1.0e-5 * pow(10.0, exponent));
  }
- 
+
  static int weekday_from_timestamp_ms(int64_t timestamp_ms)
  {
 	 /* 86400000 = milliseconds in one day */
@@ -113,69 +113,69 @@
 	 /* Thursday (1970-01-01) -> add 3 so Monday = 0 */
 	 return (days_since_epoch + 3) % 7;
  }
- 
+
  static int is_leap_year(int year)
  {
 	 return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
  }
- 
+
  /* Number of days in each month (non-leap year) */
  static const int days_in_month[13] = {
 	 0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
  };
- 
+
  static void datetime_from_unix_time_ms(uint64_t timestamp, struct datetime *dt)
  {
 	 timestamp = timestamp / 1000;
 	 /* Extract time of day first (fast path) */
 	 uint32_t seconds_in_day = timestamp % 86400;
- 
+
 	 dt->second = seconds_in_day % 60;
 	 seconds_in_day /= 60;
 	 dt->minute = seconds_in_day % 60;
 	 dt->hour = seconds_in_day / 60;
- 
+
 	 /* Now calculate days since 1970-01-01 */
 	 uint64_t days = timestamp / 86400;
- 
+
 	 /* Start from 1970 */
 	 int y = 1970;
- 
+
 	 /* Fast forward whole years */
 	 while (days >= 365) {
 		 int days_in_year = 365 + is_leap_year(y);
- 
+
 		 if (days < days_in_year) {
 			 break;
 		 }
 		 days -= days_in_year;
 		 y++;
 	 }
- 
+
 	 dt->year = y;
- 
+
 	 /* Now find month and day */
 	 int m = 1;
- 
+
 	 while (days >= days_in_month[m]) {
 		 int dim = days_in_month[m];
- 
+
 		 if (m == 2 && is_leap_year(y)) {
 			 dim = 29;
 		 }
- 
+
 		 if (days < dim) {
 			 break;
 		 }
- 
+
 		 days -= dim;
 		 m++;
 	 }
- 
+
 	 dt->month = m;
 	 dt->day = days + 1;   /* days is 0-based within month */
  }
- 
+
  static uint64_t datetime_to_ts(struct datetime *dt)
  {
 	 uint64_t days = (dt->year - 1970ULL)*365 +
@@ -189,36 +189,36 @@
 	 days += dt->day - 1;
 	 return days*86400000 + dt->hour*3600000 + dt->minute*60000 + dt->second*1000;
  }
- 
+
  static void jd_from_unix_time_ms(int64_t unix_time_ms, double *jd, double *jdfract)
  {
 	 *jd = (unix_time_ms / 86400000) + 2440587.5;
 	 *jdfract = (unix_time_ms % 86400000) / 86400000.0;
  }
- 
+
  static void eci_to_ecef(double *r_eci, double gmst, double *r_ecef)
  {
 	 r_ecef[0] = r_eci[0] * cos(gmst) + r_eci[1] * sin(gmst);
 	 r_ecef[1] = -r_eci[0] * sin(gmst) + r_eci[1] * cos(gmst);
 	 r_ecef[2] = r_eci[2];
  }
- 
+
  static void ecef_to_topocentric(double *r_ecef, double lat, double lon, double *r_sez)
  {
 	 double sl = sin(lat);
 	 double cl = cos(lat);
 	 double slo = sin(lon);
 	 double clo = cos(lon);
- 
+
 	 double dx = r_ecef[0];
 	 double dy = r_ecef[1];
 	 double dz = r_ecef[2];
- 
+
 	 r_sez[0] = sl * clo * dx + sl * slo * dy - cl * dz;
 	 r_sez[1] = -slo * dx + clo * dy;
 	 r_sez[2] = cl * clo * dx + cl * slo * dy + sl * dz;
  }
- 
+
  static void calculate_look_angle(double *r_eci, double *r_station_ecef, double lat, double lon,
 	 double gmst, double *elevation)
  {
@@ -226,19 +226,19 @@
 	 double r_range_ecef[3];
 	 double r_sez[3];
 	 double range;
- 
+
 	 eci_to_ecef(r_eci, gmst, r_sat_ecef);
- 
+
 	 r_range_ecef[0] = r_sat_ecef[0] - r_station_ecef[0];
 	 r_range_ecef[1] = r_sat_ecef[1] - r_station_ecef[1];
 	 r_range_ecef[2] = r_sat_ecef[2] - r_station_ecef[2];
- 
+
 	 ecef_to_topocentric(r_range_ecef, lat, lon, r_sez);
- 
+
 	 range = sqrt(r_sez[0]*r_sez[0] + r_sez[1]*r_sez[1] + r_sez[2]*r_sez[2]);
 	 *elevation = asin(r_sez[2] / range) * RAD2DEG;
  }
- 
+
  /* Convert the epochStar to sgp4 Julian day format
   *
   * epochStar is the time offset in seconds from the beginning of the
@@ -253,62 +253,62 @@
 	 struct datetime dt_mon_midnight;
 	 struct datetime dt_mon_ts;
 	 int64_t unix_time_ms;
- 
+
 	 err = date_time_now(&unix_time_ms);
 	 if (err) {
 		 return err;
 	 }
- 
+
 	 datetime_from_unix_time_ms(unix_time_ms, &dt_mon_ts);
- 
+
 	 /* Find current weekday */
 	 weekday = weekday_from_timestamp_ms(unix_time_ms);
 	 LOG_DBG("weekday: %d unix_time_ms1: %lld", weekday, unix_time_ms);
- 
+
 	 /* Deduct 86400 * weekday to get the unix time of last monday */
 	 unix_time_ms -= (weekday * 86400000UL);
 	 LOG_DBG("unix_time_ms2: %lld", unix_time_ms);
 	 datetime_from_unix_time_ms(unix_time_ms, &dt_mon_midnight);
- 
+
 	 /* Set the time to midnight */
 	 dt_mon_midnight.hour = 0;
 	 dt_mon_midnight.minute = 0;
 	 dt_mon_midnight.second = 0;
- 
+
 	 unix_time_ms = datetime_to_ts(&dt_mon_midnight);
 	 LOG_DBG("unix_time_ms3: %lld", unix_time_ms);
 	 unix_time_ms += (epochStar * 1000UL);
 	 datetime_from_unix_time_ms(unix_time_ms, &dt_mon_midnight);
 	 jd_from_unix_time_ms(unix_time_ms, jdsatepoch, jdsatepochF);
- 
+
 	 return 0;
  }
- 
+
  static void geodetic_to_ecef(double lat, double lon, double alt, double *ecef)
  {
 	 double C = 1.0 / sqrt(1.0 - F * (2.0 - F) * sin(lat) * sin(lat));
 	 double S = C * (1.0 - F) * (1.0 - F);
- 
+
 	 ecef[0] = (XKMPER * C + alt) * cos(lat) * cos(lon);
 	 ecef[1] = (XKMPER * C + alt) * cos(lat) * sin(lon);
 	 ecef[2] = (XKMPER * S + alt) * sin(lat);
  }
- 
+
  static char *next_token(char **saveptr, char *delim)
  {
 	 char *tok = strtok_r(NULL, delim, saveptr);
- 
+
 	 if (!tok) {
 		 LOG_ERR("No token found");
 		 return NULL;
 	 }
 	 return tok;
  }
- 
+
  static int count_leading_commas(const char *s)
  {
 	 int n = 0;
- 
+
 	 if (s == NULL) {
 		 return 0;
 	 }
@@ -317,14 +317,14 @@
 	 }
 	 return n;
  }
- 
+
  static int parse_ephemeris_struct(char **saveptr, struct sat_data_sib32 *sib32)
  {
 	 char *tok;
 	 int idx = 0;
 	 int commas;
 	 int64_t tmp[FIELD_COUNT] = { [0 ... FIELD_COUNT-1] = -INT64_MAX };
- 
+
 	 tok = strtok_r(NULL, ",", saveptr);
 	 while (tok != NULL) {
 		 tmp[idx++] = strtoll(tok, NULL, 10);
@@ -358,7 +358,7 @@
 	 sib32->radius = tmp[FIELD_RADIUS];
 	 return 0;
  }
- 
+
  static int parse_sibconfig32_at(const char *atsib32, char *cell_id, struct sat_data_sib32 *sib32)
  {
 	 int err;
@@ -369,13 +369,13 @@
 	 char *saveptr;
 	 char *tok;
 	 size_t atsib32_len;
- 
+
 	 if (atsib32 == NULL) {
 		 LOG_ERR("AT SIB32 is NULL");
 		 return -EINVAL;
 	 }
 	 atsib32_len = strlen(atsib32);
- 
+
 	 buf = malloc(atsib32_len + 1);
 	 if (buf == NULL) {
 		 LOG_ERR("Failed to allocate SIB32 parse buffer");
@@ -383,7 +383,7 @@
 	 }
 	 memcpy(buf, atsib32, atsib32_len);
 	 buf[atsib32_len] = '\0';
- 
+
 	 /* Parse the SIBCONFIG header */
 	 tok = strtok_r(buf, " ", &saveptr);
 	 if (!tok) {
@@ -391,7 +391,7 @@
 		 ret = -EINVAL;
 		 goto cleanup;
 	 }
- 
+
 	 if (strcmp(tok, "SIBCONFIG:") != 0) {
 		 LOG_ERR("Not a SIBCONFIG string");
 		 ret = -EINVAL;
@@ -406,24 +406,24 @@
 		 ret = -EINVAL;
 		 goto cleanup;
 	 }
- 
+
 	 /* Parse the cell ID */
 	 tok = next_token(&saveptr, "\"");
 	 if (cell_id != NULL) {
 		 strncpy(cell_id, tok, 8);
 		 cell_id[8] = '\0';
 	 }
- 
+
 	 /* Parse ephemeris struct count */
 	 tok = next_token(&saveptr, ",");
 	 sib_count = strtol(tok, NULL, 10);
 	 LOG_INF("SIB count is %d",sib_count);
- 
+
 	 if (sib32 == NULL) {
 		 ret = sib_count;
 		 goto cleanup;
 	 }
- 
+
 	 for (int i = 0; i < sib_count; i++) {
 		 err = parse_ephemeris_struct(&saveptr, &sib32[i]);
 		 if (err) {
@@ -439,12 +439,12 @@ cleanup:
 	 free(buf);
 	 return ret;
  }
- 
+
  static int sat_data_init_sib32(struct sat_data *sat_data, struct sat_data_sib32 *sib32, int index)
  {
 	 int err;
 	 bool success;
- 
+
 	 sat_data->satellite_ids[index] = sib32->satelliteId;
 	 sat_data->satrec[index].no_kozai = meanMotion2no_kozai(sib32->meanMotion);
 	 sat_data->satrec[index].ecco = eccentricity2ecco(sib32->eccentricity);
@@ -454,7 +454,7 @@ cleanup:
 	 sat_data->satrec[index].mo = meanAnomaly2mo(sib32->meanAnomaly);
 	 sat_data->satrec[index].bstar = bStarDecimal2bstar(sib32->bStarDecimal,
 		 sib32->bStarExponent);
- 
+
 	 err = epochStar2jd_satepoch(sib32->epochStar, &sat_data->satrec[index].jdsatepoch,
 		 &sat_data->satrec[index].jdsatepochF);
 	 if (err) {
@@ -466,7 +466,7 @@ cleanup:
 	 }
 	 return 0;
  }
- 
+
 int sat_data_calculate_next_pass(struct sat_data *sat_data, int sat_index, double lat_deg,
 	 double lon_deg, double alt_m, int64_t start_time_ms, double min_elevation_deg)
  {
@@ -481,15 +481,15 @@ int sat_data_calculate_next_pass(struct sat_data *sat_data, int sat_index, doubl
 	 double gmst;
 	 double elevation;
 	 double max_el = 0.0;
- 
+
 	 bool in_pass = false;
 	 int64_t pass_start = 0;
- 
+
 	 double lat = lat_deg * DEG2RAD;
 	 double lon = lon_deg * DEG2RAD;
 	 double alt_km = alt_m / 1000.0;
- 
- 
+
+
 	 if (sat_data == NULL) {
 		 LOG_ERR("Satellite data is NULL");
 		 return -EINVAL;
@@ -503,14 +503,14 @@ int sat_data_calculate_next_pass(struct sat_data *sat_data, int sat_index, doubl
 		 return -EINVAL;
 	 }
 	 geodetic_to_ecef(lat, lon, alt_km, r_station_ecef);
- 
+
 	 jd_from_unix_time_ms(start_time_ms, &jd_start, &jdfrac_start);
- 
+
 	 jd_epoch = sat_data->satrec[sat_index].jdsatepoch + sat_data->satrec[sat_index].jdsatepochF;
 	 LOG_DBG("jd_epoch: %f", jd_epoch);
 	 jd_current_start = jd_start + jdfrac_start;
 	 minutes_offset_start = (jd_current_start - jd_epoch) * 1440.0;
- 
+
 	 /* Check next 24 hours with 10 second granularity */
 	 for (int i = 0; i < 8640; i++) {
 		 minutes_since_epoch = minutes_offset_start + (i*10.0)/60.0;
@@ -544,7 +544,7 @@ int sat_data_calculate_next_pass(struct sat_data *sat_data, int sat_index, doubl
 			 }
 		 }
 	 }
- 
+
 	 if (in_pass) {
 		 /* Pass continues beyond 24h? */
 		 sat_data->next_pass.start_time_ms = pass_start;
@@ -555,26 +555,26 @@ int sat_data_calculate_next_pass(struct sat_data *sat_data, int sat_index, doubl
 	 LOG_ERR("No pass found");
 	 return -1; /* No pass found */
  }
- 
+
  int sat_data_init_atsib32(struct sat_data *sat_data, const char *atsib32)
  {
 	 int err;
 	 char cell_id[9];
 	 int sib_count;
 	 struct sat_data_sib32 sib32[MAX_SATELLITES];
- 
+
 	 if (sat_data == NULL) {
 		 LOG_ERR("Satellite data is NULL");
 		 return -EINVAL;
 	 }
- 
+
 	 memset(sat_data, 0, sizeof(struct sat_data));
- 
+
 	 if (atsib32 == NULL) {
 		 LOG_ERR("AT SIB32 is NULL");
 		 return -EINVAL;
 	 }
- 
+
 	 sib_count = parse_sibconfig32_at(atsib32, cell_id, &sib32[0]);
 	 if (sib_count < 0) {
 		 LOG_ERR("Failed to initialize satellite data, error: %d", sib_count);
@@ -597,7 +597,7 @@ int sat_data_calculate_next_pass(struct sat_data *sat_data, int sat_index, doubl
 
 	 memcpy(sat_data->cell_id, cell_id, sizeof(sat_data->cell_id));
 	 sat_data->sat_count = sib_count;
- 
+
 	 for (int i = 0; i < sib_count; i++) {
 		 err = sat_data_init_sib32(sat_data, &sib32[i], i);
 		 if (err) {
@@ -608,10 +608,10 @@ int sat_data_calculate_next_pass(struct sat_data *sat_data, int sat_index, doubl
 	 }
 
 	 sat_data->status = SAT_STATUS_ACTIVE;
- 
+
 	 return 0;
  }
- 
+
  int sat_data_set_name(struct sat_data *sat_data, const char *name)
  {
 	 if (strlen(name) > sizeof(sat_data->sat_name)) {
@@ -621,14 +621,14 @@ int sat_data_calculate_next_pass(struct sat_data *sat_data, int sat_index, doubl
 	 memcpy(sat_data->sat_name, name, strlen(name));
 	 return 0;
  }
- 
+
  int sat_data_init_tle(struct sat_data *sat_data, const char *line1, const char *line2)
  {
 	 if (sat_data == NULL) {
 		 LOG_ERR("Satellite data is NULL");
 		 return -EINVAL;
 	 }
- 
+
 	 if (line1 == NULL || line2 == NULL) {
 		 LOG_ERR("Line1 or line2 is NULL");
 		 return -EINVAL;

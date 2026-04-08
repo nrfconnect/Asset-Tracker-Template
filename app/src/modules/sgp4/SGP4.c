@@ -2060,10 +2060,10 @@
         epochdays_str[12] = '\0';
         satrec->epochdays = atof(epochdays_str);
 
-        // Bstar
-        char mantissa_str[6];
-        strncpy(mantissa_str, &longstr1[53], 5);
-        mantissa_str[5] = '\0';
+        // Bstar (sign at position 53, 5-digit mantissa at 54-58)
+        char mantissa_str[7];
+        strncpy(mantissa_str, &longstr1[53], 6);
+        mantissa_str[6] = '\0';
         bstar_mantissa = atof(mantissa_str) * 1.0e-5;
 
         char exp_str[3];
