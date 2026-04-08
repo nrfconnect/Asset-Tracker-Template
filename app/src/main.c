@@ -485,27 +485,12 @@ static void poll_triggers_send(void)
 
 /* Common helpers for substates */
 
-static void sampling_begin_common(struct main_state *state_object,
-				  const struct smf_state *fallback_state)
+static void sampling_begin_common(struct main_state *state_object)
 {
 	int err;
 	struct location_msg location_msg = {
 		.type = LOCATION_SEARCH_TRIGGER,
 	};
-	uint32_t current_time = k_uptime_seconds();
-	uint32_t time_elapsed = current_time - state_object->sample_start_time;
-
-	if ((state_object->sample_start_time > 0) &&
-	    (time_elapsed < state_object->sample_interval_sec) &&
-	    (state_object->chan != &button_chan)) {
-		LOG_DBG("Too soon to start sampling, time_elapsed: %d, interval: %d",
-			time_elapsed, state_object->sample_interval_sec);
-
-		/* Go back to waiting state to wait out the remainder of the interval */
-		smf_set_state(SMF_CTX(state_object), fallback_state);
-
-		return;
-	}
 
 #if defined(CONFIG_APP_LED)
 	/* Blue pattern to indicate sampling */
@@ -1264,7 +1249,7 @@ static void disconnected_sampling_entry(void *o)
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
-	sampling_begin_common(state_object, &states[STATE_DISCONNECTED_WAITING]);
+	sampling_begin_common(state_object);
 }
 
 static enum smf_state_result disconnected_sampling_run(void *o)
@@ -1378,7 +1363,7 @@ static void connected_sampling_entry(void *o)
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
-	sampling_begin_common(state_object, &states[STATE_CONNECTED_WAITING]);
+	sampling_begin_common(state_object);
 }
 
 static enum smf_state_result connected_sampling_run(void *o)
