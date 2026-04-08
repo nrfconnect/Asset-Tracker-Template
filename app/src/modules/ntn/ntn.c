@@ -81,6 +81,8 @@ static void sib32_mon(const char *notif)
 		return;
 	}
 
+	LOG_DBG("Received SIB32: %s", sib32);
+
 	strncpy(msg.sib32_data, sib32, sizeof(msg.sib32_data) - 1);
 	msg.sib32_data[sizeof(msg.sib32_data) - 1] = '\0';
 
