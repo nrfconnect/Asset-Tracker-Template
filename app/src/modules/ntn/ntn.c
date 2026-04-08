@@ -141,7 +141,7 @@ struct ntn_state_object {
 	struct tle_cache_entry tle_entries[MAX_SATELLITES];
 	uint8_t tle_count;
 	bool has_valid_tle;
-	char sib32_data[NTN_SIB32_MAX_LEN];
+	struct sat_data sib32_sat_data;
 	bool has_valid_sib32;
 	bool has_valid_gnss;
 	uint64_t location_validity_end_time;
@@ -174,7 +174,6 @@ static struct ntn_state_object ntn_state = {
 	.ntn_peak_offset_seconds = CONFIG_APP_NTN_TIMER_NTN_VALUE_SECONDS,
 	.is_RRC_connected = false,
 };
-static struct sat_data sib32_validation_sat_data;
 
 /* Forward declarations */
 
@@ -595,15 +594,16 @@ static bool update_cached_sib32(struct ntn_state_object *state, const char *sib3
 		return false;
 	}
 
-	/* Validate into static storage to avoid a large stack frame on the NTN thread. */
-	err = sat_data_init_atsib32(&sib32_validation_sat_data, sib32);
+	/* Parse and resolve epoch to absolute time now, while the week
+	 * reference is still valid. Store the fully initialized sat_data
+	 * so predictions never need to re-derive the epoch.
+	 */
+	err = sat_data_init_atsib32(&state->sib32_sat_data, sib32);
 	if (err) {
 		LOG_WRN("Ignoring invalid SIB32 payload, error: %d", err);
 		return false;
 	}
 
-	strncpy(state->sib32_data, sib32, sizeof(state->sib32_data) - 1);
-	state->sib32_data[sizeof(state->sib32_data) - 1] = '\0';
 	state->has_valid_sib32 = true;
 
 	return true;
@@ -611,7 +611,7 @@ static bool update_cached_sib32(struct ntn_state_object *state, const char *sib3
 
 static void clear_cached_sib32(struct ntn_state_object *state)
 {
-	memset(state->sib32_data, 0, sizeof(state->sib32_data));
+	memset(&state->sib32_sat_data, 0, sizeof(state->sib32_sat_data));
 	state->has_valid_sib32 = false;
 }
 
@@ -647,26 +647,23 @@ static int init_sat_data_for_prediction(struct ntn_state_object *state, struct s
 	int err;
 
 	if (state->has_valid_sib32) {
-		err = sat_data_init_atsib32(sat_data, state->sib32_data);
-		if (err == 0) {
-			/* Force the use of the serving satellite only.
-			 * Context is lost with satellite hopping.
-			 * First entry of SIB32 belongs to the serving satellite.
-			*/
-			sat_data->sat_count = MIN(sat_data->sat_count, 1);
+		memcpy(sat_data, &state->sib32_sat_data, sizeof(*sat_data));
 
-			err = sat_data_set_name(sat_data, "SIB32");
-			if (err) {
-				LOG_ERR("Failed to set SIB32 satellite name, error: %d", err);
-				return err;
-			}
+		/* Force the use of the serving satellite only.
+		 * Context is lost with satellite hopping.
+		 * First entry of SIB32 belongs to the serving satellite.
+		 */
+		sat_data->sat_count = MIN(sat_data->sat_count, 1);
 
-			*prediction_source = "SIB32";
-			return 0;
+		err = sat_data_set_name(sat_data, "SIB32");
+		if (err) {
+			LOG_ERR("Failed to set SIB32 satellite name, error: %d", err);
+			return err;
 		}
 
-		LOG_WRN("Failed to initialize SGP4 from cached SIB32, falling back to TLE, error: %d",
-			err);
+		*prediction_source = "SIB32";
+		
+		return 0;
 	}
 
 	if (state->has_valid_tle) {
@@ -817,7 +814,7 @@ static int reschedule_next_pass(struct ntn_state_object *state, const char * con
 	int err;
 	int64_t current_time;
 	int32_t ntn_peak_offset_seconds = state->ntn_peak_offset_seconds;
-	
+
 	/* Get current time */
 	err = date_time_now(&current_time);
 	if (err) {
@@ -1144,7 +1141,7 @@ static int sock_open_and_connect(struct ntn_state_object *state)
 
 	server4->sin_family = AF_INET;
 	server4->sin_port = htons(CONFIG_APP_NTN_SERVER_PORT);
-	
+
 	(void)inet_pton(AF_INET, CONFIG_APP_NTN_SERVER_ADDR, &server4->sin_addr);
 
 	/* Create UDP socket */
@@ -1219,7 +1216,7 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 		snprintk(temp, sizeof(temp), "20");
 	}
 
-	int32_t packet_delay;	
+	int32_t packet_delay;
 	packet_delay= state->modem_connectivity_time - state->modem_cell_found_time;
 
 	// imei,ping_rtt,rsrp,band,ue_mode,oper,lat_str,lon_str,accuracy,...
@@ -1246,7 +1243,7 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 		(double)gnss_data->latitude, (double)gnss_data->longitude, (double)gnss_data->altitude,
 		gnss_data->datetime.year, gnss_data->datetime.month, gnss_data->datetime.day,
 		gnss_data->datetime.hour, gnss_data->datetime.minute, gnss_data->datetime.seconds);
-	
+
 	if (err < 0 || err >= sizeof(base_msg)) {
 		LOG_ERR("Failed to format base GNSS string, error: %d", err);
 		return -EINVAL;
@@ -1345,7 +1342,7 @@ static void state_running_entry(void *obj)
 	char cellularprfl_resp[128];
 	bool profiles_configured = false;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
-	
+
 	LOG_DBG("%s", __func__);
 
 	k_work_init(&keepalive_timer_work, keepalive_timer_work_fn);
@@ -1957,7 +1954,7 @@ static enum smf_state_result state_tn_run(void *obj)
 				goto fail;
 			} else {
 				LOG_INF("Modem traces ready for upload");
-				
+
 				/* Only post data if we have traces to upload */
 				err = memfault_zephyr_port_post_data();
 				if (err) {
@@ -2144,7 +2141,7 @@ static void state_sgp4_entry(void *obj)
 static enum smf_state_result state_sgp4_run(void *obj)
 {
 	LOG_DBG("%s", __func__);
-	
+
 	return SMF_EVENT_PROPAGATE;
 }
 
@@ -2210,20 +2207,20 @@ static enum smf_state_result state_ntn_run(void *obj)
 
 				return SMF_EVENT_HANDLED;
 			}
-			state->modem_connectivity_time=current_time;				
+			state->modem_connectivity_time=current_time;
 
 			return SMF_EVENT_HANDLED;
 
 			break;
 		case NTN_RRC_IDLE:
-		
+
 			LOG_DBG("Setting NTN RRC state to idle");
 			state->is_RRC_connected = false;
-							
+
 			return SMF_EVENT_HANDLED;
 
 			break;
-		case NTN_CELL_FOUND:			
+		case NTN_CELL_FOUND:
 			if (!state->is_RRC_connected)
 				{
 					/* Get current time */
@@ -2234,7 +2231,7 @@ static enum smf_state_result state_ntn_run(void *obj)
 
 					return err;
 					}
-					state->modem_cell_found_time=current_time;				
+					state->modem_cell_found_time=current_time;
 				}
 
 			return SMF_EVENT_HANDLED;
