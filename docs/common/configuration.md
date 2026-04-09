@@ -153,6 +153,8 @@ For shadow structure details, see `Asset-Tracker-Template/app/src/cbor/device_sh
 Default intervals are set from the `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` and `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig options,
 and the threshold is set from `CONFIG_APP_STORAGE_THRESHOLD`. When the device polls the shadow, it checks for any updates to these parameters and applies them at runtime. If a parameter is not set in the shadow, the device continues using the existing value (either from Kconfig or a previous shadow update).
 
+To trigger an immediate configuration poll, press and hold **Button 1** on the device to trigger a cloud update cycle that includes fetching the latest shadow delta.
+
 The following diagrams illustrate what happens in the various scenarios where the device polls the shadow:
 
 <details open>

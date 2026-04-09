@@ -324,6 +324,7 @@ static void state_running_entry(void *obj)
 	err = nrf_modem_lib_init();
 	if (err) {
 		LOG_ERR("Failed to initialize the modem library, error: %d", err);
+		SEND_FATAL_ERROR();
 
 		return;
 	}
@@ -334,6 +335,7 @@ static void state_running_entry(void *obj)
 	err = lte_lc_pdn_default_ctx_events_enable();
 	if (err) {
 		LOG_ERR("lte_lc_pdn_default_ctx_events_enable, error: %d", err);
+		SEND_FATAL_ERROR();
 
 		return;
 	}

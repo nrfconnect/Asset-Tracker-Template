@@ -682,6 +682,7 @@ static void handle_storage_data(const struct storage_msg *msg)
 	/* Extract data from the storage message buffer */
 	if (msg->data_len > sizeof(item.data)) {
 		LOG_ERR("Storage data too large: %d bytes", msg->data_len);
+		SEND_FATAL_ERROR();
 		return;
 	}
 

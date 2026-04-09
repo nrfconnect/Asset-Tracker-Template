@@ -46,7 +46,7 @@ Try out tests locally: [tests/on_target/README.md](https://github.com/nrfconnect
 
 Emulation tests are implemented as part of the SonarCloud workflow ([.github/workflows/sonarcloud.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/sonarcloud.yml)). These tests:
 
-- Run on the [`native_sim`](https://docs.nordicsemi.com/bundle/ncs-3.0.1/page/zephyr/boards/native/native_sim/doc/index.html) platform using [Twister](https://docs.nordicsemi.com/bundle/ncs-3.0.1/page/zephyr/develop/test/twister.html)
+- Run on the [`native_sim`](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/boards/native/native_sim/doc/index.html) platform using [Twister](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/develop/test/twister.html)
 - Execute integration tests in an emulated environment.
 - Generate code coverage reports.
 - Use build wrapper for accurate code analysis.
