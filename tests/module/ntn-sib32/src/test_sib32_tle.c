@@ -24,11 +24,21 @@ char *strtok_r(char *str, const char *delim, char **saveptr);
 DEFINE_FFF_GLOBALS;
 
 /* Thu Feb 12 2026 09:38:29 GMT+0000 */
-#define FAKE_TIME_MS 1770889109000LL
+#define FAKE_TIME_FEB12 1770889109000LL
+/* Wed Apr 08 2026 22:00:00 GMT+0000 */
+#define FAKE_TIME_APR08 1775685600000LL
+
+static int64_t fake_time_ms = FAKE_TIME_FEB12;
+
 int date_time_now(int64_t *time)
 {
-	*time = FAKE_TIME_MS;
+	*time = fake_time_ms;
 	return 0;
+}
+
+void setUp(void)
+{
+	fake_time_ms = FAKE_TIME_FEB12;
 }
 
 #define LAT_TRD 63.43
@@ -125,8 +135,8 @@ void test_nextpass_atsib_sateliot_1(void)
 	err = sat_data_init_atsib32(&data, atsib32);
 	TEST_ASSERT_EQUAL(0, err);
 	debug_print_satrec(&data, 0);
-	err = sat_data_calculate_next_pass(&data, 0, LAT_TRD, LON_TRD, ALT_TRD, FAKE_TIME_MS,
-		SGP4_DEFAULT_MIN_ELEVATION_DEG);
+	err = sat_data_calculate_next_pass(&data, 0, LAT_TRD, LON_TRD, ALT_TRD,
+		FAKE_TIME_FEB12, SGP4_DEFAULT_MIN_ELEVATION_DEG);
 	TEST_ASSERT_EQUAL(0, err);
 	LOG_INF("Next pass: %lld", data.next_pass.start_time_ms);
 	LOG_INF("End time: %lld", data.next_pass.end_time_ms);
@@ -155,8 +165,8 @@ void test_nextpass_tle_sateliot_1(void)
 	err = sat_data_init_tle(&data, line1, line2);
 	TEST_ASSERT_EQUAL(0, err);
 	debug_print_satrec(&data, 0);
-	err = sat_data_calculate_next_pass(&data, 0, LAT_TRD, LON_TRD, ALT_TRD, FAKE_TIME_MS,
-		SGP4_DEFAULT_MIN_ELEVATION_DEG);
+	err = sat_data_calculate_next_pass(&data, 0, LAT_TRD, LON_TRD, ALT_TRD,
+		FAKE_TIME_FEB12, SGP4_DEFAULT_MIN_ELEVATION_DEG);
 	TEST_ASSERT_EQUAL(0, err);
 	LOG_INF("Next pass: %lld", data.next_pass.start_time_ms);
 	LOG_INF("End time: %lld", data.next_pass.end_time_ms);
@@ -173,6 +183,42 @@ void test_nextpass_tle_sateliot_1(void)
 	TEST_ASSERT_EQUAL(EXPECTED_NEXT_PASS_START_TIME, start_time);
 	TEST_ASSERT_EQUAL(EXPECTED_NEXT_PASS_END_TIME, end_time);
 	TEST_ASSERT_EQUAL(EXPECTED_NEXT_PASS_MAX_ELEVATION_TIME, max_elevation_time);
+}
+
+void test_nextpass_real_sib32(void)
+{
+	int err;
+	static struct sat_data data;
+	const char *atsib32 =
+		"SIBCONFIG: 32,\"00000004\",2,4,1138009,2341554,"
+		"2006909,590023,292,2570805072,16936,-3,35174,,01";
+
+	fake_time_ms = FAKE_TIME_APR08;
+
+	memset(&data, 0, sizeof(data));
+
+	err = sat_data_init_atsib32(&data, atsib32);
+	TEST_ASSERT_EQUAL(0, err);
+
+	debug_print_satrec(&data, 0);
+
+	data.sat_count = MIN(data.sat_count, 1);
+
+	err = sat_data_calculate_next_pass(&data, 0, LAT_TRD, LON_TRD, ALT_TRD,
+		FAKE_TIME_APR08, SGP4_DEFAULT_MIN_ELEVATION_DEG);
+	TEST_ASSERT_EQUAL(0, err);
+
+	int64_t start_time = data.next_pass.start_time_ms / 1000;
+	int64_t end_time = data.next_pass.end_time_ms / 1000;
+	int64_t max_elevation_time = data.next_pass.max_elevation_time_ms / 1000;
+
+	LOG_INF("Next pass start: %lld", start_time);
+	LOG_INF("Next pass end:   %lld", end_time);
+	LOG_INF("Max elevation:   %lld", max_elevation_time);
+
+	debug_print_time("start", start_time);
+	debug_print_time("end", end_time);
+	debug_print_time("max_elev", max_elevation_time);
 }
 
 extern int unity_main(void);
