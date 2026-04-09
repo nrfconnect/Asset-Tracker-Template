@@ -49,13 +49,12 @@ Complete the following steps for preparing firmware:
 ### Version verification
 
 > [!IMPORTANT]
-> - The `fwversion` field in a firmware bundle is independent from the device's reported version.
-> - **All stored data in the storage module will be automatically cleared when applying firmware updates.** If you need to preserve data across updates, ensure it is sent to the cloud or retrieved before the update completes, or edit the source code to fit your needs.
+> **All stored data in the storage module will be automatically cleared when applying firmware updates.** If you need to preserve data across updates, ensure it is sent to the cloud or retrieved before the update completes, or edit the source code to fit your needs.
 
 To verify a successful update:
 
-- **Application updates**: Check that the FOTA job shows `Completed` status and the **App Version** field in device information reflects the new version.
-- **Modem updates**: Check that the FOTA job shows `Completed` status and the **Modem Firmware** field in device information shows the new version.
+- **Application updates**: Check that the FOTA job shows `Succeeded` status and the **App Version** field in device information reflects the new version.
+- **Modem updates**: Check that the FOTA job shows `Succeeded` status and the **Modem Firmware** field in device information shows the new version.
 
 ![Device information showing app version](../images/device_information.png)
 
@@ -71,7 +70,7 @@ This is the recommended method for manual updates and testing.
 1. Select **Firmware Updates** in the **Device Management** tab on the left.
 1. Create Update Bundle:
 
-    1. Click "Add bundle".
+    1. Click on "Add bundle".
     1. Upload your bundle file:
 
         - For application updates: `dfu_application.zip`
@@ -79,11 +78,12 @@ This is the recommended method for manual updates and testing.
 
     1. Set **Update Type** (for example, LTE).
     1. Enter a **Name** for the bundle.
-    1. Enter a **Version** string (can be any identifier - this is the `fwversion` shown in the bundle list).
+    1. Enter a **Version** string (this is only a label for the bundle list and is not used by the device).
     1. Click **Create/Upload Bundle**.
 
 1. Create FOTA Update:
 
+    1. Click on "Create FOTA update"
     1. Enter a **Name** and a **Description** of the update.
     1. Select target device(s) through device or group selection.
     1. Click on **Deploy now**.
@@ -91,9 +91,10 @@ This is the recommended method for manual updates and testing.
 
 1. Monitor Progress:
 
-    - View job status in the **Overall Progress** section of the update.
-    - Status will progress: Queued → In Progress → Downloading → Completed.
+    - The **Overall Progress** section will go from **In Progress** to **Completed**.
+    - The individual device **Status** will progress: **Queued → Updating → Succeeded**.
     - The device will automatically download and apply the update once it becomes online.
+    - To trigger an immediate FOTA poll, press and hold **Button 1** on the device.
 
 1. Verify Update:
 

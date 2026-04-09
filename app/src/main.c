@@ -454,6 +454,8 @@ static void poll_shadow_send(enum cloud_msg_type type)
 	if ((type != CLOUD_SHADOW_GET_DESIRED) &&
 	    (type != CLOUD_SHADOW_GET_DELTA)) {
 		LOG_ERR("Invalid event: %d", type);
+		SEND_FATAL_ERROR();
+
 		return;
 	}
 
@@ -548,6 +550,7 @@ static void waiting_entry_common(const struct main_state *state_object)
 	}
 
 	LOG_DBG("Next sample trigger in %d seconds", time_remaining);
+
 	timer_sample_start(time_remaining);
 
 	/* Reschedule cloud sync trigger */
@@ -753,6 +756,8 @@ static void update_shadow_reported_section(const struct config_params *config,
 					       &encoded_len);
 	if (err) {
 		LOG_ERR("encode_shadow_parameters_to_cbor, error: %d", err);
+		SEND_FATAL_ERROR();
+
 		return;
 	}
 

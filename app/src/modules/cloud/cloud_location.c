@@ -192,6 +192,7 @@ static void handle_cloud_location_request(const struct location_cloud_request_da
 
 	if (!loc_req.cell_info && !loc_req.wifi_info) {
 		LOG_ERR("No cellular or Wi-Fi data provided for location request");
+		SEND_FATAL_ERROR();
 		return;
 	}
 

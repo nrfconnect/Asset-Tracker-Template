@@ -148,9 +148,9 @@ To test that everything is working as expected, complete the following steps:
 
     ![nRF Cloud example data](../images/nrf_cloud_example_data.png)
 
-1. Press **Button 1** on the device to trigger an immediate data sample and cloud sync. This is useful when you do not want to wait for the next scheduled sampling interval.
+1. Press and hold **Button 1** on the device to trigger an immediate cloud sync, including sending buffered data, polling for FOTA updates, and fetching configuration changes.
 
-    > **Note:** The device samples and sends data at configurable intervals. Between intervals, the device is in a low-power state. Pressing the button forces an immediate cycle.
+    > **Note:** The device samples and sends data at configurable intervals. Between intervals, the device is in a low-power state. Pressing and holding the button forces an immediate cloud update cycle.
 
 1. Optionally, you can reset the device to observe the full boot and connection sequence. Connect to the device using the serial terminal and reset the device using either the reset button or the following shell command:
 

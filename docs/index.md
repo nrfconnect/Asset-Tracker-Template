@@ -107,7 +107,7 @@ Create a new rule using the following configuration:<br>
 </ol>
 
 <blockquote>
-<strong>Note:</strong> The device polls the provisioning service at its own interval. This means it may take a few minutes for the device to pick up the claim and complete provisioning. If you want a quicker response, press <strong>Button 1</strong> on the device or reset it to trigger an immediate provisioning poll.
+<strong>Note:</strong> The device polls the provisioning service at its own interval. This means it may take a few minutes for the device to pick up the claim and complete provisioning. If you want a quicker response, press and hold <strong>Button 1</strong> on the device or reset the device to trigger an immediate provisioning poll.
 </blockquote>
 
 See <a href="https://docs.nordicsemi.com/bundle/asset-tracker-template-latest/page/common/provisioning.html">provisioning</a> for more details.

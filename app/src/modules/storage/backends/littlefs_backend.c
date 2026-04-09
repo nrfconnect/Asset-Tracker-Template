@@ -104,9 +104,9 @@ static void verify_partition_size(void)
 	int ret;
 
 	ret = fs_statvfs(mountpoint->mnt_point, &stat);
-	if (ret < 0) {
+	if (ret) {
 		LOG_ERR("Failed to get filesystem stats: %d", ret);
-
+		__ASSERT_NO_MSG(false);
 		return;
 	}
 

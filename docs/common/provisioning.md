@@ -76,7 +76,7 @@ The attestation token uniquely identifies your device and proves its authenticit
 After claiming, the device needs to poll the provisioning service to receive its credentials. This happens automatically, but the device polls at its own interval.
 
 - **Wait**: The device will automatically poll for provisioning commands at its configured interval. This may take a few minutes.
-- **Trigger immediately**: If you want to speed up the process, you can either press **Button 1** on the device or reset it to trigger an immediate provisioning poll.
+- **Trigger immediately**: If you want to speed up the process, you can either press and hold **Button 1** on the device or reset it to trigger an immediate provisioning poll.
 
 Once the device has received its credentials and connected to nRF Cloud, it will be available under the **Devices** section in the **Device Management** navigation pane on the left.
 
