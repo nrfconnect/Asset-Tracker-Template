@@ -40,7 +40,7 @@ Modules communicate through [zbus](https://docs.zephyrproject.org/latest/service
 * [Thingy:91 X](https://www.nordicsemi.com/Products/Development-hardware/Nordic-Thingy-91-X)
 * [nRF9151 DK](https://www.nordicsemi.com/Products/Development-hardware/nRF9151-DK)
 
-If you're new to nRF91 series and cellular IoT, consider taking the [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals).
+If you are new to nRF91 series and cellular IoT, consider taking the [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals).
 
 ## Quick Start
 

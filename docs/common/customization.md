@@ -148,7 +148,7 @@ The data is forwarded to nRF Cloud along with the other environmental data.
 In this example, support for the Bosch BMM350 magnetometer sensor is added.
 A similar procedure can be used for any sensor that supports the Zephyr Sensor API.
 
-Thingy:91 X is used as the example board, as it is a supported board in the template with defined board files in the nRF Connect SDK.
+The Thingy:91 X is used as the example board, as it is a supported board in the template with defined board files in the nRF Connect SDK.
 
 ### Instructions
 
@@ -204,7 +204,7 @@ Before adding a new sensor to the environmental module, ensure that the sensor's
      sample_sensors(state_object->bme680, state_object->bmm350);
     ```
 
-1. Update the `sample_sensors()` function in the same file to sample from the new sensor and add the data to the outgoing message (we will extend the message struct in the next step):
+1. Update the `sample_sensors()` function in the same file to sample from the new sensor and add the data to the outgoing message (the message struct will be extended in the next step):
 
     ```c
     static void sample_sensors(const struct device *const bme680, const struct device *const bmm350)
@@ -289,7 +289,7 @@ Before adding a new sensor to the environmental module, ensure that the sensor's
     }
     ```
 
-1. Build and run the modified application
+1. Build and run the modified application.
 
 1. Confirm that the custom messages appear in the Terminal card in [nRF Cloud](https://nrfcloud.com), as shown below:
 
@@ -568,7 +568,7 @@ To add your own module, complete the following steps:
     rsource "src/modules/dummy/Kconfig.dummy"
     ```
 
-1. Increase the value of the `CONFIG_TASK_WDT_CHANNELS` Kconfig option in the `app/prj.conf` file by 1 to accommodate for the new module's task watchdog integration.
+1. Increase the value of the `CONFIG_TASK_WDT_CHANNELS` Kconfig option in the `app/prj.conf` file by `1` to accommodate for the new module's task watchdog integration.
 
 The dummy module is now ready to use. It provides the following functionality:
 

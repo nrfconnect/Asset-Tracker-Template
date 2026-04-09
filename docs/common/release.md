@@ -13,11 +13,11 @@ Each firmware variant includes the following set of artifacts:
 
 | **Artifact suffix** | **Description** | **Use case** |
 |---------------------|----------------|--------------|
-| `-nrf91.hex` | Full image including bootloader | Flashing via debugger (J-Link) |
+| `-nrf91.hex` | Full image including bootloader | Flashing using debugger (J-Link) |
 | `-nrf91.elf` | ELF file with debug symbols | Debugging, coredump analysis, `addr2line` |
 | `-nrf91.config` | Build configuration snapshot | Inspecting the Kconfig options used for the build |
 | `-nrf91-update-signed.hex` | Signed application-only hex (no bootloader) | Flashing only the application via debugger |
-| `-nrf91-update-signed.bin` | Signed application-only binary | FOTA updates via nRF Cloud |
+| `-nrf91-update-signed.bin` | Signed application-only binary | FOTA updates using nRF Cloud |
 | `-nrf91-dfu.zip` | DFU package | Serial DFU updates |
 
 #### Standard firmware variants
@@ -48,7 +48,7 @@ The firmware variants are built using different configuration overlays that modi
 | **Overlay file** | **Purpose** | **Key features** |
 |------------------|-------------|------------------|
 | `overlay-memfault.conf` | Memfault integration | Crash reporting and device monitoring |
-| `overlay-storage-minimal.conf` | Minimal storage configuration | Reduced memory footprint with storage for 1 sample and immediate sending|
+| `overlay-storage-minimal.conf` | Minimal storage configuration | Reduced memory footprint with storage for one sample and immediate sending|
 | `overlay-upload-modem-traces-to-memfault.conf` | Modem trace to Memfault | Automatic upload of modem traces for analysis |
 
 ### Hardware platform support

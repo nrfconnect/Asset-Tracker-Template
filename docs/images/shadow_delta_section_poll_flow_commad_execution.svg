@@ -171,11 +171,11 @@
 				<title>Dynamic connector.211</title>
 				<path d="M156.99 537.68 L150.31 537.68 L149.95 537.68 L0 537.68" class="st11"/>
 			</g>
-			<g id="shape34-103" transform="translate(61.5351,-173.622)">
+			<g id="shape34-103" transform="translate(49.0641,-173.622)">
 				<title>Sheet.34</title>
-				<desc>CLOUD_SHADOW_UPDATE_REPORTED_CONFIG (with command)</desc>
-				<rect x="0" y="524.922" width="134.646" height="12.7559" class="st4"/>
-				<text x="9.48" y="529.5" class="st5">CLOUD_SHADOW_UPDATE_REPORTED_CONFIG <tspan x="45.98" dy="1.2em" class="st3">(with command)</tspan></text>			</g>
+				<desc>CLOUD_SHADOW_UPDATE_REPORTED (with command)</desc>
+				<rect x="0" y="524.922" width="156.99" height="12.7559" class="st4"/>
+				<text x="7.32" y="529.5" class="st5">CLOUD_SHADOW_UPDATE_REPORTED_CONFIG <tspan x="57.16" dy="1.2em" class="st3">(with command)</tspan></text>			</g>
 			<g id="shape35-107" transform="translate(214.939,-146.693)">
 				<title>Sheet.35</title>
 				<desc>Report device configurations PATCH (state/reported)</desc>

@@ -24,13 +24,13 @@ Backends implement the API defined in the `app/src/modules/storage/storage_backe
 
 The storage module supports two backends:
 
-#### RAM Backend (Default)
+#### RAM backend (Default)
 
 - **Characteristics**: Fast in-memory storage
 - **Data persistence**: Lost on power loss or device reset
 - **Use case**: Applications that can tolerate data loss
 
-#### LittleFS Flash Backend
+#### LittleFS flash backend
 
 - **Characteristics**: Persistent flash-based storage using the LittleFS filesystem
 - **Data persistence**: Data survives power loss and device resets
@@ -39,7 +39,7 @@ The storage module supports two backends:
 ### Data flow
 
 Data producing modules publish sampled data to their respective zbus channel.
-Data is stored and later emitted by flush or streamed over the batch pipe, using the batch interface described below.
+Data is stored and later emitted by flush or streamed over the batch pipe, using the batch interface described in the following section.
 
 ### Memory management
 
@@ -57,7 +57,7 @@ This module allocates RAM from the following places, and understanding these hel
 - Minimize enabled data types
 
     - Disable modules that you do not forward or store (for example, `CONFIG_APP_LOCATION=n`), which
-      reduces both slabs and RAM backend ring buffers, and shrinks `STORAGE_MAX_DATA_SIZE`.
+      reduces both slabs and RAM backend ring buffers and shrinks `STORAGE_MAX_DATA_SIZE`.
 
 - Reduce records per type
 
@@ -112,32 +112,32 @@ CONFIG_APP_STORAGE_SHELL_STATS=n
 
 ### Flash management (LittleFS backend)
 
-#### Partition Sizing
+#### Partition sizing
 
-The partition size for the LittleFS backend must be configured to accommodate the data types in use, their sizes, and the number of records per type. A minimum partition size is required to ensure proper operation.
+You must configure the partition size for the LittleFS backend to accommodate the data types in use, their sizes, and the number of records per type. A minimum partition size is required to ensure proper operation.
 
 How to calculate the needed size:
 
-1) Per-type block need
+- Per-type block need:
 
 $$\text{blocks per type} = \left\lceil \frac{\text{data size} \times \text{records per type}}{\text{block size}} \right\rceil$$
 
-2) Total required blocks
+- Total required blocks:
 
 $$\text{required blocks} = \sum \text{blocks per type} + 3$$
 
 where the `+3` accounts for LittleFS metadata and the CoW block.
 
-3) Minimum partition size
+- Minimum partition size:
 
- $$\text{flash size} = \text{required blocks} \times \text{block size}$$
+$$\text{flash size} = \text{required blocks} \times \text{block size}$$
 
 Choose a partition size that meets or exceeds `flash_size`. The LittleFS partition size is set by `CONFIG_PM_PARTITION_SIZE_LITTLEFS` (or the corresponding DTS partition definition).
 
 If the requirement is not met, either increase the partition (`CONFIG_PM_PARTITION_SIZE_LITTLEFS` or DTS partition size) or reduce storage pressure (fewer records, smaller data types, or fewer enabled types).
 
 > [!NOTE]
-> The data types are stored in separate files, so the minimum amount of flash blocks needed are $\sum \text{data type} + 3$,
+> The data types are stored in separate files, so the minimum amount of flash blocks needed are $\sum \text{data type} + 3$.
 
 #### Target-specific defaults
 
@@ -148,47 +148,49 @@ If the requirement is not met, either increase the partition (`CONFIG_PM_PARTITI
 | thingy91x (internal flash) | 0x1000 | 8 | 0x8000 |
 | thingy91x (external flash) | 0x1000 | 8 | 0x8000 |
 
-#### LittleFS Built-in Wear Leveling
+#### LittleFS built-in wear leveling
 
 LittleFS provides inherent wear leveling at the filesystem level:
 
-- LittleFS automatically distributes writes across available flash blocks, avoiding repeated writes to the same physical location
-- Filesystem metadata is spread across the partition, preventing hotspots on metadata blocks
-- Updates are written to new blocks rather than overwriting existing data, naturally distributing erase cycles
-- As blocks become dirty, LittleFS reclaims and redistributes them, ensuring uniform wear across the entire partition
-- The filesystem tracks block usage patterns and preferentially allocates less-worn blocks for new writes
+- LittleFS automatically distributes writes across available flash blocks, avoiding repeated writes to the same physical location.
+- Filesystem metadata is spread across the partition, preventing hotspots on metadata blocks.
+- Updates are written to new blocks rather than overwriting existing data, naturally distributing erase cycles.
+- As blocks become dirty, LittleFS reclaims and redistributes them, ensuring uniform wear across the entire partition.
+- The filesystem tracks block usage patterns and preferentially allocates less-worn blocks for new writes.
 
-#### Application-Level Ring Buffer Wear Leveling
+#### Application-level ring buffer wear leveling
 
-The storage module adds an additional wear leveling layer through its ring buffer architecture:
+The storage module adds an additional wear leveling layer through its ring buffer architecture.
 
-##### Block-Level Distribution
+##### Block-level distribution
 
-- Entries are distributed across files matched to flash blocks
-- Each data type has its own file, preventing cross-type interference
-- Writes cycle through all available record slots before overwriting
-- Rewrites only modify the affected flash blocks, minimizing unnecessary writes
+- Entries are distributed across files matched to flash blocks.
+- Each data type has its own file, preventing cross-type interference.
+- Writes cycle through all available record slots before overwriting.
+- Rewrites only modify the affected flash blocks, minimizing unnecessary writes.
 
-#### Combined Wear Protection
+#### Combined wear protection
 
 The combination of LittleFS wear leveling and the ring buffer architecture provides:
 
-1. **Temporal distribution**: Ring buffer spreads writes over time across record slots
-2. **Spatial distribution**: LittleFS spreads those writes across physical flash blocks
-3. **Type isolation**: Each data type has its own write pattern, preventing interference
-4. **Automatic wear balancing**: No configuration needed—works transparently
+- **Temporal distribution**: Ring buffer spreads writes over time across record slots.
+- **Spatial distribution**: LittleFS spreads those writes across physical flash blocks.
+- **Type isolation**: Each data type has its own write pattern, preventing interference.
+- **Automatic wear balancing**: No configuration needed—works transparently.
 
-#### Minimizing Flash Wear
+#### Minimizing flash wear
 
 To further optimize flash lifespan:
 
-1. **Increase partition size**: Larger partitions provide more blocks for write distribution
-2. **Increase record count**: Higher `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` reduces rewrite frequency
-3. **Use ram backend when possible**: If data persistence is not critical, use the RAM backend to avoid flash writes entirely
+- **Increase partition size**: Larger partitions provide more blocks for write distribution.
+- **Increase record count**: Higher `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` reduces rewrite frequency.
+- **Use ram backend when possible**: If data persistence is not critical, use the RAM backend to avoid flash writes entirely.
 
-#### Configuration Examples
+#### Configuration examples
 
-##### Basic LittleFS Configuration
+The following sections showcase various configuration examples.
+
+##### Basic littleFS configuration
 
 To enable persistent flash storage:
 
@@ -205,7 +207,7 @@ CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=16
 CONFIG_APP_STORAGE_THREAD_STACK_SIZE=3000
 ```
 
-#### Optimized for Data Persistence with Minimal Flash Wear
+##### Optimized for data persistence with minimal flash wear
 
 ```config
 # Storage enabled with persistent backend
@@ -226,55 +228,55 @@ CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=50
 The storage module communicates through two zbus channels: `storage_chan` and `storage_data_chan`.
 All message types are defined in the `storage.h` file.
 
-### Input Messages (Commands)
+### Input messages (Commands)
 
-**Data Operations (handled by parent RUNNING state):**
+**Data operations (handled by parent `RUNNING` state):**
 
-- **`STORAGE_SET_THRESHOLD`**: Set the threshold for triggering `STORAGE_THRESHOLD_REACHED`.
-  If threshold is 1, every sample triggers a message. Higher values enable buffering until the threshold is reached.
-  If threshold is 0, no threshold events are emitted.
+- **STORAGE_SET_THRESHOLD**: Set the threshold for triggering `STORAGE_THRESHOLD_REACHED`.
+  If threshold is `1`, every sample triggers a message. Higher values enable buffering until the threshold is reached.
+  If threshold is `0`, no threshold events are emitted.
 
-- **`STORAGE_FLUSH`**: Flushes stored data one item at a time as individual `STORAGE_DATA` messages.
+- **STORAGE_FLUSH**: Flushes stored data one item at a time as individual `STORAGE_DATA` messages.
   Data is sent in FIFO order per type. Available in both operational modes.
 
-- **`STORAGE_BATCH_REQUEST`**: Requests access to stored data through batch interface.
+- **STORAGE_BATCH_REQUEST**: Requests access to stored data through batch interface.
   Responds with `STORAGE_BATCH_AVAILABLE`, `STORAGE_BATCH_EMPTY`, `STORAGE_BATCH_BUSY`, or `STORAGE_BATCH_ERROR`.
   Available in both operational modes.
 
-- **`STORAGE_CLEAR`**: Clears all stored data from the backend.
+- **STORAGE_CLEAR**: Clears all stored data from the backend.
   Available in both operational modes.
 
 **Diagnostics (handled by parent RUNNING state):**
 
-- **`STORAGE_STATS`** : Requests storage statistics (requires `CONFIG_APP_STORAGE_SHELL_STATS`).
+- **STORAGE_STATS** : Requests storage statistics (requires `CONFIG_APP_STORAGE_SHELL_STATS`).
   Statistics are logged to the console.
   Available in both operational modes.
 
-### Output Messages (Responses)
+### Output messages (Responses)
 
-**Data Events:**
+**Data events:**
 
-- **`STORAGE_THRESHOLD_REACHED`**: Emitted when the number of stored samples for a type reaches the configured threshold.
+- **STORAGE_THRESHOLD_REACHED**: Emitted when the number of stored samples for a type reaches the configured threshold.
   Contains the data type and count that triggered the event.
 
-**Data Messages:**
+**Data messages:**
 
-- **`STORAGE_DATA`**: Contains stored data being flushed or forwarded.
+- **STORAGE_DATA**: Contains stored data being flushed or forwarded.
   Includes data type and the actual data payload.
 
-**Batch Status:**
+**Batch status:**
 
-- **`STORAGE_BATCH_AVAILABLE`**: Batch is ready for reading.
+- **STORAGE_BATCH_AVAILABLE**: Batch is ready for reading.
   Message includes total item count available and session ID.
 
-- **`STORAGE_BATCH_EMPTY`**: No stored data available.
+- **STORAGE_BATCH_EMPTY**: No stored data available.
   Batch is empty.
 
-- **`STORAGE_BATCH_BUSY`**: Another module is currently using the batch session.
+- **STORAGE_BATCH_BUSY**: Another module is currently using the batch session.
 
-- **`STORAGE_BATCH_ERROR`**: Error occurred during batch operation.
+- **STORAGE_BATCH_ERROR**: Error occurred during batch operation.
 
-### Message Structure
+### Message structure
 
 The message structure used by the storage module is defined in `storage.h`:
 
@@ -297,69 +299,69 @@ struct storage_msg {
 The storage module is configurable through Kconfig options in `Kconfig.storage`.
 The following includes the key configuration categories:
 
-### Storage Backend
+### Storage backend
 
-- **`CONFIG_APP_STORAGE_BACKEND_RAM`** (default): Uses RAM for storage.
-  Data is lost on power cycle but provides fast access.
+- **CONFIG_APP_STORAGE_BACKEND_RAM** (default): Uses RAM for storage.
+  Data is lost on a power cycle but provides fast access.
 
-- **`CONFIG_APP_STORAGE_BACKEND_LITTLEFS`** : Uses the LittleFS filesystem for flash storage.
-  Data is persistent across power cycles, but provides slower access.
+- **CONFIG_APP_STORAGE_BACKEND_LITTLEFS** : Uses the LittleFS filesystem for flash storage.
+  Data is persistent across power cycles but provides slower access.
 
 > [!NOTE]
 > Regardless of the backend used, stored data is automatically cleared when FOTA updates are applied to ensure a clean state after firmware updates. See the [FOTA module documentation](fota_module.md#storage-clearing-on-reboot) for details.
 
-### Memory Configuration
+### Memory configuration
 
-- **`CONFIG_APP_STORAGE_MAX_TYPES`** (default: 3): Maximum number of different data types that can be registered.
+- **CONFIG_APP_STORAGE_MAX_TYPES** (default: `3`): Maximum number of different data types that can be registered.
   Affects RAM usage.
 
-- **`CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE`** (default: 8): Maximum records stored per data type.
+- **CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE** (default: `8`): Maximum records stored per data type.
   Total RAM usage = `MAX_TYPES` × `MAX_RECORDS_PER_TYPE` × `RECORD_SIZE`.
 
-- **`CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE`** (default: 1024): Size of the internal buffer for batch data access.
+- **CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE** (default: `1024`): Size of the internal buffer for batch data access.
 
-### Flash Configuration (LittleFS backend)
+### Flash configuration (LittleFS backend)
 
-- **`CONFIG_PM_PARTITION_SIZE_LITTLEFS`**: Size of the flash partition for LittleFS storage.
+- **CONFIG_PM_PARTITION_SIZE_LITTLEFS**: Size of the flash partition for LittleFS storage.
   Must be large enough to accommodate the stored data and filesystem metadata. See flash management section above for sizing guidance.
 
-- **`PM_PARTITION_REGION_LITTLEFS_EXTERNAL`** (default: `y`): Use external flash for LittleFS storage (uses internal flash if set to `n`).
+- **CONFIG_PM_PARTITION_REGION_LITTLEFS_EXTERNAL** (default: `y`): Use external flash for LittleFS storage (uses internal flash if set to `n`).
 
-### Threshold Configuration
+### Threshold configuration
 
-- **`CONFIG_APP_STORAGE_INITIAL_THRESHOLD`** (default: 1): Initial threshold for triggering `STORAGE_THRESHOLD_REACHED` events.
+- **CONFIG_APP_STORAGE_INITIAL_THRESHOLD** (default: `1`): Initial threshold for triggering `STORAGE_THRESHOLD_REACHED` events.
   A value of 1 means every sample triggers an event, while higher values enable buffering until the threshold is reached.
   A value of 0 disables threshold events. (Threshold can be changed at runtime through `STORAGE_SET_THRESHOLD` messages).
 
-### Thread Configuration
+### Thread configuration
 
-- **`CONFIG_APP_STORAGE_THREAD_STACK_SIZE`** (default: 1536): Stack size for the storage module's main thread.
+- **CONFIG_APP_STORAGE_THREAD_STACK_SIZE** (default: `1536`): Stack size for the storage module's main thread.
 
-- **`CONFIG_APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS`** (default: 60): Watchdog timeout for detecting stuck operations.
+- **CONFIG_APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS** (default: `60`): Watchdog timeout for detecting stuck operations.
 
-- **`CONFIG_APP_STORAGE_MSG_PROCESSING_TIMEOUT_SECONDS`** (default: 5): Maximum time for processing a single message.
+- **CONFIG_APP_STORAGE_MSG_PROCESSING_TIMEOUT_SECONDS** (default: `5`): Maximum time for processing a single message.
 
-### Development Features
+### Development features
 
-- **`CONFIG_APP_STORAGE_SHELL`** (default: `y`): Enable shell commands for storage interaction.
+- **CONFIG_APP_STORAGE_SHELL** (default: `y`): Enable shell commands for storage interaction.
 
-- **`CONFIG_APP_STORAGE_SHELL_STATS`**: Enable statistics commands (increases code size).
+- **CONFIG_APP_STORAGE_SHELL_STATS**: Enable statistics commands (increases code size).
 
-### Message Handling
+### Message handling
 
 - **RUNNING state**: Handles `STORAGE_CLEAR`, `STORAGE_FLUSH`, `STORAGE_STATS`, and `STORAGE_SET_THRESHOLD` messages.
 - **BUFFER_IDLE**: Handles `STORAGE_BATCH_REQUEST` to transition to `BUFFER_PIPE_ACTIVE`.
 - **BUFFER_PIPE_ACTIVE**: Populates pipe with `[header + data]` items, handles session management.
 
-## API Documentation
+## API documentation
 
 ### Channels
 
-#### storage_chan
+#### storage channel
 
 The storage channel is the primary zbus channel for controlling the storage module and receiving control or status responses.
 
-**Input Message Types:**
+**Input message types:**
 
 - `STORAGE_SET_THRESHOLD` - Set threshold for `STORAGE_THRESHOLD_REACHED` events
 - `STORAGE_FLUSH` - Flush stored data as individual messages
@@ -367,7 +369,7 @@ The storage channel is the primary zbus channel for controlling the storage modu
 - `STORAGE_CLEAR` - Clear all stored data
 - `STORAGE_STATS` - Display storage statistics
 
-**Output Message Types:**
+**Output message types:**
 
 - `STORAGE_THRESHOLD_REACHED` - Threshold reached for a data type
 - `STORAGE_BATCH_AVAILABLE` - Batch ready with data
@@ -375,16 +377,16 @@ The storage channel is the primary zbus channel for controlling the storage modu
 - `STORAGE_BATCH_BUSY` - Another session active
 - `STORAGE_BATCH_ERROR` - Error accessing data
 
-#### storage_data_chan
+#### storage data channel
 
 This is a dedicated channel for `STORAGE_DATA` payload messages to avoid self-flooding and race conditions.
 The subscribers interested in data should observe this channel.
 
-**Output Message Types:**
+**Output message types:**
 
 - `STORAGE_DATA` - Contains stored or forwarded data.
 
-### Data Type Registration
+### Data type registration
 
 Data types are automatically registered using the `DATA_SOURCE_LIST` macro in `storage_data_types.h`. The system currently supports:
 
@@ -399,7 +401,7 @@ Each data type registration includes:
 - Data extraction function
 - Storage data type identifier
 
-### Backend Interface
+### Backend interface
 
 Storage backends implement the interface defined in the `app/src/modules/storage/storage_backend.h` file:
 
@@ -413,7 +415,7 @@ struct storage_backend {
 };
 ```
 
-### Batch Read Helper
+### Batch read helper
 
 The storage module provides a convenience function for reading batch data:
 
@@ -429,7 +431,7 @@ It reads stored data through the batch interface, handling header parsing and da
 
 ## Usage
 
-### Data Retrieval
+### Data retrieval
 
 **Flush:** `STORAGE_FLUSH` emits individual `STORAGE_DATA` messages. Use for small datasets.
 
@@ -458,7 +460,7 @@ zbus_chan_pub(&storage_chan, &close, K_SECONDS(1));
 
 Responses: `STORAGE_BATCH_AVAILABLE` (success), `STORAGE_BATCH_EMPTY`, `STORAGE_BATCH_BUSY`, `STORAGE_BATCH_ERROR`.
 
-### Processing STORAGE_DATA
+### Processing `STORAGE_DATA`
 
 Subscribe to `storage_data_chan` to receive forwarded/flushed data:
 
@@ -476,7 +478,7 @@ case STORAGE_TYPE_LOCATION:
 }
 ```
 
-### Admin Commands
+### Admin commands
 
 ```c
 /* Clear all stored data */
@@ -490,7 +492,7 @@ struct storage_msg msg = { .type = STORAGE_STATS };
 err = zbus_chan_pub(&storage_chan, &msg, K_SECONDS(1));
 ```
 
-### Shell Commands
+### Shell commands
 
 When `CONFIG_APP_STORAGE_SHELL` is enabled:
 
@@ -500,7 +502,7 @@ att_storage clear              # Clear all data
 att_storage stats              # Show statistics (if enabled)
 ```
 
-## Adding Backends
+## Adding backends
 
 1. Implement `struct storage_backend` (see `storage_backend.h`).
 1. Provide `storage_backend_get()` function.

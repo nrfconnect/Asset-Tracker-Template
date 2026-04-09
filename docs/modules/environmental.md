@@ -27,9 +27,9 @@ The Environmental module communicates via the zbus channel `environmental_chan`,
 - **ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE:**
   Returns collected environmental data with the following fields:
 
-  - `temperature`: Temperature value in degrees Celsius.
-  - `pressure`: Atmospheric pressure in Pascals.
-  - `humidity`: Relative humidity percentage.
+    - `temperature`: Temperature value in degrees Celsius.
+    - `pressure`: Atmospheric pressure in Pascals.
+    - `humidity`: Relative humidity percentage.
 
 The message structure used by the environmental module is defined in `environmental.h`:
 
