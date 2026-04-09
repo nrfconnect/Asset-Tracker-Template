@@ -4,6 +4,7 @@ import argparse
 import datetime
 import os
 import pathlib
+import queue
 import re
 import subprocess
 import sys
@@ -91,7 +92,7 @@ class UartBinary:
         self.timeout = timeout
         self.serial_timeout = serial_timeout
         self.baudrate = baudrate
-        self.data = b""
+        self._queue: queue.Queue[bytes] = queue.Queue()
         self._evt = threading.Event()
         self._thread = threading.Thread(target=self._uart, daemon=True)
         self._thread.start()
@@ -139,12 +140,19 @@ class UartBinary:
                 serial_port = self._open_serial()
                 continue
 
-            if not data:
-                continue
-
-            self.data += data
+            if data:
+                self._queue.put(data)
 
         serial_port.close()
+
+    def drain(self) -> bytes:
+        chunks = []
+        while True:
+            try:
+                chunks.append(self._queue.get_nowait())
+            except queue.Empty:
+                break
+        return b"".join(chunks) if chunks else b""
 
     def selfdestruct(self) -> None:
         print(f"UART SELFDESTRUCTED {self.uart}", file=sys.stderr)
@@ -240,7 +248,6 @@ def main() -> int:
     args = parse_args()
     devices = list(dict.fromkeys(resolve_device_path(device) for device in args.device))
     uarts = {}
-    offsets = {}
     output_dir = args.output_dir.resolve()
     capture_date = datetime.date.today()
     raw_outputs = {}
@@ -253,17 +260,20 @@ def main() -> int:
                 serial_timeout=args.serial_timeout,
                 baudrate=args.baudrate,
             )
-            offsets[device] = 0
 
         output_dir.mkdir(parents=True, exist_ok=True)
         raw_outputs = open_daily_outputs(output_dir, devices, capture_date)
 
         print(
-            f"Listening on {len(devices)} device(s) at {args.baudrate} baud. Press Ctrl+C to stop."
+            f"Listening on {len(devices)} device(s) at {args.baudrate} baud. "
+            "Press Ctrl+C to stop."
         )
         print(f"Daily capture directory: {output_dir}")
         for device in devices:
-            print(f"  {device} -> {capture_output_path(output_dir, device, capture_date)}")
+            print(
+                f"  {device} -> "
+                f"{capture_output_path(output_dir, device, capture_date)}"
+            )
 
         while True:
             capture_date, raw_outputs = rotate_daily_outputs(
@@ -274,13 +284,9 @@ def main() -> int:
             )
 
             for device, uart in uarts.items():
-                data = uart.data
-                offset = offsets[device]
-                if len(data) <= offset:
+                chunk = uart.drain()
+                if not chunk:
                     continue
-
-                chunk = data[offset:]
-                offsets[device] = len(data)
 
                 raw_output = raw_outputs.get(device)
                 if raw_output is not None:
