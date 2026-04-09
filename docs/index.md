@@ -9,7 +9,7 @@ The system is organized into modules, each responsible for a specific functional
 * [Thingy:91 X](https://www.nordicsemi.com/Products/Development-hardware/Nordic-Thingy-91-X)
 * [nRF9151 DK](https://www.nordicsemi.com/Products/Development-hardware/nRF9151-DK)
 
-If you're new to nRF91 series and cellular IoT, consider taking the [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals).
+If you are new to nRF91 series and cellular IoT, consider taking the [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals).
 
 ## Quick Start
 
@@ -59,21 +59,21 @@ west update</code></pre>
 <details>
 <summary><strong>2. Build and flash</strong></summary>
 
-    **For Thingy:91 X:**
+<strong>For Thingy:91 X:</strong>
 
-    ```shell
-    west build --pristine --board thingy91x/nrf9151/ns
-    west thingy91x-dfu  # For Thingy:91 X serial bootloader
-    # Or with external debugger:
-    west flash --erase
-    ```
+```shell
+west build --pristine --board thingy91x/nrf9151/ns
+west thingy91x-dfu  # For Thingy:91 X serial bootloader
+# Or with external debugger:
+west flash --erase
+```
 
-    **For nRF9151 DK:**
+<strong>For nRF9151 DK:</strong>
 
-    ```shell
-    west build --pristine --board nrf9151dk/nrf9151/ns
-    west flash --erase
-    ```
+```shell
+west build --pristine --board nrf9151dk/nrf9151/ns
+west flash --erase
+```
 </details>
 
 For more details, see the [Getting Started Guide](common/getting_started.md).

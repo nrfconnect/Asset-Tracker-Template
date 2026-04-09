@@ -3,8 +3,8 @@
 To get started with the Asset Tracker Template, you need to set up the development environment, build the application, and run it on supported hardware.
 There are two options for setting up the project, depending on your preferred development environment:
 
-* **Option 1**: Using Visual Studio Code and the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) extension (recommended)
-* **Option 2**: Using the command line and nRF Util
+* **Option 1**: Using Visual Studio Code and the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) (recommended).
+* **Option 2**: Using the command line and nRF Util.
 
 For pre-built binaries that do not require a build environment, refer to the latest tag and the [release artifacts](release.md) documentation.
 
@@ -22,17 +22,17 @@ The Asset Tracker Template is continuously verified in CI on the following board
 
 ## Option 1: nRF Connect for VS Code (Recommended)
 
-In nRF Connect for VS Code, the Asset Tracker Template is available as an add-on in the **Create New Application** menu:
+1. In nRF Connect for VS Code, the Asset Tracker Template is available as an add-on in the **Create New Application** menu:
 
-![Create New Application menu](../images/create_new_app.png)
+    ![Create New Application menu](../images/create_new_app.png)
 
-Select the **Browse nRF Connect SDK add-on Index** option and search for **Asset Tracker Template**.
+1. Select the **Browse nRF Connect SDK add-on Index** option and search for **Asset Tracker Template**.
 
-![Asset Tracker Template add-on](../images/addon_att.png)
+    ![Asset Tracker Template add-on](../images/addon_att.png)
 
-Once you have created the project, you can access various development actions through the **Actions** panel in the nRF Connect for VS Code. These actions provide quick access to common tasks such as building, flashing, and debugging your application:
+1. Once you have created the project, you can access various development actions through the **Actions** panel in the nRF Connect for VS Code. These actions provide quick access to common tasks such as building, flashing, and debugging your application:
 
-![Extension actions](../images/actions.png)
+    ![Extension actions](../images/actions.png)
 
 For more details on how to use the nRF Connect for VS Code, refer to the [nRF Connect for VS Code documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html).
 
@@ -44,15 +44,15 @@ For more details on how to use the nRF Connect for VS Code, refer to the [nRF Co
 
 2. Install the SDK manager command:
 
-   ```bash
-   nrfutil install sdk-manager
-   ```
+    ```bash
+    nrfutil install sdk-manager
+    ```
 
 3. Install the nRF Connect SDK toolchain (v3.1.0 or later):
 
-   ```bash
-   nrfutil sdk-manager install v3.1.0
-   ```
+    ```bash
+    nrfutil sdk-manager install v3.1.0
+    ```
 
 ### Workspace initialization
 
@@ -144,13 +144,16 @@ To test that everything is working as expected, complete the following steps:
 
     ![nRF Cloud device management menu](../images/nrfcloud_devices.png)
 
-1. After provisioning, the device should already be connected and sending data. In the web browser, you will see the device page updating with the latest information from the device, including the location, battery level, and other sensor data.
+1. After provisioning, the device must already be connected and sending data. In the web browser, you will see the device page updating with the latest information from the device, including the location, battery level, and other sensor data.
 
     ![nRF Cloud example data](../images/nrf_cloud_example_data.png)
 
 1. Press and hold **Button 1** on the device to trigger an immediate cloud sync, including sending buffered data, polling for FOTA updates, and fetching configuration changes.
 
     > **Note:** The device samples and sends data at configurable intervals. Between intervals, the device is in a low-power state. Pressing and holding the button forces an immediate cloud update cycle.
+    <blockquote>
+    <strong>NOTE:</strong> The device samples and sends data at configurable intervals. Between intervals, the device is in a low-power state. Pressing and holding the button forces an immediate cloud update cycle.
+    </blockquote>
 
 1. Optionally, you can reset the device to observe the full boot and connection sequence. Connect to the device using the serial terminal and reset the device using either the reset button or the following shell command:
 
@@ -365,7 +368,7 @@ You can also open a support ticket on [DevZone](https://devzone.nordicsemi.com) 
 Now that you have the application running, you can explore the following areas:
 
 * **Explore the architecture** - Understand how the modular, event-driven system works in the [Architecture](architecture.md) guide. This is a good starting point if you want to understand the design decisions and how modules interact.
-* **Configure the application** - Adjust sampling intervals, cloud sync frequency, location method priorities, and other runtime behavior using the [Configuration](configuration.md) guide. Configuration can be changed both locally and remotely through the device shadow on nRF Cloud.
+* **Configure the application** - Adjust sampling intervals, cloud sync frequency, location method priorities, and other runtime behavior using the [Configuration](configuration.md) guide. You can change the configuration both locally and remotely through the device shadow on nRF Cloud.
 * **Customize functionality** - Add new sensors, create custom modules, add new zbus events, or enable MQTT support following the [Customization](customization.md) guide.
 * **Perform firmware updates** - Deploy new firmware versions over-the-air using the [Firmware Updates (FOTA)](fota.md) guide. FOTA supports both application and modem firmware updates through nRF Cloud.
 * **Optimize power consumption** - Learn about the power-saving features and how to achieve the lowest power consumption for your use case in the [Low Power](low_power.md) guide.

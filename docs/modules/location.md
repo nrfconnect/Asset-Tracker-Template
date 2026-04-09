@@ -30,21 +30,21 @@ The location module publishes and receives messages over the zbus channel `locat
 
 ### Input messages
 
-- `LOCATION_SEARCH_TRIGGER`:
+- **LOCATION_SEARCH_TRIGGER:**
   Triggers a location search request. The module will attempt to get the current location using configured methods.
 
 ### Output messages
 
-- `LOCATION_SEARCH_STARTED`:
+- **LOCATION_SEARCH_STARTED:**
   Indicates that a location search has been initiated.
 
-- `LOCATION_SEARCH_DONE`:
+- **LOCATION_SEARCH_DONE:**
   Indicates that a location search has completed (successfully or with error/timeout).
 
-- `LOCATION_CLOUD_REQUEST`:
+- **LOCATION_CLOUD_REQUEST:**
   Contains cellular neighbor cell and/or Wi-Fi access point information that should be sent to cloud services for location resolution.
 
-- `LOCATION_AGNSS_REQUEST`:
+- **LOCATION_AGNSS_REQUEST:**
   Indicates that A-GNSS assistance data is needed for GNSS positioning.
 
 The message types used by the location module are defined in `location.h`:

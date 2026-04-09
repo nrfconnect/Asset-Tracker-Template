@@ -1,6 +1,6 @@
 # Architecture
 
-The Asset Tracker Template is built on a modular, event-driven architecture. The modules interact via messages that are processed as events by the modules' state machines.
+The Asset Tracker Template is built on a modular, event-driven architecture. The modules interact through messages that are processed as events by the modules' state machines.
 
 The architecture is implemented using [Zephyr bus (zbus)](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) for inter-module communication and the [State Machine Framework](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html) (SMF) for managing module behavior.
 
@@ -28,19 +28,19 @@ The following diagram shows the system architecture and how the modules interact
 The following steps show the simplified flow of a typical operation:
 
 1. The Main module schedules periodic triggers or responds to a short button press reported on the `button_chan` channel.
-2. When triggered either by timeout or button press, it requests location data from the Location module on the `location_chan` channel.
-3. After the location search is completed and reported on the `location_chan` channel, the Main module requests sensor data from the Environmental module on the `environmental_chan` channel.
-4. Throughout the operation, the Main module controls the LED module over the `led_chan` channel to provide visual feedback about the system state.
+1. When triggered either by timeout or button press, it requests location data from the Location module on the `location_chan` channel.
+1. After the location search is completed and reported on the `location_chan` channel, the Main module requests sensor data from the Environmental module on the `environmental_chan` channel.
+1. Throughout the operation, the Main module controls the LED module over the `led_chan` channel to provide visual feedback about the system state.
 
 ## Module design
 
 Each module follows a similar design:
 
 - **Message channel**: Each module defines its own zbus channel. With some exceptions, a single channel is used for all messages that are specific to a module.
-- **Message types**: Each module exposes a set of input and output message types. These can be considered events in the state machine sense, and may have associated data.
+- **Message types**: Each module exposes a set of input and output message types. These can be considered events in the state machine sense and might have associated data.
 - **State machine**: Most modules implement a state machine using SMF to manage their internal state and behavior.
 - **Thread**: Most modules have dedicated threads.
-- **Watchdog**: Each module thread is monitored by a task watchdog. Each thread periodically calls `task_wdt_feed()` to feed the watchdog. If a thread fails to feed its watchdog within its configured timeout, the system will reset.
+- **Watchdog**: Each module thread is monitored by a task watchdog. Each thread periodically calls `task_wdt_feed()` to feed the watchdog. If a thread fails to feed its watchdog within its configured timeout, the system resets.
 - **Initialization**: Modules are initialized at system startup, either through `SYS_INIT()` or in their dedicated thread through `K_THREAD_DEFINE()`.
 
 Modules in the Asset Tracker Template are designed as loosely coupled units with well-defined message-based interfaces.
@@ -50,13 +50,14 @@ Modules often handle state transitions based on messages they themselves publish
 
 ### Module threads
 
-Most modules in the Asset Tracker Template have dedicated threads. If a module uses blocking calls while processing messages, a dedicated thread is required. For example, the Network module may react to a message by sending an AT command to the modem, which may block until signaling with the network completes and a response is received. Separate threads also help to keep the required stack size for each module more predictable.
+Most modules in the Asset Tracker Template have dedicated threads. If a module uses blocking calls while processing messages, a dedicated thread is required. For example, the Network module may react to a message by sending an AT command to the modem, which might be blocked until signaling with the network completes and a response is received. Separate threads also help to keep the required stack size for each module more predictable.
 
 Each module's thread follows a similar pattern of waiting for new messages and handling them by executing a state machine, illustrated as follows:
 
 ![Module thread, SMF, and zbus relationship](../images/module_thread_smf_zbus.svg)
 
 For example, a simplified version of the network module's thread looks like this:
+
 ```c
 static void network_module_thread(void)
 {
@@ -90,14 +91,14 @@ static void network_module_thread(void)
 In this pattern:
 
 1. The thread waits for a message using `zbus_sub_wait_msg()`, which blocks until a message is received.
-2. When a message arrives, it is stored in the state object's buffer along with the channel it was received on.
-3. The state machine is then executed with `smf_run_state()`, which calls the appropriate handler for the current state.
-4. The handler processes the message based on its type and the current state, potentially triggering state transitions.
-5. The loop continues, waiting for the next message.
+1. When a message arrives, it is stored in the state object's buffer along with the channel it was received on.
+1. The state machine is then executed with `smf_run_state()`, which calls the appropriate handler for the current state.
+1. The handler processes the message based on its type and the current state, potentially triggering state transitions.
+1. The loop continues, waiting for the next message.
 
 ## Message passing with zbus
 
-The zbus library is part of Zephyr and implements channel-based message passing between threads. This section covers how zbus is used in the Asset Tracker Template. See the [zbus documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) for a more comprehensive introduction to zbus.
+The zbus library is part of Zephyr and implements channel-based message passing between threads. This section covers how zbus is used in the Asset Tracker Template. See the [zbus documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) for an introduction to zbus.
 
 ### Channels
 
@@ -124,14 +125,15 @@ ZBUS_CHAN_DEFINE(network_chan, /* Channel name, derived from module name */
 ```
 
 In the Asset Tracker Template, the fields of the `ZBUS_CHAN_DEFINE` macro are populated in a similar way across modules:
-- **Channel name**: the name of the channel, derived from the module name.
-- **Message data type**: the data type used to hold message data. The name comes from the channel name.
+
+- **Channel name**: The name of the channel, derived from the module name.
+- **Message data type**: The data type used to hold message data. The name comes from the channel name.
 - **Validator function** and **User data**: Not used.
 - **Initial observers**: The initial observer list is empty. Observers are added in the relevant modules later.
-- **Message initialization**: The initial value stored in the channel. Not used, and therefore set to `ZBUS_MSG_INIT(0)`.
+- **Message initialization**: The initial value stored in the channel. Not used and therefore set to `ZBUS_MSG_INIT(0)`.
 
 > [!IMPORTANT]
-> In the context of zbus, the term "message type" can be used to refer to the data type or structure containing the message data for a given channel, in this case `struct network_msg`. In the Asset Tracker Template architecture, "message type" is used to mean the enumerated value that distinguishes different kinds of messages sent on the same channel, in this case the `type` field of `struct network_msg`.
+> In the context of zbus, you can use the term "message type" to refer to the data type or structure containing the message data for a given channel, in this case `struct network_msg`. In the Asset Tracker Template architecture, "message type" is used to mean the enumerated value that distinguishes different kinds of messages sent on the same channel, in this case the `type` field of `struct network_msg`.
 
 ### Message types and the message structure
 
@@ -139,8 +141,8 @@ Each module exposes a set of message types through an enumeration. The message t
 
 The message types can be divided into two categories:
 
-- **Input message types**: Commands or requests sent by other modules to the defining module to trigger actions (e.g., `NETWORK_CONNECT` to request the network module to establish a network connection).
-- **Output message types**: Responses or notifications sent by the defining module to other modules to report status, data, or events (e.g., `NETWORK_CONNECTED` when a network connection has been established).
+- **Input message types**: Commands or requests sent by other modules to the defining module to trigger actions (for example, `NETWORK_CONNECT` to request the network module to establish a network connection).
+- **Output message types**: Responses or notifications sent by the defining module to other modules to report status, data, or events (for example, `NETWORK_CONNECTED` when a network connection has been established).
 
 Each module's message types are defined in its public header file located at `app/src/modules/<module_name>/<module_name>.h`. For example, the network module's messages are defined in `app/src/modules/network/network.h` in the `enum network_msg_type` enumeration:
 
@@ -222,7 +224,7 @@ Messages are sent on a channel using `zbus_chan_pub()`. For example, to send a m
         err = zbus_chan_pub(&network_chan, &msg, PUB_TIMEOUT);
 ```
 
-The message will be copied by zbus, so the original message struct is no longer needed after calling `zbus_chan_pub()`.
+Zbus copies the message, so the original message struct is no longer needed after calling `zbus_chan_pub()`.
 
 ### Receiving messages
 
@@ -230,9 +232,9 @@ In zbus, structures called _observers_ are used to receive messages on one or mo
 
 #### Message subscribers
 
-The message subscriber is the most common observer in the Asset Tracker Template. A message subscriber will receive messages asynchronously. It is used by any module that has its own thread.
+The message subscriber is the most common observer in the Asset Tracker Template. A message subscriber receives messages asynchronously. It is used by any module that has its own thread.
 
-A message subscriber will queue up messages that are received while the module is busy processing another message. The module will then process the messages in the order they were received. An incoming message can never interrupt the processing of another message.
+A message subscriber queues up messages that are received while the module is busy processing another message. The module will then process the messages in the order they were received. An incoming message can never interrupt the processing of another message.
 
 A message subscriber is defined using `ZBUS_MSG_SUBSCRIBER_DEFINE`, and the subscriber is added to a channel using `ZBUS_CHAN_ADD_OBS`. For example, in the Network module:
 
@@ -264,9 +266,9 @@ CHANNEL_LIST(ADD_OBSERVERS)
 
 #### Listeners
 
-The listener is the simplest kind of observer. A listener receives a message synchronously and executes a callback in the sender's context. Listeners are only used by modules that do not have their own thread and that do not block when processing messages. When using a listener, care should also be taken to ensure that any callback does not add significantly to the stack size by using large local variables.
+The listener is the simplest kind of observer. A listener receives a message synchronously and executes a callback in the sender's context. Listeners are only used by modules that do not have their own thread and that do not block when processing messages. When using a listener, you must ensure that any callback does not add significantly to the stack size by using large local variables.
 
-For example, the LED module will react to a message by setting the RGB LED color immediately. No function call during the handling of the message can block, so the LED module uses a listener.
+For example, the LED module reacts to a message by setting the RGB LED color immediately. No function call during the handling of the message can block, so the LED module uses a listener.
 
 A listener is defined using `ZBUS_LISTENER_DEFINE`, and the listener is added to a channel using `ZBUS_CHAN_ADD_OBS`. For example, the LED module sets up a listener in `app/src/modules/led/led.c`:
 
@@ -275,7 +277,7 @@ ZBUS_LISTENER_DEFINE(led, led_callback);
 ZBUS_CHAN_ADD_OBS(led_chan, led, 0);
 ```
 
-When a message is available, the callback function will process the message:
+When a message is available, the callback function processes the message:
 
 ```c
 static void led_callback(const struct zbus_channel *chan)
@@ -289,20 +291,22 @@ static void led_callback(const struct zbus_channel *chan)
 ```
 
 ### Private channels
-When a module needs internal state handling that should not be exposed to other modules, it uses a **private channel**. Private channels are reserved exclusively for the respective module and are not intended for external use. Otherwise, they are defined, published to and subscribed to just like public channels. For example, the Location module uses the `priv_location_chan` channel for internal messaging.
+
+When a module needs internal state handling that should not be exposed to other modules, it uses a **private channel**. Private channels are reserved exclusively for the respective module and are not intended for external use. Otherwise, they are defined, published to, and subscribed to just like public channels. For example, the Location module uses the `priv_location_chan` channel for internal messaging.
 
 ## State machines
 
-The State Machine Framework (SMF) is a Zephyr library that provides a way to implement hierarchical state machines in a structured manner. Most modules in the Asset Tracker Template implement a hierarchical state machine, where behavior common to multiple states can be implemented in a shared parent state.
+The State Machine Framework (SMF) is a Zephyr library that provides a way to implement hierarchical state machines in a structured manner. Most modules in the Asset Tracker Template implement a hierarchical state machine, where you can implement behavior common to multiple states in a shared parent state.
 
 The state machines in the Asset Tracker Template follow a run-to-completion model where:
+
 - Message processing and state machine execution, including transitions, are completed before processing any new messages.
 - Entry and exit functions are called in the correct order when transitioning states.
 - Parent state transitions are handled automatically when transitioning between child states.
 
 This model ensures predictable behavior and proper state cleanup during transitions, as there is no mechanism for interrupting or changing the state machine execution from the outside.
 
-This section covers how SMF is used in the modules in the Asset Tracker Template to implement state machines. See the [SMF documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html) for a more comprehensive introduction to SMF.
+This section covers how SMF is used in the modules in the Asset Tracker Template to implement state machines. See the [SMF documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html) for an introduction to SMF.
 
 ### State machine definition
 
@@ -313,7 +317,7 @@ SMF supports defining a hierarchy of states. For example, the network module's s
 In the diagram, the black dots with arrows indicate initial transitions.
 In this case, the initial state of the machine is set to the top-level `STATE_RUNNING` state. In the state definitions, initial transitions are configured such that the state machine ends up in `STATE_DISCONNECTED_SEARCHING` when first initialized.
 
-In SMF, a single state is defined using the `SMF_CREATE_STATE` macro. The following parameters can be specified:
+In SMF, a single state is defined using the `SMF_CREATE_STATE` macro. You can specify the following parameters:
 
 - **Entry function:** Called when entering the state.
 - **Run function:** Called when processing a message while in the state.
@@ -357,10 +361,10 @@ static const struct smf_state states[] = {
 
 SMF uses a data structure of type `struct smf_ctx` to track the current state of the state machine. In the Asset Tracker Template, this structure is embedded within a larger structure called the _state object_ that holds the following:
 
-- SMF's context structure
-- The zbus channel of the latest message received
-- The contents of the latest message received
-- Any extended state variables needed by the module
+- SMF's context structure.
+- The zbus channel of the latest message received.
+- The contents of the latest message received.
+- Any extended state variables needed by the module.
 
 For example, the Network module defines its state object structure:
 
@@ -394,9 +398,11 @@ This has to be done before the state machine is executed for the first time.
 ### Run functions
 
 The run function for each state handles incoming messages and follows a similar pattern:
+
 - The incoming message is identified by its channel and message type.
 - If the module should handle the message in its current state, any relevant actions are performed.
 - To enforce the run-to-completion model, control flow must end in one of three ways:
+
     - `return SMF_EVENT_HANDLED;` to end the message handling without transitioning to a new state.
     - `smf_set_state()` followed directly by `return SMF_EVENT_HANDLED;` to end the message handling and trigger a state transition.
     - `return SMF_EVENT_PROPAGATE;` to signal that the message was **not** handled in the current state.
@@ -412,14 +418,15 @@ Transitions between states are handled using `smf_set_state()`:
 smf_set_state(SMF_CTX(state_object), &states[NEW_STATE]);
 ```
 
-A transition to another state has to be the last thing happening in a state handler. This is to ensure the correct order of execution of parent state handlers.
+A transition to another state must be the last thing happening in a state handler. This is to ensure the correct order of execution of parent state handlers.
 SMF automatically handles the execution of exit and entry functions for all states along the path to the new state.
 
 
 ### State machine execution
 
-The state machine is run using `smf_run_state()`. SMF will execute the run function defined for the current state, and then:
+The state machine is run using `smf_run_state()`. SMF executes the run function defined for the current state, and then:
+
 - If the run function returns `SMF_EVENT_PROPAGATE`, the process is repeated for the parent state, if there is one.
-- If the run function triggers a state transition, SMF will run any relevant exit and entry functions.
+- If the run function triggers a state transition, SMF runs any relevant exit and entry functions.
 
 In the Asset Tracker Template, `smf_run_state()` is run from the module threads to process incoming messages, as described in [Module threads](#module-threads).

@@ -63,7 +63,7 @@ CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS=600            # Default: 10 minutes
 CONFIG_APP_STORAGE_INITIAL_THRESHOLD=1 # Default: 1 item
 ```
 
-Sensors and location are sampled and stored at every interval set in the `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` Kconfig option and sent to the cloud at every interval as set in the `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig option. Or when the number of stored items reaches the `CONFIG_APP_STORAGE_INITIAL_THRESHOLD` threshold.
+Sensors and location are sampled and stored at every interval set in the `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` Kconfig option and sent to the cloud at every interval as set in the `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig option or when the number of stored items reaches the `CONFIG_APP_STORAGE_INITIAL_THRESHOLD` threshold.
 
 You can adjust these Kconfig options at runtime using the nRF Cloud device shadow. See [Configuration guide](configuration.md#set-sampling-interval-and-logic-from-cloud) for details.
 
@@ -99,7 +99,7 @@ uart:~$ pm suspend uart@8000  # Suspend UART1
 
 ### Wi-Fi scanning optimization (Thingy:91 X using the nRF7002)
 
-On Thingy:91 X, Wi-Fi scanning is used for location services. A full Wi-Fi scan across all bands can take 5-10 seconds which consume significant power. To reduce scan time and power consumption, the application restricts scanning to the 2.4 GHz band by default.
+On the Thingy:91 X, Wi-Fi® scanning is used for location services. A full Wi-Fi scan across all bands can take 5-10 seconds, which consumes significant power. To reduce scan time and power consumption, the application restricts scanning to the 2.4 GHz band by default.
 
 For detailed information on Wi-Fi scan timing, channels, and dwell times, see the [Wi-Fi scan operation documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/protocols/wifi/scan_mode/scan_operation.html).
 
@@ -108,9 +108,9 @@ For detailed information on Wi-Fi scan timing, channels, and dwell times, see th
 The application sets `CONFIG_NRF_WIFI_2G_BAND` by default to restrict Wi-Fi scanning to the 2.4 GHz band. This is a deliberate optimization for location services:
 
 - **Most commercial APs and hotspots use channels 1, 6, and 11**, the standard non-overlapping 2.4 GHz channels. Scanning the 2.4 GHz band provides sufficient AP coverage for location services in the vast majority of applications.
-- **Active scanning is used by default**, which is preferred for moving devices. Since the device may not stay in range of an AP for long, active scanning (which sends probe requests and receives probe responses) discovers APs significantly faster than passive scanning (which waits for beacons).
+- **Active scanning is used by default**, which is preferred for moving devices. Since the device might not stay in range of an AP for long, active scanning (which sends probe requests and receives probe responses) discovers APs significantly faster than passive scanning (which waits for beacons).
 
-If your use case requires 5 GHz AP coverage, remove `CONFIG_NRF_WIFI_2G_BAND=y` from the board configuration file (e.g., `boards/thingy91x_nrf9151_ns.conf`).
+If your use case requires 5 GHz AP coverage, remove `CONFIG_NRF_WIFI_2G_BAND=y` from the board configuration file (for example, `boards/thingy91x_nrf9151_ns.conf`).
 
 ## Optimization best practices
 

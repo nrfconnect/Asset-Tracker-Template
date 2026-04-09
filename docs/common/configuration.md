@@ -59,8 +59,10 @@ The complete device shadow structure is defined in the [CDDL](https://datatracke
 - Polls shadow and checks FOTA at `update_interval`.
 
 > [!NOTE]
-> Setting `storage_threshold` to 0 disables the threshold, meaning data will only be sent based on the `update_interval`.
-> Setting `storage_threshold` to 1 means data will be sent immediately after each sample.
+> Setting `storage_threshold` to `0` disables the threshold, meaning data will only be sent based on the `update_interval`.
+> Setting `storage_threshold` to `1` means data will be sent immediately after each sample.
+
+<!-- Caution -->
 
 > [!CAUTION]
 > While low intervals are supported, they can cause network congestion and connectivity issues, especially in poor network conditions. Choose intervals appropriate for your network quality, use case, and device mode.
@@ -80,7 +82,7 @@ The Asset Tracker can be configured remotely through nRF Cloud's device shadow m
 1. Select **Edit Configuration**.
 1. Enter the desired configuration:
 
-    **Example 1: 5-minute sampling and 15-minute cloud updates, storage threshold disabled**
+    **Example 1: 5 minutes sampling and 15 minutes cloud updates, storage threshold disabled**
 
     ```json
     {
@@ -90,7 +92,7 @@ The Asset Tracker can be configured remotely through nRF Cloud's device shadow m
     }
     ```
 
-    **Example 2: 1-minute sampling and cloud updates, send data immediately after each sample**
+    **Example 2: 1 minute sampling and cloud updates, send data immediately after each sample**
 
     ```json
     {
@@ -99,8 +101,8 @@ The Asset Tracker can be configured remotely through nRF Cloud's device shadow m
     }
     ```
 
-> [!IMPORTANT]
-> To remove a configuration entry you need to explicitly `null` the parameter.
+    <blockquote>
+    <strong>IMPORTANT:</strong> To remove a configuration entry you need to explicitly <code>null</code> the parameter.
 
 1. Click **Commit** to apply the changes.
 

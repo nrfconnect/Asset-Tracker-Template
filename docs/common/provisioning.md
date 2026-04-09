@@ -40,7 +40,7 @@ The attestation token uniquely identifies your device and proves its authenticit
 
 - **Automatic (on first boot)**: When an unprovisioned device boots the Asset Tracker Template firmware for the first time, it prints the attestation token to the serial log. Connect a serial terminal to the device (115200 baud) before powering it on, and look for the token in the output.
 
-- **Manual (via shell command)**: If you missed the token on first boot, or need to retrieve it again, run the following AT command in the device shell through the serial terminal:
+- **Manual (using shell command)**: If you missed the token on first boot or need to retrieve it again, run the following AT command in the device shell through the serial terminal:
 
     ```bash
     at at%attesttoken
@@ -80,29 +80,41 @@ After claiming, the device needs to poll the provisioning service to receive its
 
 Once the device has received its credentials and connected to nRF Cloud, it will be available under the **Devices** section in the **Device Management** navigation pane on the left.
 
-> **Note:** It is normal for the LTE connection to disconnect and reconnect during provisioning. The modem must go offline temporarily while credentials are written to its secure storage. See the "What happens during provisioning" section at the top of this page for details.
+> [!NOTE]
+> It is normal for the LTE connection to disconnect and reconnect during provisioning. The modem must go offline temporarily while credentials are written to its secure storage. See the "What happens during provisioning" section at the top of this page for details.
 
 <details>
 <summary><strong>What can you do after provisioning</strong></summary>
 
-After your device is provisioned and connected, you can perform the following:
+<p>After your device is provisioned and connected, you can perform the following:</p>
 
-- **Monitor device data**: View real-time data from your device, including location, temperature, battery percentage, and other sensor readings in the [nRF Cloud](https://nrfcloud.com/#/) portal.
-- **Retrieve data programmatically**:
-    - Use the [Message Routing Service](https://docs.nordicsemi.com/bundle/nrf-cloud/page/Devices/MessagesAndAlerts/MessageRoutingService/ReceivingMessages.html) to automatically forward device messages to your own cloud infrastructure or application endpoints.
-    - Query historical device messages using the REST API. For complete endpoint details, see the [REST API documentation](https://api.nrfcloud.com/) and [OpenAPI specification](https://api.nrfcloud.com/v1/openapi.json).
-
-        <details>
-        <summary><strong>Retrieve historical messages</strong></summary>
+<p>
+<ul>
+<li><strong>Monitor device data:</strong> View real-time data from your device, including location, temperature, battery percentage, and other sensor readings in the <a href="https://nrfcloud.com/#/">nRF Cloud</a> portal.</li>
+<li><strong>Retrieve data programmatically:</strong>
+<ul>
+<li>Use the <a href="https://docs.nordicsemi.com/bundle/nrf-cloud/page/Devices/MessagesAndAlerts/MessageRoutingService/ReceivingMessages.html">Message Routing Service</a> to automatically forward device messages to your own cloud infrastructure or application endpoints.</li>
+<li>Query historical device messages using the REST API. For complete endpoint details, see the <a href="https://api.nrfcloud.com/">REST API documentation</a> and <a href="https://api.nrfcloud.com/v1/openapi.json">OpenAPI specification</a>.</li>
+</ul>
+</li>
+</ul>
+</p>
+    <details>
+    <summary><strong>Retrieve historical messages</strong></summary>
 
         ```bash
         curl -X GET "https://api.nrfcloud.com/v1/messages?device_id=${DEVICE_ID}&pageLimit=10" \
           -H "Authorization: Bearer ${API_KEY}" \
           -H "Accept: application/json"
         ```
-        </details>
+   </details>
 
-- **Perform firmware updates**: Deploy over-the-air firmware updates to your device. See [Firmware Updates (FOTA)](fota.md) for detailed instructions on preparing and deploying firmware updates through nRF Cloud.
+<p>
+<ul>
+<li><strong>Perform firmware updates:</strong> Deploy over-the-air firmware updates to your device. See <a href="https://docs.nordicsemi.com/bundle/asset-tracker-template-latest/page/common/fota.html">Firmware Updates (FOTA)</a> for detailed instructions on preparing and deploying firmware updates through nRF Cloud.
+</ul>
+</li>
+</p>
 </details>
 
 ### REST API alternative
@@ -153,9 +165,7 @@ For detailed API documentation, see [nRF Cloud REST API](https://api-docs.nrfclo
 
 ## Unclaiming a device
 
-To remove a device from your nRF Cloud account:
-
-Unclaim the device if it is already associated with another nRF Cloud account before you can associate it with a different account.
+To remove a device from your nRF Cloud account, unclaim the device if it is already associated with another nRF Cloud account before you can associate it with a different account.
 
 ### Manual
 
