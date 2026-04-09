@@ -152,7 +152,8 @@ struct ntn_state_object {
 	int32_t ntn_peak_offset_seconds;
 	int64_t  modem_cell_found_time;
 	int64_t  modem_connectivity_time;
-	bool is_RRC_connected;
+	int64_t  pdn_resumed_time;
+	bool rrc_is_connected;
 	struct sat_data sgp4_sat_data;
 };
 
@@ -174,7 +175,7 @@ static struct ntn_state_object ntn_state = {
 	.run_sgp4_after_gnss = true,
 	.sgp4_min_elevation_deg = SGP4_DEFAULT_MIN_ELEVATION_DEG,
 	.ntn_peak_offset_seconds = CONFIG_APP_NTN_TIMER_NTN_VALUE_SECONDS,
-	.is_RRC_connected = false,
+	.rrc_is_connected = false,
 };
 
 /* Forward declarations */
@@ -394,7 +395,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			break;
 		case LTE_LC_EVT_PDN_RESUMED:
 			LOG_DBG("PDN connection resumed");
-			ntn_msg_publish(NETWORK_CONNECTED);
+			ntn_msg_publish(NTN_PDN_RESUMED);
 
 			break;
 		default:
@@ -414,8 +415,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		if (evt->rrc_mode == LTE_LC_RRC_MODE_CONNECTED) {
 			LOG_DBG("LTE_LC_RRC_MODE_CONNECTED");
 			ntn_msg_publish(NTN_RRC_CONNECTED);
-		}
-		else if (evt->rrc_mode == LTE_LC_RRC_MODE_IDLE) {
+		} else if (evt->rrc_mode == LTE_LC_RRC_MODE_IDLE) {
 			LOG_DBG("LTE_LC_RRC_MODE_IDLE");
 			ntn_msg_publish(NTN_RRC_IDLE);
 		}
@@ -423,6 +423,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		break;
 	case LTE_LC_EVT_CELL_UPDATE:
 		struct lte_lc_cell cell_info = evt->cell;
+
 		LOG_DBG("LTE_LC_EVT_CELL_UPDATE, id: %u", cell_info.id);
 		LOG_DBG("LTE_LC_EVT_CELL_UPDATE, tac: %u", cell_info.tac);
 
@@ -664,7 +665,7 @@ static int init_sat_data_for_prediction(struct ntn_state_object *state, struct s
 		}
 
 		*prediction_source = "SIB32";
-		
+
 		return 0;
 	}
 
@@ -1159,10 +1160,34 @@ static int sock_open_and_connect(struct ntn_state_object *state)
 	if (err < 0) {
 		LOG_ERR("Failed to connect socket, error: %d", errno);
 		close(state->sock_fd);
+
 		state->sock_fd = -1;
 
 		return -errno;
 	}
+
+	return 0;
+}
+
+static int sock_send_dummy(struct ntn_state_object *state)
+{
+	int err;
+	static const char dummy[] = "Dummy";
+
+	if (state->sock_fd < 0) {
+		LOG_ERR("Socket not connected");
+
+		return -ENOTCONN;
+	}
+
+	err = send(state->sock_fd, dummy, sizeof(dummy) - 1, 0);
+	if (err < 0) {
+		LOG_ERR("Failed to send dummy packet, error: %d", errno);
+
+		return -errno;
+	}
+
+	LOG_DBG("Sent dummy packet (%zu bytes)", sizeof(dummy) - 1);
 
 	return 0;
 }
@@ -1187,38 +1212,44 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 #if defined(CONFIG_APP_NTN_THINGY_ROCKS_ENDPOINT)
 	char rsrp[16] = {0}, band[16] = {0}, ue_mode[16] = {0}, oper[16] = {0}, imei[16] = {0};
 	char temp[16] = {0};
+	int32_t packet_delay;
+
 	err = modem_info_string_get(MODEM_INFO_IMEI, imei, sizeof(imei));
 	if (err < 0) {
 		LOG_WRN("Failed to get modem IMEI, error: %d. Using fallback value.", err);
 		snprintk(imei, sizeof(imei), "000000000000000");
 	}
+
 	err = modem_info_string_get(MODEM_INFO_RSRP, rsrp, sizeof(rsrp));
 	if (err < 0) {
 		LOG_WRN("Failed to get modem RSRP, error: %d. Using fallback value.", err);
 		snprintk(rsrp, sizeof(rsrp), "25");
 	}
+
 	err = modem_info_string_get(MODEM_INFO_CUR_BAND, band, sizeof(band));
 	if (err < 0) {
 		LOG_WRN("Failed to get modem band, error: %d. Using fallback value.", err);
 		snprintk(band, sizeof(band), "256");
 	}
+
 	err = modem_info_string_get(MODEM_INFO_UE_MODE, ue_mode, sizeof(ue_mode));
 	if (err < 0) {
 		LOG_WRN("Failed to get modem UE mode, error: %d. Using fallback value.", err);
 		snprintk(ue_mode, sizeof(ue_mode), "0");
 	}
+
 	err = modem_info_string_get(MODEM_INFO_OPERATOR, oper, sizeof(oper));
 	if (err < 0) {
 		LOG_WRN("Failed to get modem operator, error: %d. Using fallback value.", err);
 		snprintk(oper, sizeof(oper), "90197");
 	}
+
 	err = modem_info_string_get(MODEM_INFO_TEMP, temp, sizeof(temp));
 	if (err < 0) {
 		LOG_WRN("Failed to get modem temperature, error: %d. Using fallback value.", err);
 		snprintk(temp, sizeof(temp), "20");
 	}
 
-	int32_t packet_delay;
 	packet_delay= state->modem_connectivity_time - state->modem_cell_found_time;
 
 	// imei,ping_rtt,rsrp,band,ue_mode,oper,lat_str,lon_str,accuracy,...
@@ -2164,6 +2195,8 @@ static void state_ntn_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 
+	state->pdn_resumed_time = 0;
+
 	k_sleep(K_SECONDS(1));
 
 #if defined(CONFIG_SOFTSIM)
@@ -2188,7 +2221,6 @@ static void state_ntn_entry(void *obj)
 static enum smf_state_result state_ntn_run(void *obj)
 {
 	int err;
-	int64_t current_time;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
 	LOG_DBG("%s", __func__);
@@ -2197,94 +2229,118 @@ static enum smf_state_result state_ntn_run(void *obj)
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
 		switch (msg->type) {
-		case NTN_RRC_CONNECTED:
-			if (!state->is_RRC_connected) {
-				state->is_RRC_connected = true;
-			}
+		case NTN_PDN_RESUMED:
+			state->pdn_resumed_time = k_uptime_get();
 
-			/* Get current time */
-			err = date_time_now(&current_time);
+			LOG_DBG("PDN resumed, opening socket and sending dummy");
+
+			err = sock_open_and_connect(state);
 			if (err) {
-				LOG_ERR("Failed to get current time: %d", err);
+				LOG_ERR("Failed to connect socket: %d", err);
 
 				return SMF_EVENT_HANDLED;
 			}
-			state->modem_connectivity_time=current_time;
+
+			err = sock_send_dummy(state);
+			if (err) {
+				LOG_ERR("Failed to send dummy packet: %d", err);
+			}
 
 			return SMF_EVENT_HANDLED;
 
-			break;
-		case NTN_RRC_IDLE:
+		case NTN_RRC_CONNECTED:
+			k_timer_stop(&state->network_connection_timeout_timer);
 
-			LOG_DBG("Setting NTN RRC state to idle");
-			state->is_RRC_connected = false;
+			state->rrc_is_connected = true;
+			state->modem_connectivity_time = k_uptime_get();
 
-			return SMF_EVENT_HANDLED;
+			if (state->pdn_resumed_time > 0) {
+				int32_t delta_ms;
 
-			break;
-		case NTN_CELL_FOUND:
-			if (!state->is_RRC_connected)
-				{
-					/* Get current time */
-					LOG_DBG("Cell found");
-					err = date_time_now(&current_time);
-					if (err) {
-						LOG_ERR("Failed to get current time: %d", err);
+				delta_ms = (int32_t)(k_uptime_get() - state->pdn_resumed_time);
 
-					return err;
-					}
-					state->modem_cell_found_time=current_time;
+				LOG_DBG("RRC connected %d ms after PDN resumed", delta_ms);
+			}
+
+			if (state->sock_fd < 0) {
+				LOG_WRN("RRC connected but no socket open");
+
+				return SMF_EVENT_HANDLED;
+			}
+
+			if (state->last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
+				err = sock_send_gnss_data(state);
+				if (err) {
+					LOG_ERR("Failed to send GNSS data: %d", err);
+				} else {
+					LOG_INF("GNSS data sent on RRC connected");
 				}
+			} else {
+				LOG_DBG("No valid GNSS data to send");
+			}
+
+			/*
+			 * Wait for data to be transmitted before going
+			 * offline.  NTN uplink can take ~10 s.
+			 */
+			k_sleep(K_MSEC(20000));
+
+#if defined(CONFIG_SOFTSIM)
+			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
+#else
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+#endif
 
 			return SMF_EVENT_HANDLED;
 
-			break;
+		case NTN_RRC_IDLE:
+			LOG_DBG("Setting NTN RRC state to idle");
+
+			state->rrc_is_connected = false;
+
+			return SMF_EVENT_HANDLED;
+
+		case NTN_CELL_FOUND:
+			if (!state->rrc_is_connected) {
+				LOG_DBG("Cell found");
+
+				state->modem_cell_found_time = k_uptime_get();
+			}
+
+			return SMF_EVENT_HANDLED;
+
 		case NETWORK_CONNECTION_FAILED:
 		case NETWORK_CONNECTION_TIMEOUT:
-	#if defined(CONFIG_SOFTSIM)
+#if defined(CONFIG_SOFTSIM)
 			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
-	#else
+#else
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-	#endif
+#endif
 			return SMF_EVENT_HANDLED;
 
 		case NETWORK_CONNECTED:
-			/* Stop the connection timeout timer since we're connected */
 			k_timer_stop(&state->network_connection_timeout_timer);
 
-			/* Get current time */
-			err = date_time_now(&current_time);
-			if (err) {
-				LOG_ERR("Failed to get current time: %d", err);
-
-			return err;
-			}
-
-			state->modem_connectivity_time=current_time;
-
-			LOG_DBG("Setting up socket");
+			state->modem_connectivity_time = k_uptime_get();
 
 			/* Network is connected, set up socket */
 			err = sock_open_and_connect(state);
 			if (err) {
-				LOG_ERR("Failed to connect socket, error: %d", err);
+				LOG_ERR("Failed to connect socket: %d", err);
 
+				return SMF_EVENT_HANDLED;
 			} else {
-				LOG_DBG("Socket connected successfully");
+				LOG_DBG("Socket setup successfully");
 
-				/* Send initial GNSS data if available */
-				if (state->last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
-					LOG_DBG("Sending initial GNSS data");
+			}
 
-					err = sock_send_gnss_data(state);
-					if (err) {
-						LOG_ERR("Failed to send initial GNSS data, error: %d", err);
-					} else {
-						LOG_DBG("Initial GNSS data sent successfully");
-					}
-				} else {
-					LOG_DBG("No valid GNSS data available to send initially");
+			if (state->last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
+				err = sock_send_gnss_data(state);
+				if (err) {
+					LOG_ERR("Failed to send GNSS data: %d", err);
 				}
+			} else {
+				LOG_DBG("No valid GNSS data to send");
 			}
 
 			/*
@@ -2296,17 +2352,15 @@ static enum smf_state_result state_ntn_run(void *obj)
 			*/
 			k_sleep(K_MSEC(20000));
 
-	#if defined(CONFIG_SOFTSIM)
+#if defined(CONFIG_SOFTSIM)
 			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
-	#else
+#else
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-	#endif
+#endif
 
 			return SMF_EVENT_HANDLED;
 
-			break;
 		default:
-			/* Don't care */
 			break;
 		}
 	}
@@ -2366,7 +2420,7 @@ static void state_ntn_exit(void *obj)
 static void state_idle_entry(void *obj)
 {
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
-	state->is_RRC_connected = false;
+	state->rrc_is_connected = false;
 
 	LOG_DBG("%s", __func__);
 }

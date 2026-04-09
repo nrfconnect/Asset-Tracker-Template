@@ -26,6 +26,7 @@ enum ntn_msg_type {
 	NETWORK_DISCONNECTED, /* Network disconnected */
 	NETWORK_CONNECTION_FAILED, /*  */
 	NETWORK_CONNECTION_TIMEOUT, /*  */
+	NTN_PDN_RESUMED, /* PDN connection resumed (context preserved) */
 	NTN_RRC_CONNECTED, /* RRC connected */
 	NTN_RRC_IDLE, /* RRC idle */
 	NTN_CELL_FOUND, /* Cell found */
