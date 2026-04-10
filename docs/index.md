@@ -111,13 +111,26 @@ See <a href="common/provisioning.md">Provisioning to nRF Cloud</a> for more deta
 
 </details>
 
-## Key Features
+## System Overview
+
+![System overview](images/system_overview.svg)
+
+Core modules include:
+
+* **[Main](modules/main.md)**: Central coordinator implementing business logic
+* **[Storage](modules/storage.md)**: Data collection and buffering management
+* **[Network](modules/network.md)**: LTE connectivity management
+* **[Cloud](modules/cloud.md)**: nRF Cloud CoAP communication
+* **[Location](modules/location.md)**: GNSS, Wi-Fi, and cellular positioning
+* **[LED](modules/led.md)**: RGB LED control for Thingy:91 X
+* **[Button](modules/button.md)**: User input handling
+* **[FOTA](modules/fota_module.md)**: Firmware over-the-air updates
+* **[Environmental](modules/environmental.md)**: Sensor data collection
+* **[Power](modules/power.md)**: Battery monitoring and power management
+
+### Key Features
 
 * **State Machine Framework (SMF)**: Predictable behavior with run-to-completion model
 * **Message-Based Communication**: Loose coupling via [zbus](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) channels
 * **Modular Architecture**: Separation of concerns with dedicated threads for blocking operations
 * **Power Optimization**: LTE PSM enabled by default with configurable power-saving features
-
-![System overview](images/system_overview.svg)
-
-The architecture is detailed in the [Architecture documentation](common/architecture.md).
