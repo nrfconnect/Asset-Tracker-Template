@@ -27,6 +27,8 @@ If you are new to nRF91 series and cellular IoT, consider taking the [Nordic Dev
 
 <p align="center">
   <img src="docs/images/att-map.png" alt="nRF Cloud - Asset tracking map view" width="800" />
+  <br>
+  <em>Thingy:91 X reporting its location to nRF Cloud running the Asset Tracker Template</em>
 </p>
 
 ---
