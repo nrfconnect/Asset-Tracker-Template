@@ -26,9 +26,6 @@ theme:
     - toc.follow
 
 
-extra_css:
-  - stylesheets/style.css
-
 copyright:
   Copyright &copy; 2025
 
@@ -63,16 +60,16 @@ nav:
   - Testing and CI setup: common/test_and_ci_setup.md
   - Tooling and Troubleshooting: common/tooling_troubleshooting.md
   - Known Issues: common/known_issues.md
-  - Application modules:
-    - Main module: modules/main.md
-    - Button module: modules/button.md
-    - Cloud module: modules/cloud.md
-    - Environmental module: modules/environmental.md
-    - FOTA module: modules/fota_module.md
-    - LED module: modules/led.md
-    - Location module: modules/location.md
-    - Network module: modules/network.md
-    - Power module: modules/power.md
-    - Storage module: modules/storage.md
+  - Modules:
+    - Main: modules/main.md
+    - Button: modules/button.md
+    - Cloud: modules/cloud.md
+    - Environmental: modules/environmental.md
+    - FOTA: modules/fota_module.md
+    - LED: modules/led.md
+    - Location: modules/location.md
+    - Network: modules/network.md
+    - Power: modules/power.md
+    - Storage: modules/storage.md
   - Release artifacts: common/release.md
   - Release notes: common/release_notes.md

@@ -2,34 +2,6 @@
 
 This section describes the available compile-time and runtime configuration options for customizing the template's behavior.
 
-<div class="hidden-content">
-
-## Table of Contents
-
-- [Runtime configurations](#runtime-configurations)
-  - [Behavior:](#behavior)
-- [Remote configuration from cloud](#remote-configuration-from-cloud)
-  - [Configuration through nRF Cloud UI](#configuration-through-nrf-cloud-ui)
-  - [Configuration through REST API](#configuration-through-rest-api)
-  - [Sending commands through REST API](#sending-commands-through-rest-api)
-  - [Configuration Flow](#configuration-flow)
-- [Set location method priorities](#set-location-method-priorities)
-  - [Available location methods](#available-location-methods)
-  - [Configuration examples](#configuration-examples)
-- [Storage configuration](#storage-configuration)
-  - [Basic configuration in `prj.conf`:](#basic-configuration-in-prjconf)
-- [Network configuration](#network-configuration)
-  - [NB-IoT vs. LTE-M](#nb-iot-vs-lte-m)
-    - [Network mode selection](#network-mode-selection)
-    - [Network mode preference](#network-mode-preference)
-  - [Power Saving Mode (PSM)](#power-saving-mode-psm)
-    - [PSM parameters](#psm-parameters)
-  - [Access Point Name (APN)](#access-point-name-apn)
-- [LED status indicators](#led-status-indicators)
-  - [Example: Setting LED colors](#example-setting-led-colors)
-
-</div>
-
 ## Runtime configurations
 
 The device supports runtime configurations that allow you to modify the template's behavior without firmware updates.

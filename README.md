@@ -1,30 +1,13 @@
 # Asset Tracker Template
 
-<table>
-  <tr>
-    <th>Project</th>
-    <td>
-      <a href="https://github.com/nrfconnect/Asset-Tracker-Template/releases"><img src="https://img.shields.io/github/v/release/nrfconnect/Asset-Tracker-Template" alt="Release"></a>
-      <a href="https://sonarcloud.io/dashboard?id=nrfconnect_Asset-Tracker-Template"><img src="https://sonarcloud.io/api/project_badges/measure?project=nrfconnect_Asset-Tracker-Template&metric=alert_status" alt="Quality Gate"></a>
-      <a href="https://sonarcloud.io/dashboard?id=nrfconnect_Asset-Tracker-Template"><img src="https://sonarcloud.io/api/project_badges/measure?project=nrfconnect_Asset-Tracker-Template&metric=coverage" alt="Coverage"></a>
-    </td>
-  </tr>
-  <tr>
-    <th>CI</th>
-    <td>
-      <a href="https://github.com/nrfconnect/Asset-Tracker-Template/actions/workflows/build-and-target-test.yml?query=branch%3Amain+event%3Apush"><img src="https://img.shields.io/github/actions/workflow/status/nrfconnect/Asset-Tracker-Template/build-and-target-test.yml?event=push&branch=main&label=on-commit" alt="On-commit"></a>
-      <a href="https://github.com/nrfconnect/Asset-Tracker-Template/actions/workflows/build-and-target-test.yml?query=branch%3Amain+event%3Aschedule"><img src="https://img.shields.io/github/actions/workflow/status/nrfconnect/Asset-Tracker-Template/build-and-target-test.yml?event=schedule&branch=main&label=nightly" alt="Nightly"></a>
-    </td>
-  </tr>
-  <tr>
-    <th>Metrics</th>
-    <td>
-      <a href="https://nrfconnect.github.io/Asset-Tracker-Template/power_measurements_plot.html"><img src="https://img.shields.io/endpoint?url=https://nrfconnect.github.io/Asset-Tracker-Template/power_badge.json" alt="PSM Current"></a>
-      <a href="https://nrfconnect.github.io/Asset-Tracker-Template/ram_memory_view.html"><img src="https://img.shields.io/endpoint?url=https://nrfconnect.github.io/Asset-Tracker-Template/ram_badge.json" alt="RAM Usage thingy91x"></a>
-      <a href="https://nrfconnect.github.io/Asset-Tracker-Template/flash_memory_view.html"><img src="https://img.shields.io/endpoint?url=https://nrfconnect.github.io/Asset-Tracker-Template/flash_badge.json" alt="FLASH Usage thingy91x"></a>
-    </td>
-  </tr>
-</table>
+[![Release](https://img.shields.io/github/v/release/nrfconnect/Asset-Tracker-Template)](https://github.com/nrfconnect/Asset-Tracker-Template/releases)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=nrfconnect_Asset-Tracker-Template&metric=alert_status)](https://sonarcloud.io/dashboard?id=nrfconnect_Asset-Tracker-Template)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=nrfconnect_Asset-Tracker-Template&metric=coverage)](https://sonarcloud.io/dashboard?id=nrfconnect_Asset-Tracker-Template)
+[![On-commit](https://img.shields.io/github/actions/workflow/status/nrfconnect/Asset-Tracker-Template/build-and-target-test.yml?event=push&branch=main&label=on-commit)](https://github.com/nrfconnect/Asset-Tracker-Template/actions/workflows/build-and-target-test.yml?query=branch%3Amain+event%3Apush)
+[![Nightly](https://img.shields.io/github/actions/workflow/status/nrfconnect/Asset-Tracker-Template/build-and-target-test.yml?event=schedule&branch=main&label=nightly)](https://github.com/nrfconnect/Asset-Tracker-Template/actions/workflows/build-and-target-test.yml?query=branch%3Amain+event%3Aschedule)
+[![PSM Current](https://img.shields.io/endpoint?url=https://nrfconnect.github.io/Asset-Tracker-Template/power_badge.json)](https://nrfconnect.github.io/Asset-Tracker-Template/power_measurements_plot.html)
+[![RAM Usage thingy91x](https://img.shields.io/endpoint?url=https://nrfconnect.github.io/Asset-Tracker-Template/ram_badge.json)](https://nrfconnect.github.io/Asset-Tracker-Template/ram_memory_view.html)
+[![FLASH Usage thingy91x](https://img.shields.io/endpoint?url=https://nrfconnect.github.io/Asset-Tracker-Template/flash_badge.json)](https://nrfconnect.github.io/Asset-Tracker-Template/flash_memory_view.html)
 
 ## Overview
 
@@ -42,9 +25,16 @@ Modules communicate through [zbus](https://docs.zephyrproject.org/latest/service
 
 If you are new to nRF91 series and cellular IoT, consider taking the [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals).
 
+<p align="center">
+  <img src="docs/images/att-map.png" alt="nRF Cloud - Asset tracking map view" width="800" />
+</p>
+
+---
+
 ## Quick Start
 
-The fastest way to get started is to download and run the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop). It provides a guided setup and provisioning process that gets your device connected to [nRF Cloud](https://nrfcloud.com) in minutes.
+> [!TIP]
+> The fastest way to get started is to download and run the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop). It provides a guided setup and provisioning process that gets your device connected to [nRF Cloud](https://nrfcloud.com) in minutes.
 
 Alternatively, you can download pre-built firmware binaries from the latest release and flash them directly to your device. See the [release artifacts](docs/common/release.md) documentation for details.
 
@@ -146,13 +136,44 @@ After building and flashing (using either option above), you need to provision t
     <img src="docs/images/claim.png" alt="Claim Device" width="300" />
     </details>
 
-5. After claiming, wait for the device to provision credentials and connect to nRF Cloud over CoAP. Once connected, the device will be available under **Device Management** → **Devices**.
-
-> [!NOTE]
-> The device polls the provisioning service at its own interval. This means it may take a few minutes for the device to pick up the claim and complete provisioning. If you want a quicker response, press **Button 1** on the device or reset it to trigger an immediate provisioning poll.
+5. After claiming, wait for the device to provision credentials and connect to nRF Cloud over CoAP. Once connected, the device will be available under **Device Management** → **Devices**. If you want a quicker response, press and hold **Button 1** on the device or reset it to trigger an immediate provisioning poll.
 
 See [Provisioning to nRF Cloud](docs/common/provisioning.md) for more details.
 </details>
+
+---
+
+## Documentation
+
+<table>
+  <tr>
+    <td><a href="docs/common/getting_started.md">Getting Started</a></td>
+    <td><a href="docs/common/architecture.md">Architecture</a></td>
+    <td><a href="docs/common/configuration.md">Configuration</a></td>
+  </tr>
+  <tr>
+    <td><a href="docs/common/customization.md">Customization</a></td>
+    <td><a href="docs/modules/index.md">Modules</a></td>
+    <td><a href="docs/common/provisioning.md">Provisioning</a></td>
+  </tr>
+  <tr>
+    <td><a href="docs/common/location_services.md">Location Services</a></td>
+    <td><a href="docs/common/low_power.md">Achieving Low Power</a></td>
+    <td><a href="docs/common/fota.md">Firmware Updates (FOTA)</a></td>
+  </tr>
+  <tr>
+    <td><a href="docs/common/test_and_ci_setup.md">Testing and CI Setup</a></td>
+    <td><a href="docs/common/tooling_troubleshooting.md">Tooling and Troubleshooting</a></td>
+    <td><a href="docs/common/known_issues.md">Known Issues</a></td>
+  </tr>
+  <tr>
+    <td><a href="docs/common/release.md">Release Artifacts</a></td>
+    <td><a href="docs/common/release_notes.md">Release Notes</a></td>
+    <td></td>
+  </tr>
+</table>
+
+---
 
 ## System Architecture
 
@@ -177,49 +198,3 @@ Core modules include:
 * **Message-Based Communication**: Loose coupling via [zbus](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) channels
 * **Modular Architecture**: Separation of concerns with dedicated threads for blocking operations
 * **Power Optimization**: LTE PSM enabled by default with configurable power-saving features
-
-The architecture is detailed in the [Architecture documentation](docs/common/architecture.md).
-
-## Table of Content
-
-* [Getting Started](docs/common/getting_started.md)
-* [Provisioning to nRF Cloud](docs/common/provisioning.md)
-* [Architecture](docs/common/architecture.md)
-  * [System Overview](docs/common/architecture.md#system-overview)
-  * [Zbus](docs/common/architecture.md#zbus)
-  * [State Machine Framework](docs/common/architecture.md#state-machine-framework)
-* [Configurability](docs/common/configuration.md)
-  * [Set sampling interval and logic from cloud](docs/common/configuration.md#set-sampling-interval-and-logic-from-cloud)
-  * [Set location method priorities](docs/common/configuration.md#set-location-method-priorities)
-  * [Network configuration](docs/common/configuration.md#network-configuration)
-  * [LED Status Indicators](docs/common/configuration.md#led-status-indicators)
-* [Customization](docs/common/customization.md)
-  * [Add a new zbus event](docs/common/customization.md#add-a-new-zbus-event)
-  * [Add environmental sensor](docs/common/customization.md#add-environmental-sensor)
-  * [Add your own module](docs/common/customization.md#add-your-own-module)
-  * [Enable support for MQTT](docs/common/customization.md#enable-support-for-mqtt)
-* [Location Services](docs/common/location_services.md)
-* [Achieving Low Power](docs/common/low_power.md)
-* [Test and CI Setup](docs/common/test_and_ci_setup.md)
-* [Firmware Updates (FOTA)](docs/common/fota.md)
-* [Tooling and Troubleshooting](docs/common/tooling_troubleshooting.md)
-  * [Shell Commands](docs/common/tooling_troubleshooting.md#shell-commands)
-  * [Debugging Tools](docs/common/tooling_troubleshooting.md#debugging-tools)
-  * [Memfault Remote Debugging](docs/common/tooling_troubleshooting.md#memfault-remote-debugging)
-  * [Modem Tracing](docs/common/tooling_troubleshooting.md#modem-tracing)
-  * [Common Issues and Solutions](docs/common/tooling_troubleshooting.md#common-issues-and-solutions)
-* [Known Issues](docs/common/known_issues.md)
-* [Release artifacts](docs/common/release.md)
-
-### Module Documentation
-
-* [Button](docs/modules/button.md)
-* [Cloud](docs/modules/cloud.md)
-* [Storage](docs/modules/storage.md)
-* [Environmental](docs/modules/environmental.md)
-* [FOTA](docs/modules/fota_module.md)
-* [LED](docs/modules/led.md)
-* [Location](docs/modules/location.md)
-* [Main](docs/modules/main.md)
-* [Network](docs/modules/network.md)
-* [Power](docs/modules/power.md)
