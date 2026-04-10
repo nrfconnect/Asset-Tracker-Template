@@ -11,6 +11,10 @@ The system is organized into modules, each responsible for a specific functional
 
 If you are new to nRF91 series and cellular IoT, consider taking the [Nordic Developer Academy Cellular Fundamentals Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals).
 
+<p align="center">
+  <img src="images/att-map.png" alt="nRF Cloud - Asset tracking map view" width="800" />
+</p>
+
 ## Quick Start
 
 The fastest way to get started is to download and run the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop). It provides a guided setup and provisioning process that gets your device connected to [nRF Cloud](https://nrfcloud.com) in minutes.
@@ -29,15 +33,15 @@ Use the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect
 2. Open VS Code and go to the **nRF Connect** extension.
 3. Select **Create New Application**.
 4. Select **Browse nRF Connect SDK add-on Index**.
-4. Search for **Asset Tracker Template** and create the project.
-5. Use the **Actions** panel in the extension to build and flash the application.
+5. Search for **Asset Tracker Template** and create the project.
+6. Use the **Actions** panel in the extension to build and flash the application.
 
 ### Option 2: Command line
 
 <details>
 <summary><strong>1. Initialize workspace</strong></summary>
 <ol>
-<li>Install nRF Util. Follow <a href="https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html">documentation</a> for installation instructions.</li>
+<li>Install nRF Util. Follow the <a href="https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html">nRF Util documentation</a> for installation instructions.</li>
 <li>Install sdk-manager:
 <pre><code class="language-bash">nrfutil install sdk-manager</code></pre>
 </li>
@@ -48,7 +52,7 @@ Use the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect
 <pre><code class="language-bash">nrfutil sdk-manager toolchain launch --ncs-version v3.1.0 --terminal</code></pre>
 This launches a new terminal window with the specified toolchain activated. Use this terminal in the coming steps.
 </li>
-<li>Initialize workspace
+<li>Initialize workspace:
 <pre><code class="language-bash">west init -m https://github.com/nrfconnect/Asset-Tracker-Template.git --mr main asset-tracker-template
 cd asset-tracker-template/project/app
 west update</code></pre>
@@ -88,12 +92,9 @@ After building and flashing (using either option above), you need to provision t
 <li>Get the device attestation token. Open a serial terminal connected to the device (115200 baud) and run the following AT command in the device shell:
 <pre><code class="language-bash">at at%attesttoken</code></pre>
 The token is also printed automatically to the serial log on first boot of unprovisioned devices.</li>
-<li>Log in to the <a href="https://nrfcloud.com/#/">nRF Cloud</a> portal.</li>
-<li>Select <strong>Security Services</strong> in the left sidebar.</li>
-<li>Select <strong>Claimed Devices</strong>.</li>
-<li>Click <strong>Claim Device</strong>.</li>
-<li>Copy and paste the attestation token into the <strong>Claim token</strong> text box.</li>
-<li>Set rule to nRF Cloud Onboarding and click <strong>Claim Device</strong>.</li>
+<li>Log in to the <a href="https://nrfcloud.com">nRF Cloud</a> portal.</li>
+<li>Navigate to <strong>Security Services</strong> → <strong>Claimed Devices</strong> → <strong>Claim Device</strong>.</li>
+<li>Paste the attestation token, set rule to "nRF Cloud Onboarding", and click <strong>Claim Device</strong>.</li>
 
 <details>
 <summary><strong>If "nRF Cloud Onboarding" rule is not showing:</strong></summary>
@@ -103,14 +104,10 @@ Create a new rule using the following configuration:<br>
 <img src="images/claim.png" alt="Claim Device" width="300" />
 </details>
 
-<li>After claiming, wait for the device to provision credentials and connect to nRF Cloud over CoAP. Once connected, the device will be available under the <strong>Devices</strong> section in the <strong>Device Management</strong> navigation pane on the left.</li>
+<li>After claiming, wait for the device to provision credentials and connect to nRF Cloud over CoAP. Once connected, the device will be available under <strong>Device Management</strong> → <strong>Devices</strong>. If you want a quicker response, press and hold <strong>Button 1</strong> on the device or reset it to trigger an immediate provisioning poll.</li>
 </ol>
 
-<blockquote>
-<strong>Note:</strong> The device polls the provisioning service at its own interval. This means it may take a few minutes for the device to pick up the claim and complete provisioning. If you want a quicker response, press and hold <strong>Button 1</strong> on the device or reset the device to trigger an immediate provisioning poll.
-</blockquote>
-
-See <a href="https://docs.nordicsemi.com/bundle/asset-tracker-template-latest/page/common/provisioning.html">provisioning</a> for more details.
+See <a href="common/provisioning.md">Provisioning to nRF Cloud</a> for more details.
 
 </details>
 
@@ -120,5 +117,7 @@ See <a href="https://docs.nordicsemi.com/bundle/asset-tracker-template-latest/pa
 * **Message-Based Communication**: Loose coupling via [zbus](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/zbus/index.html) channels
 * **Modular Architecture**: Separation of concerns with dedicated threads for blocking operations
 * **Power Optimization**: LTE PSM enabled by default with configurable power-saving features
+
+![System overview](images/system_overview.svg)
 
 The architecture is detailed in the [Architecture documentation](common/architecture.md).

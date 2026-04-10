@@ -8,37 +8,6 @@ For more knowledge on debugging and troubleshooting [nRF Connect SDK](https://gi
 - [nRF Connect SDK Debugging Guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/test_and_optimize/debugging.html)
 - [Zephyr Debugging Guide](https://docs.zephyrproject.org/latest/develop/debug/index.html)
 
-<div class="hidden-content">
-
-## Table of Contents
-
-- [Shell Commands](#shell-commands)
-  - [Available Commands](#available-commands)
-  - [Shell Command Examples](#shell-command-examples)
-    - [Cloud Publishing](#cloud-publishing)
-    - [Network disconnect](#network-disconnect)
-    - [AT Command Execution](#at-command-execution)
-- [Debugging Tools](#debugging-tools)
-  - [Low Power Profiling](#low-power-profiling)
-  - [GDB Debugging](#gdb-debugging)
-  - [SEGGER SystemView](#segger-systemview)
-    - [Configuration](#configuration)
-  - [Thread Analysis](#thread-analysis)
-  - [Hardfaults](#hardfaults)
-  - [State Inspection Script](#state-inspection-script)
-- [Memfault Remote Debugging](#memfault-remote-debugging)
-  - [When to Use Memfault](#when-to-use-memfault)
-  - [Prerequisites](#prerequisites)
-  - [Test shell commands](#test-shell-commands)
-- [Modem Tracing](#modem-tracing)
-  - [UART Tracing](#uart-tracing)
-  - [RTT Tracing](#rtt-tracing)
-  - [Dumping modem traces over UART after capture](#dumping-modem-traces-over-uart-after-capture)
-  - [Application logs and modem traces over RTT - Parallel capture](#application-logs-and-modem-traces-over-rtt---parallel-capture)
-- [Common Issues and Solutions](#common-issues-and-solutions)
-
-</div>
-
 ## Shell Commands
 
 The template provides several shell commands for controlling and monitoring device behavior. Connect to the device's UART interface using either:
