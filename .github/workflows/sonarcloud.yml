@@ -14,6 +14,10 @@ on:
       - '**/CMakelists.txt'
       - '**/Kconfig*'
       - '**/prj.conf'
+
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build and analyze

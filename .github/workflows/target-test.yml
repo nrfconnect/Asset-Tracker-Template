@@ -49,6 +49,9 @@ on:
         required: true
         default: thingy91x
 
+permissions:
+  contents: read
+
 jobs:
   format_devices:
     runs-on: ubuntu-latest

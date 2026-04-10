@@ -3,6 +3,9 @@ name: Compliance
 on:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   compliance_job:
     runs-on: build_self_hosted
