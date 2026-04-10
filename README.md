@@ -175,7 +175,9 @@ See [Provisioning to nRF Cloud](docs/common/provisioning.md) for more details.
 
 ---
 
-## System Architecture
+## System Overview
+
+![System overview](docs/images/system_overview.svg)
 
 Core modules include:
 
@@ -189,8 +191,6 @@ Core modules include:
 * **[FOTA](docs/modules/fota_module.md)**: Firmware over-the-air updates
 * **[Environmental](docs/modules/environmental.md)**: Sensor data collection
 * **[Power](docs/modules/power.md)**: Battery monitoring and power management
-
-![System overview](docs/images/system_overview.svg)
 
 ### Key Features
 
