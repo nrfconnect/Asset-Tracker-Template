@@ -11,6 +11,9 @@ on:
     paths:
       - '**.md'
 
+permissions:
+  contents: read
+
 jobs:
   linkcheck:
     name: Check Markdown links

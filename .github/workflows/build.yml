@@ -51,6 +51,9 @@ on:
       - ".github/workflows/*.yml"
       - "!.github/workflows/build.yml"
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: build_self_hosted

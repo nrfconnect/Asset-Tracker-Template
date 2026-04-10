@@ -49,6 +49,10 @@ on:
       - main
     paths-ignore:
       - "docs/**"
+
+permissions:
+  contents: read
+
 jobs:
   setup:
     runs-on: ubuntu-latest
@@ -132,6 +136,9 @@ jobs:
           echo "run_nightly_tests=${run_nightly_tests:-false}" >> $GITHUB_OUTPUT
   build:
     needs: setup
+    permissions:
+      contents: write
+      pull-requests: write
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:

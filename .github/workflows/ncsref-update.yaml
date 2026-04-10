@@ -5,8 +5,14 @@ on:
   schedule:
     - cron: "0 0 * * *"
 
+permissions:
+  contents: read
+
 jobs:
   build:
+    permissions:
+      contents: write
+      pull-requests: write
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
