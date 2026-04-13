@@ -21,7 +21,7 @@ If you are new to nRF91 series and cellular IoT, consider taking the [Nordic Dev
 
 The fastest way to get started is to download and run the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop). It provides a guided setup and provisioning process that gets your device connected to [nRF Cloud](https://nrfcloud.com) in minutes.
 
-Alternatively, you can download pre-built firmware binaries from the latest release and flash them directly to your device. See the [release artifacts](common/release.md) documentation for details.
+Alternatively, you can download pre-built firmware binaries from the [latest release](https://github.com/nrfconnect/Asset-Tracker-Template/releases) and flash them directly to your device. See the [release artifacts](common/release.md) documentation for details.
 
 ## Setting up the development environment
 
