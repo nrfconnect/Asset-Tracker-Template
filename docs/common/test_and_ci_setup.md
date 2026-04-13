@@ -13,9 +13,6 @@ The CI pipeline is composed of the following workflows:
 - [.github/workflows/sonarcloud.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/sonarcloud.yml): For building and running tests on emulation, and running Sonarcloud analysis.
 - [.github/workflows/compliance.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/compliance.yml): For static compliance checks.
 
-Additionally, AI assistant is used in [.github/workflows/ai-review.yaml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/ai-review.yaml). It is an AI reviewer that runs on pull requests.
-You can choose to run it or not with a label.
-
 The CI pipeline is triggered as follows:
 
 - Pull Request: `build.yml`, `sonarcloud.yml`, `compliance.yml`. No target tests are run on PR to avoid instabilities.

@@ -24,22 +24,22 @@ Each firmware variant includes the following set of artifacts:
 
 | **Artifact name** | **Hardware platform** | **Description** | **Use case** |
 |-------------------|----------------------|----------------|--------------|
-| `asset-tracker-template-{VERSION}-thingy91x-nrf91.hex` | Thingy:91 X (nRF9151) | Standard production firmware with all core features enabled | Production deployment on Thingy:91 X devices |
-| `asset-tracker-template-{VERSION}-nrf9151dk-nrf91.hex` | nRF9151 DK | Development kit firmware with full feature set | Development and testing on nRF9151 DK |
+| `asset-tracker-template-{VERSION}-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | Standard production firmware with all core features enabled | Production deployment on Thingy:91 X devices |
+| `asset-tracker-template-{VERSION}-nrf9151dk-nrf91.*` | nRF9151 DK | Development kit firmware with full feature set | Development and testing on nRF9151 DK |
 
 #### Debug and development variants
 
 | **Artifact name** | **Hardware platform** | **Description** | **Use case** |
 |-------------------|----------------------|----------------|--------------|
-| `asset-tracker-template-{VERSION}-debug-thingy91x-nrf91.hex` | Thingy:91 X (nRF9151) | Debug build with enhanced logging and diagnostic features. **Note: This build uploads diagnostic and crash data to Memfault using Nordic's account and is intended for internal use only.** | Development debugging and issue investigation |
+| `asset-tracker-template-{VERSION}-debug-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | Debug build with enhanced logging and diagnostic features. **Note: This build uploads diagnostic and crash data to Memfault using Nordic's account and is intended for internal use only.** | Development debugging and issue investigation |
 
 #### Specialized configuration variants
 
 | **Artifact name** | **Hardware platform** | **Description** | **Use case** |
 |-------------------|----------------------|----------------|--------------|
-| `asset-tracker-template-{VERSION}-mtrace-thingy91x-nrf91.hex` | Thingy:91 X (nRF9151) | Firmware with modem trace output enabled through UART 1 | Cellular connectivity debugging and analysis |
-| `asset-tracker-template-{VERSION}-mtrace-nrf9151dk-nrf91.hex` | nRF9151 DK | Firmware with modem trace output enabled through UART 1  | Cellular connectivity debugging and analysis |
-| `asset-tracker-template-{VERSION}-ext-gnss-nrf9151dk-nrf91.hex` | nRF9151 DK | Firmware configured for external GNSS antenna | Testing with external GNSS antenna setup |
+| `asset-tracker-template-{VERSION}-mtrace-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | Firmware with modem trace output enabled through UART 1 | Cellular connectivity debugging and analysis |
+| `asset-tracker-template-{VERSION}-mtrace-nrf9151dk-nrf91.*` | nRF9151 DK | Firmware with modem trace output enabled through UART 1  | Cellular connectivity debugging and analysis |
+| `asset-tracker-template-{VERSION}-ext-gnss-nrf9151dk-nrf91.*` | nRF9151 DK | Firmware configured for external GNSS antenna | Testing with external GNSS antenna setup |
 
 ### Configuration overlays
 
@@ -60,6 +60,8 @@ The firmware variants are built using different configuration overlays that modi
 - **Target Use**: Production IoT deployments, prototyping
 - **Memory Reports**: ROM and RAM usage reports generated for optimization
 
-#### Development kits
+#### nRF9151 DK
 
-- **nRF9151 DK**: Primary development platform for nRF9151-based projects
+- **SoC**: nRF9151
+- **Features**: On-board debugger (J-Link), external antenna connectors, Arduino-compatible headers
+- **Target Use**: Development, testing, and prototyping
