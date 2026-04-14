@@ -25,8 +25,8 @@ DEFINE_FFF_GLOBALS;
 
 /* Thu Feb 12 2026 09:38:29 GMT+0000 */
 #define FAKE_TIME_FEB12 1770889109000LL
-/* Wed Apr 08 2026 22:00:00 GMT+0000 */
-#define FAKE_TIME_APR08 1775685600000LL
+/* Tue Apr 14 2026 10:53:55 GMT+0000 — matches log reception time */
+#define FAKE_TIME_APR14 1776164035000LL
 
 static int64_t fake_time_ms = FAKE_TIME_FEB12;
 
@@ -190,10 +190,10 @@ void test_nextpass_real_sib32(void)
 	int err;
 	static struct sat_data data;
 	const char *atsib32 =
-		"SIBCONFIG: 32,\"00000004\",2,4,1138009,2341554,"
-		"2006909,590023,292,2570805072,16936,-3,35174,,01";
+		"SIBCONFIG: 32,\"00000001\",2,1,1138012,3614928,"
+		"2067219,3049877,7748,2573169586,21028,-3,-224921";
 
-	fake_time_ms = FAKE_TIME_APR08;
+	fake_time_ms = FAKE_TIME_APR14;
 
 	memset(&data, 0, sizeof(data));
 
@@ -205,7 +205,7 @@ void test_nextpass_real_sib32(void)
 	data.sat_count = MIN(data.sat_count, 1);
 
 	err = sat_data_calculate_next_pass(&data, 0, LAT_TRD, LON_TRD, ALT_TRD,
-		FAKE_TIME_APR08, SGP4_DEFAULT_MIN_ELEVATION_DEG);
+		FAKE_TIME_APR14, SGP4_DEFAULT_MIN_ELEVATION_DEG);
 	TEST_ASSERT_EQUAL(0, err);
 
 	int64_t start_time = data.next_pass.start_time_ms / 1000;

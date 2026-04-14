@@ -266,7 +266,7 @@
 	 LOG_DBG("weekday: %d unix_time_ms1: %lld", weekday, unix_time_ms);
 
 	 /* Deduct 86400 * weekday to get the unix time of last monday */
-	 unix_time_ms -= (weekday * 86400000UL);
+	 unix_time_ms -= ((int64_t)weekday * 86400000LL);
 	 LOG_DBG("unix_time_ms2: %lld", unix_time_ms);
 	 datetime_from_unix_time_ms(unix_time_ms, &dt_mon_midnight);
 
@@ -277,7 +277,7 @@
 
 	 unix_time_ms = datetime_to_ts(&dt_mon_midnight);
 	 LOG_DBG("unix_time_ms3: %lld", unix_time_ms);
-	 unix_time_ms += (epochStar * 1000UL);
+	 unix_time_ms += ((int64_t)epochStar * 1000LL);
 	 datetime_from_unix_time_ms(unix_time_ms, &dt_mon_midnight);
 	 jd_from_unix_time_ms(unix_time_ms, jdsatepoch, jdsatepochF);
 
