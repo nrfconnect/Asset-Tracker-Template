@@ -6,7 +6,7 @@
 
 menuconfig APP_FOTA
 	bool "FOTA"
-	default y if (!BOARD_NATIVE_POSIX && NRF_CLOUD_FOTA_POLL)
+	default y
 
 if APP_FOTA
 

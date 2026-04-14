@@ -6,7 +6,7 @@
 menuconfig APP_LOCATION
 	bool "Location"
 	default y if LOCATION
-	select LOCATION_DATA_DETAILS
+	select LOCATION_DATA_DETAILS if LOCATION
 
 if APP_LOCATION
 

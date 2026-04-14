@@ -8,15 +8,18 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/logging/log_ctrl.h>
 #include <zephyr/zbus/zbus.h>
+#include <zephyr/sys/reboot.h>
+#include <zephyr/task_wdt/task_wdt.h>
+#include <zephyr/smf.h>
+
+#if defined(CONFIG_NRF_CLOUD_FOTA_POLL)
 #include <net/nrf_cloud_coap.h>
 #include <net/nrf_cloud_fota_poll.h>
-#include <zephyr/sys/reboot.h>
 #include <zephyr/dfu/mcuboot.h>
-#include <zephyr/task_wdt/task_wdt.h>
 #include <nrf_cloud_fota.h>
-#include <zephyr/smf.h>
 #include <net/fota_download.h>
 #include <modem/nrf_modem_lib.h>
+#endif /* CONFIG_NRF_CLOUD_FOTA_POLL */
 
 #include "app_common.h"
 #ifdef CONFIG_APP_INSPECT_SHELL
@@ -26,10 +29,6 @@
 
 /* Register log module */
 LOG_MODULE_REGISTER(fota, CONFIG_APP_FOTA_LOG_LEVEL);
-
-BUILD_ASSERT(CONFIG_APP_FOTA_WATCHDOG_TIMEOUT_SECONDS >
-	     CONFIG_APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS,
-	     "Watchdog timeout must be greater than maximum message processing time");
 
 /* Register message subscriber - will be called everytime a channel that the module listens on
  * receives a new message.
@@ -44,6 +43,12 @@ ZBUS_CHAN_DEFINE(fota_chan,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0)
 );
+
+#if defined(CONFIG_NRF_CLOUD_FOTA_POLL)
+
+BUILD_ASSERT(CONFIG_APP_FOTA_WATCHDOG_TIMEOUT_SECONDS >
+	     CONFIG_APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS,
+	     "Watchdog timeout must be greater than maximum message processing time");
 
 /* Private channel message types for internal state management. */
 enum priv_fota_msg_type {
@@ -711,3 +716,46 @@ static void fota_module_thread(void)
 K_THREAD_DEFINE(fota_module_thread_id,
 		CONFIG_APP_FOTA_THREAD_STACK_SIZE,
 		fota_module_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+
+#else /* CONFIG_NRF_CLOUD_FOTA_POLL */
+
+/* Stub: FOTA module without nRF Cloud FOTA Poll support.
+ * Sends FOTA_MODULE_READY and ignores all poll requests.
+ */
+
+ZBUS_CHAN_ADD_OBS(fota_chan, fota, 0);
+
+static void fota_module_thread(void)
+{
+	int err;
+	const enum fota_msg_type msg = FOTA_MODULE_READY;
+
+	LOG_DBG("FOTA module started (stub, no nRF Cloud FOTA Poll support)");
+
+	err = zbus_chan_pub(&fota_chan, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to publish FOTA_MODULE_READY, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	/* Drain any incoming messages to prevent zbus overflow */
+	while (true) {
+		const struct zbus_channel *chan;
+		uint8_t msg_buf[sizeof(enum fota_msg_type)];
+
+		err = zbus_sub_wait_msg(&fota, &chan, msg_buf, K_FOREVER);
+		if (err) {
+			continue;
+		}
+
+		LOG_DBG("FOTA stub: ignoring message type %d",
+			(int)*(const enum fota_msg_type *)msg_buf);
+	}
+}
+
+K_THREAD_DEFINE(fota_module_thread_id,
+		1024,
+		fota_module_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+
+#endif /* CONFIG_NRF_CLOUD_FOTA_POLL */

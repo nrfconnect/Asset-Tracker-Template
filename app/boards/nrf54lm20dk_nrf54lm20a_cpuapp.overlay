@@ -1,0 +1,50 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+/ {
+	aliases {
+		modem = &modem;
+	};
+};
+
+&uart30 {
+	compatible = "nordic,nrf-uarte";
+	current-speed = <115200>;
+	hw-flow-control;
+	status = "okay";
+
+	modem: modem {
+		compatible = "nordic,nrf91-slm";
+		status = "okay";
+		/* Reset GPIO controls nRF91 RESET pin.
+		 * Active low: assert (drive low) to reset, deassert (release/high) to run.
+		 * Using P1.04 which is exposed on expansion header pin 4.
+		 * Wire this pin to the nRF9151 DK's RESET pin (IF RESET on P18 header).
+		 */
+		mdm-reset-gpios = <&gpio1 4 GPIO_ACTIVE_LOW>;
+	};
+};
+
+/* Memfault RRAM coredump: shrink storage to 4 KiB and allocate 32 KiB for
+ * coredump partition (required when CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM is
+ * selected). The coredump for this app is ~24 KiB so we allocate 32 KiB to be safe.
+ *
+ * Layout (from default 36 KiB storage at 0x1dc000):
+ *   storage_partition:        0x1dc000 +  4 KiB -> 0x1dd000
+ *   memfault_coredump_partition: 0x1dd000 + 32 KiB -> 0x1e5000
+ */
+&storage_partition {
+	reg = <0x1dc000 DT_SIZE_K(4)>;
+};
+
+&cpuapp_rram {
+	partitions {
+		memfault_coredump_partition: partition@1dd000 {
+			label = "memfault_coredump_partition";
+			reg = <0x1dd000 DT_SIZE_K(32)>;
+		};
+	};
+};
