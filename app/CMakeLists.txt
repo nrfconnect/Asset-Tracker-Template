@@ -31,3 +31,10 @@ add_subdirectory_ifdef(CONFIG_APP_FOTA src/modules/fota)
 add_subdirectory_ifdef(CONFIG_APP_STORAGE src/modules/storage)
 add_subdirectory_ifdef(CONFIG_APP_SGP4 src/modules/sgp4)
 add_subdirectory_ifdef(CONFIG_APP_INSPECT_SHELL src/inspect)
+
+# Memfault: dedicated SRAM noinit section on nRF54L (reboot tracking / RAM dump helpers).
+if(CONFIG_MEMFAULT AND CONFIG_SOC_SERIES_NRF54L)
+  zephyr_linker_sources(SECTIONS
+    ${CMAKE_CURRENT_SOURCE_DIR}/boards/nrf54lm20dk_nrf54lm20a_cpuapp_noinit.ld
+  )
+endif()

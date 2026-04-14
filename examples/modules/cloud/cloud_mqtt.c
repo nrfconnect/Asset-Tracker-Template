@@ -10,26 +10,28 @@
 #include <zephyr/smf.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <net/mqtt_helper.h>
+#if defined(CONFIG_APP_CLOUD_MQTT_PROVISION_CREDENTIALS)
 #include <modem/nrf_modem_lib.h>
 #include <modem/modem_key_mgmt.h>
+#endif /* CONFIG_APP_CLOUD_MQTT_PROVISION_CREDENTIALS */
 #include <hw_id.h>
 
 #include "cloud.h"
 #include "network.h"
 #include "app_common.h"
 
-/* Define FOTA and Location channels to avoid build warning due to the module being patched out
- * because they are not supported with the MQTT cloud.
- */
-#include "fota.h"
+// /* Define FOTA and Location channels to avoid build warning due to the module being patched out
+//  * because they are not supported with the MQTT cloud.
+//  */
+// #include "fota.h"
 
-ZBUS_CHAN_DEFINE(fota_chan,
-		 struct fota_msg,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
+// ZBUS_CHAN_DEFINE(fota_chan,
+// 		 enum fota_msg_type,
+// 		 NULL,
+// 		 NULL,
+// 		 ZBUS_OBSERVERS_EMPTY,
+// 		 ZBUS_MSG_INIT(0)
+// );
 
 /* Register log module */
 LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_MQTT_LOG_LEVEL);

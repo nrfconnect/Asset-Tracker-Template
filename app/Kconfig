@@ -24,3 +24,31 @@ endmenu
 menu "Zephyr Kernel"
 source "Kconfig.zephyr"
 endmenu
+
+if MEMFAULT
+
+# Coredump storage defaults when Memfault is enabled (overlay-memfault.conf):
+# - nRF54L: RRAM partition (see boards/nrf54lm20dk_nrf54lm20a_cpuapp.overlay).
+# - nRF91: internal flash via NCS NVMC backend + partition size (nrfx NVMC).
+choice MEMFAULT_COREDUMP_STORAGE
+	default MEMFAULT_COREDUMP_STORAGE_RRAM if SOC_SERIES_NRF54L
+endchoice
+
+config MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP
+	default y if SOC_SERIES_NRF91
+
+if MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP
+
+config PM_PARTITION_SIZE_MEMFAULT_STORAGE
+	default 0x2A000 if SOC_SERIES_NRF91
+
+endif # MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP
+
+# Align with Memfault nRF54L demo (noinit regions for reboot tracking / RAM dump).
+config MEMFAULT_REBOOT_TRACKING_REGION
+	default "memfault_noinit.memfault_reboot_info" if SOC_SERIES_NRF54L
+
+config MEMFAULT_RAM_BACKED_COREDUMP_REGION
+	default "memfault_noinit.memfault_coredump" if SOC_SERIES_NRF54L
+
+endif # MEMFAULT
