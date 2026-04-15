@@ -183,6 +183,7 @@ static struct ntn_state_object ntn_state = {
 static void gnss_event_handler(int event);
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt);
 static void ntn_msg_publish(enum ntn_msg_type type);
+static void cereg_mon(const char *notif);
 
 static void state_running_entry(void *obj);
 static enum smf_state_result state_running_run(void *obj);
@@ -351,6 +352,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME) {
 			/* cereg 1 */
 			LOG_DBG("LTE_LC_NW_REG_REGISTERED_HOME");
+			ntn_msg_publish(NTN_CELL_FOUND);
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
 			/* cereg 5 */
 			LOG_DBG("LTE_LC_NW_REG_REGISTERED_ROAMING");
@@ -526,6 +528,29 @@ static void ntn_msg_publish(enum ntn_msg_type type)
 		return;
 	}
 }
+
+/*
+ * lte_lc's cereg module filters out +CEREG notifications when cell ID and
+ * registration status are unchanged. After PDN resume onto the same cell,
+ * this means LTE_LC_EVT_NW_REG_STATUS / LTE_LC_EVT_CELL_UPDATE never fire
+ * and modem_cell_found_time is never set. Monitor +CEREG directly to work
+ * around this.
+ */
+static void cereg_mon(const char *notif)
+{
+	enum lte_lc_nw_reg_status status;
+	const char *p = notif + sizeof("+CEREG: ") - 1;
+
+	status = (enum lte_lc_nw_reg_status)atoi(p);
+
+	if (status == LTE_LC_NW_REG_REGISTERED_HOME ||
+	    status == LTE_LC_NW_REG_SEARCHING ||
+	    status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
+		ntn_msg_publish(NTN_CELL_FOUND);
+	}
+}
+
+AT_MONITOR(cereg_monitor, "+CEREG", cereg_mon, PAUSED);
 
 static void publish_last_pvt(const struct nrf_modem_gnss_pvt_data_frame *pvt)
 {
@@ -1001,9 +1026,9 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 
 	/* Configure location using latest GNSS data */
 	err = ntn_location_set((double)state->last_pvt.latitude,
-				(double)state->last_pvt.longitude,
-				(float)state->last_pvt.altitude,
-				location_validity_time);
+			       (double)state->last_pvt.longitude,
+			       (float)state->last_pvt.altitude,
+			       location_validity_time);
 	if (err) {
 		LOG_ERR("Failed to set location, error: %d", err);
 
@@ -1036,12 +1061,16 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 
 	configure_periodic_search();
 
-	/* Configure SIB32 and start monitoring */
-	err = nrf_modem_at_printf("AT%%SIBCONFIG=32,0");
+	/* Configure SIB32 and start monitoring.
+	 * We do not require SIB32 to esablish a connection, so using type 1 to enable monitoring.
+	 */
+	err = nrf_modem_at_printf("AT%%SIBCONFIG=32,1");
 	if (err) {
 		LOG_ERR("Failed to configure SIB32, error: %d", err);
+
 		return err;
 	}
+
 	LOG_INF("SIB32 configured successfully");
 	at_monitor_resume(&sib32_monitor);
 
@@ -1250,7 +1279,11 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 		snprintk(temp, sizeof(temp), "20");
 	}
 
-	packet_delay= state->modem_connectivity_time - state->modem_cell_found_time;
+	if (state->modem_cell_found_time > 0 && state->modem_connectivity_time > 0) {
+		packet_delay = state->modem_connectivity_time - state->modem_cell_found_time;
+	} else {
+		packet_delay = -1;
+	}
 
 	// imei,ping_rtt,rsrp,band,ue_mode,oper,lat_str,lon_str,accuracy,...
 	// ...battery_str,temp_str,pressure_str,humidity_str
@@ -2196,6 +2229,8 @@ static void state_ntn_entry(void *obj)
 	LOG_DBG("%s", __func__);
 
 	state->pdn_resumed_time = 0;
+	state->modem_cell_found_time = 0;
+	state->modem_connectivity_time = 0;
 
 	k_sleep(K_SECONDS(1));
 
@@ -2231,6 +2266,12 @@ static enum smf_state_result state_ntn_run(void *obj)
 		switch (msg->type) {
 		case NTN_PDN_RESUMED:
 			state->pdn_resumed_time = k_uptime_get();
+
+			/* lte_lc filters out +CEREG when registration status and cell ID
+			 * are unchanged, which is typical after PDN resume onto the
+			 * same cell. Resume the AT monitor to catch these directly.
+			 */
+			at_monitor_resume(&cereg_monitor);
 
 			LOG_DBG("PDN resumed, opening socket and sending dummy");
 
@@ -2301,6 +2342,8 @@ static enum smf_state_result state_ntn_run(void *obj)
 			return SMF_EVENT_HANDLED;
 
 		case NTN_CELL_FOUND:
+			at_monitor_pause(&cereg_monitor);
+
 			if (!state->rrc_is_connected) {
 				LOG_DBG("Cell found");
 
@@ -2392,8 +2435,8 @@ static void state_ntn_exit(void *obj)
 	k_timer_stop(&state->ntn_timer);
 	k_timer_stop(&state->network_connection_timeout_timer);
 
-	/* Pause SIB32 monitoring */
 	at_monitor_pause(&sib32_monitor);
+	at_monitor_pause(&cereg_monitor);
 
 	err = set_ntn_offline_mode();
 	if (err) {
