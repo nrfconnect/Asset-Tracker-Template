@@ -120,24 +120,29 @@ How to calculate the needed size:
 
 - Per-type block need:
 
-$$\text{blocks per type} = \left\lceil \frac{\text{data size} \times \text{records per type}}{\text{block size}} \right\rceil$$
+<p align="center"> blocks per type = ⌈(data size × records per type) / block size⌉</p>
 
 - Total required blocks:
 
-$$\text{required blocks} = \sum \text{blocks per type} + 3$$
+<p align="center"> required blocks =
+  Σ blocks per type
+  + 3
+</p>
 
 where the `+3` accounts for LittleFS metadata and the CoW block.
 
 - Minimum partition size:
 
-$$\text{flash size} = \text{required blocks} \times \text{block size}$$
+<p align="center"> flash size =
+  required blocks × block size
+</p>
 
 Choose a partition size that meets or exceeds `flash_size`. The LittleFS partition size is set by `CONFIG_PM_PARTITION_SIZE_LITTLEFS` (or the corresponding DTS partition definition).
 
 If the requirement is not met, either increase the partition (`CONFIG_PM_PARTITION_SIZE_LITTLEFS` or DTS partition size) or reduce storage pressure (fewer records, smaller data types, or fewer enabled types).
 
 > [!NOTE]
-> The data types are stored in separate files, so the minimum amount of flash blocks needed are $\sum \text{data type} + 3$.
+> The data types are stored in separate files, so the minimum amount of flash blocks needed are ∑ data type + 3.
 
 #### Target-specific defaults
 
