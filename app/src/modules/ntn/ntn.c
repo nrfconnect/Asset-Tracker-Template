@@ -1089,6 +1089,10 @@ static int set_gnss_active_mode(struct ntn_state_object *state)
 	int err;
 	int periodic_fix_retry = 180;
 	enum lte_lc_func_mode mode;
+	uint16_t nmea_mask = NRF_MODEM_GNSS_NMEA_GGA_MASK |
+			     NRF_MODEM_GNSS_NMEA_RMC_MASK |
+			     NRF_MODEM_GNSS_NMEA_GSV_MASK |
+			     NRF_MODEM_GNSS_NMEA_GSA_MASK;
 
 	err = lte_lc_func_mode_get(&mode);
 	if (err) {
@@ -1134,6 +1138,11 @@ static int set_gnss_active_mode(struct ntn_state_object *state)
 	err = nrf_modem_gnss_fix_retry_set(periodic_fix_retry);
 	if (err) {
 		LOG_ERR("Failed to set GNSS fix retry, error: %d", err);
+	}
+
+	err = nrf_modem_gnss_nmea_mask_set(nmea_mask);
+	if (err) {
+		LOG_ERR("Failed to set NMEA mask, error: %d", err);
 	}
 
 	err = nrf_modem_gnss_start();
