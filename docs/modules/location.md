@@ -84,3 +84,56 @@ Several Kconfig options in `Kconfig.location` control this module's behavior. Th
   Must be smaller than the value set in the **CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS** Kconfig option.
 
 For more details on these configurations, refer to `Kconfig.location`.
+
+## Location method priority
+
+### Default method order
+
+The board configurations (`thingy91x_nrf9151_ns.conf`,`nrf9151dk_nrf9151.conf`) set
+the following default method priority order:
+
+**Thingy91x** :
+
+| Priority | Method | Kconfig option |
+| --- | --- | --- |
+| 1st | GNSS | `CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_FIRST_GNSS` |
+| 2nd | Wi-Fi | `CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_SECOND_WIFI` |
+| 3rd | Cellular | `CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_THIRD_CELLULAR` |
+
+**nRF9151 DK**:
+
+| Priority | Method | Kconfig option |
+| --- | --- | --- |
+| 1st | GNSS | `CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_FIRST_GNSS` |
+| 2nd | Cellular | `CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_SECOND_CELLULAR` |
+
+See the
+[nRF Cloud Location Services overview](https://docs.nordicsemi.com/bundle/nrf-cloud/page/LocationServices/LSOverview.html)
+for a description of each method's accuracy, latency, and power
+characteristics.
+
+### Wi-Fi and cellular combining
+
+When Wi-Fi and cellular methods are adjacent in the method list, the
+Location library automatically combines them into a single
+`LOCATION_METHOD_WIFI_CELLULAR` cloud request.
+
+### Changing the method order
+
+The method priority is controlled by the following Kconfig options in
+the board configuration file or `prj.conf`:
+
+- **`CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_FIRST_*`**
+- **`CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_SECOND_*`**
+- **`CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_THIRD_*`**
+
+## nRF Cloud location service usage
+
+Wi-Fi and cellular location requests, including combined
+`LOCATION_METHOD_WIFI_CELLULAR` requests, are resolved by nRF Cloud and
+count toward the monthly location request quota. GNSS resolves position
+on-device and does not consume cloud requests.
+
+The free Developer plan on nRF Cloud includes 1,500 location requests
+per month. See the [nRF Cloud pricing page](https://nrfcloud.com/pricing/)
+for current plan limits.
