@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 MEMFAULT_ORG_TOKEN = os.getenv('MEMFAULT_ORGANIZATION_TOKEN')
 MEMFAULT_ORG = os.getenv('MEMFAULT_ORGANIZATION_SLUG')
 MEMFAULT_PROJ = os.getenv('MEMFAULT_PROJECT_SLUG')
-IMEI = os.getenv('IMEI')
+UUID = os.getenv('UUID')
 MEMFAULT_TIMEOUT = 5 * 60
 
 logger = get_logger()
@@ -91,7 +91,7 @@ def timestamp(event):
 @pytest.mark.slow
 def test_memfault(dut_board, debug_hex_file):
     # Save timestamp of latest coredump
-    coredumps = get_latest_coredump_traces(IMEI)
+    coredumps = get_latest_coredump_traces(UUID)
     logger.debug(f"Found coredumps: {coredumps}")
     timestamp_old_coredump = timestamp(coredumps[0]) if coredumps else  None
     logger.debug(f"Timestamp old coredump: {timestamp_old_coredump}")
@@ -116,7 +116,7 @@ def test_memfault(dut_board, debug_hex_file):
     start = time.time()
     while time.time() - start < MEMFAULT_TIMEOUT:
             time.sleep(5)
-            coredumps = get_latest_coredump_traces(IMEI)
+            coredumps = get_latest_coredump_traces(UUID)
             logger.debug(f"Found coredumps: {coredumps}")
             timestamp_new_coredump = timestamp(coredumps[0]) if coredumps else  None
             logger.debug(f"Timestamp new coredump: {timestamp_new_coredump}")
@@ -139,7 +139,7 @@ def test_memfault(dut_board, debug_hex_file):
         now = datetime.now(timezone.utc)
         end_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        modem_trace_id = fetch_recent_modem_trace(IMEI, end_time, start_time)
+        modem_trace_id = fetch_recent_modem_trace(UUID, end_time, start_time)
         if modem_trace_id:
             print(f"Found modem trace with ID {modem_trace_id}")
             break
