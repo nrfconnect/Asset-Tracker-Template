@@ -1116,6 +1116,19 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	LOG_INF("SIB32 configured successfully");
 	at_monitor_resume(&sib32_monitor);
 
+	/* Enable packet-domain event reporting (+CGEV URCs) before activating
+	 * the modem. CFUN=0 (the state after a fresh boot/reflash) clears
+	 * CGEREP, and lte_lc only re-enables it after CFUN=21 - too late to
+	 * catch the PDN_RESUMED URC that fires during context resume. Without
+	 * this command the NTN_PDN_RESUMED fast path is silently lost.
+	 * Treated as non-fatal: the connection-timeout flow still aborts via
+	 * the normal CEREG/registration path if the URC never arrives.
+	 */
+	err = nrf_modem_at_printf("AT+CGEREP=1");
+	if (err) {
+		LOG_WRN("Failed to enable +CGEV URCs (CGEREP=1), error: %d", err);
+	}
+
 	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
 	if (err) {
 		LOG_ERR("lte_lc_func_mode_set, error: %d\n", err);
