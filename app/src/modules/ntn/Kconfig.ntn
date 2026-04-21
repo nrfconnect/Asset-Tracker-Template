@@ -124,6 +124,7 @@ config APP_NTN_TIMER_NTN_VALUE_SECONDS
 
 config APP_NTN_NETWORK_CONNECTION_TIMEOUT_SECONDS
 	int "NTN cell search / connection timeout in seconds"
+	range 1 600
 	default 120
 	help
 	  Maximum time the application waits, after switching the modem to NTN
@@ -138,6 +139,7 @@ config APP_NTN_NETWORK_CONNECTION_TIMEOUT_SECONDS
 
 config APP_NTN_REGISTERED_TIMEOUT_SECONDS
 	int "Extended NTN timeout once registered, in seconds"
+	range 1 600
 	default 20
 	help
 	  Once the modem reports CEREG registered (HOME or ROAMING) on the NTN
