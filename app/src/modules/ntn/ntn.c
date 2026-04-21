@@ -2348,24 +2348,14 @@ static enum smf_state_result state_ntn_run(void *obj)
 			 */
 			at_monitor_resume(&cereg_monitor);
 
-			/* PDN resume means the modem has restored a preserved context
-			 * and is effectively already on the network. Extend the
-			 * connection timeout (once) to give RRC setup and the dummy +
-			 * data uplink room to complete before CFUN=45 is issued.
-			 *
-			 * Without this, the initial cell-search timeout could expire
-			 * mid send and abort STATE_NTN even though the modem reached
-			 * a usable state via the fast-path PDN resume.
+			/* Note: PDN_RESUMED fires from the modem's internal context
+			 * restore that happens during CFUN=21 activation, well before
+			 * any cell acquisition or network registration. It is NOT a
+			 * connectivity milestone and must not advance is_registered or
+			 * shorten the connection-timeout window. The dummy uplink
+			 * below is what actually triggers the modem's service request
+			 * once a cell becomes available.
 			 */
-			if (!state->is_registered) {
-				state->is_registered = true;
-
-				LOG_INF("PDN resumed, extending connection timeout to %d s",
-					CONFIG_APP_NTN_REGISTERED_TIMEOUT_SECONDS);
-				k_timer_start(&state->network_connection_timeout_timer,
-					      K_SECONDS(CONFIG_APP_NTN_REGISTERED_TIMEOUT_SECONDS),
-					      K_NO_WAIT);
-			}
 
 			LOG_DBG("PDN resumed, opening socket and sending dummy");
 
