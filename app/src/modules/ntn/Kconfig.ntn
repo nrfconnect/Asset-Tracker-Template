@@ -122,6 +122,45 @@ config APP_NTN_TIMER_NTN_VALUE_SECONDS
 	  the NTN activation timer should fire. A runtime override can replace this
 	  value through the `att_ntn set_peak_offset` shell command.
 
+config APP_NTN_NETWORK_CONNECTION_TIMEOUT_SECONDS
+	int "NTN cell search / connection timeout in seconds"
+	default 120
+	help
+	  Maximum time the application waits, after switching the modem to NTN
+	  active mode (CFUN=21), for the modem to acquire a satellite cell and
+	  register on the network. Once this timer expires the NTN attempt is
+	  aborted and the modem is taken to flight mode (CFUN=45).
+
+	  NTN cell search takes significantly longer than terrestrial NB-IoT
+	  because of long propagation delays, fewer search opportunities per
+	  DRX cycle and fewer cells. A value below ~60 seconds is rarely
+	  enough; 90-180 seconds is a reasonable range.
+
+config APP_NTN_REGISTERED_TIMEOUT_SECONDS
+	int "Extended NTN timeout once registered, in seconds"
+	default 20
+	help
+	  Once the modem reports CEREG registered (HOME or ROAMING) on the NTN
+	  network, the connection timeout is restarted with this value to give
+	  RRC connection setup, PDN activation and uplink data transfer enough
+	  time to complete before the application gives up and issues CFUN=45.
+
+	  This realises the gating rule "do not issue CFUN=45 while the network
+	  is registered until data transfer completes or fails".
+
+config APP_NTN_ABORT_ON_NOT_REGISTERED
+	bool "Abort NTN attempt immediately on CEREG=0"
+	default n
+	help
+	  When enabled, a CEREG=0 (NOT_REGISTERED) notification while in the
+	  NTN state immediately aborts the connection attempt and switches the
+	  modem to flight mode (CFUN=45).
+
+	  By default this is disabled because the modem may transiently report
+	  NOT_REGISTERED during normal NTN cell acquisition. Relying on the
+	  connection timeout (APP_NTN_NETWORK_CONNECTION_TIMEOUT_SECONDS) gives
+	  the search the time it actually needs.
+
 config APP_NTN_WATCHDOG_TIMEOUT_SECONDS
 	int "NTN module watchdog timeout in seconds"
 	default 300

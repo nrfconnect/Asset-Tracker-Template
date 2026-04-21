@@ -348,15 +348,24 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			/* cereg 0 */
 			LOG_DBG("LTE_LC_NW_REG_NOT_REGISTERED");
 			LOG_WRN("Not registered, check rejection cause");
+#if defined(CONFIG_APP_NTN_ABORT_ON_NOT_REGISTERED)
 			ntn_msg_publish(NETWORK_CONNECTION_FAILED);
+#else
+			/* The modem may transiently report NOT_REGISTERED during normal
+			 * NTN cell search.
+			 */
+			LOG_DBG("Ignoring transient CEREG=0; waiting for connection timeout");
+#endif /* CONFIG_APP_NTN_ABORT_ON_NOT_REGISTERED */
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME) {
 			/* cereg 1 */
 			LOG_DBG("LTE_LC_NW_REG_REGISTERED_HOME");
 			ntn_msg_publish(NTN_CELL_FOUND);
+			ntn_msg_publish(NTN_NETWORK_REGISTERED);
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
 			/* cereg 5 */
 			LOG_DBG("LTE_LC_NW_REG_REGISTERED_ROAMING");
 			ntn_msg_publish(NTN_CELL_FOUND);
+			ntn_msg_publish(NTN_NETWORK_REGISTERED);
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_SEARCHING) {
 			/* cereg 2 */
 			LOG_DBG("LTE_LC_NW_REG_SEARCHING");
@@ -543,10 +552,17 @@ static void cereg_mon(const char *notif)
 
 	status = (enum lte_lc_nw_reg_status)atoi(p);
 
-	if (status == LTE_LC_NW_REG_REGISTERED_HOME ||
-	    status == LTE_LC_NW_REG_SEARCHING ||
-	    status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
+	switch (status) {
+	case LTE_LC_NW_REG_REGISTERED_HOME:
+	case LTE_LC_NW_REG_REGISTERED_ROAMING:
 		ntn_msg_publish(NTN_CELL_FOUND);
+		ntn_msg_publish(NTN_NETWORK_REGISTERED);
+		break;
+	case LTE_LC_NW_REG_SEARCHING:
+		ntn_msg_publish(NTN_CELL_FOUND);
+		break;
+	default:
+		break;
 	}
 }
 
@@ -2258,8 +2274,18 @@ static void state_ntn_entry(void *obj)
 		LOG_ERR("Failed to set ntn active mode");
 	}
 
-	/* Start network connection timeout timer - 3 minutes */
-	k_timer_start(&state->network_connection_timeout_timer, K_MINUTES(3), K_NO_WAIT);
+	/* Start network connection timeout timer.
+	 *
+	 * NTN cell search and registration take significantly longer than
+	 * terrestrial NB-IoT due to long propagation delays and sparse search
+	 * opportunities, so this timeout must be sized generously.
+	 * Once the modem reports CEREG registered, the timer is restarted with
+	 * APP_NTN_REGISTERED_TIMEOUT_SECONDS so RRC/PDN setup and the actual
+	 * uplink data transfer get the time they need before CFUN=45 is issued.
+	 */
+	k_timer_start(&state->network_connection_timeout_timer,
+		      K_SECONDS(CONFIG_APP_NTN_NETWORK_CONNECTION_TIMEOUT_SECONDS),
+		      K_NO_WAIT);
 }
 
 static enum smf_state_result state_ntn_run(void *obj)
@@ -2358,6 +2384,24 @@ static enum smf_state_result state_ntn_run(void *obj)
 
 				state->modem_cell_found_time = k_uptime_get();
 			}
+
+			return SMF_EVENT_HANDLED;
+
+		case NTN_NETWORK_REGISTERED:
+			/* Modem is registered on the NTN network. Restart the connection
+			 * timeout timer with the extended "registered" timeout so that
+			 * RRC connection setup, PDN activation and uplink data transfer
+			 * have time to complete before the application gives up and
+			 * issues CFUN=45.
+			 *
+			 * This implements the gating rule "do not issue CFUN=45 while
+			 * registered until data transfer completes or fails".
+			 */
+			LOG_INF("NTN network registered, extending timeout to %d s",
+				CONFIG_APP_NTN_REGISTERED_TIMEOUT_SECONDS);
+			k_timer_start(&state->network_connection_timeout_timer,
+				      K_SECONDS(CONFIG_APP_NTN_REGISTERED_TIMEOUT_SECONDS),
+				      K_NO_WAIT);
 
 			return SMF_EVENT_HANDLED;
 

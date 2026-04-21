@@ -29,7 +29,8 @@ enum ntn_msg_type {
 	NTN_PDN_RESUMED, /* PDN connection resumed (context preserved) */
 	NTN_RRC_CONNECTED, /* RRC connected */
 	NTN_RRC_IDLE, /* RRC idle */
-	NTN_CELL_FOUND, /* Cell found */
+	NTN_CELL_FOUND, /* Cell found / modem reports searching or registered */
+	NTN_NETWORK_REGISTERED, /* Modem registered on NTN network (CEREG=1 or 5) */
 	LOCATION_SEARCH_DONE, /* Location search completed - triggers transition to NTN mode */
 	LOCATION_REQUEST, /*  */
 	GNSS_TIMEOUT, /* */
