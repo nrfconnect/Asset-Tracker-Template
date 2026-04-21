@@ -154,6 +154,7 @@ struct ntn_state_object {
 	int64_t  modem_connectivity_time;
 	int64_t  pdn_resumed_time;
 	bool rrc_is_connected;
+	bool is_registered;
 	struct sat_data sgp4_sat_data;
 };
 
@@ -2256,6 +2257,7 @@ static void state_ntn_entry(void *obj)
 	state->pdn_resumed_time = 0;
 	state->modem_cell_found_time = 0;
 	state->modem_connectivity_time = 0;
+	state->is_registered = false;
 
 	k_sleep(K_SECONDS(1));
 
@@ -2388,15 +2390,25 @@ static enum smf_state_result state_ntn_run(void *obj)
 			return SMF_EVENT_HANDLED;
 
 		case NTN_NETWORK_REGISTERED:
-			/* Modem is registered on the NTN network. Restart the connection
-			 * timeout timer with the extended "registered" timeout so that
-			 * RRC connection setup, PDN activation and uplink data transfer
-			 * have time to complete before the application gives up and
-			 * issues CFUN=45.
+			/* Both lte_lc_evt_handler and the +CEREG AT monitor publish
+			 * NTN_NETWORK_REGISTERED on registered states (CEREG=1/5), and
+			 * the modem may emit several CEREG URCs during a single attempt
+			 * (e.g. on TAC change). Without gating, every event would
+			 * re-arm the timer with the extended timeout and could keep
+			 * STATE_NTN alive indefinitely while RRC never comes up.
 			 *
-			 * This implements the gating rule "do not issue CFUN=45 while
+			 * Extend the timeout exactly once, the first time we see
+			 * registration. Subsequent events are no-ops.
+			 *
+			 * Implements the gating rule "do not issue CFUN=45 while
 			 * registered until data transfer completes or fails".
 			 */
+			if (state->is_registered) {
+				return SMF_EVENT_HANDLED;
+			}
+
+			state->is_registered = true;
+
 			LOG_INF("NTN network registered, extending timeout to %d s",
 				CONFIG_APP_NTN_REGISTERED_TIMEOUT_SECONDS);
 			k_timer_start(&state->network_connection_timeout_timer,
