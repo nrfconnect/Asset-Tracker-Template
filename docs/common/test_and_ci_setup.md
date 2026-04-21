@@ -12,11 +12,13 @@ The CI pipeline is composed of the following workflows:
 - [.github/workflows/build-and-target-test.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/build-and-target-test.yml): Workflow that glues together build.yml and target-test.yml.
 - [.github/workflows/sonarcloud.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/sonarcloud.yml): For building and running tests on emulation, and running Sonarcloud analysis.
 - [.github/workflows/compliance.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/compliance.yml): For static compliance checks.
+- [.github/workflows/doc-sync.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/doc-sync.yml): For publishing documentation to Nordic Semiconductor's external documentation platform.
+- [.github/workflows/create-doc-bundle.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/create-doc-bundle.yml): Creates the documentation bundle uploaded to Nordic Semiconductor's [official documentation site](https://docs.nordicsemi.com/bundle/asset-tracker-template-latest/page/index.html).
 
 The CI pipeline is triggered as follows:
 
 - Pull Request: `build.yml`, `sonarcloud.yml`, `compliance.yml`. No target tests are run on PR to avoid instabilities.
-- Push to main: `build-and-target-test.yml`, `sonarcloud.yml`. Only "fast" target tests are run. Avoiding excessively time-consuming tests.
+- Push to main: `build-and-target-test.yml`, `sonarcloud.yml`, `doc-sync.yml`. Only "fast" target tests are run. Avoiding excessively time-consuming tests.
 - Nightly: `build-and-target-test.yml`. Full set of target tests. Includes slow tests such as the full modem FOTA test and the power consumption test.
 
 ### Hardware Tests
@@ -69,6 +71,15 @@ Compliance checks are implemented in [.github/workflows/compliance.yml](https://
 - Code style and formatting (Nits)
 - Python code linting
 - Kernel coding style checks (checkpatch)
+
+### Documentation Sync
+
+The documentation sync workflow ([.github/workflows/doc-sync.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/doc-sync.yml)) is triggered on push to main when `docs/` changes. It performs two jobs:
+
+1. **Create documentation bundle**: Uses [create-doc-bundle.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/create-doc-bundle.yml) to package documentation for external publishing.
+2. **Publish documentation**: Uploads the documentation bundle to the prod and dev documentation hosting platforms.
+
+The `gh-pages` branch is kept in sync with main by the build workflow ([.github/workflows/build.yml](https://github.com/nrfconnect/Asset-Tracker-Template/blob/main/.github/workflows/build.yml)), which merges main into `gh-pages` before updating badge JSON files and interactive HTML reports (memory usage, power measurements) for the [GitHub Pages site](https://nrfconnect.github.io/Asset-Tracker-Template/).
 
 ### Key Features
 

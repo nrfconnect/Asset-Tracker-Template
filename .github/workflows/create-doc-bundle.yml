@@ -1,4 +1,4 @@
-name: Create Zoomin bundle
+name: Create documentation bundle
 
 on:
   pull_request:
@@ -12,13 +12,13 @@ permissions:
   contents: read
 
 jobs:
-  create-zoomin-bundle:
-    name: Create Zoomin bundle
+  create-doc-bundle:
+    name: Create documentation bundle
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Copy zoomin properties
+      - name: Copy documentation properties
         run: cp zoomin/* .
 
       - name: Create zip file

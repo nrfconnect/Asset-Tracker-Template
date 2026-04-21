@@ -1,0 +1,69 @@
+name: Documentation sync
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  create-doc-bundle:
+    name: Create documentation bundle
+    uses: './.github/workflows/create-doc-bundle.yml'
+
+  publish-docs-prod:
+    name: Publish documentation to prod
+    needs: create-doc-bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: asset-tracker-template
+      - name: Upload documentation
+        run: |
+          # trust server
+          mkdir -p ~/.ssh
+          ssh-keyscan upload-v1.zoominsoftware.io >> ~/.ssh/known_hosts
+
+          # prepare key
+          echo "${{ secrets.ZOOMIN_KEY }}" > zoomin_key
+          chmod 600 zoomin_key
+
+          # upload bundle:
+          sftp -v -i zoomin_key nordic@upload-v1.zoominsoftware.io <<EOF
+          cd /docs-be.nordicsemi.com/markdown/incoming
+          put asset-tracker-template.zip
+          quit
+          EOF
+
+  publish-docs-dev:
+    name: Publish documentation to dev
+    needs: create-doc-bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: asset-tracker-template
+      - name: Upload documentation
+        run: |
+          # trust server
+          mkdir -p ~/.ssh
+          ssh-keyscan upload-v1.zoominsoftware.io >> ~/.ssh/known_hosts
+
+          # prepare key
+          echo "${{ secrets.ZOOMIN_KEY }}" > zoomin_key
+          chmod 600 zoomin_key
+
+          # upload bundle:
+          sftp -v -i zoomin_key nordic@upload-v1.zoominsoftware.io <<EOF
+          cd /nordic-be-dev.zoominsoftware.io/markdown/incoming
+          put asset-tracker-template.zip
+          quit
+          EOF
