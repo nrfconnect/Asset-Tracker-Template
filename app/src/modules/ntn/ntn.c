@@ -2405,8 +2405,22 @@ static enum smf_state_result state_ntn_run(void *obj)
 
 			return SMF_EVENT_HANDLED;
 
-		case NETWORK_CONNECTION_FAILED:
 		case NETWORK_CONNECTION_TIMEOUT:
+			/* The timer fires from ISR context, the work item then
+			 * publishes NETWORK_CONNECTION_TIMEOUT on zbus. By the
+			 * time SMF processes the message, an NTN_NETWORK_REGISTERED
+			 * may already have restarted the timer with the extended
+			 * "registered" timeout. Detect that case and ignore the
+			 * stale timeout so the freshly armed window is honoured.
+			 */
+			if (k_timer_remaining_get(
+				    &state->network_connection_timeout_timer) > 0) {
+				LOG_DBG("Stale NETWORK_CONNECTION_TIMEOUT, "
+					"timer was restarted; ignoring");
+				return SMF_EVENT_HANDLED;
+			}
+			__fallthrough;
+		case NETWORK_CONNECTION_FAILED:
 #if defined(CONFIG_SOFTSIM)
 			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
 #else
