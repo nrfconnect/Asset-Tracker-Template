@@ -155,7 +155,7 @@ See [Provisioning to nRF Cloud](docs/common/provisioning.md) for more details.
   </tr>
   <tr>
     <td><a href="docs/common/customization.md">Customization</a></td>
-    <td><a href="docs/modules/index.md">Modules</a></td>
+    <td><a href="docs/modules/overview_modules.md">Modules</a></td>
     <td><a href="docs/common/provisioning.md">Provisioning</a></td>
   </tr>
   <tr>
