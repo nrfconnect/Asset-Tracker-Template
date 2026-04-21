@@ -545,11 +545,36 @@ static void ntn_msg_publish(enum ntn_msg_type type)
  * this means LTE_LC_EVT_NW_REG_STATUS / LTE_LC_EVT_CELL_UPDATE never fire
  * and modem_cell_found_time is never set. Monitor +CEREG directly to work
  * around this.
+ *
+ * Parsing is intentionally defensive:
+ *  - Locate the ':' rather than assuming a fixed prefix length, so a missing
+ *    space or slightly different formatting does not produce garbage.
+ *  - Skip whitespace, require at least one digit, then atoi the value.
+ *  - Only act on the registration-status values we care about; everything
+ *    else (including unparsable input) is ignored silently.
  */
 static void cereg_mon(const char *notif)
 {
 	enum lte_lc_nw_reg_status status;
-	const char *p = notif + sizeof("+CEREG: ") - 1;
+	const char *p;
+
+	if (notif == NULL) {
+		return;
+	}
+
+	p = strchr(notif, ':');
+	if (p == NULL) {
+		return;
+	}
+	p++;
+
+	while (*p == ' ' || *p == '\t') {
+		p++;
+	}
+
+	if (*p < '0' || *p > '9') {
+		return;
+	}
 
 	status = (enum lte_lc_nw_reg_status)atoi(p);
 
