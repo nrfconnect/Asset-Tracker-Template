@@ -4,7 +4,6 @@
 ##########################################################################################
 
 import os
-import pytest
 import time
 from utils.flash_tools import flash_device, reset_device
 import sys
@@ -28,6 +27,7 @@ RUNTIME_STORAGE_THRESHOLD = 3
 def wait_for_config_reported(cloud, device_id, expected_update, expected_sample, expected_threshold):
     """Poll the cloud until the device reports the expected config values."""
     start = time.time()
+    update_interval = sample_interval = storage_threshold = None
     while time.time() - start < CLOUD_TIMEOUT:
         time.sleep(5)
         try:
@@ -36,8 +36,11 @@ def wait_for_config_reported(cloud, device_id, expected_update, expected_sample,
             update_interval = device_state["reported"]["config"]["update_interval"]
             sample_interval = device_state["reported"]["config"]["sample_interval"]
             storage_threshold = device_state["reported"]["config"]["storage_threshold"]
-        except Exception as e:
-            pytest.skip(f"Unable to retrieve device state from cloud, e: {e}")
+        except (KeyError, TypeError) as e:
+            # Expected while the device has not yet reported its shadow: the
+            # `reported.config.*` keys are missing. Keep polling.
+            logger.debug(f"Reported config not available yet: {e}")
+            continue
 
         logger.debug(f"Device state: {device_state}")
 
@@ -45,14 +48,13 @@ def wait_for_config_reported(cloud, device_id, expected_update, expected_sample,
             sample_interval == expected_sample and
             storage_threshold == expected_threshold):
             return
-        else:
-            logger.debug(
-                f"Config not yet fully updated. Current: "
-                f"update_interval={update_interval}, "
-                f"sample_interval={sample_interval}, "
-                f"storage_threshold={storage_threshold}"
-            )
-            continue
+
+        logger.debug(
+            f"Config not yet fully updated. Current: "
+            f"update_interval={update_interval}, "
+            f"sample_interval={sample_interval}, "
+            f"storage_threshold={storage_threshold}"
+        )
 
     raise RuntimeError(
         f"Configuration not correctly reported to cloud. "
