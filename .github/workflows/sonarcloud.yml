@@ -102,7 +102,7 @@ jobs:
         with:
           args: |
             --define sonar.cfamily.compile-commands=asset-tracker-template/${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
-            --define sonar.projectKey=nrfconnect_Asset-Tracker-Template
+            --define sonar.projectKey=nrfconnect-asset-tracker-template
             --define sonar.organization=nrfconnect
             --define sonar.host.url=https://sonarcloud.io
             --define sonar.coverageReportPaths=coverage.xml
@@ -123,7 +123,7 @@ jobs:
         with:
           args: |
             --define sonar.cfamily.compile-commands=asset-tracker-template/${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
-            --define sonar.projectKey=nrfconnect_Asset-Tracker-Template
+            --define sonar.projectKey=nrfconnect-asset-tracker-template
             --define sonar.organization=nrfconnect
             --define sonar.host.url=https://sonarcloud.io
             --define sonar.coverageReportPaths=coverage.xml
