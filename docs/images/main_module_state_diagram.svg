@@ -252,12 +252,12 @@
 			<text x="4" y="1130.16" class="st5">STATE_DISCONNECTED</text>		</g>
 		<g id="shape1044-176" transform="translate(78.2441,-831.737)">
 			<title>Sheet.1044</title>
-			<desc>entry / sampling_begin_common(); LOCATION_SEARCH_DONE ...</desc>
+			<desc>entry / trigger_sampling(); LOCATION_SEARCH_DONE ...</desc>
 			<path d="M0 1129.31 A6.99693 7.3555 -180 0 0 7 1136.66 L226.23 1136.66 A6.99693 7.3555 -180 0 0 233.23 1129.31 L233.23
 						 1076.59 A6.99693 7.3555 -180 0 0 226.23 1069.24 L7 1069.24 A6.99693 7.3555 -180 0 0 -0 1076.59 L0 1129.31
 						 Z" class="st1"/>
 			<text x="4" y="1100.55" class="st6">
-				<tspan x="4" dy="0" class="st10">entry / sampling_begin_common();</tspan>
+				<tspan x="4" dy="0" class="st10">entry / trigger_sampling();</tspan>
 				<tspan x="4" dy="2.4em" class="st10">LOCATION_SEARCH_DONE / ;</tspan>
 				<tspan x="4" dy="1.2em" class="st10">BUTTON_PRESS_SHORT / ignored();</tspan>
 			</text>		</g>
@@ -356,12 +356,12 @@
 			<text x="4" y="1130.16" class="st5">STATE_CONNECTED</text>		</g>
 		<g id="shape1073-238" transform="translate(82.5986,-582.5)">
 			<title>Sheet.1073</title>
-			<desc>entry / sampling_begin_common(); LOCATION_SEARCH_DONE ...</desc>
+			<desc>entry / trigger_sampling(); LOCATION_SEARCH_DONE ...</desc>
 			<path d="M0 1139.31 A6.99693 7.3555 -180 0 0 7 1146.66 L226.23 1146.66 A6.99693 7.3555 -180 0 0 233.23 1139.31 L233.23
 						 1076.59 A6.99693 7.3555 -180 0 0 226.23 1069.24 L7 1069.24 A6.99693 7.3555 -180 0 0 -0 1076.59 L0 1139.31
 						 Z" class="st1"/>
 			<text x="4" y="1100.55" class="st6">
-				<tspan x="4" dy="0" class="st10">entry / sampling_begin_common();</tspan>
+				<tspan x="4" dy="0" class="st10">entry / trigger_sampling();</tspan>
 				<tspan x="4" dy="2.4em" class="st10">LOCATION_SEARCH_DONE / ;</tspan>
 				<tspan x="4" dy="1.2em" class="st10">BUTTON_PRESS_SHORT / ignored();</tspan>
 				<tspan x="4" dy="1.2em" class="st10">STORAGE_THRESHOLD_REACHED / ignored();</tspan>

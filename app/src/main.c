@@ -487,7 +487,7 @@ static void poll_triggers_send(void)
 
 /* Common helpers for substates */
 
-static void sampling_begin_common(struct main_state *state_object)
+static void trigger_sampling(struct main_state *state_object)
 {
 	int err;
 	struct location_msg location_msg = {
@@ -516,6 +516,34 @@ static void sampling_begin_common(struct main_state *state_object)
 #endif /* CONFIG_APP_LED */
 
 	state_object->sample_start_time = k_uptime_seconds();
+
+#if defined(CONFIG_APP_POWER)
+	struct power_msg power_msg = {
+		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST,
+	};
+
+	err = zbus_chan_pub(&power_chan, &power_msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("Failed to publish power battery sample request, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+#endif /* CONFIG_APP_POWER */
+
+#if defined(CONFIG_APP_ENVIRONMENTAL)
+	struct environmental_msg environmental_msg = {
+		.type = ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST,
+	};
+
+	err = zbus_chan_pub(&environmental_chan, &environmental_msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("Failed to publish environmental sensor sample request, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+#endif /* CONFIG_APP_ENVIRONMENTAL */
 
 	err = zbus_chan_pub(&location_chan, &location_msg, PUB_TIMEOUT);
 	if (err) {
@@ -570,41 +598,6 @@ static void waiting_entry_common(const struct main_state *state_object)
 static void waiting_exit_common(void)
 {
 	timer_sample_stop();
-}
-
-static void sensor_triggers_send(void)
-{
-	int err;
-
-	(void)err;
-
-#if defined(CONFIG_APP_POWER)
-	struct power_msg power_msg = {
-		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST,
-	};
-
-	err = zbus_chan_pub(&power_chan, &power_msg, PUB_TIMEOUT);
-	if (err) {
-		LOG_ERR("Failed to publish power battery sample request, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-#endif /* CONFIG_APP_POWER */
-
-#if defined(CONFIG_APP_ENVIRONMENTAL)
-	struct environmental_msg environmental_msg = {
-		.type = ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST,
-	};
-
-	err = zbus_chan_pub(&environmental_chan, &environmental_msg, PUB_TIMEOUT);
-	if (err) {
-		LOG_ERR("Failed to publish environmental sensor sample request, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-#endif /* CONFIG_APP_ENVIRONMENTAL */
 }
 
 static void storage_send_data(struct main_state *state_object)
@@ -1254,7 +1247,7 @@ static void disconnected_sampling_entry(void *o)
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
-	sampling_begin_common(state_object);
+	trigger_sampling(state_object);
 }
 
 static enum smf_state_result disconnected_sampling_run(void *o)
@@ -1265,7 +1258,6 @@ static enum smf_state_result disconnected_sampling_run(void *o)
 		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
 		if (msg->type == LOCATION_SEARCH_DONE) {
-			sensor_triggers_send();
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_WAITING]);
 
 			return SMF_EVENT_HANDLED;
@@ -1368,7 +1360,7 @@ static void connected_sampling_entry(void *o)
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
-	sampling_begin_common(state_object);
+	trigger_sampling(state_object);
 }
 
 static enum smf_state_result connected_sampling_run(void *o)
@@ -1379,7 +1371,6 @@ static enum smf_state_result connected_sampling_run(void *o)
 		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
 		if (msg->type == LOCATION_SEARCH_DONE) {
-			sensor_triggers_send();
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_WAITING]);
 			return SMF_EVENT_HANDLED;
 		}
@@ -1390,6 +1381,14 @@ static enum smf_state_result connected_sampling_run(void *o)
 		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
 		if (msg->type == BUTTON_PRESS_SHORT) {
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	if (state_object->chan == &storage_chan) {
+		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
+
+		if (msg->type == STORAGE_THRESHOLD_REACHED) {
 			return SMF_EVENT_HANDLED;
 		}
 	}
