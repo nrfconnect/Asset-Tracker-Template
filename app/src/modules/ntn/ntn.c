@@ -2519,7 +2519,7 @@ static enum smf_state_result state_ntn_run(void *obj)
 			* It may take 10s to send data in NTN.
 			* k_sleep is added as intermediate solution
 			*/
-			k_sleep(K_MSEC(20000));
+			k_sleep(K_MSEC(30000));
 
 #if defined(CONFIG_SOFTSIM)
 			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
