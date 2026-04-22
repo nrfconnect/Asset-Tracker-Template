@@ -241,6 +241,11 @@ struct main_state {
 	 */
 	uint32_t sample_start_time;
 
+	/* Used to fire the very first sample immediately on boot regardless
+	 * of sample_start_time.
+	 */
+	bool first_sample_pending;
+
 	/* Start time of the most recent cloud sync. This is used to calculate the correct
 	 * time when scheduling the next cloud sync trigger.
 	 */
@@ -516,6 +521,7 @@ static void trigger_sampling(struct main_state *state_object)
 #endif /* CONFIG_APP_LED */
 
 	state_object->sample_start_time = k_uptime_seconds();
+	state_object->first_sample_pending = false;
 
 #if defined(CONFIG_APP_POWER)
 	struct power_msg power_msg = {
@@ -561,8 +567,7 @@ static void waiting_entry_common(const struct main_state *state_object)
 
 	/* Reschedule the next sample trigger */
 
-	/* Special case: sample_start_time == 0 means first sample, trigger immediately */
-	if (state_object->sample_start_time == 0) {
+	if (state_object->first_sample_pending) {
 		time_remaining = 0;
 	} else {
 		time_elapsed = k_uptime_seconds() - state_object->sample_start_time;
@@ -1781,6 +1786,7 @@ int main(void)
 	main_state.sample_interval_sec = CONFIG_APP_SAMPLING_INTERVAL_SECONDS;
 	main_state.update_interval_sec = CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS;
 	main_state.storage_threshold = CONFIG_APP_STORAGE_INITIAL_THRESHOLD;
+	main_state.first_sample_pending = true;
 
 	LOG_DBG("Main has started");
 
