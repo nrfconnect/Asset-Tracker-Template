@@ -1,5 +1,0 @@
-config-object = {
-    "config": {
-        "update_interval": uint .size 4
-    }
-}
