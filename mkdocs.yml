@@ -53,7 +53,7 @@ nav:
   - Architecture: common/architecture.md
   - Configuration: common/configuration.md
   - Customization: common/customization.md
-  - Provisioning: common/provisioning.md
+  - Connecting: common/connecting.md
   - Location services: common/location_services.md
   - Achieving low power: common/low_power.md
   - Firmware Updates (FOTA): common/fota.md

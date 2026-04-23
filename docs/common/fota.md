@@ -60,7 +60,7 @@ To verify a successful update:
 
 ## Performing FOTA updates
 
-You can update the FOTA updates using nRF Cloud Web UI or REST API.
+You can perform FOTA updates using the nRF Cloud Web UI or the REST API.
 
 ### Option 1: nRF Cloud Web UI
 
@@ -68,40 +68,45 @@ This is the recommended method for manual updates and testing.
 
 1. Navigate to [nRF Cloud](https://nrfcloud.com) and log in to your account.
 1. Select **Firmware Updates** in the **Device Management** tab on the left.
-1. Create Update Bundle:
+1. Create an update bundle:
 
-    1. Click on "Add bundle".
+    1. Click **Add bundle**.
     1. Upload your bundle file:
 
         - For application updates: `dfu_application.zip`
         - For bootloader updates: `dfu_mcuboot.zip`
 
-    1. Set **Update Type** (for example, LTE).
     1. Enter a **Name** for the bundle.
     1. Enter a **Version** string (this is only a label for the bundle list and is not used by the device).
     1. Click **Create/Upload Bundle**.
 
-1. Create FOTA Update:
+1. Create a FOTA update:
 
-    1. Click on "Create FOTA update"
-    1. Enter a **Name** and a **Description** of the update.
-    1. Select target device(s) through device or group selection.
-    1. Click on **Deploy now**.
     1. Click **Create FOTA Update**.
+    1. Enter a **Name** for the update.
+    1. Optionally enter a **Description**.
+    1. In the **Bundle** dropdown, select the bundle you uploaded in the previous step. The update type is determined by the bundle, so no separate type selector is required.
+    1. Select the target device or devices using one of the following fields:
 
-1. Monitor Progress:
+        - **Group** — deploys to every device in a predefined device group.
+        - **Devices** — pick individual devices by clicking their device UUID to add them to the selection.
 
-    - The **Overall Progress** section will go from **In Progress** to **Completed**.
-    - The individual device **Status** will progress: **Queued → Updating → Succeeded**.
-    - The device will automatically download and apply the update once it becomes online.
-    - To trigger an immediate FOTA poll, press and hold **Button 1** on the device.
+    1. Check **Deploy now** to start the update immediately after creation. Leave it unchecked to create the job and deploy it manually later.
+    1. Click **Create FOTA Update** to create the update.
 
-1. Verify Update:
+1. Monitor progress:
 
-    1. Navigate to your device page, click **Devices** under **Device Management** in the navigation pane on the left, and select your device
-    1. Click on **Device info** under the **Device Information** card.
+    - The **Overall Progress** section transitions from **In Progress** to **Completed**.
+    - The individual device **Status** progresses through **Queued → Updating → Succeeded**.
+    - The device automatically downloads and applies the update once it comes online.
+    - To trigger an immediate FOTA poll, press and hold **Button 1** on the device. On **Thingy:91 X**, pressing on the top of the case pushes Button 1.
+
+1. Verify the update:
+
+    1. Navigate to your device page: click **Devices** under **Device Management** in the navigation pane on the left, then click the device UUID in the list to open the device page.
+    1. Click **Device info** under the **Device Information** card.
     1. Check the **App Version** (for app updates) or **Modem Firmware** (for modem updates) field.
-    1. Confirm the version matches your new firmware.
+    1. Confirm that the version matches your new firmware.
 
 ### Option 2: REST API
 
@@ -116,7 +121,7 @@ export DEVICE_ID=<your-device-id>
 
 Find your API key in **User Account** settings in [nRF Cloud](https://nrfcloud.com/). See [nRF Cloud REST API](https://api.nrfcloud.com/) for reference.
 
-#### Complete Update Workflow
+#### Complete update workflow
 
 1. Create manifest and upload bundle:
 
@@ -183,7 +188,7 @@ Find your API key in **User Account** settings in [nRF Cloud](https://nrfcloud.c
 
 1. Verify the update by checking the device information in [nRF Cloud](https://nrfcloud.com/) (**App Version** or **Modem Firmware** field).
 
-#### API Reference
+#### API reference
 
 **List FOTA jobs**:
 

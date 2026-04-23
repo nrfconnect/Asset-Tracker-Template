@@ -52,8 +52,10 @@ Use the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect
 2. Open VS Code and go to the **nRF Connect** extension.
 3. Select **Create New Application**.
 4. Select **Browse nRF Connect SDK add-on Index**.
-4. Search for **Asset Tracker Template** and create the project.
-5. Use the **Actions** panel in the extension to build and flash the application.
+5. Search for **Asset Tracker Template** and create the project.
+6. In the **Applications** side panel, click **Add build configuration** under **app**.
+7. In the **Add Build Configuration (app)** dialog, set **Board target** to one of the supported build targets — `thingy91x/nrf9151/ns` (Thingy:91 X) or `nrf9151dk/nrf9151/ns` (nRF9151 DK). With the **Compatible** filter selected, only the supported targets are listed.
+8. Click **Generate and Build**, then use the **Actions** panel to flash and debug the application.
 
 ### Option 2: Command line
 
@@ -111,12 +113,16 @@ west flash --erase
 
 For more details, see the [Getting Started Guide](docs/common/getting_started.md).
 
-### Provision device to nRF Cloud
+### Connect device to nRF Cloud
 
-After building and flashing (using either option above), you need to provision the device to connect to [nRF Cloud](https://nrfcloud.com).
+After building and flashing (using either option above), connect the device to [nRF Cloud](https://nrfcloud.com). This involves three steps:
+
+- **Claiming** — registering the device with your nRF Cloud account using the attestation token.
+- **Provisioning** — the device securely receives cloud credentials from the nRF Provisioning Service.
+- **Cloud connection** — the device establishes a CoAP connection to nRF Cloud using the provisioned credentials.
 
 <details>
-<summary><strong>Provisioning steps</strong></summary>
+<summary><strong>Connecting</strong></summary>
 
 1. Get the device attestation token. Open a serial terminal connected to the device (115200 baud) and run the following AT command in the device shell:
 
@@ -124,11 +130,13 @@ After building and flashing (using either option above), you need to provision t
    at at%attesttoken
    ```
 
-   *Note: The token is also printed automatically to the serial log on first boot of unprovisioned devices.*
+   *Note: The token is also printed automatically to the serial log on first boot of unprovisioned devices, labelled `Attestation token:`.*
 
 2. Log in to the [nRF Cloud](https://nrfcloud.com) portal.
 3. Navigate to **Security Services** → **Claimed Devices** → **Claim Device**.
-4. Paste the attestation token, set rule to "nRF Cloud Onboarding", and click **Claim Device**.
+4. Paste the attestation token, set **Provisioning rule** to **nRF Cloud Onboarding**, and click **Claim Device**.
+
+    > **Important:** The **nRF Cloud Onboarding** rule is the named set of provisioning commands that tells nRF Cloud which credentials to deliver to the device. Selecting the correct rule is required.
 
     <details>
     <summary><strong>If "nRF Cloud Onboarding" rule is not showing:</strong></summary>
@@ -138,9 +146,11 @@ After building and flashing (using either option above), you need to provision t
     <img src="docs/images/claim.png" alt="Claim Device" width="300" />
     </details>
 
-5. After claiming, wait for the device to provision credentials and connect to nRF Cloud over CoAP. Once connected, the device will be available under **Device Management** → **Devices**. If you want a quicker response, press and hold **Button 1** on the device or reset it to trigger an immediate provisioning poll.
+5. Press and hold **Button 1** on the device for a couple of seconds to trigger provisioning. On **Thingy:91 X**, pressing on the top of the case pushes Button 1.
 
-See [Provisioning to nRF Cloud](docs/common/provisioning.md) for more details.
+   Once provisioning completes, the device appears under **Device Management** → **Devices**.
+
+See [Connecting to nRF Cloud](docs/common/connecting.md) for more details.
 </details>
 
 ---
@@ -156,7 +166,7 @@ See [Provisioning to nRF Cloud](docs/common/provisioning.md) for more details.
   <tr>
     <td><a href="docs/common/customization.md">Customization</a></td>
     <td><a href="docs/modules/overview_modules.md">Modules</a></td>
-    <td><a href="docs/common/provisioning.md">Provisioning</a></td>
+    <td><a href="docs/common/connecting.md">Connecting</a></td>
   </tr>
   <tr>
     <td><a href="docs/common/location_services.md">Location Services</a></td>

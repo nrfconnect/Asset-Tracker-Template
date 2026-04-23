@@ -66,22 +66,22 @@ This module allocates RAM from the following places, and understanding these hel
 
 - Shrink batch pipe buffer
 
-    - Set the `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` Kconfig option to a low value (for example,
-      from 64 to 256 bytes), but ensure it can hold at least one item of `sizeof(header) +
-      max_item_size` if you use batch mode.
+    - Set the `CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE` Kconfig option to a lower value (for example,
+      from 1024 down to 256 bytes), but ensure it can still hold at least one item of
+      `sizeof(header) + max_item_size` if you use batch mode.
 
 - Reduce thread and queues
 
-    - Set the `CONFIG_APP_STORAGE_THREAD_STACK_SIZE` Kconfig option to a lower value (for example, from 2048 to 1024), if your application leaves headroom.
-    - Reduce relevant zbus queue sizes in system config if traffic allows.
+    - Set the `CONFIG_APP_STORAGE_THREAD_STACK_SIZE` Kconfig option to a lower value (for example, from 2048 down to 1024) if your application leaves headroom.
+    - Reduce the relevant zbus queue sizes in the system configuration if traffic allows.
 
 - Remove development features
 
     - Disable the `CONFIG_APP_STORAGE_SHELL` and `CONFIG_APP_STORAGE_SHELL_STATS` Kconfig option to trim RAM and code footprint.
 
-- Prefer LittleFS backend when buffering many records
+- Prefer the LittleFS backend when buffering many records
 
-    - Use the littleFS backend when large value `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` is needed, since the RAM backend allocates all ring buffers at boot, while the littleFS backend only needs RAM for the currently stored records.
+    - Use the LittleFS backend when a large `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` value is needed, because the RAM backend allocates all ring buffers at boot, while the LittleFS backend only uses RAM for the currently stored records.
 
 - Ready-made Kconfig fragment
 
@@ -89,7 +89,7 @@ This module allocates RAM from the following places, and understanding these hel
 
 #### Minimal RAM example
 
-If your application will only ever operate with immediate sending (`CONFIG_APP_STORAGE_THRESHOLD=1`) the following `prj.conf` excerpt minimizes RAM usage for the storage module.
+If your application only needs immediate sending (`CONFIG_APP_STORAGE_INITIAL_THRESHOLD=1`), the following `prj.conf` excerpt minimizes RAM usage for the storage module.
 
 ```config
 # Minimal storage configuration
@@ -107,8 +107,7 @@ CONFIG_APP_STORAGE_SHELL_STATS=n
 ```
 
 > [!NOTE]
->
-> - For RAM backend the actual RAM consumed by ring buffers scales with which data types are enabled and the value of the `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` Kconfig option.
+> For the RAM backend, the actual RAM consumed by the ring buffers scales with which data types are enabled and the value of the `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` Kconfig option.
 
 ### Flash management (LittleFS backend)
 
@@ -142,7 +141,7 @@ Choose a partition size that meets or exceeds `flash_size`. The LittleFS partiti
 If the requirement is not met, either increase the partition (`CONFIG_PM_PARTITION_SIZE_LITTLEFS` or DTS partition size) or reduce storage pressure (fewer records, smaller data types, or fewer enabled types).
 
 > [!NOTE]
-> The data types are stored in separate files, so the minimum amount of flash blocks needed are ∑ data type + 3.
+> The data types are stored in separate files, so the minimum number of flash blocks needed is ∑ data types + 3.
 
 #### Target-specific defaults
 
@@ -195,21 +194,20 @@ To further optimize flash lifespan:
 
 The following sections showcase various configuration examples.
 
-##### Basic littleFS configuration
+##### Basic LittleFS configuration
 
 To enable persistent flash storage:
 
 ```config
 CONFIG_APP_STORAGE=y
 CONFIG_APP_STORAGE_BACKEND_LITTLEFS=y
-CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y
 
 # Configure partition size (default is 64 KB)
 CONFIG_PM_PARTITION_SIZE_LITTLEFS=0x10000
 
 # Adjust for your needs
 CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=16
-CONFIG_APP_STORAGE_THREAD_STACK_SIZE=3000
+CONFIG_APP_STORAGE_THREAD_STACK_SIZE=4000
 ```
 
 ##### Optimized for data persistence with minimal flash wear
@@ -218,14 +216,12 @@ CONFIG_APP_STORAGE_THREAD_STACK_SIZE=3000
 # Storage enabled with persistent backend
 CONFIG_APP_STORAGE=y
 CONFIG_APP_STORAGE_BACKEND_LITTLEFS=y
-CONFIG_APP_STORAGE_INITIAL_MODE_BUFFER=y
 
 # Larger partition distributes writes across more flash blocks
 CONFIG_PM_PARTITION_SIZE_LITTLEFS=0x20000
 
 # Higher record count reduces rewrite frequency
 CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=50
-
 ```
 
 ## Messages
@@ -320,7 +316,7 @@ The following includes the key configuration categories:
 - **CONFIG_APP_STORAGE_MAX_TYPES** (default: `3`): Maximum number of different data types that can be registered.
   Affects RAM usage.
 
-- **CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE** (default: `8`): Maximum records stored per data type.
+- **CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE** (default: `8` for the RAM backend, `64` for the LittleFS backend): Maximum records stored per data type.
   Total RAM usage = `MAX_TYPES` × `MAX_RECORDS_PER_TYPE` × `RECORD_SIZE`.
 
 - **CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE** (default: `1024`): Size of the internal buffer for batch data access.
@@ -340,7 +336,7 @@ The following includes the key configuration categories:
 
 ### Thread configuration
 
-- **CONFIG_APP_STORAGE_THREAD_STACK_SIZE** (default: `1536`): Stack size for the storage module's main thread.
+- **CONFIG_APP_STORAGE_THREAD_STACK_SIZE** (default: `2048` for the RAM backend, `4000` for the LittleFS backend): Stack size for the storage module's main thread.
 
 - **CONFIG_APP_STORAGE_WATCHDOG_TIMEOUT_SECONDS** (default: `60`): Watchdog timeout for detecting stuck operations.
 

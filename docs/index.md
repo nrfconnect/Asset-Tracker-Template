@@ -36,7 +36,9 @@ Use the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect
 3. Select **Create New Application**.
 4. Select **Browse nRF Connect SDK add-on Index**.
 5. Search for **Asset Tracker Template** and create the project.
-6. Use the **Actions** panel in the extension to build and flash the application.
+6. In the **Applications** side panel, click **Add build configuration** under **app**.
+7. In the **Add Build Configuration (app)** dialog, set **Board target** to one of the supported build targets — `thingy91x/nrf9151/ns` (Thingy:91 X) or `nrf9151dk/nrf9151/ns` (nRF9151 DK). With the **Compatible** filter selected, only the supported targets are listed.
+8. Click **Generate and Build**, then use the **Actions** panel to flash and debug the application.
 
 ### Option 2: Command line
 
@@ -84,19 +86,27 @@ west flash --erase
 
 For more details, see the [Getting Started Guide](common/getting_started.md).
 
-### Provision device to nRF Cloud
+### Connect device to nRF Cloud
 
-After building and flashing (using either option above), you need to provision the device to connect to [nRF Cloud](https://nrfcloud.com).
+After building and flashing (using either option above), connect the device to [nRF Cloud](https://nrfcloud.com). This involves three steps:
+
+- **Claiming** — registering the device with your nRF Cloud account using the attestation token.
+- **Provisioning** — the device securely receives cloud credentials from the nRF Provisioning Service.
+- **Cloud connection** — the device establishes a CoAP connection to nRF Cloud using the provisioned credentials.
 
 <details>
-<summary><strong>Provisioning steps</strong></summary>
+<summary><strong>Connecting</strong></summary>
 <ol>
 <li>Get the device attestation token. Open a serial terminal connected to the device (115200 baud) and run the following AT command in the device shell:
 <pre><code class="language-bash">at at%attesttoken</code></pre>
-The token is also printed automatically to the serial log on first boot of unprovisioned devices.</li>
+The token is also printed automatically to the serial log on first boot of unprovisioned devices, labelled <code>Attestation token:</code>.</li>
 <li>Log in to the <a href="https://nrfcloud.com">nRF Cloud</a> portal.</li>
 <li>Navigate to <strong>Security Services</strong> → <strong>Claimed Devices</strong> → <strong>Claim Device</strong>.</li>
-<li>Paste the attestation token, set rule to "nRF Cloud Onboarding", and click <strong>Claim Device</strong>.</li>
+<li>Paste the attestation token, set <strong>Provisioning rule</strong> to <strong>nRF Cloud Onboarding</strong>, and click <strong>Claim Device</strong>.</li>
+</ol>
+
+> [!IMPORTANT]
+> The **nRF Cloud Onboarding** rule is the named set of provisioning commands that tells nRF Cloud which credentials to deliver to the device. Selecting the correct rule is required.
 
 <details>
 <summary><strong>If "nRF Cloud Onboarding" rule is not showing:</strong></summary>
@@ -106,10 +116,14 @@ Create a new rule using the following configuration:<br>
 <img src="images/claim.png" alt="Claim Device" width="300" />
 </details>
 
-<li>After claiming, wait for the device to provision credentials and connect to nRF Cloud over CoAP. Once connected, the device will be available under <strong>Device Management</strong> → <strong>Devices</strong>. If you want a quicker response, press and hold <strong>Button 1</strong> on the device or reset it to trigger an immediate provisioning poll.</li>
+<ol start="5">
+<li>Press and hold <strong>Button 1</strong> on the device for a couple of seconds to trigger provisioning. On <strong>Thingy:91 X</strong>, pressing on the top of the case pushes Button 1.
+
+Once provisioning completes, the device appears under <strong>Device Management</strong> → <strong>Devices</strong>.
+</li>
 </ol>
 
-See <a href="common/provisioning.md">Provisioning to nRF Cloud</a> for more details.
+See <a href="common/connecting.md">Connecting to nRF Cloud</a> for more details.
 
 </details>
 
