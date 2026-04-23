@@ -415,7 +415,7 @@ Now that you have the application running, you can explore the following areas:
 
 * **Explore the architecture** - Understand how the modular, event-driven system works in the [Architecture](architecture.md) guide. This is a good starting point if you want to understand the design decisions and how modules interact.
 * **Configure the application** - Adjust sampling intervals, cloud sync frequency, location method priorities, and other runtime behavior using the [Configuration](configuration.md) guide. You can change the configuration both locally and remotely through the device shadow on nRF Cloud.
-* **Customize functionality** - Add new sensors, create custom modules, add new zbus events, or enable MQTT support following the [Customization](customization.md) guide.
+* **Extend the template** - Add new sensors, create custom modules, add new zbus events, or enable MQTT support following the [Extending the template](extending.md) guide.
 * **Perform firmware updates** - Deploy new firmware versions over-the-air using the [Firmware Updates (FOTA)](fota.md) guide. FOTA supports both application and modem firmware updates through nRF Cloud.
 * **Optimize power consumption** - Learn about the power-saving features and how to achieve the lowest power consumption for your use case in the [Low Power](low_power.md) guide.
 * **Set up location services** - Configure GNSS, Wi-Fi, and cellular positioning methods and their fallback priorities in the [Location Services](location_services.md) guide.
