@@ -1,8 +1,9 @@
 name: Create documentation bundle
 
 on:
-  pull_request:
-    types: [synchronize, opened, reopened]
+  push:
+    branches:
+      - main
     paths:
       - 'docs/**'
   workflow_dispatch:
@@ -12,8 +13,8 @@ permissions:
   contents: read
 
 jobs:
-  create-doc-bundle:
-    name: Create documentation bundle
+  create-zoomin-doc-bundle:
+    name: Create zoomin documentation bundle
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,4 +32,22 @@ jobs:
         with:
           name: asset-tracker-template
           path: asset-tracker-template.zip
+          retention-days: 7
+
+  create-ft-bundle:
+    name: Create ft documentation bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Create zip file
+        run: |
+          zip -r asset-tracker-template-ft.zip \
+          docs/* mkdocs.yml
+
+      - name: Upload documentation artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: asset-tracker-template-ft
+          path: asset-tracker-template-ft.zip
           retention-days: 7
