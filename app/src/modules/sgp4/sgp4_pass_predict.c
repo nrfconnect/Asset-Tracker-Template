@@ -54,7 +54,7 @@
 	 int64_t radius;
  };
 
- /* SIBCONFIG 32 AT ephemeris struct field order */
+ /* SIBREQ/SIBCONFIG 32 AT ephemeris struct field order */
  enum sib_ephemeris_field {
 	 FIELD_SATELLITE_ID = 0,
 	 FIELD_INCLINATION = 1,
@@ -384,25 +384,25 @@
 	 memcpy(buf, atsib32, atsib32_len);
 	 buf[atsib32_len] = '\0';
 
-	 /* Parse the SIBCONFIG header */
+	 /* Parse the SIBREQ/SIBCONFIG header */
 	 tok = strtok_r(buf, " ", &saveptr);
 	 if (!tok) {
-		 LOG_ERR("Failed to parse SIBCONFIG notification, no token found");
+		 LOG_ERR("Failed to parse SIB notification, no token found");
 		 ret = -EINVAL;
 		 goto cleanup;
 	 }
 
-	 if (strcmp(tok, "SIBCONFIG:") != 0) {
-		 LOG_ERR("Not a SIBCONFIG string");
+	 if (strcmp(tok, "SIBREQ:") != 0 && strcmp(tok, "SIBCONFIG:") != 0) {
+		 LOG_ERR("Not a SIBREQ/SIBCONFIG string");
 		 ret = -EINVAL;
 		 goto cleanup;
 	 }
 	 /* Parse the SIB number */
 	 tok = next_token(&saveptr, ",");
 	 sibnr = strtol(tok, NULL, 10);
-	 LOG_INF("SIB Number is %d",sibnr);
+	 LOG_INF("SIB Number is %d", sibnr);
 	 if (sibnr != 32) {
-		 LOG_ERR("Not a SIBCONFIG 32 string");
+		 LOG_ERR("Not a SIB 32 string");
 		 ret = -EINVAL;
 		 goto cleanup;
 	 }

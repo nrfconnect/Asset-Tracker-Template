@@ -50,7 +50,7 @@ LOG_MODULE_REGISTER(ntn_module, CONFIG_APP_NTN_LOG_LEVEL);
 
 static const char *sib32_payload_start(const char *notif)
 {
-	const char *sib32 = strstr(notif, "SIBCONFIG:");
+	const char *sib32 = strstr(notif, "SIBREQ:");
 
 	return sib32 != NULL ? sib32 : notif;
 }
@@ -76,7 +76,7 @@ static void sib32_mon(const char *notif)
 		return;
 	}
 
-	if (strncmp(sib32, "SIBCONFIG: 32,", strlen("SIBCONFIG: 32,")) != 0) {
+	if (strncmp(sib32, "SIBREQ: 32,", sizeof("SIBREQ: 32,") - 1) != 0) {
 		LOG_WRN("Ignoring AT monitor notification without SIB32 payload");
 		return;
 	}
@@ -95,7 +95,7 @@ static void sib32_mon(const char *notif)
 	LOG_INF("Queued SIB32 prediction data from AT monitor");
 }
 
-AT_MONITOR(sib32_monitor, "SIBCONFIG", sib32_mon, PAUSED);
+AT_MONITOR(sib32_monitor, "SIBREQ", sib32_mon, PAUSED);
 
 /* Define channels provided by this module */
 ZBUS_CHAN_DEFINE(NTN_CHAN,
@@ -659,8 +659,8 @@ static bool update_cached_sib32(struct ntn_state_object *state, const char *sib3
 	int err;
 	const char *sib32 = sib32_payload_start(sib32_data);
 
-	if (strncmp(sib32, "SIBCONFIG:", strlen("SIBCONFIG:")) != 0) {
-		LOG_WRN("Ignoring SIB32 payload without SIBCONFIG prefix");
+	if (strncmp(sib32, "SIBREQ:", sizeof("SIBREQ:") - 1) != 0) {
+		LOG_WRN("Ignoring SIB32 payload without SIBREQ prefix");
 		return false;
 	}
 
@@ -1103,17 +1103,6 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 
 	configure_periodic_search();
 
-	/* Configure SIB32 and start monitoring.
-	 * We do not require SIB32 to esablish a connection, so using type 1 to enable monitoring.
-	 */
-	err = nrf_modem_at_printf("AT%%SIBCONFIG=32,1");
-	if (err) {
-		LOG_ERR("Failed to configure SIB32, error: %d", err);
-
-		return err;
-	}
-
-	LOG_INF("SIB32 configured successfully");
 	at_monitor_resume(&sib32_monitor);
 
 	/* Enable packet-domain event reporting (+CGEV URCs) before activating
@@ -1628,7 +1617,7 @@ static void state_running_entry(void *obj)
 
 #ifndef CONFIG_SOFTSIM
 	if (!state->has_valid_tle && !state->has_valid_sib32) {
-		LOG_WRN("Provide SIB32 or TLE before running SGP4: att_ntn set_sib32 \"<SIBCONFIG: 32,...>\" or att_ntn set_tle \"<name>\" \"<line1>\" \"<line2>\"");
+		LOG_WRN("Provide SIB32 or TLE before running SGP4: att_ntn set_sib32 \"<SIBREQ: 32,...>\" or att_ntn set_tle \"<name>\" \"<line1>\" \"<line2>\"");
 	}
 #endif
 
@@ -2378,6 +2367,11 @@ static enum smf_state_result state_ntn_run(void *obj)
 
 			state->rrc_is_connected = true;
 			state->modem_connectivity_time = k_uptime_get();
+
+			err = nrf_modem_at_printf("AT%%SIBREQ=32");
+			if (err) {
+				LOG_WRN("SIBREQ=32 failed: %d", err);
+			}
 
 			if (state->pdn_resumed_time > 0) {
 				int32_t delta_ms;
