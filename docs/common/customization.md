@@ -659,7 +659,7 @@ The following are some of the available options for controlling the MQTT module:
     [00:01:19.350,921] <dbg> mqtt_helper: mqtt_evt_handler: MQTT_EVT_PINGRESP
     ```
 
-### **Module State Machine**
+### Module state machine
 
 The cloud MQTT module implements an internal state machine to manage the connection and reconnection logic.
 

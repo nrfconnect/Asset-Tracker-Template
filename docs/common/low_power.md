@@ -40,7 +40,7 @@ CONFIG_LTE_PSM_REQ_RAT_SECONDS=60      # Active Time: 1 minute
 
 It is recommended to configure a periodic TAU timer longer than the update interval of the application to avoid synchronization with the network between updates.
 
-See [Configuration guide - PSM](configuration.md#psm-power-saving-mode) for additional options. The actual values are negotiated with the network.
+See the [Configuration guide — PSM](configuration.md#power-saving-mode-psm) for additional options. The actual values are negotiated with the network.
 
 ### Extended Discontinuous Reception (eDRX)
 
@@ -55,17 +55,17 @@ eDRX is used to periodically sleep during the PSM active timer. With the default
 
 ### Update interval
 
-The following Kconfig options that are set in the `prj.conf` file control sampling and transmission frequency:
+The following Kconfig options set in the `prj.conf` file control sampling and transmission frequency:
 
 ```config
-CONFIG_APP_SAMPLING_INTERVAL_SECONDS=150    # Default: 2.5 minutes
-CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS=600            # Default: 10 minutes
-CONFIG_APP_STORAGE_INITIAL_THRESHOLD=1 # Default: 1 item
+CONFIG_APP_SAMPLING_INTERVAL_SECONDS=600      # Default: 10 minutes
+CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS=3600 # Default: 1 hour
+CONFIG_APP_STORAGE_INITIAL_THRESHOLD=1        # Default: 1 item
 ```
 
-Sensors and location are sampled and stored at every interval set in the `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` Kconfig option and sent to the cloud at every interval as set in the `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig option or when the number of stored items reaches the `CONFIG_APP_STORAGE_INITIAL_THRESHOLD` threshold.
+Sensors and location are sampled and stored at the interval set by the `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` Kconfig option, and sent to the cloud at the interval set by the `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig option or when the number of stored items reaches the `CONFIG_APP_STORAGE_INITIAL_THRESHOLD` threshold.
 
-You can adjust these Kconfig options at runtime using the nRF Cloud device shadow. See [Configuration guide](configuration.md#set-sampling-interval-and-logic-from-cloud) for details.
+You can adjust these values at runtime using the nRF Cloud device shadow. See the [Configuration guide](configuration.md#runtime-configurations) for details.
 
 **Impact:** Using longer intervals between operations and increasing the storage threshold results in fewer network connections and leads to lower power consumption.
 

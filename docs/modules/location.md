@@ -61,7 +61,7 @@ enum location_msg_type {
 
 ## Configurations
 
-Several Kconfig options in `Kconfig.location` control this module's behavior. The following configuration parameters are associated with this module::
+Several Kconfig options in `Kconfig.location` control this module's behavior. The following configuration parameters are associated with this module:
 
 - **CONFIG_APP_LOCATION:**
   Enables the location module. Automatically selected if **CONFIG_LOCATION** is enabled.
