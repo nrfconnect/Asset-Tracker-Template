@@ -121,10 +121,10 @@ The application is now built and flashed to the device. You can open a serial te
 
 You can build the application with different overlays to enable or disable certain features. The following are some examples of how to build the application with different overlays.
 
-Debug build with Memfault:
+Memfault integration is enabled by default via `prj.conf`. To additionally capture and upload modem traces on coredumps, add the modem trace overlay:
 
 ```shell
-west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-memfault.conf;overlay-upload-modem-traces-to-memfault.conf"
+west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="overlay-upload-modem-traces-to-memfault.conf"
 ```
 
 > Note: By default, Memfault data is routed via CoAP to the Memfault project linked to your provisioned nRF Cloud account (see below for provisioning steps). To override this, set `CONFIG_MEMFAULT_NCS_PROJECT_KEY="YOUR_PROJECT_KEY"`.

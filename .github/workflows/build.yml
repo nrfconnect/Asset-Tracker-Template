@@ -178,6 +178,28 @@ jobs:
           version: ${{ env.VERSION }}
           path: asset-tracker-template/app
 
+      - name: Generate PR app-size diff
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BOARD: nrf9151dk/nrf9151/ns
+          PR_HEAD_ELF: artifacts/asset-tracker-template-${{ env.VERSION }}-nrf9151dk-nrf91.elf
+          SIZE_COMMENT_PATH: ${{ github.workspace }}/size-comment.md
+          CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # The zephyrproject-rtos/ci image installs the Zephyr SDK under
+          # /opt/toolchains but doesn't add its bin dirs to PATH.
+          SDK_BIN=$(ls -d /opt/toolchains/zephyr-sdk-*/arm-zephyr-eabi/bin 2>/dev/null | head -1)
+          [ -n "$SDK_BIN" ] && export PATH="$SDK_BIN:$PATH"
+          bash asset-tracker-template/scripts/ci/pr-size-diff.sh
+
+      - name: Post PR app-size sticky comment
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: app-size-report
+          path: ${{ github.workspace }}/size-comment.md
+
       # Asset Tracker Template debug firmware build
       - name: Build thingy91x debug firmware
         if: ${{ env.build_type == 'release' || env.build_type == 'all' }}
