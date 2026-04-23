@@ -27,9 +27,11 @@ theme:
 
 
 copyright:
-  Copyright &copy; 2025
+  Copyright &copy; 2026
 
 markdown_extensions:
+  - pymdownx.arithmatex:
+      generic: true
   - abbr
   - admonition
   - attr_list
@@ -43,9 +45,20 @@ markdown_extensions:
       permalink: true
       toc_depth: 4
 
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
 plugins:
   - macros
   - search
+
+ft_metadata:
+  ft:title: "Asset Tracker Template Add-on latest"
+  ft:clusterId: "asset-tracker-template-latest"
+  ft:locale: "en-US"
+  tags:
+    - "Asset Tracker Template Add-on latest"
 
 nav:
   - Overview: index.md
