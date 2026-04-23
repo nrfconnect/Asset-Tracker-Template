@@ -1,6 +1,6 @@
-# Customization
+# Extending the template
 
-This guide explains how to modify certain aspects of the template.
+This guide explains how to extend and customize the Asset Tracker Template. It covers common tasks such as adding new zbus events, integrating new sensors, creating your own modules, and replacing the default cloud backend.
 
 - [Add a new zbus event](#add-a-new-zbus-event)
 - [Add a new environmental sensor](#add-a-new-environmental-sensor)
@@ -9,11 +9,10 @@ This guide explains how to modify certain aspects of the template.
 
 ## Add a new zbus event
 
-This section demonstrates how to add a new event to a module and utilize it in another module within the system. In this example, you can add events to the power module to notify the system when VBUS is connected or disconnected on the Thingy:91 X.
-The main module subscribes to these events and requests specific LED patterns from the LED module in response.
+This section demonstrates how to add a new event to a module and consume it from another module. In this example, you add events to the power module to notify the system when VBUS is connected or disconnected on the Thingy:91 X. The main module subscribes to these events and requests specific LED patterns from the LED module in response:
 
-When VBUS is connected, the LED will toggle white rapidly.
-When VBUS is disconnected, the LED will toggle purple more slowly.
+- When VBUS is connected, the LED blinks white rapidly.
+- When VBUS is disconnected, the LED blinks purple slowly.
 
 ### Instructions
 
@@ -33,7 +32,8 @@ To add a new zbus event, complete the following procedure:
     };
     ```
 
-1. Implement publishing of VBUS connected and disconnected events by modifying the existing `event_callback()` function in `power.c`:
+1. Implement publishing of the VBUS connected and disconnected events by modifying the existing `event_callback()` function in `power.c`:
+
     ```c
     if (pins & BIT(NPM13XX_EVENT_VBUS_DETECTED)) {
         LOG_DBG("VBUS detected");
@@ -70,21 +70,24 @@ To add a new zbus event, complete the following procedure:
     }
     ```
 
-1. Make sure the channel is included in the subscriber module (for example, `main.c`). Add the channel to the channel list:
+1. Make sure the channel is observed by the subscriber module. In `app/src/main.c`, `power_chan` is already part of the `CHANNEL_LIST` when `CONFIG_APP_POWER` is enabled (which is the default on Thingy:91 X), so no change is needed there:
 
     ```c
-    #define CHANNEL_LIST(X)      \
-    X(cloud_chan,  struct cloud_msg)  \
-    X(button_chan,  struct button_msg)  \
-    X(fota_chan,  struct fota_msg)  \
-    X(network_chan,  struct network_msg)  \
-    X(location_chan, struct location_msg)  \
-    X(storage_chan,  struct storage_msg)  \
-    X(timer_chan,  struct timer_msg) \
-    X(power_chan,  struct power_msg) \
+    #define CHANNEL_LIST(X)                                         \
+        X(cloud_chan,       struct cloud_msg)                       \
+        X(button_chan,      struct button_msg)                      \
+        X(fota_chan,        struct fota_msg)                        \
+        X(network_chan,     struct network_msg)                     \
+        X(location_chan,    struct location_msg)                    \
+        X(storage_chan,     struct storage_msg)                     \
+        X(timer_chan,       struct timer_msg)                       \
+        X(priv_main_chan,   struct priv_main_msg)                   \
+        IF_ENABLED(CONFIG_APP_POWER, (X(power_chan, struct power_msg)))
     ```
 
-1. Implement a handler for the new events in the subscriber module (for example, in the main module's state machine in `running_run`):
+    If you are subscribing from a different module, add the channel to that module's `CHANNEL_LIST`.
+
+1. Implement a handler for the new events in the subscriber module. For example, add the following block to the `running_run()` state handler in `app/src/main.c`:
 
     ```c
     if (state_object->chan == &power_chan) {
@@ -141,23 +144,20 @@ To add a new zbus event, complete the following procedure:
 
 ## Add a new environmental sensor
 
-This section demonstrates how to add support for a new sensor to the environmental module.
-The environmental module will be updated to sample data from the sensor through the [Zephyr Sensor API](https://docs.zephyrproject.org/latest/hardware/peripherals/sensor/index.html).
-The data is forwarded to nRF Cloud along with the other environmental data.
+This section demonstrates how to add support for a new sensor to the environmental module. The environmental module is updated to sample data from the sensor through the [Zephyr Sensor API](https://docs.zephyrproject.org/latest/hardware/peripherals/sensor/index.html), and the data is forwarded to nRF Cloud together with the existing environmental data.
 
-In this example, support for the Bosch BMM350 magnetometer sensor is added.
-A similar procedure can be used for any sensor that supports the Zephyr Sensor API.
+In this example, support for the Bosch BMM350 magnetometer is added. A similar procedure applies to any sensor that supports the Zephyr Sensor API.
 
-The Thingy:91 X is used as the example board, as it is a supported board in the template with defined board files in the nRF Connect SDK.
+The Thingy:91 X is used as the example board, as it is a supported board in the template with board files defined in the nRF Connect SDK.
 
 ### Instructions
 
-Before adding a new sensor to the environmental module, ensure that the sensor's driver is available in the Zephyr RTOS and that the driver uses the Zephyr Sensor API. Zephyr includes such a driver for the Bosch BMM350 magnetometer.
+Before adding a new sensor, make sure the sensor's driver is available in Zephyr RTOS and uses the Zephyr Sensor API. Zephyr includes such a driver for the Bosch BMM350 magnetometer.
 
-1. Add the sensor to the devicetree and enable it. This will perform the following:
+1. Add the sensor to the devicetree and enable it. This step:
 
-    - Instantiate a devicetree node for the sensor.
-    - Initialize the driver and the sensor during boot.
+    - Instantiates a devicetree node for the sensor.
+    - Initializes the driver and the sensor during boot.
 
     In the case of the Bosch BMM350 magnetometer, the device is already added to the devicetree. The node can be found in the nRF Connect SDK in the `nrf/boards/nordic/thingy91x/thingy91x_common.dtsi` file.
 
@@ -194,20 +194,22 @@ Before adding a new sensor to the environmental module, ensure that the sensor's
 
 1. In the same file, update the sensor sampling function signature to include the magnetometer device:
 
-     ```c
-     static void sample_sensors(const struct device *const bme680, const struct device *const bmm350)
+    ```c
+    static void sample_sensors(const struct device *const bme680,
+                               const struct device *const bmm350)
     ```
 
-1.  In the `state_running_run()` function in the same file, update the function call to `sample_sensors()`:
+1. In the `state_running_run()` function in the same file, update the call to `sample_sensors()`:
 
     ```c
-     sample_sensors(state_object->bme680, state_object->bmm350);
+    sample_sensors(state_object->bme680, state_object->bmm350);
     ```
 
-1. Update the `sample_sensors()` function in the same file to sample from the new sensor and add the data to the outgoing message (the message struct will be extended in the next step):
+1. Update the `sample_sensors()` function in the same file to sample from the new sensor and add the data to the outgoing message (the message struct is extended in the next step):
 
     ```c
-    static void sample_sensors(const struct device *const bme680, const struct device *const bmm350)
+    static void sample_sensors(const struct device *const bme680,
+                               const struct device *const bmm350)
     {
         /* ... existing code, calls to sensor_sample_fetch() and sensor_channel_get() ... */
 
@@ -228,9 +230,9 @@ Before adding a new sensor to the environmental module, ensure that the sensor's
         }
 
         LOG_DBG("Magnetic field: X: %.2f G, Y: %.2f G, Z: %.2f G",
-        sensor_value_to_double(&magnetic_field[0]),
-        sensor_value_to_double(&magnetic_field[1]),
-        sensor_value_to_double(&magnetic_field[2]));
+                sensor_value_to_double(&magnetic_field[0]),
+                sensor_value_to_double(&magnetic_field[1]),
+                sensor_value_to_double(&magnetic_field[2]));
 
         struct environmental_msg msg = {
             /* ... existing fields ... */
@@ -254,13 +256,15 @@ Before adding a new sensor to the environmental module, ensure that the sensor's
     };
     ```
 
-1. Add cloud integration in the `cloud_environmental_send()` function in `app/src/modules/cloud/cloud_environmental.c` to send magnetometer data to nRF Cloud. There is no existing application ID for magnetometer data, so we use a custom message with the `"MAGNETIC_FIELD"` ID. Update the function as follows:
+1. Add cloud integration in the `cloud_environmental_send()` function in `app/src/modules/cloud/cloud_environmental.c` to send magnetometer data to nRF Cloud. There is no predefined application ID for magnetometer data, so the code below uses a custom `"MAGNETIC_FIELD"` ID. Update the function as follows:
 
     ```c
     int cloud_environmental_send(const struct environmental_msg *env,
-                                int64_t timestamp_ms,
-                                bool confirmable)
+                                 int64_t timestamp_ms,
+                                 bool confirmable)
     {
+        int err;
+
         /* ... existing code to send temperature, pressure and humidity ... */
 
         char mag_message[64];
@@ -272,12 +276,14 @@ Before adding a new sensor to the environmental module, ensure that the sensor's
                  env->magnetic_field[1],
                  env->magnetic_field[2]);
 
-        /* Send as a message with a custom app ID*/
+        /* Send as a JSON message with a custom app ID. The third argument
+         * (json) selects JSON when true, or CBOR when false.
+         */
         err = nrf_cloud_coap_message_send("MAGNETIC_FIELD",
-                                            mag_message,
-                                            false,
-                                            timestamp_ms,
-                                            confirmable);
+                                          mag_message,
+                                          true,
+                                          timestamp_ms,
+                                          confirmable);
         if (err) {
             LOG_ERR("Failed to send magnetometer data to cloud, error: %d", err);
             return err;
@@ -297,7 +303,7 @@ Before adding a new sensor to the environmental module, ensure that the sensor's
 
 ## Add your own module
 
-The dummy module serves as a template for understanding the module architecture and can be used as a foundation for custom modules.
+This section walks through creating a minimal "dummy" module. The dummy module illustrates the template's module architecture and can be used as a starting point for your own modules.
 
 ### Instructions
 
@@ -442,15 +448,17 @@ To add your own module, complete the following steps:
 
                 struct dummy_msg response = {
                     .type = DUMMY_SAMPLE_RESPONSE,
-                    .value = state_object->current_value
+                    .value = state_object->current_value,
                 };
 
-                int err = zbus_chan_pub(&dummy_chan, &response, K_NO_WAIT);
+                int err = zbus_chan_pub(&dummy_chan, &response, PUB_TIMEOUT);
                 if (err) {
                     LOG_ERR("Failed to publish response: %d", err);
                     SEND_FATAL_ERROR();
-                    return;
+                    return SMF_EVENT_HANDLED;
                 }
+
+                return SMF_EVENT_HANDLED;
             }
         }
 
@@ -574,33 +582,32 @@ The dummy module is now ready to use. It provides the following functionality:
 
 - Initializes with a counter value of `0`.
 - Increments the counter on each sample request.
-- Responds with the current counter value using zbus.
+- Responds with the current counter value over zbus.
 - Includes error handling and watchdog support.
-- Follows the state machine pattern used by other modules.
+- Follows the state machine pattern used by the other modules.
 
-To test the module, send a `DUMMY_SAMPLE_REQUEST` message to its zbus channel. The module responds with a `DUMMY_SAMPLE_RESPONSE` containing the incremented counter value.
+To test the module, publish a `DUMMY_SAMPLE_REQUEST` message to its zbus channel. The module responds with a `DUMMY_SAMPLE_RESPONSE` containing the incremented counter value.
 
-This dummy module serves as a template that you can extend to implement more complex functionality. You can add additional message types, state variables, and processing logic as needed for your specific use case.
+You can extend this dummy module by adding new message types, state variables, and processing logic to fit your specific use case.
 
 ## Enable support for MQTT
 
-To connect to a generic MQTT server using the Asset Tracker Template, you can use the example cloud module provided under `examples/modules/cloud`. This module replaces the default nRF Cloud CoAP-based cloud integration with a flexible MQTT client implementation.
+To connect to a generic MQTT server using the Asset Tracker Template, you can use the example cloud module provided under `examples/modules/cloud`. This module replaces the default nRF Cloud CoAP cloud integration with a flexible MQTT client implementation.
 
-- **MQTT module *default* configurations:**
+- **MQTT module default configuration:**
 
     - **Broker hostname:** [mqtt.nordicsemi.academy](https://mqtt.nordicsemi.academy/)
     - **Device/Client ID:** IMEI (International Mobile Equipment Identity)
     - **Port:** 8883
     - **TLS:** Yes
     - **Authentication:** Server only
-    - **CA:** examples/modules/cloud/creds/mqtt.nordicsemi.academy.pem
-    - **Subscribed topic:** imei/att-pub-topic
-    - **Publishing topic:** imei/att-sub-topic
+    - **CA certificate:** `examples/modules/cloud/creds/mqtt.nordicsemi.academy.pem`
+    - **Publish topic:** `<IMEI>/att-pub-topic`
+    - **Subscribe topic:** `<IMEI>/att-sub-topic`
 
 ### Configuration
 
-Configurations for the MQTT stack can be set in the `overlay-mqtt.conf` file and Kconfig options defined in `examples/modules/cloud/Kconfig.cloud_mqtt`.
-The following are some of the available options for controlling the MQTT module:
+Configuration for the MQTT stack is set through the `examples/modules/cloud/overlay-mqtt.conf` file and the Kconfig options defined in `examples/modules/cloud/Kconfig.cloud_mqtt`. The following are the main options for controlling the MQTT module:
 
 - `CONFIG_APP_CLOUD_MQTT`
 - `CONFIG_APP_CLOUD_MQTT_PROVISION_CREDENTIALS`
@@ -624,9 +631,9 @@ The following are some of the available options for controlling the MQTT module:
 - `CONFIG_APP_CLOUD_MQTT_WATCHDOG_TIMEOUT_SECONDS`
 - `CONFIG_APP_CLOUD_MQTT_MSG_PROCESSING_TIMEOUT_SECONDS`
 
-### How to use the MQTT Cloud Example
+### How to use the MQTT cloud example
 
-1. Build and flash with the MQTT overlay.
+1. Build and flash the application with the MQTT overlay.
 
     In the template's `app` folder, run:
 
@@ -667,16 +674,15 @@ The cloud MQTT module implements an internal state machine to manage the connect
 
 ### Limitations
 
-The MQTT cloud module is designed as a demonstration of how to replace the template's default nRF Cloud CoAP-based cloud module with an MQTT-based implementation. It is not intended to be a fully-featured solution and has the following limitations:
+The MQTT cloud module is intended as a demonstration of how to replace the template's default nRF Cloud CoAP cloud module with an MQTT-based implementation. It is not a fully featured solution and has the following limitations:
 
-- **Sensor and location support**:
-  The MQTT module does not implement support for encoding and sending sensor or location data to the MQTT broker.
-  You can send test payloads using the `att_cloud_publish_mqtt` shell command.
+- **Sensor and location support:**
+  The MQTT module does not encode or send sensor or location data to the broker. You can send test payloads using the `att_cloud_publish_mqtt` shell command.
 
-- **FOTA Support**:
-  The example MQTT module does not support firmware over-the-air (FOTA) updates, as these features rely on nRF Cloud CoAP functionality. This is a dependency of the FOTA module.
+- **FOTA support:**
+  The MQTT module does not support firmware over-the-air (FOTA) updates, as these rely on nRF Cloud CoAP functionality, which is a dependency of the FOTA module.
 
-- **Stub Channel for FOTA**:
-  To prevent build errors, the MQTT module includes a placeholder (stub) channel declaration for FOTA. If your application requires these features, you will need to implement a custom module tailored to your chosen cloud/FOTA service.
+- **Stub channel for FOTA:**
+  To prevent build errors, the MQTT module includes a placeholder (stub) channel declaration for FOTA. If your application needs FOTA, implement a custom module tailored to your chosen cloud and FOTA service.
 
-For production use, it is recommended to utilize the default nRF Cloud CoAP cloud module, which provides comprehensive support for FOTA and other advanced features.
+For production use, we recommend the default nRF Cloud CoAP cloud module, which provides comprehensive support for FOTA and other advanced features.

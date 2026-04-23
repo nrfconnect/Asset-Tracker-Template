@@ -164,7 +164,7 @@ See [Connecting to nRF Cloud](docs/common/connecting.md) for more details.
     <td><a href="docs/common/configuration.md">Configuration</a></td>
   </tr>
   <tr>
-    <td><a href="docs/common/customization.md">Customization</a></td>
+    <td><a href="docs/common/extending.md">Extending</a></td>
     <td><a href="docs/modules/overview_modules.md">Modules</a></td>
     <td><a href="docs/common/connecting.md">Connecting</a></td>
   </tr>

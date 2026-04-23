@@ -52,7 +52,7 @@ nav:
   - Getting started: common/getting_started.md
   - Architecture: common/architecture.md
   - Configuration: common/configuration.md
-  - Customization: common/customization.md
+  - Extending the template: common/extending.md
   - Connecting: common/connecting.md
   - Location services: common/location_services.md
   - Achieving low power: common/low_power.md
