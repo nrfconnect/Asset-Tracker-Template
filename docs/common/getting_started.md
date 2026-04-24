@@ -53,8 +53,7 @@ For pre-built binaries that do not require a build environment, refer to the lat
 > ```shell
 > west thingy91x-reset
 > ```
-
-> [!NOTE]
+>
 > When flashing through an external debugger (nRF9151 DK, or Thingy:91 X with a J-Link attached), use the **Erase and flash to board** icon next to **Flash** in the **Actions** panel, not the default **Flash** action. The default action does not erase UICR and fails with a UICR error when the new firmware writes different UICR contents.
 
 For more details on how to use the nRF Connect for VS Code, refer to the [nRF Connect for VS Code documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html).
