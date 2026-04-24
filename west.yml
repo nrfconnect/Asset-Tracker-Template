@@ -9,6 +9,8 @@ manifest:
   remotes:
     - name: ncs
       url-base: https://github.com/nrfconnect
+    - name: nordicsemi
+      url-base: https://github.com/nordicsemi
 
   projects:
     - name: nrf
@@ -16,3 +18,8 @@ manifest:
       repo-path: sdk-nrf
       revision: v3.3.0-rc2
       import: true
+    - name: zcbor
+      remote: nordicsemi
+      repo-path: zcbor
+      revision: pull/425/head
+      path: modules/lib/zcbor

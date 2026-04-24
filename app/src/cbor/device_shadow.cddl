@@ -1,8 +1,7 @@
 ; Device Shadow Object Definition
 ; --------------------------------
 ; This unified structure defines both "desired" (cloud-to-device) and "reported" (device-to-cloud)
-; objects in the device shadow. All sections are optional, but if present, they must appear in
-; the specified order when decoding the CBOR buffer.
+; objects in the device shadow. All sections are optional.
 ;
 ; Sections:
 ; 1. "config": Device configuration parameters.
@@ -37,6 +36,6 @@ shadow-object = {
         ? "storage_threshold": uint .size 4 .ge 0 .le @CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE@,
         * tstr => any
     },
-    ? "command": [type: uint .size 4 .ge 1 .le 1, id: uint .size 4 .ge 1 .le 4294967295],
+    ? "command": [type: uint .eq 1, id: uint .size 4 .ge 1 .le 4294967295],
     * tstr => any
 }
