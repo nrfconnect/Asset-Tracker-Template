@@ -1,6 +1,6 @@
-# Extending the template
+# Modifying the template
 
-This guide explains how to extend and customize the Asset Tracker Template. It covers common tasks such as adding new zbus events, integrating new sensors, creating your own modules, and replacing the default cloud backend.
+This guide explains how to modify the Asset Tracker Template to fit your use case. It covers common tasks such as adding new zbus events, integrating new sensors, creating your own modules, and replacing the default cloud backend.
 
 - [Add a new zbus event](#add-a-new-zbus-event)
 - [Add a new environmental sensor](#add-a-new-environmental-sensor)
