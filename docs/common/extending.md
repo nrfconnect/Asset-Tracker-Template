@@ -276,12 +276,9 @@ Before adding a new sensor, make sure the sensor's driver is available in Zephyr
                  env->magnetic_field[1],
                  env->magnetic_field[2]);
 
-        /* Send as a JSON message with a custom app ID. The third argument
-         * (json) selects JSON when true, or CBOR when false.
-         */
         err = nrf_cloud_coap_message_send("MAGNETIC_FIELD",
                                           mag_message,
-                                          true,
+                                          false,
                                           timestamp_ms,
                                           confirmable);
         if (err) {
@@ -321,6 +318,8 @@ To add your own module, complete the following steps:
     - `app/src/modules/dummy/dummy.c` - Module implementation.
     - `app/src/modules/dummy/Kconfig.dummy` - Module configuration options.
     - `app/src/modules/dummy/CMakeLists.txt` - Build system configuration.
+
+    An optional `dummy_shell.c` file is added later in the [Add shell support](#add-shell-support) section.
 
 1. In `app/src/modules/dummy/dummy.h`, define the module's interface:
 
@@ -564,10 +563,10 @@ To add your own module, complete the following steps:
     target_include_directories(app PRIVATE .)
     ```
 
-1. Add the module directory to the `app/CMakeLists.txt` file:
+1. Register the module directory in the `app/CMakeLists.txt` file. Use `add_subdirectory_ifdef` so the module is only compiled when `CONFIG_APP_DUMMY` is enabled, matching the pattern used by the other optional modules:
 
     ```cmake
-    add_subdirectory(src/modules/dummy)
+    add_subdirectory_ifdef(CONFIG_APP_DUMMY src/modules/dummy)
     ```
 
 1. Add the module's Kconfig file to the `app/Kconfig` file:
@@ -586,7 +585,135 @@ The dummy module is now ready to use. It provides the following functionality:
 - Includes error handling and watchdog support.
 - Follows the state machine pattern used by the other modules.
 
-To test the module, publish a `DUMMY_SAMPLE_REQUEST` message to its zbus channel. The module responds with a `DUMMY_SAMPLE_RESPONSE` containing the incremented counter value.
+To trigger the module from C code, publish a `DUMMY_SAMPLE_REQUEST` to `dummy_chan`:
+
+```c
+struct dummy_msg req = { .type = DUMMY_SAMPLE_REQUEST };
+
+err = zbus_chan_pub(&dummy_chan, &req, PUB_TIMEOUT);
+if (err) {
+    LOG_ERR("Failed to request dummy sample: %d", err);
+}
+```
+
+For an interactive way to drive the module during development, add a shell command as described in the next section.
+
+### Add shell support
+
+A shell command gives you an easy way to publish requests and inspect responses without rebuilding or reflashing. The template uses this pattern in several modules (for example `power_shell.c`, `network_shell.c`, `cloud_shell.c`) and you can reuse it for your own modules.
+
+The recipe has three parts:
+
+- A `<module>_shell.c` file that registers a `SHELL_CMD_REGISTER` root command and a zbus listener that prints responses.
+- A Kconfig option (`CONFIG_APP_<MODULE>_SHELL`, default `y if SHELL`) that gates the shell file so it is compiled only when the shell subsystem is enabled.
+- A `target_sources_ifdef()` line in the module's `CMakeLists.txt` so the shell file is built only when the option is set.
+
+Apply the recipe to the dummy module as follows:
+
+1. Create `app/src/modules/dummy/dummy_shell.c`:
+
+    ```c
+    #include <zephyr/shell/shell.h>
+    #include <zephyr/zbus/zbus.h>
+    #include <zephyr/kernel.h>
+    #include <zephyr/logging/log.h>
+    #include <errno.h>
+
+    #include "app_common.h"
+    #include "dummy.h"
+
+    LOG_MODULE_DECLARE(dummy_module, CONFIG_APP_DUMMY_LOG_LEVEL);
+
+    static bool sample_requested;
+
+    static void dummy_shell_listener_callback(const struct zbus_channel *chan)
+    {
+        if (!sample_requested) {
+            return;
+        }
+
+        const struct dummy_msg *msg = zbus_chan_const_msg(chan);
+
+        if (msg->type == DUMMY_SAMPLE_RESPONSE) {
+            LOG_INF("Dummy sample response: %d", msg->value);
+            sample_requested = false;
+        }
+    }
+
+    ZBUS_LISTENER_DEFINE(dummy_shell_listener, dummy_shell_listener_callback);
+    ZBUS_CHAN_ADD_OBS(dummy_chan, dummy_shell_listener, 0);
+
+    static int cmd_dummy_sample(const struct shell *sh, size_t argc, char **argv)
+    {
+        ARG_UNUSED(argc);
+        ARG_UNUSED(argv);
+
+        int err;
+        struct dummy_msg msg = {
+            .type = DUMMY_SAMPLE_REQUEST,
+        };
+
+        err = zbus_chan_pub(&dummy_chan, &msg, PUB_TIMEOUT);
+        if (err) {
+            shell_print(sh, "Failed to send request: %d", err);
+            return err;
+        }
+
+        sample_requested = true;
+        shell_print(sh, "Requesting dummy sample...");
+        return 0;
+    }
+
+    SHELL_STATIC_SUBCMD_SET_CREATE(
+        sub_cmds,
+        SHELL_CMD(sample,
+                  NULL,
+                  "Request a dummy sample (publishes DUMMY_SAMPLE_REQUEST and prints the response)",
+                  cmd_dummy_sample),
+        SHELL_SUBCMD_SET_END);
+
+    SHELL_CMD_REGISTER(att_dummy,
+                       &sub_cmds,
+                       "Asset Tracker Template Dummy module commands",
+                       NULL);
+    ```
+
+    The listener checks a local `sample_requested` flag so it logs only the responses triggered by the most recent shell command, rather than every `DUMMY_SAMPLE_RESPONSE` published on the channel.
+
+1. Add the Kconfig option to `app/src/modules/dummy/Kconfig.dummy`, inside the existing `if APP_DUMMY` block:
+
+    ```kconfig
+    config APP_DUMMY_SHELL
+        bool "Dummy module shell commands"
+        default y if SHELL
+        help
+            Enable shell commands for the dummy module. Adds the att_dummy sample
+            command, which publishes a DUMMY_SAMPLE_REQUEST and logs the response.
+    ```
+
+1. Append the conditional source to `app/src/modules/dummy/CMakeLists.txt`:
+
+    ```cmake
+    target_sources_ifdef(CONFIG_APP_DUMMY_SHELL app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/dummy_shell.c)
+    ```
+
+To apply the same pattern to your own module, replace `dummy` with your module name in the file, Kconfig symbol, CMake option, channel, and message type. The root command (`att_dummy` here) is conventionally `att_<module>` so all template commands share a common prefix.
+
+### Test the module via the shell
+
+Build and flash the application, then open a serial terminal at `115200` baud and request a sample:
+
+```text
+uart:~$ att_dummy sample
+Requesting dummy sample...
+[00:00:43.080,932] <inf> dummy_module: Dummy sample response: 1
+uart:~$ att_dummy sample
+Requesting dummy sample...
+[00:05:40.587,219] <inf> dummy_module: Dummy sample response: 2
+uart:~$
+```
+
+Each invocation publishes a `DUMMY_SAMPLE_REQUEST` to `dummy_chan`. The module's state machine handles it, increments its internal counter, and publishes a `DUMMY_SAMPLE_RESPONSE`. The shell's listener prints the counter value, confirming the round trip works end to end.
 
 You can extend this dummy module by adding new message types, state variables, and processing logic to fit your specific use case.
 
