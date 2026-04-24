@@ -1,6 +1,12 @@
 # Getting started
 
-To get started with the Asset Tracker Template, you need to set up the development environment, build the application, and run it on supported hardware.
+This guide walks you through getting the Asset Tracker Template running end-to-end on supported hardware. It covers:
+
+* Setting up the development environment
+* Building the application
+* Flashing the application to the device
+* Connecting the device to [nRF Cloud](https://nrfcloud.com)
+
 There are two options for setting up the project, depending on your preferred development environment:
 
 * **Option 1**: Using Visual Studio Code and the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) (recommended).
@@ -32,39 +38,42 @@ For pre-built binaries that do not require a build environment, refer to the lat
 1. After the build completes, the **Actions** panel is populated with options such as **Build**, **Flash**, **Debug**, **nRF Kconfig GUI**, and **Memory report**. Use these to flash, debug, and reconfigure the application.
 
 > [!NOTE]
-> The built-in **Flash** action programs the device through an external debugger. **Thingy:91 X** does not have an on-board debugger, so without an external J-Link attached you need to flash it over the serial bootloader instead. From a terminal in the toolchain environment:
+> The built-in **Flash** action programs the device through an external debugger. **Thingy:91 X** does not have an on-board debugger, so without an external J-Link attached you need to flash it over the serial bootloader instead. From a terminal in the toolchain environment, use one of the following alternatives:
 >
-> 1. List connected devices to find the Thingy:91 X serial number:
+> **Alternative 1 (recommended) — `west thingy91x-dfu`:** auto-discovers the Thingy:91 X and flashes `build/dfu_application.zip`.
 >
->     ```shell
->     nrfutil device list
->     ```
+> ```shell
+> west thingy91x-dfu
+> ```
 >
->     In the output, locate the entry with **Product: `Thingy:91 X UART`** and the **`mcuBoot`** trait. Its identifier (for example `THINGY91X_ED0E7655C09`) is the serial number to use in the next step:
+> **Alternative 2 — `nrfutil device program`:** requires the Thingy:91 X serial number. Find it with `nrfutil device list` by locating the entry with **Product: `Thingy:91 X UART`** and the **`mcuBoot`** trait:
 >
->     ```
->     851006699
->     Product         J-Link
->     Traits          usb, jlink, seggerUsb
+> ```shell
+> nrfutil device list
+> ```
 >
->     THINGY91X_ED0E7655C09       <-- this is the Thingy:91 X serial number
->     Product         Thingy:91 X UART
->     Ports           /dev/tty.usbmodem142102, vcom: 0
->                     /dev/tty.usbmodem142105, vcom: 1
->     Traits          mcuBoot, modem, serialPorts, nordicUsb, usb
->     ```
+> ```
+> 851006699
+> Product         J-Link
+> Traits          usb, jlink, seggerUsb
 >
-> 2. Flash the application using one of the following commands:
+> THINGY91X_ED0E7655C09       <-- this is the Thingy:91 X serial number
+> Product         Thingy:91 X UART
+> Ports           /dev/tty.usbmodem142102, vcom: 0
+>                 /dev/tty.usbmodem142105, vcom: 1
+> Traits          mcuBoot, modem, serialPorts, nordicUsb, usb
+> ```
 >
->     ```shell
->     # Using west (recommended)
->     west thingy91x-dfu
+> Then flash, replacing `<serial-number>` with the identifier from the previous command (for example `THINGY91X_ED0E7655C09`):
 >
->     # Or using nRF Util directly, replacing <serial-number> with the value from step 1
->     nrfutil device program --firmware build/dfu_application.zip \
->         --serial-number <serial-number> --traits mcuboot \
->         --x-family nrf91 --core Application
->     ```
+> ```shell
+> nrfutil device program --firmware build/dfu_application.zip \
+>     --serial-number <serial-number> --traits mcuboot \
+>     --x-family nrf91 --core Application
+> ```
+
+> [!NOTE]
+> When flashing through an external debugger (nRF9151 DK, or Thingy:91 X with a J-Link attached), use the **Erase and Flash to Board** icon next to **Flash** in the **Actions** panel, not the default **Flash** action. The default action does not erase UICR and fails with a UICR error when the new firmware writes different UICR contents.
 
 For more details on how to use the nRF Connect for VS Code, refer to the [nRF Connect for VS Code documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html).
 
@@ -139,13 +148,19 @@ Complete the following steps to build and run the application from the command l
     west build -p -b nrf9151dk/nrf9151/ns
     ```
 
-1. When using the serial bootloader on Thingy:91 X (the default, since Thingy:91 X has no on-board debugger), first list connected devices to find the Thingy:91 X serial number:
+1. On **Thingy:91 X** without an external debugger, flash the application over the serial bootloader using one of the following alternatives:
+
+    **Alternative 1 (recommended) — `west thingy91x-dfu`:** auto-discovers the device and flashes `build/dfu_application.zip`.
+
+    ```shell
+    west thingy91x-dfu
+    ```
+
+    **Alternative 2 — `nrfutil device program`:** requires the Thingy:91 X serial number. Find it with `nrfutil device list` by locating the entry with **Product: `Thingy:91 X UART`** and the **`mcuBoot`** trait:
 
     ```shell
     nrfutil device list
     ```
-
-    In the output, locate the entry with **Product: `Thingy:91 X UART`** and the **`mcuBoot`** trait. Its identifier (for example `THINGY91X_ED0E7655C09`) is the serial number used in the flashing command below:
 
     ```
     851006699
@@ -159,23 +174,21 @@ Complete the following steps to build and run the application from the command l
     Traits          mcuBoot, modem, serialPorts, nordicUsb, usb
     ```
 
-    Then flash the application using one of the following commands:
+    Then flash, replacing `<serial-number>` with the identifier from the previous command (for example `THINGY91X_ED0E7655C09`):
 
     ```shell
-    # Using west (recommended)
-    west thingy91x-dfu
-
-    # Or using nRF Util directly, replacing <serial-number> with the value from nrfutil device list
     nrfutil device program --firmware build/dfu_application.zip \
         --serial-number <serial-number> --traits mcuboot \
         --x-family nrf91 --core Application
     ```
 
-1. When using nRF9151 DK or an external debugger on Thingy:91 X, you can program the device using the following command:
+1. On **nRF9151 DK**, or when using an external debugger on Thingy:91 X, flash with:
 
     ```shell
-    west flash --erase # The --erase option is optional and will erase the entire flash memory before programming
+    west flash --erase
     ```
+
+    The `--erase` option performs a full chip erase (including UICR) before programming. Without it, `west flash` fails with a UICR error when the new firmware writes different UICR contents.
 
 The application is now built and flashed to the device. You can open a serial terminal to see the logs from the application. The default baud rate is 115200. It is recommended to use the Serial Terminal app, which you can install from [nRF Connect for Desktop](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop). You can also use other serial terminal applications like PuTTY, Tera Term, or minicom.
 
