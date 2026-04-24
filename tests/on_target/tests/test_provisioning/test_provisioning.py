@@ -104,7 +104,7 @@ def _connect_to_network_and_wait_for_claiming_prompt(dut_cloud):
 
     log_pattern_network_connected = "network: lte_lc_evt_handler: PDN connection activated"
     log_pattern_need_claiming = (
-        "Claim the device using the device's attestation token on nrfcloud.com"
+        "Claim the device on nrfcloud.com using the attestation token below"
     )
 
     dut_cloud.uart.write("att_network connect\r\n")
