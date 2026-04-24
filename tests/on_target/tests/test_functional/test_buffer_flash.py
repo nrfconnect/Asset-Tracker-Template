@@ -66,36 +66,49 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
     ]
 
     try:
-        dut_cloud.uart.flush()
         reset_device()
+        start_pos = dut_cloud.uart.get_size()
 
         # Wait for storage automount
-        dut_cloud.uart.wait_for_str("Automount /att_storage succeeded", timeout=60)
+        dut_cloud.uart.wait_for_str("Automount /att_storage succeeded", timeout=60, start_pos=start_pos)
 
         # Clear buffer
+        start_pos = dut_cloud.uart.get_size()
         dut_cloud.uart.write(clear_str)
 
         # Initial data storing
-        dut_cloud.uart.wait_for_str(storing_list, timeout=60)
+        dut_cloud.uart.wait_for_str(storing_list, timeout=60, start_pos=start_pos)
 
         # Location file rollover, expected on sample 9
-        dut_cloud.uart.wait_for_str(get_storing_str("LOCATION", file_index=1), timeout=300)
+        start_pos = dut_cloud.uart.get_size()
+        dut_cloud.uart.wait_for_str(get_storing_str("LOCATION", file_index=1), timeout=300, start_pos=start_pos)
 
         # Storage full overwriting, expected on sample 11
-        dut_cloud.uart.wait_for_str(storage_full_list, timeout=100)
+        start_pos = dut_cloud.uart.get_size()
+        dut_cloud.uart.wait_for_str(storage_full_list, timeout=100, start_pos=start_pos)
 
         # Wait for buffer processing, expecting 30 items to be stored total ((BATTERY, ENVIRONMENTAL, LOCATION) x 10 samples)
         # NOTE: If default sampling behavior changes (e.g. additional types) this needs to be updated to match expected total samples
-        dut_cloud.uart.wait_for_str_re(r"Batch population complete for session 0x[0-9A-F]+: \d+/30 items", timeout=120)
+        start_pos = dut_cloud.uart.get_size()
+        dut_cloud.uart.wait_for_str_re(
+            r"Batch population complete for session 0x[0-9A-F]+: \d+/30 items",
+            timeout=120,
+            start_pos=start_pos,
+        )
 
-        dut_cloud.uart.wait_for_str("state_buffer_pipe_active_exit", timeout=120)
+        start_pos = dut_cloud.uart.get_size()
+        dut_cloud.uart.wait_for_str("state_buffer_pipe_active_exit", timeout=120, start_pos=start_pos)
 
         # Capture write and read offsets before reboot (only using LOCATION as all types should be in sync)
-        dut_cloud.uart.flush()
+        start_pos = dut_cloud.uart.get_size()
         dut_cloud.uart.write("at AT\r\n")
         pre_reboot_offsets = []
         try:
-            offsets = dut_cloud.uart.wait_for_str_re(get_storing_str("LOCATION") + r" .*write_offset=(\d+), read_offset=(\d+)", timeout=120)
+            offsets = dut_cloud.uart.wait_for_str_re(
+                r"Storing data in file /att_storage/(?:ENVIRONMENTAL|BATTERY|LOCATION).*write_offset=(\d+), read_offset=(\d+)",
+                timeout=120,
+                start_pos=start_pos,
+            )
             if offsets:
                 write_offset = int(offsets[0])
                 read_offset = int(offsets[1])
@@ -110,14 +123,18 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
 
         # Reboot device
         reset_device()
+        reboot_start_pos = dut_cloud.uart.get_size()
 
         # Files exist after reboot
-        dut_cloud.uart.wait_for_str(header_list, timeout=120)
+        dut_cloud.uart.wait_for_str(header_list, timeout=120, start_pos=reboot_start_pos)
 
         # Capture write and read offsets after reboot (only using LOCATION as all types should be in sync)
-        dut_cloud.uart.flush()
         post_reboot_offsets = []
-        offsets = dut_cloud.uart.wait_for_str_re(get_storing_str("LOCATION") + r" .*write_offset=(\d+), read_offset=(\d+)", timeout=120)
+        offsets = dut_cloud.uart.wait_for_str_re(
+            r"Storing data in file /att_storage/(?:ENVIRONMENTAL|BATTERY|LOCATION).*write_offset=(\d+), read_offset=(\d+)",
+            timeout=120,
+            start_pos=reboot_start_pos,
+        )
         if offsets:
             write_offset = int(offsets[0])
             read_offset = int(offsets[1])
