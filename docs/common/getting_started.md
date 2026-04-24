@@ -16,28 +16,30 @@ For pre-built binaries that do not require a build environment, refer to the lat
 
 ## Option 1: nRF Connect for VS Code (Recommended)
 
-1. In nRF Connect for VS Code, the Asset Tracker Template is available as an add-on in the **Create New Application** menu:
+1. Open the **nRF Connect** extension panel from the VS Code activity bar.
 
-    ![Create New Application menu](../images/create_new_app.png)
+1. Under the **Welcome** section of the extension panel, click **Create a new application**:
 
-1. Select the **Browse nRF Connect SDK add-on Index** option and search for **Asset Tracker Template**.
+    ![nRF Connect extension panel with Create a new application](../images/create_new_app.png)
+
+1. In the application picker, select the **Browse nRF Connect SDK add-on Index** option and search for **Asset Tracker Template**:
 
     ![Asset Tracker Template add-on](../images/addon_att.png)
 
-1. Once the project is created, it appears under **Applications** in the nRF Connect for VS Code side panel. Click **Add Build Configuration** under the **app** entry (or use the **Add Build Configuration** button under **Build**) to open the build configuration dialog.
+1. Once the project is created, it appears under **Applications** in the extension panel. Click **Add build configuration** under the **app** entry (or use the **Add build configuration** button under **Build**) to open the build configuration dialog.
 
-1. In the **Add Build Configuration (app)** dialog, set **Board target**. With the **Compatible** filter selected (the default), only the supported build targets are listed:
+1. In the **Add build configuration (app)** dialog, set **Board target**. With the **Compatible** filter selected (the default), only the supported build targets are listed:
 
     | Board        | Board target            |
     | ------------ | ----------------------- |
     | Thingy:91 X  | `thingy91x/nrf9151/ns`  |
     | nRF9151 DK   | `nrf9151dk/nrf9151/ns`  |
 
-    Leave the other fields at their defaults and click **Generate and Build** to build the application.
+    Leave the other fields at their defaults and click **Generate and build** to build the application.
 
-1. After the build completes, the **Actions** panel is populated with options such as **Build**, **Flash**, **Debug**, **nRF Kconfig GUI**, and **Memory Report**. Use these to flash, debug, and reconfigure the application.
+1. After the build completes, the **Actions** panel is populated with options such as **Build**, **Flash**, **Debug**, **nRF Kconfig GUI**, and **Memory report**. Use these to flash, debug, and reconfigure the application.
 
-1. To run command-line tools such as `west` or `nrfutil`, right-click the **app** entry under **Applications** and select **Start New Terminal**. This opens a shell in the toolchain environment, with all the nRF Connect SDK tools available on `PATH`.
+1. To run command-line tools such as `west` or `nrfutil`, right-click the **app** entry under **Applications** and select **Start new terminal**. This opens a shell in the toolchain environment, with all the nRF Connect SDK tools available on `PATH`.
 
 > [!NOTE]
 > The built-in **Flash** action programs the device through an external debugger. **Thingy:91 X** does not have an on-board debugger, so without an external J-Link attached you need to flash it over the serial bootloader. In the terminal opened in the previous step, run:
@@ -53,7 +55,7 @@ For pre-built binaries that do not require a build environment, refer to the lat
 > ```
 
 > [!NOTE]
-> When flashing through an external debugger (nRF9151 DK, or Thingy:91 X with a J-Link attached), use the **Erase and Flash to Board** icon next to **Flash** in the **Actions** panel, not the default **Flash** action. The default action does not erase UICR and fails with a UICR error when the new firmware writes different UICR contents.
+> When flashing through an external debugger (nRF9151 DK, or Thingy:91 X with a J-Link attached), use the **Erase and flash to board** icon next to **Flash** in the **Actions** panel, not the default **Flash** action. The default action does not erase UICR and fails with a UICR error when the new firmware writes different UICR contents.
 
 For more details on how to use the nRF Connect for VS Code, refer to the [nRF Connect for VS Code documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html).
 

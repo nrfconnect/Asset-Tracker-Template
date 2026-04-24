@@ -17,15 +17,11 @@ If you are new to nRF91 series and cellular IoT, consider taking the [Nordic Dev
   <em>Thingy:91 X reporting its location to nRF Cloud running the Asset Tracker Template</em>
 </p>
 
-## Quick Start
-
-The fastest way to get started is to download and run the [Quick Start app](https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html) in [nRF Connect for Desktop](https://www.nordicsemi.com/Software-and-Tools/Development-Tools/nRF-Connect-for-desktop). It provides a guided setup and provisioning process that gets your device connected to [nRF Cloud](https://nrfcloud.com) in minutes.
-
-Alternatively, you can download pre-built firmware binaries from the [latest release](https://github.com/nrfconnect/Asset-Tracker-Template/releases) and flash them directly to your device. See the [release artifacts](common/release.md) documentation for details.
-
 ## Get started
 
 To set up your development environment, build the application, flash it to your device, and connect it to [nRF Cloud](https://nrfcloud.com), follow the [Getting Started](common/getting_started.md) guide.
+
+If you do not need a build environment, you can download pre-built firmware binaries from the [latest release](https://github.com/nrfconnect/Asset-Tracker-Template/releases) and flash them directly to your device. See the [release artifacts](common/release.md) documentation for details.
 
 ## System Overview
 
