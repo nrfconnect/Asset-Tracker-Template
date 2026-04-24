@@ -24,7 +24,7 @@ For pre-built binaries that do not require a build environment, refer to the lat
 
     ![Asset Tracker Template add-on](../images/addon_att.png)
 
-1. Once the project is created, it appears under **Applications** in the nRF Connect for VS Code side panel. Click **Add build configuration** under the **app** entry (or use the **Add Build Configuration** button under **Build**) to open the build configuration dialog.
+1. Once the project is created, it appears under **Applications** in the nRF Connect for VS Code side panel. Click **Add Build Configuration** under the **app** entry (or use the **Add Build Configuration** button under **Build**) to open the build configuration dialog.
 
 1. In the **Add Build Configuration (app)** dialog, set **Board target**. With the **Compatible** filter selected (the default), only the supported build targets are listed:
 
@@ -35,41 +35,21 @@ For pre-built binaries that do not require a build environment, refer to the lat
 
     Leave the other fields at their defaults and click **Generate and Build** to build the application.
 
-1. After the build completes, the **Actions** panel is populated with options such as **Build**, **Flash**, **Debug**, **nRF Kconfig GUI**, and **Memory report**. Use these to flash, debug, and reconfigure the application.
+1. After the build completes, the **Actions** panel is populated with options such as **Build**, **Flash**, **Debug**, **nRF Kconfig GUI**, and **Memory Report**. Use these to flash, debug, and reconfigure the application.
+
+1. To run command-line tools such as `west` or `nrfutil`, right-click the **app** entry under **Applications** and select **Start New Terminal**. This opens a shell in the toolchain environment, with all the nRF Connect SDK tools available on `PATH`.
 
 > [!NOTE]
-> The built-in **Flash** action programs the device through an external debugger. **Thingy:91 X** does not have an on-board debugger, so without an external J-Link attached you need to flash it over the serial bootloader instead. From a terminal in the toolchain environment, use one of the following alternatives:
->
-> **Alternative 1 (recommended) — `west thingy91x-dfu`:** auto-discovers the Thingy:91 X and flashes `build/dfu_application.zip`.
+> The built-in **Flash** action programs the device through an external debugger. **Thingy:91 X** does not have an on-board debugger, so without an external J-Link attached you need to flash it over the serial bootloader. In the terminal opened in the previous step, run:
 >
 > ```shell
 > west thingy91x-dfu
 > ```
 >
-> **Alternative 2 — `nrfutil device program`:** requires the Thingy:91 X serial number. Find it with `nrfutil device list` by locating the entry with **Product: `Thingy:91 X UART`** and the **`mcuBoot`** trait:
+> This auto-discovers the Thingy:91 X and flashes `build/dfu_application.zip`. To reset the device from the terminal without re-flashing (equivalent to pressing the reset button), run:
 >
 > ```shell
-> nrfutil device list
-> ```
->
-> ```
-> 851006699
-> Product         J-Link
-> Traits          usb, jlink, seggerUsb
->
-> THINGY91X_ED0E7655C09       <-- this is the Thingy:91 X serial number
-> Product         Thingy:91 X UART
-> Ports           /dev/tty.usbmodem142102, vcom: 0
->                 /dev/tty.usbmodem142105, vcom: 1
-> Traits          mcuBoot, modem, serialPorts, nordicUsb, usb
-> ```
->
-> Then flash, replacing `<serial-number>` with the identifier from the previous command (for example `THINGY91X_ED0E7655C09`):
->
-> ```shell
-> nrfutil device program --firmware build/dfu_application.zip \
->     --serial-number <serial-number> --traits mcuboot \
->     --x-family nrf91 --core Application
+> west thingy91x-reset
 > ```
 
 > [!NOTE]
@@ -182,6 +162,12 @@ Complete the following steps to build and run the application from the command l
         --x-family nrf91 --core Application
     ```
 
+    To reset the Thingy:91 X from the terminal without re-flashing (equivalent to pressing the reset button), run:
+
+    ```shell
+    west thingy91x-reset
+    ```
+
 1. On **nRF9151 DK**, or when using an external debugger on Thingy:91 X, flash with:
 
     ```shell
@@ -214,7 +200,7 @@ To test that everything is working as expected, complete the following steps:
 
     > **Note:** The device samples and sends data at configurable intervals. Between intervals, the device is in a low-power state. Pressing and holding the button forces an immediate cloud update cycle.
 
-1. Optionally, you can reset the device to observe the full boot and connection sequence. Connect to the device using the serial terminal and reset the device using either the reset button or the following shell command:
+1. Optionally, you can reset the device to observe the full boot and connection sequence. Connect to the device using the serial terminal and reset the device using the following shell command:
 
     ```shell
     kernel reboot
