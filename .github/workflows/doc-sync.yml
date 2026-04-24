@@ -76,10 +76,18 @@ jobs:
       image: fluidtopics/publish:latest
     steps:
       - name: Download bundle
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v4
         with:
           name: asset-tracker-template-ft
 
       - name: Publish documentation to fluid topics
+        env:
+          FT_URL: ${{ secrets.FLUIDTOPICS_URL_DEV }}
+          FT_API_KEY: ${{ secrets.FLUIDTOPICS_API_KEY_DEV }}
+          FT_SOURCE: ${{ secrets.FLUIDTOPICS_SOURCE_ID }}
         run: |
-          ftpub publish asset-tracker-template-ft.zip ${{ secrets.FLUIDTOPICS_URL_DEV }} -a ${{ secrets.FLUIDTOPICS_API_KEY_DEV }} -s ${{ secrets.FLUIDTOPICS_SOURCE_ID }}
+          if [ -z "$FT_URL" ] || [ -z "$FT_API_KEY" ] || [ -z "$FT_SOURCE" ]; then
+            echo "::warning::Fluid Topics secrets are not configured; skipping upload"
+            exit 0
+          fi
+          ftpub publish asset-tracker-template-ft.zip "$FT_URL" -a "$FT_API_KEY" -s "$FT_SOURCE"
