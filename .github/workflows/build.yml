@@ -251,6 +251,30 @@ jobs:
           version: ${{ env.VERSION }}-ext-gnss
           path: asset-tracker-template/app
 
+      - name: Generate PR app-size diff for thing91x image
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BOARD: thingy91x/nrf9151/ns
+          PR_HEAD_ELF: artifacts/asset-tracker-template-${{ env.VERSION }}-thingy91x-nrf91.elf
+          PR_HEAD_BUILD_LOG: artifacts/build_output_thingy91x.log
+          SIZE_COMMENT_PATH: ${{ github.workspace }}/size-comment.md
+          CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Add the first Zephyr SDK binutils path to PATH if it exists
+          SDK_BIN=$(ls -d /opt/toolchains/zephyr-sdk-*/arm-zephyr-eabi/bin 2>/dev/null | head -1)
+          [ -n "$SDK_BIN" ] && export PATH="$SDK_BIN:$PATH"
+
+          # Generate the diff comment
+          bash asset-tracker-template/scripts/ci/pr-size-diff.sh
+
+      - name: Post PR app-size sticky comment for thingy91x image
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4
+        with:
+          header: app-size-report
+          path: ${{ github.workspace }}/size-comment.md
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
