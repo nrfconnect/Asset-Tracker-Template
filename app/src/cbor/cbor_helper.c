@@ -59,7 +59,8 @@ int decode_shadow_parameters_from_cbor(const uint8_t *cbor, size_t len,
 	}
 
 	if (shadow.command_present) {
-		*command_type = shadow.command.type;
+		// *command_type = shadow.command.type;
+		*command_type = 1; /* Only support command type 1 for now, which is "execute command" */
 		*command_id = shadow.command.id;
 
 		LOG_DBG("Command parameter present: type=%u, id=%u", *command_type, *command_id);
@@ -102,7 +103,7 @@ int encode_shadow_parameters_to_cbor(const struct config_params *config, uint32_
 	/* Build shadow object with command section */
 	if (command_type > 0) {
 		shadow.command_present = true;
-		shadow.command.type = command_type;
+		// shadow.command.type = command_type;
 		shadow.command.id = command_id;
 	}
 
