@@ -9,7 +9,14 @@ permissions:
   contents: read
 
 jobs:
+  prune-runner:
+    runs-on: build_self_hosted
+    steps:
+      - name: Prune Docker images and containers on the runner host
+        run: sudo docker system prune --all --force
+
   build:
+    needs: prune-runner
     permissions:
       contents: write
       pull-requests: write
