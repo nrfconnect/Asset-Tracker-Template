@@ -9,12 +9,12 @@ This guide walks you through getting the Asset Tracker Template running end-to-e
 
 There are two options for setting up the project, depending on your preferred development environment:
 
-* **Option 1**: Using Visual Studio Code and the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) (recommended).
+* **Option 1**: Using Visual Studio Code and the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) extension (recommended).
 * **Option 2**: Using the command line and nRF Util.
 
 For pre-built binaries that do not require a build environment, refer to the latest tag and the [release artifacts](release.md) documentation.
 
-## Option 1: nRF Connect for VS Code (Recommended)
+## Option 1: nRF Connect for VS Code (recommended)
 
 1. Open the **nRF Connect** extension panel from the VS Code activity bar.
 
@@ -37,46 +37,58 @@ For pre-built binaries that do not require a build environment, refer to the lat
 
     Leave the other fields at their defaults and click **Generate and build** to build the application.
 
-1. After the build completes, the **Actions** panel is populated with options such as **Build**, **Flash**, **Debug**, **nRF Kconfig GUI**, and **Memory report**. Use these to flash, debug, and reconfigure the application.
+1. Flash the device
 
-1. To run command-line tools such as `west` or `nrfutil`, right-click the **app** entry under **Applications** and select **Start new terminal**. This opens a shell in the toolchain environment, with all the nRF Connect SDK tools available on `PATH`.
+    Expand the section that matches your hardware setup.
 
-> [!NOTE]
-> The built-in **Flash** action programs the device through an external debugger. **Thingy:91 X** does not have an on-board debugger, so without an external J-Link attached you need to flash it over the serial bootloader. In the terminal opened in the previous step, run:
->
-> ```shell
-> west thingy91x-dfu
-> ```
->
-> This auto-discovers the Thingy:91 X and flashes `build/dfu_application.zip`. To reset the device from the terminal without re-flashing (equivalent to pressing the reset button), run:
->
-> ```shell
-> west thingy91x-reset
-> ```
->
-> When flashing through an external debugger (nRF9151 DK, or Thingy:91 X with a J-Link attached), use the **Erase and flash to board** icon next to **Flash** in the **Actions** panel, not the default **Flash** action. The default action does not erase UICR and fails with a UICR error when the new firmware writes different UICR contents.
+    <details markdown="1">
+    <summary><strong>Thingy:91 X (with debugger) or nRF9151 DK</strong></summary>
 
-For more details on how to use the nRF Connect for VS Code, refer to the [nRF Connect for VS Code documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html).
+    With an external J-Link debugger attached to the Thingy:91 X, click the **Erase and flash to board** icon next to **Flash** in the **Actions** panel.
+
+    Do not use the simple **Flash** action. It will fail with a UICR-related error.
+
+    If prompted for which device to flash, select the ID of the debugger or nRF9151 DK. Do not select the `THINGY91X_(serial number)` device, as is not used with an external debugger.
+    </details>
+
+    <details markdown="1">
+    <summary><strong>Thingy:91 X (no debugger)</strong></summary>
+
+    Thingy:91 X does not have an on-board debugger, so the default **Flash** action in the **Actions** panel will not work. Flash over the serial bootloader from a toolchain terminal instead.
+
+    To open a toolchain terminal, right-click the **app** entry under **Applications** and select **Start new terminal**. This opens a shell with all the nRF Connect SDK tools available. Then run:
+
+    ```shell
+    west thingy91x-dfu
+    ```
+
+    </details>
+
+1. After flashing, open a serial terminal at 115200 baud to view the device logs. The [Serial Terminal app](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) (part of nRF Connect for Desktop) is recommended; PuTTY, Tera Term, and minicom also work.
+
+1. Follow the instructions in [Connecting](connecting.md) to connect the device to nRF Cloud.
+
+For more details on how to use nRF Connect for VS Code, refer to the [nRF Connect for VS Code documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html).
 
 ## Option 2: Command line
 
-### Prerequisites
+### Install prerequisites
 
 1. Install nRF Util by following the instructions in the [nRF Util documentation](https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html).
 
-2. Install the SDK manager command:
+1. Install the SDK manager command:
 
     ```bash
     nrfutil install sdk-manager
     ```
 
-3. Install the nRF Connect SDK toolchain (v3.1.0 or later):
+1. Install the nRF Connect SDK toolchain (v3.1.0 or later):
 
     ```bash
     nrfutil sdk-manager install v3.1.0
     ```
 
-### Workspace initialization
+### Initialize the workspace
 
 Before initializing, start the toolchain environment:
 
@@ -108,9 +120,7 @@ west update
 
 The template repository is now cloned into the `asset-tracker-template` folder, the west modules are downloaded, and you are ready to build the project.
 
-### Building and running
-
-Complete the following steps to build and run the application from the command line:
+### Build the application
 
 1. Navigate to the application folder:
 
@@ -129,61 +139,71 @@ Complete the following steps to build and run the application from the command l
     west build -p -b nrf9151dk/nrf9151/ns
     ```
 
-1. On **Thingy:91 X** without an external debugger, flash the application over the serial bootloader using one of the following alternatives:
+### Flash the device
 
-    **Alternative 1 (recommended) — `west thingy91x-dfu`:** auto-discovers the device and flashes `build/dfu_application.zip`.
+Expand the section that matches your hardware setup.
 
-    ```shell
-    west thingy91x-dfu
-    ```
+<details markdown="1">
+<summary><strong>Thingy:91 X (with debugger) or nRF9151 DK</strong></summary>
 
-    **Alternative 2 — `nrfutil device program`:** requires the Thingy:91 X serial number. Find it with `nrfutil device list` by locating the entry with **Product: `Thingy:91 X UART`** and the **`mcuBoot`** trait:
+With an external J-Link debugger attached to the Thingy:91 X, flash with:
 
-    ```shell
-    nrfutil device list
-    ```
+```shell
+west flash --erase
+```
 
-    ```
-    851006699
-    Product         J-Link
-    Traits          usb, jlink, seggerUsb
+The `--erase` option performs a full chip erase (including UICR) before programming. Without it, `west flash` fails with a UICR-related error when the new firmware writes different UICR contents.
 
-    THINGY91X_ED0E7655C09       <-- this is the Thingy:91 X serial number
-    Product         Thingy:91 X UART
-    Ports           /dev/tty.usbmodem142102, vcom: 0
-                    /dev/tty.usbmodem142105, vcom: 1
-    Traits          mcuBoot, modem, serialPorts, nordicUsb, usb
-    ```
+</details>
 
-    Then flash, replacing `<serial-number>` with the identifier from the previous command (for example `THINGY91X_ED0E7655C09`):
+<details markdown="1">
+<summary><strong>Thingy:91 X (no debugger)</strong></summary>
 
-    ```shell
-    nrfutil device program --firmware build/dfu_application.zip \
-        --serial-number <serial-number> --traits mcuboot \
-        --x-family nrf91 --core Application
-    ```
+Thingy:91 X does not have an on-board debugger. Flash over the serial bootloader using one of the following alternatives.
 
-    To reset the Thingy:91 X from the terminal without re-flashing (equivalent to pressing the reset button), run:
+**Alternative 1 (recommended) — `west thingy91x-dfu`:** auto-discovers the device and flashes `build/dfu_application.zip`.
 
-    ```shell
-    west thingy91x-reset
-    ```
+```shell
+west thingy91x-dfu
+```
 
-1. On **nRF9151 DK**, or when using an external debugger on Thingy:91 X, flash with:
+**Alternative 2 — `nrfutil device program`:** requires the Thingy:91 X serial number. Find it with `nrfutil device list` by locating the entry with **Product: `Thingy:91 X UART`** and the **`mcuBoot`** trait:
 
-    ```shell
-    west flash --erase
-    ```
+```shell
+nrfutil device list
+```
 
-    The `--erase` option performs a full chip erase (including UICR) before programming. Without it, `west flash` fails with a UICR error when the new firmware writes different UICR contents.
+```
+851006699
+Product         J-Link
+Traits          usb, jlink, seggerUsb
 
-The application is now built and flashed to the device. You can open a serial terminal to see the logs from the application. The default baud rate is 115200. It is recommended to use the Serial Terminal app, which you can install from [nRF Connect for Desktop](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop). You can also use other serial terminal applications like PuTTY, Tera Term, or minicom.
+THINGY91X_ED0E7655C09       <-- this is the Thingy:91 X serial number
+Product         Thingy:91 X UART
+Ports           /dev/tty.usbmodem142102, vcom: 0
+                /dev/tty.usbmodem142105, vcom: 1
+Traits          mcuBoot, modem, serialPorts, nordicUsb, usb
+```
 
-## Connect device to nRF Cloud
+Then flash, replacing `<serial-number>` with the identifier from the previous command (for example `THINGY91X_ED0E7655C09`):
 
-To connect to [nRF Cloud](https://nrfcloud.com), the device must be claimed on your account and provisioned with the correct credentials. Follow the detailed steps in the [Connecting](connecting.md) documentation.
+```shell
+nrfutil device program --firmware build/dfu_application.zip \
+    --serial-number <serial-number> --traits mcuboot \
+    --x-family nrf91 --core Application
+```
 
-The connection flow establishes the credentials and certificates required for secure communication between your device and nRF Cloud.
+To reset the Thingy:91 X from the terminal without re-flashing (equivalent to pressing the reset button), run:
+
+```shell
+west thingy91x-reset
+```
+
+</details>
+
+The application is now built and flashed to the device. Open a serial terminal at 115200 baud to view the logs. The [Serial Terminal app](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) (part of nRF Connect for Desktop) is recommended; PuTTY, Tera Term, and minicom also work.
+
+**Next step:** Continue to [Connecting](connecting.md) to claim and provision the device on nRF Cloud.
 
 ## Testing
 
