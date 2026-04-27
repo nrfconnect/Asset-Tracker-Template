@@ -60,6 +60,10 @@ ft_metadata:
   tags:
     - "Asset Tracker Template Add-on latest"
 
+ft_options:
+  copy_button_on_content_code: false
+  nav_mapping: first_heading_as_page
+
 nav:
   - Overview: index.md
   - Getting started: common/getting_started.md
