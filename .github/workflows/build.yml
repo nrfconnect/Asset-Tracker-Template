@@ -183,7 +183,6 @@ jobs:
         if: ${{ env.build_type == 'release' || env.build_type == 'all' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
-          memfault_project_key: ${{ secrets.MEMFAULT_PROJECT_KEY }}
           memfault_release: ${{ env.build_type == 'release' }}
           board: thingy91x/nrf9151/ns
           short_board: thingy91x
