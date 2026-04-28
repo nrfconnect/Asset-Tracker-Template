@@ -119,7 +119,7 @@ jobs:
           pip install -r requirements.txt --break-system-packages
           nrfutil install trace
 
-      - name: Upload symbol file to Memfault
+      - name: Upload symbol file to Memfault (nightly CI account)
         if: ${{ matrix.device == 'thingy91x' && inputs.run_nightly_tests }}
         working-directory: asset-tracker-template/tests/on_target/artifacts
         run: |
