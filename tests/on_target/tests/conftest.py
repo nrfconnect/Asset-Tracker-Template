@@ -63,6 +63,16 @@ def pytest_runtest_logstart(nodeid, location):
 def pytest_runtest_logfinish(nodeid, location):
     logger.info(f"Finished test: {nodeid}")
 
+@pytest.fixture(scope="session", autouse=True)
+def _purge_pending_fota_jobs():
+    """Cancel leftover FOTA jobs queued for the test device before any test runs. """
+    if NRFCLOUD_API_KEY and DEVICE_UUID:
+        try:
+            NRFCloudFOTA(api_key=NRFCLOUD_API_KEY).cancel_incomplete_jobs(DEVICE_UUID)
+        except Exception as e:
+            logger.warning(f"Failed to purge pending FOTA jobs at session start: {e}")
+    yield
+
 @pytest.fixture(scope="function")
 def dut_board():
     all_uarts = get_uarts()
