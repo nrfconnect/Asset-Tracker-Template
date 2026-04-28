@@ -40,7 +40,7 @@ if APP_STORAGE_BACKEND_LITTLEFS
 
 # Setup PM partition size for LittleFS to 64KB by default
 config PM_PARTITION_SIZE_LITTLEFS
-	default 0x10000
+	default 0x40000
 
 config PM_PARTITION_REGION_LITTLEFS_EXTERNAL
 	default y if PM_EXTERNAL_FLASH_ENABLED
@@ -66,7 +66,7 @@ config APP_STORAGE_MAX_TYPES
 config APP_STORAGE_MAX_RECORDS_PER_TYPE
 	int "Maximum records per data type"
 	default 8 if APP_STORAGE_BACKEND_RAM
-	default 64 if APP_STORAGE_BACKEND_LITTLEFS
+	default 256 if APP_STORAGE_BACKEND_LITTLEFS
 	help
 	  Maximum number of records that can be stored for each data type.
 	  For example, if set to 32, you can store up to 32 battery samples,
