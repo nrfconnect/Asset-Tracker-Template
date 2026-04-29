@@ -57,7 +57,6 @@ runs:
       run: |
         params=()
         if [[ "${{ inputs.debug }}" == "true" ]]; then
-          cp overlay-memfault-extra.conf overlay-debug-att.conf
           cat overlay-upload-modem-traces-to-memfault.conf >> overlay-debug-att.conf
           if [[ "${{ inputs.memfault_release }}" == "true" ]]; then
             echo CONFIG_MEMFAULT_NCS_FW_VERSION_STATIC=y >> overlay-debug-att.conf

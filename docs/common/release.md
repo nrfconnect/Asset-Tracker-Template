@@ -56,7 +56,6 @@ The firmware variants are built using different configuration overlays that modi
 | **Overlay file** | **Purpose** | **Key features** |
 |------------------|-------------|------------------|
 | `overlay-storage-minimal.conf` | Minimal storage configuration | Reduced memory footprint with storage for one sample and immediate sending |
-| `overlay-memfault-extra.confg` | Richer diagnostics and optimal  data upload | Enables larger data sotrage and dedicated work queues for data upload |
 | `overlay-upload-modem-traces-to-memfault.conf` | Modem trace to Memfault | Automatic upload of modem traces for analysis |
 
 ### Hardware platform support
