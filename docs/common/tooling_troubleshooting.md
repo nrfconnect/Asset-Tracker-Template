@@ -484,17 +484,18 @@ Memfault is a device observability platform that complements traditional debuggi
 1. Register at [nRF Cloud](https://app.nrfcloud.com/#/register)
 2. Complete the [Remote Debugging with Memfault](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/exercise-4-remote-debugging-with-memfault/) exercise.
 
-Memfault support is enabled by default in `prj.conf`. If you want to capture more data and send modem traces to Memfault on coredumps, include the overlays `overlay-memfault-extra.conf` and `overlay-upload-modem-traces-to-memfault.conf`.
+The template enables basic support for Memfault, forwarding captured LTE and location metrics as well as coredumps on crashes to Memfault via nRF Cloud CoAP.
+If you also want to send modem traces to Memfault on application crashes, include the `overlay-upload-modem-traces-to-memfault.conf` overlay in your west build command.
 
 > [!IMPORTANT]
-> Memfault data uploads will increase your device's data usage.
+> Memfault data uploads increases your device's data usage.
 > This is especially true when using the modem trace upload feature, which can send upwards of 1 MB of modem trace data in case of application crashes.
 > Consider this when planning your data usage and costs.
 
-To build with the two Memfault overlays:
+To build with the modem trace overlay:
 
 ```bash
-west build -p -b <board> -- -DEXTRA_CONF_FILE="overlay-memfault-extra.conf;overlay-upload-modem-traces-to-memfault.conf"
+west build -p -b <board> -- -DEXTRA_CONF_FILE="overlay-upload-modem-traces-to-memfault.conf"
 ```
 
 > Note: By default, Memfault data is routed via CoAP to the Memfault project linked to your provisioned nRF Cloud account. To override this, set `CONFIG_MEMFAULT_NCS_PROJECT_KEY="YOUR_PROJECT_KEY"`.
