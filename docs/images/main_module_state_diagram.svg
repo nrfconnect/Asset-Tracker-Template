@@ -273,17 +273,16 @@
 			<desc>entry / start_sample_timer (sample_interval); start_send_time...</desc>
 			<rect x="0" y="1117.66" width="529.325" height="19" class="st9"/>
 			<text x="12.63" y="1136.16" class="st5">
-				<tspan x="0" dy="0" class="st10">entry / start_send_timer(send_interval); send_event(NETWORK_CONNECT);</tspan>
+				<tspan x="0" dy="0" class="st10">entry / send_event(NETWORK_CONNECT);</tspan>
 				<tspan x="0" dy="2.4em" class="st10">FOTA_DOWNLOADING_UPDATE / ; </tspan>
-				<tspan x="0" dy="2.4em" class="st10">exit / timer_sample_stop(); timer_send_data_stop(); </tspan>
+				<tspan x="0" dy="2.4em" class="st10">exit / timer_sample_stop(); </tspan>
 			</text></g>
 		<g id="shape1057-193" transform="translate(67.6609,-981.049)">
 			<title>Sheet.1057</title>
-			<desc>CLOUD_CONNECTED / ; TIMER_EXPIRED_CLOUD timer_send_data_start(); ...</desc>
+			<desc>CLOUD_CONNECTED / ; STORAGE_THRESHOLD_REACHED ...</desc>
 			<rect x="0" y="1129.74" width="276.549" height="106.92211" class="st9"/>
 			<text x="4" y="1145.2" class="st6">
 				<tspan x="4" dy="0" class="st10">CLOUD_CONNECTED / ;</tspan>
-				<tspan x="4" dy="1.2em" class="st10">TIMER_EXPIRED_CLOUD / timer_send_data_start();</tspan>
 				<tspan x="4" dy="1.2em" class="st10">BUTTON_PRESS_LONG / ignored();</tspan>
 				<tspan x="4" dy="1.2em" class="st10">STORAGE_THRESHOLD_REACHED / ignored();</tspan>
 			</text>	</g>
@@ -375,11 +374,11 @@
 			<text x="4" y="1130.16" class="st5">STATE_CONNECTED_SAMPLING</text>		</g>
 		<g id="shape1075-246" transform="translate(72.0154,-731.812)">
 			<title>Sheet.1075</title>
-			<desc>CLOUD_DISCONNECTED, TIMER_EXPIRED_CLOUD ...</desc>
+			<desc>CLOUD_DISCONNECTED ...</desc>
 			<rect x="0" y="1129.74" width="450.323" height="6.92211" class="st9"/>
 			<text x="4" y="1154.2" class="st5">
 				<tspan x="4" dy="-0.5em" class="st10">CLOUD_DISCONNECTED / ;</tspan>
-				<tspan x="4" dy="1.2em" class="st10">TIMER_EXPIRED_CLOUD / ;</tspan>
+				<tspan x="4" dy="1.2em" class="st10">STORAGE_THRESHOLD_REACHED / ;</tspan>
 				<tspan x="4" dy="1.2em" class="st10">BUTTON_PRESS_LONG / ;</tspan>
 			</text>		</g>
 		<g id="shape1076-249" transform="translate(329.693,-582.5)">
@@ -505,7 +504,7 @@
 			<desc>STORAGE_BATCH_CLOSE</desc>
 			<rect x="0" y="1129.74" width="131.774" height="6.92211" class="st9"/>
 			<text x="0" y="1135.6" class="st6">
-				<tspan x="0" dy="0" class="st10">TIMER_EXPIRED_CLOUD ||</tspan>
+				<tspan x="0" dy="0" class="st10">STORAGE_THRESHOLD_REACHED ||</tspan>
 				<tspan x="0" dy="1.2em" class="st10">BUTTON_PRESS_LONG</tspan>
 				</text>		</g>
 		<g id="shape1084-279" transform="translate(255.409,-787.135)">

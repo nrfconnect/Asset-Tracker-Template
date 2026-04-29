@@ -235,7 +235,6 @@ All message types are defined in the `storage.h` file.
 
 - **STORAGE_SET_THRESHOLD**: Set the threshold for triggering `STORAGE_THRESHOLD_REACHED`.
   If threshold is `1`, every sample triggers a message. Higher values enable buffering until the threshold is reached.
-  If threshold is `0`, no threshold events are emitted.
 
 - **STORAGE_FLUSH**: Flushes stored data one item at a time as individual `STORAGE_DATA` messages.
   Data is sent in FIFO order per type. Available in both operational modes.
@@ -332,7 +331,8 @@ The following includes the key configuration categories:
 
 - **CONFIG_APP_STORAGE_INITIAL_THRESHOLD** (default: `1`): Initial threshold for triggering `STORAGE_THRESHOLD_REACHED` events.
   A value of 1 means every sample triggers an event, while higher values enable buffering until the threshold is reached.
-  A value of 0 disables threshold events. (Threshold can be changed at runtime through `STORAGE_SET_THRESHOLD` messages).
+  Threshold can be changed at runtime through `STORAGE_SET_THRESHOLD`
+  messages.
 
 ### Thread configuration
 

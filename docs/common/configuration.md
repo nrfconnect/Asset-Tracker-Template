@@ -6,18 +6,13 @@ This section describes the available compile-time and runtime configuration opti
 
 The device supports runtime configurations that allow you to modify the template's behavior without firmware updates.
 
-The template uses separate parameters to control:
-
-- **Cloud updates**: When the device sends data and checks for updates.
-- **Data sampling**: When the device collects sensor and location data.
-
-Cloud updates include sending data, checking for FOTA jobs, and retrieving configuration/command updates. For implementation details, see [Configuration Flow](#configuration-flow).
+The template uses runtime parameters to control data sampling and cloud update
+behavior. Cloud updates are triggered when the number of stored samples reaches a configurable threshold. These updates include sending data, checking for FOTA jobs, and retrieving configuration/command updates. For implementation details, see [Configuration Flow](#configuration-flow).
 
 | Parameter | Description | Unit | Valid range | Static configuration |
 |-----------|-------------|------|-------------|----------------------|
-| **`update_interval`** | Cloud update interval | Seconds | 1 to 4294967295 | `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` (default: 3600) |
 | **`sample_interval`** | Sample interval | Seconds | 1 to 4294967295 | `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` (default: 600) |
-| **`storage_threshold`** | Number of records to store before triggering a cloud update | Records | 0 (disabled) to `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` | `CONFIG_APP_STORAGE_INITIAL_THRESHOLD` (default: 1) |
+| **`storage_threshold`** | Number of records to store before triggering a cloud update | Records | 1 to `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` | `CONFIG_APP_STORAGE_INITIAL_THRESHOLD` (default: 1) |
 
 You can set the runtime configurations through the cloud device shadow and they will override the compile-time Kconfig defaults shown in the Static Configuration column.
 
@@ -27,11 +22,10 @@ The complete device shadow structure is defined in the [CDDL](https://datatracke
 
 - Samples sensors and location at `sample_interval`.
 - Buffers data locally.
-- Sends buffered data at `update_interval` or when `storage_threshold` is reached.
-- Polls shadow and checks FOTA at `update_interval`.
+- Sends buffered data when `storage_threshold` is reached.
+- Polls shadow and checks FOTA when a send cycle is triggered.
 
 > [!NOTE]
-> Setting `storage_threshold` to `0` disables the threshold, meaning data will only be sent based on the `update_interval`.
 > Setting `storage_threshold` to `1` means data will be sent immediately after each sample.
 
 <!-- Caution -->
@@ -54,34 +48,35 @@ The Asset Tracker can be configured remotely through nRF Cloud's device shadow m
 1. Select **Edit Configuration**.
 1. Enter the desired configuration:
 
-    **Example 1: 5 minutes sampling and 15 minutes cloud updates, storage threshold disabled**
+    **Example 1: 5 minutes sampling, send data immediately after each sample**
 
     ```json
     {
-    "update_interval": 900,
     "sample_interval": 300,
-    "storage_threshold": 0
+    "storage_threshold": 1
     }
     ```
 
-    **Example 2: 1 minute sampling and cloud updates, send data immediately after each sample**
+    **Example 2: 10 minutes sampling, send data after 6 samples (1 hour)**
 
     ```json
     {
-    "update_interval": 60,
-    "storage_threshold": 1
+    "sample_interval": 600,
+    "storage_threshold": 6
     }
     ```
 
     > **Important:** To remove a configuration entry, you must explicitly set the parameter to `null`.
 
-1. Click **Commit** to apply the changes.
+2. Click **Commit** to apply the changes.
 
-The device receives the new configuration through its shadow and adjusts its intervals and storage mode accordingly.
+The device receives the new configuration through its shadow and adjusts its
+sampling interval and storage mode accordingly.
 
 ### Configuration through REST API
 
-You can update the intervals using [nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState).
+You can update these parameters using
+[nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState).
 
 **Example 1:**
 
@@ -89,7 +84,7 @@ You can update the intervals using [nRF Cloud REST API](https://api.nrfcloud.com
 curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{ "desired": { "config": { "update_interval": 900, "sample_interval": 300, "storage_threshold": 0 } } }'
+    -d '{ "desired": { "config": { "sample_interval": 300, "storage_threshold": 1 } } }'
 ```
 
 **Example 2:**
@@ -98,7 +93,7 @@ curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
 curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{ "desired": { "config": { "update_interval": 60, "storage_threshold": 1 } } }'
+    -d '{ "desired": { "config": { "sample_interval": 600, "storage_threshold": 6 } } }'
 ```
 
 ### Sending commands through REST API
@@ -123,10 +118,16 @@ For shadow structure details, see `Asset-Tracker-Template/app/src/cbor/device_sh
 
 ### Configuration flow
 
-Default intervals are set from the `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` and `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig options,
-and the threshold is set from `CONFIG_APP_STORAGE_INITIAL_THRESHOLD`. When the device polls the shadow, it checks for any updates to these parameters and applies them at runtime. If a parameter is not set in the shadow, the device continues using the existing value (either from Kconfig or a previous shadow update).
+The default sampling interval is set from
+`CONFIG_APP_SAMPLING_INTERVAL_SECONDS`, and the threshold is set from
+`CONFIG_APP_STORAGE_INITIAL_THRESHOLD`. When the device polls the shadow,
+it checks for updates to these parameters and applies them at runtime. If a
+parameter is not set in the shadow, the device continues using the existing
+value (either from Kconfig or a previous shadow update).
 
-To trigger an immediate configuration poll, press and hold **Button 1** on the device to trigger a cloud update cycle that includes fetching the latest shadow delta.
+To trigger an immediate configuration poll, press and hold **Button 1** on
+the device to trigger a cloud poll/send cycle that includes fetching the
+latest shadow delta.
 
 The following diagrams illustrate what happens in the various scenarios where the device polls the shadow:
 
@@ -183,7 +184,9 @@ The following are the available location methods:
 
 ## Storage configuration
 
-The storage module buffers collected data locally and sends it to the cloud based on the configured intervals and thresholds. See [Storage Module Documentation](../modules/storage.md) for details.
+The storage module buffers collected data locally and sends it to the cloud
+based on the configured sampling interval and threshold. See
+[Storage Module Documentation](../modules/storage.md) for details.
 
 ### Basic configuration in `prj.conf`
 
@@ -195,7 +198,8 @@ CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE=256       # Batch buffer size
 CONFIG_APP_STORAGE_INITIAL_THRESHOLD=4         # Number of records to trigger cloud update
 ```
 
-The `storage_threshold` runtime parameter controls when buffered data is sent to the cloud. Setting it to `0` means data will only be sent based on the `update_interval`, while setting it to `1` means data will be sent immediately after each sample.
+The `storage_threshold` runtime parameter controls when buffered data is sent
+to the cloud. Setting it to `1` means data will be sent immediately after each sample, while higher values allow more samples to be buffered before sending.
 
 For minimal use, include the `overlay-storage-minimal.conf` overlay.
 

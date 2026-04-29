@@ -249,38 +249,13 @@ static void config_change_sampling_interval(uint32_t sampling_interval)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-static void config_change_cloud_update_interval(uint32_t update_interval)
+static void config_change_all(uint32_t sample_interval, uint32_t storage_threshold)
 {
 	int err;
 	struct cloud_msg msg = {
 		.type = CLOUD_SHADOW_RESPONSE_DELTA,
 	};
 	struct config_params config = {
-		.update_interval = update_interval,
-	};
-	size_t encoded_len = 0;
-
-	err = encode_shadow_parameters_to_cbor(&config, 0, 0, msg.response.buffer,
-							 sizeof(msg.response.buffer), &encoded_len);
-	if (err != 0) {
-		TEST_FAIL_MESSAGE("Failed to encode CBOR parameters");
-	}
-
-	msg.response.buffer_data_len = encoded_len;
-
-	err = zbus_chan_pub(&cloud_chan, &msg, K_SECONDS(1));
-	TEST_ASSERT_EQUAL(0, err);
-}
-
-static void config_change_all(uint32_t update_interval, uint32_t sample_interval,
-			      uint32_t storage_threshold)
-{
-	int err;
-	struct cloud_msg msg = {
-		.type = CLOUD_SHADOW_RESPONSE_DELTA,
-	};
-	struct config_params config = {
-		.update_interval = update_interval,
 		.sample_interval = sample_interval,
 		.storage_threshold = storage_threshold,
 		.storage_threshold_valid = true,
@@ -299,18 +274,6 @@ static void config_change_all(uint32_t update_interval, uint32_t sample_interval
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-/* Restart the cloud update timer by doing a immediate cloud update using a long button press */
-static void restart_cloud_timer(void)
-{
-	send_button_press_long();
-	expect_storage_event(STORAGE_BATCH_REQUEST);
-	expect_fota_event(FOTA_POLL_REQUEST);
-	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
-
-	send_storage_batch_close();
-	expect_storage_event(STORAGE_BATCH_CLOSE);
-}
-
 /* Restart the sampling timer by doing a immediate sample using a short button press */
 static void restart_sample_timer(void)
 {
@@ -320,14 +283,6 @@ static void restart_sample_timer(void)
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
-}
-
-/* "Disable" the sampling timer by setting a very long sample interval through the shadow */
-static void disable_sample_timer(void)
-{
-	config_change_sampling_interval(99999);
-	expect_cloud_event(CLOUD_SHADOW_RESPONSE_DELTA);
-	expect_cloud_event(CLOUD_SHADOW_UPDATE_REPORTED_CONFIG);
 }
 
 /* Connect to cloud and complete the initial data dispatch cycle.
@@ -563,8 +518,6 @@ void test_sensor_timer_multiple_expiries(void)
 {
 	connect_to_cloud();
 
-	/* Dont want cloud timer to interfere */
-	restart_cloud_timer();
 	restart_sample_timer();
 
 	/* Wait for sample timer to trigger sampling */
@@ -586,29 +539,6 @@ void test_sensor_timer_multiple_expiries(void)
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
-}
-
-void test_cloud_timer_multiple_expiries(void)
-{
-	connect_to_cloud();
-
-	disable_sample_timer();
-	expect_timer_event(TIMER_CONFIG_CHANGED);
-
-	restart_cloud_timer();
-
-	for (int i = 0; i < 5; i++) {
-		/* Wait for cloud timer to trigger */
-		k_sleep(K_SECONDS(CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS));
-		expect_timer_event(TIMER_EXPIRED_CLOUD);
-		expect_storage_event(STORAGE_BATCH_REQUEST);
-		expect_fota_event(FOTA_POLL_REQUEST);
-		expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
-
-		/* Close batch to signal send completion */
-		send_storage_batch_close();
-		expect_storage_event(STORAGE_BATCH_CLOSE);
-	}
 }
 
 /* During network activity, no location search should be triggered */
@@ -637,8 +567,7 @@ void test_config_change(void)
 {
 	connect_to_cloud();
 
-	/* Restart timers to know the exact timing for the next triggers */
-	restart_cloud_timer();
+	/* Restart timer to know the timing for the next trigger */
 	restart_sample_timer();
 
 	/* Change sample interval and verify that the new interval is respected */
@@ -656,45 +585,17 @@ void test_config_change(void)
 	expect_location_event(LOCATION_SEARCH_DONE);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 
-	/* Disable sample timer to avoid interference */
-	disable_sample_timer();
-	expect_timer_event(TIMER_CONFIG_CHANGED);
-
-	/* Restart cloud timer to know the exact timing for the next triggers */
-	restart_cloud_timer();
-
-	/* Change cloud update interval and verify that the new interval is respected */
-	config_change_cloud_update_interval(1000);
-	expect_cloud_event(CLOUD_SHADOW_RESPONSE_DELTA);
-	expect_cloud_event(CLOUD_SHADOW_UPDATE_REPORTED_CONFIG);
-	expect_timer_event(TIMER_CONFIG_CHANGED);
-
-	k_sleep(K_SECONDS(1000));
-	expect_timer_event(TIMER_EXPIRED_CLOUD);
-	expect_storage_event(STORAGE_BATCH_REQUEST);
-	expect_fota_event(FOTA_POLL_REQUEST);
-	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
-
-	/* Close batch to signal send completion */
-	send_storage_batch_close();
-	expect_storage_event(STORAGE_BATCH_CLOSE);
-
-	/* Close this batch too */
-	send_storage_batch_close();
-	expect_storage_event(STORAGE_BATCH_CLOSE);
-
-	/* Restart timers to know the exact timing for the next triggers */
-	restart_cloud_timer();
+	/* Restart timer to know the timing for the next trigger */
 	restart_sample_timer();
 
 	/* Change all parameters at once and verify that all changes are respected */
-	config_change_all(500, 300, 3);
+	config_change_all(200, 3);
 	expect_storage_event(STORAGE_SET_THRESHOLD);
 	expect_cloud_event(CLOUD_SHADOW_RESPONSE_DELTA);
 	expect_cloud_event(CLOUD_SHADOW_UPDATE_REPORTED_CONFIG);
 	expect_timer_event(TIMER_CONFIG_CHANGED);
 
-	k_sleep(K_SECONDS(300));
+	k_sleep(K_SECONDS(200));
 	expect_timer_event(TIMER_EXPIRED_SAMPLE_DATA);
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 
@@ -702,12 +603,6 @@ void test_config_change(void)
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
-
-	k_sleep(K_SECONDS(200));
-	expect_timer_event(TIMER_EXPIRED_CLOUD);
-	expect_storage_event(STORAGE_BATCH_REQUEST);
-	expect_fota_event(FOTA_POLL_REQUEST);
-	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
 
 	/* Close batch to signal send completion */
 	send_storage_batch_close();

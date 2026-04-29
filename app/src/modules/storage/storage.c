@@ -330,11 +330,6 @@ static void check_and_notify_buffer_threshold(const struct storage_state *state_
 	int count;
 	const struct storage_backend *backend = storage_backend_get();
 
-	if (state_object->buffer_threshold_limit == 0) {
-		/* Threshold limit of 0 means threshold is disabled */
-		return;
-	}
-
 	count = backend->count(type);
 
 	if (count < 0) {
@@ -448,10 +443,8 @@ static void update_threshold(struct storage_state *state_object, uint32_t new_th
 {
 	if (new_threshold > 0 && new_threshold <= CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE) {
 		LOG_DBG("Updating buffer threshold limit: %u", new_threshold);
-	} else if (new_threshold == 0) {
-		LOG_DBG("Disabling buffer threshold limit");
 	} else {
-		LOG_ERR("Invalid threshold value: %u. Must be between 1 and %u, or 0 to disable.",
+		LOG_ERR("Invalid threshold value: %u. Must be between 1 and %u",
 			new_threshold, CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE);
 		return;
 	}

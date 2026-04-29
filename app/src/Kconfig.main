@@ -12,19 +12,6 @@ config APP_SAMPLING_INTERVAL_SECONDS
 	  Interval in seconds that determines how often sensor and location data is
 	  collected.
 
-config APP_CLOUD_UPDATE_INTERVAL_SECONDS
-	int "Cloud update interval"
-	default 3600
-	help
-	  Interval in seconds that controls how frequently the application
-	  updates cloud, performing cloud-related tasks such as:
-		* Polling the device shadow
-		* Checking for FOTA updates
-		* Transmitting buffered data to the cloud
-	  This option is typically set to a longer interval than
-	  CONFIG_APP_SAMPLING_INTERVAL_SECONDS to reduce
-	  power consumption while allowing data aggregation.
-
 config APP_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout"
 	default 180

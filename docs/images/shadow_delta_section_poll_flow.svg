@@ -131,9 +131,9 @@
 				</g>
 				<g id="shape25-65" transform="translate(-1.05516E-12,-467.988)">
 					<title>Rectangle.49</title>
-					<desc>TIMER_EXPIRED_CLOUD received</desc>
+					<desc>SEND_TRIGGER received</desc>
 					<rect x="0" y="514.421" width="142.866" height="12.7559" class="st13"/>
-					<text x="6.75" y="523.2" class="st2">TIMER_EXPIRED_CLOUD received</text>				</g>
+					<text x="20.25" y="523.2" class="st2">SEND_TRIGGER received</text>				</g>
 				<g id="shape26-68" transform="translate(-505.914,434.272) rotate(-90)">
 					<title>Sheet.26</title>
 					<path d="M0 527.18 L293.59 527.18 L0 527.18 Z" class="st5"/>

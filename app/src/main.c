@@ -53,13 +53,6 @@ enum timer_msg_type {
 	 */
 	TIMER_EXPIRED_SAMPLE_DATA,
 
-	/* Timer for cloud synchronization has expired.
-	 * This timer is used to trigger the cloud shadow and FOTA status polling and data sending.
-	 * The timer is set to expire every CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS seconds,
-	 * and can be overridden from the cloud.
-	 */
-	TIMER_EXPIRED_CLOUD,
-
 	/* Configuration has changed, timers need to be restarted with new intervals.
 	 * This internal event is used to signal that interval configuration has been updated
 	 * and any active timers should be restarted to apply the new values.
@@ -124,20 +117,15 @@ ZBUS_CHAN_DEFINE(priv_main_chan,
 CHANNEL_LIST(ADD_OBSERVERS)
 
 /* Forward declarations */
-static void timer_send_data_work_fn(struct k_work *work);
 static void timer_sample_data_work_fn(struct k_work *work);
 static void timer_sample_start(uint32_t delay_sec);
-static void timer_send_data_start(uint32_t delay_sec);
 static void timer_sample_stop(void);
-static void timer_send_data_stop(void);
 
 /* Delayable work used to schedule triggers */
-static K_WORK_DELAYABLE_DEFINE(timer_send_data_work, timer_send_data_work_fn);
 static K_WORK_DELAYABLE_DEFINE(timer_sample_data_work, timer_sample_data_work_fn);
 
 /* Forward declarations of state handlers */
 static enum smf_state_result waiting_for_modules_init_run(void *o);
-static void running_entry(void *o);
 static enum smf_state_result running_run(void *o);
 static void running_exit(void *o);
 
@@ -232,9 +220,7 @@ struct main_state {
 	/* Trigger interval */
 	uint32_t sample_interval_sec;
 
-	/* Update interval, how often the device synchronizes with the cloud */
-	uint32_t update_interval_sec;
-
+	/* Storage threshold for triggering data send to cloud */
 	uint32_t storage_threshold;
 
 	/* Start time of the most recent sampling. This is used to calculate the correct
@@ -246,11 +232,6 @@ struct main_state {
 	 * of sample_start_time.
 	 */
 	bool first_sample_pending;
-
-	/* Start time of the most recent cloud sync. This is used to calculate the correct
-	 * time when scheduling the next cloud sync trigger.
-	 */
-	uint32_t sync_start_time;
 
 	/* Storage batch session ID for batch operations */
 	uint32_t storage_session_id;
@@ -292,7 +273,7 @@ static const struct smf_state states[] = {
 	),
 	/* Top-level states */
 	[STATE_RUNNING] = SMF_CREATE_STATE(
-		running_entry,
+		NULL,
 		running_run,
 		running_exit,
 		NULL,
@@ -591,19 +572,6 @@ static void waiting_entry_common(const struct main_state *state_object)
 	LOG_DBG("Next sample trigger in %d seconds", time_remaining);
 
 	timer_sample_start(time_remaining);
-
-	/* Reschedule cloud sync trigger */
-	time_elapsed = k_uptime_seconds() - state_object->sync_start_time;
-	if (time_elapsed > state_object->update_interval_sec) {
-		LOG_WRN("Cloud sync took longer than the update interval, time_elapsed: %d, "
-			"interval: %d",
-			time_elapsed, state_object->update_interval_sec);
-		time_remaining = 0;
-	} else {
-		time_remaining = state_object->update_interval_sec - time_elapsed;
-	}
-	LOG_DBG("Next cloud sync trigger in %d seconds", time_remaining);
-	timer_send_data_start(time_remaining);
 }
 
 static void waiting_exit_common(void)
@@ -636,8 +604,6 @@ static void cloud_send_now(struct main_state *state_object)
 {
 	storage_send_data(state_object);
 	poll_triggers_send();
-	timer_send_data_start(state_object->update_interval_sec);
-	state_object->sync_start_time = k_uptime_seconds();
 
 #if defined(CONFIG_APP_LED)
 	int err;
@@ -660,23 +626,6 @@ static void cloud_send_now(struct main_state *state_object)
 		return;
 	}
 #endif /* CONFIG_APP_LED */
-}
-
-/* Delayable work used to send messages on the timer_chan */
-static void timer_send_data_work_fn(struct k_work *work)
-{
-	int err;
-	const struct timer_msg msg = { .type = TIMER_EXPIRED_CLOUD };
-
-	ARG_UNUSED(work);
-
-	err = zbus_chan_pub(&timer_chan, &msg, PUB_TIMEOUT);
-	if (err) {
-		LOG_ERR("Failed to publish cloud timer expired message, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
 }
 
 static void timer_sample_data_work_fn(struct k_work *work)
@@ -708,19 +657,6 @@ static void timer_sample_start(uint32_t delay_sec)
 	}
 }
 
-static void timer_send_data_start(uint32_t delay_sec)
-{
-	int err;
-
-	err = k_work_reschedule(&timer_send_data_work, K_SECONDS(delay_sec));
-	if (err < 0) {
-		LOG_ERR("k_work_reschedule timer_send_data_work, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-}
-
 static void timer_sample_stop(void)
 {
 	int err;
@@ -728,16 +664,6 @@ static void timer_sample_stop(void)
 	err = k_work_cancel_delayable(&timer_sample_data_work);
 	if (err < 0) {
 		LOG_ERR("k_work_cancel_delayable timer_sample_data_work, error: %d", err);
-	}
-}
-
-static void timer_send_data_stop(void)
-{
-	int err;
-
-	err = k_work_cancel_delayable(&timer_send_data_work);
-	if (err < 0) {
-		LOG_ERR("k_work_cancel_delayable timer_send_data_work, error: %d", err);
 	}
 }
 
@@ -778,9 +704,6 @@ static void update_shadow_reported_section(const struct config_params *config,
 	if (config->sample_interval != 0) {
 		LOG_DBG("Reported sample_interval: %d", config->sample_interval);
 	}
-	if (config->update_interval != 0) {
-		LOG_DBG("Reported update_interval: %d", config->update_interval);
-	}
 	if (config->storage_threshold_valid) {
 		LOG_DBG("Reported storage_threshold: %d", config->storage_threshold);
 	}
@@ -792,7 +715,6 @@ static void config_apply(struct main_state *state_object, const struct config_pa
 	bool interval_changed = false;
 
 	if (!config->sample_interval &&
-	    !config->update_interval &&
 	    !config->storage_threshold_valid) {
 		LOG_DBG("No configuration parameters to update");
 		return;
@@ -802,13 +724,6 @@ static void config_apply(struct main_state *state_object, const struct config_pa
 	    config->sample_interval != state_object->sample_interval_sec) {
 		LOG_DBG("Updating sample interval to %d seconds", config->sample_interval);
 		state_object->sample_interval_sec = config->sample_interval;
-		interval_changed = true;
-	}
-
-	if (config->update_interval &&
-	    config->update_interval != state_object->update_interval_sec) {
-		LOG_DBG("Updating update interval to %d seconds", config->update_interval);
-		state_object->update_interval_sec = config->update_interval;
 		interval_changed = true;
 	}
 
@@ -898,8 +813,6 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 
 		reported_config.sample_interval =
 			(update_config.sample_interval) ? state_object->sample_interval_sec : 0;
-		reported_config.update_interval =
-			(update_config.update_interval) ? state_object->update_interval_sec : 0;
 		reported_config.storage_threshold = (update_config.storage_threshold_valid)
 							    ? state_object->storage_threshold
 							    : 0;
@@ -931,7 +844,6 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 		config_apply(state_object, &update_config);
 
 		reported_config.sample_interval = state_object->sample_interval_sec;
-		reported_config.update_interval = state_object->update_interval_sec;
 		reported_config.storage_threshold = state_object->storage_threshold;
 		reported_config.storage_threshold_valid = true;
 
@@ -949,7 +861,6 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 	case CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED:
 
 		reported_config.sample_interval = state_object->sample_interval_sec;
-		reported_config.update_interval = state_object->update_interval_sec;
 		reported_config.storage_threshold = state_object->storage_threshold;
 		reported_config.storage_threshold_valid = true;
 
@@ -1035,19 +946,6 @@ static enum smf_state_result waiting_for_modules_init_run(void *o)
 	return SMF_EVENT_PROPAGATE;
 }
 
-/* STATE_RUNNING - Top level state */
-
-static void running_entry(void *o)
-{
-	struct main_state *state_object = (struct main_state *)o;
-
-	ARG_UNUSED(o);
-	LOG_DBG("%s", __func__);
-
-	timer_send_data_start(state_object->update_interval_sec);
-	state_object->sync_start_time = k_uptime_seconds();
-}
-
 static enum smf_state_result running_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
@@ -1087,7 +985,6 @@ static void running_exit(void *o)
 	LOG_DBG("%s", __func__);
 
 	timer_sample_stop();
-	timer_send_data_stop();
 }
 
 /* STATE_DISCONNECTED */
@@ -1117,18 +1014,6 @@ static enum smf_state_result disconnected_run(void *o)
 			} else {
 				smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
 			}
-
-			return SMF_EVENT_HANDLED;
-		}
-	}
-
-	/* Restart cloud send timer while disconnected */
-	if (state_object->chan == &timer_chan) {
-		const struct timer_msg *msg = (const struct timer_msg *)state_object->msg_buf;
-
-		if (msg->type == TIMER_EXPIRED_CLOUD) {
-			timer_send_data_start(state_object->update_interval_sec);
-			state_object->sync_start_time = k_uptime_seconds();
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -1221,17 +1106,6 @@ static enum smf_state_result connected_run(void *o)
 			return SMF_EVENT_HANDLED;
 		default:
 			break;
-		}
-	}
-
-	/* Handle periodic send at connectivity parent level */
-	if (state_object->chan == &timer_chan) {
-		const struct timer_msg *msg = (const struct timer_msg *)state_object->msg_buf;
-
-		if (msg->type == TIMER_EXPIRED_CLOUD) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_SENDING]);
-
-			return SMF_EVENT_HANDLED;
 		}
 	}
 
@@ -1809,7 +1683,6 @@ int main(void)
 #endif /* CONFIG_APP_INSPECT_SHELL */
 
 	main_state.sample_interval_sec = CONFIG_APP_SAMPLING_INTERVAL_SECONDS;
-	main_state.update_interval_sec = CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS;
 	main_state.storage_threshold = CONFIG_APP_STORAGE_INITIAL_THRESHOLD;
 	main_state.first_sample_pending = true;
 
