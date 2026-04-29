@@ -54,6 +54,11 @@ on:
 permissions:
   contents: read
 
+# Cancel any in-progress run for the same PR
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: build_self_hosted
