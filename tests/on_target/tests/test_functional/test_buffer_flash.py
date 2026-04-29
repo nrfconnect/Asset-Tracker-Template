@@ -5,7 +5,6 @@
 
 import os
 import sys
-import re
 import pytest
 from time import sleep
 from utils.flash_tools import flash_device, reset_device
@@ -15,12 +14,10 @@ from utils.logger import get_logger
 
 logger = get_logger()
 
-DEFAULT_UPDATE_INTERVAL = 600
 DEFAULT_SAMPLE_INTERVAL = 150
 DEFAULT_STORAGE_THRESHOLD = 1
-FLASH_BUFFER_TEST_UPDATE_INTERVAL = 180
 FLASH_BUFFER_TEST_SAMPLE_INTERVAL = 15
-FLASH_BUFFER_TEST_STORAGE_THRESHOLD = 0
+FLASH_BUFFER_TEST_STORAGE_THRESHOLD = 10
 
 def get_storing_str(datatype, file_index=0):
     return "Storing data in file /att_storage/" + datatype + "_" + str(file_index) + ".bin"
@@ -28,16 +25,16 @@ def get_storing_str(datatype, file_index=0):
 def get_header_str(datatype):
     return "Header file /att_storage/" + datatype + ".header already exists"
 
-def get_storage_full_str(datatype):
-    return "Storage full for type " + datatype + ", overwriting oldest data"
-
 @pytest.mark.slow
 def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
+
+    # Clear shadow config and command sections before starting the test to ensure a clean slate
+    # and deterministic behavior.
+    dut_cloud.cloud.patch_reset_config_and_command(dut_cloud.device_id)
 
     # Change cloud config to enable buffer mode and set short sampling interval
     dut_cloud.cloud.patch_config(
         dut_cloud.device_id,
-        update_interval=FLASH_BUFFER_TEST_UPDATE_INTERVAL,
         sample_interval=FLASH_BUFFER_TEST_SAMPLE_INTERVAL,
         storage_threshold=FLASH_BUFFER_TEST_STORAGE_THRESHOLD
     )
@@ -59,12 +56,6 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
         get_header_str("ENVIRONMENTAL")
     ]
 
-    storage_full_list = [
-        get_storage_full_str("LOCATION"),
-        get_storage_full_str("ENVIRONMENTAL"),
-        get_storage_full_str("BATTERY")
-    ]
-
     try:
         reset_device()
         start_pos = dut_cloud.uart.get_size()
@@ -83,16 +74,12 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
         start_pos = dut_cloud.uart.get_size()
         dut_cloud.uart.wait_for_str(get_storing_str("LOCATION", file_index=1), timeout=300, start_pos=start_pos)
 
-        # Storage full overwriting, expected on sample 11
-        start_pos = dut_cloud.uart.get_size()
-        dut_cloud.uart.wait_for_str(storage_full_list, timeout=100, start_pos=start_pos)
-
         # Wait for buffer processing, expecting 30 items to be stored total ((BATTERY, ENVIRONMENTAL, LOCATION) x 10 samples)
         # NOTE: If default sampling behavior changes (e.g. additional types) this needs to be updated to match expected total samples
         start_pos = dut_cloud.uart.get_size()
         dut_cloud.uart.wait_for_str_re(
             r"Batch population complete for session 0x[0-9A-F]+: \d+/30 items",
-            timeout=120,
+            timeout=300,
             start_pos=start_pos,
         )
 
@@ -150,7 +137,6 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
         # Restore default config no matter what
         dut_cloud.cloud.patch_config(
             dut_cloud.device_id,
-            update_interval=DEFAULT_UPDATE_INTERVAL,
             sample_interval=DEFAULT_SAMPLE_INTERVAL,
             storage_threshold=DEFAULT_STORAGE_THRESHOLD
         )

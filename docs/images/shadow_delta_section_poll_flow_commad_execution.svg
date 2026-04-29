@@ -108,9 +108,9 @@
 			</g>
 			<g id="shape20-50" transform="translate(7.94108,-417.402)">
 				<title>Rectangle.49</title>
-				<desc>TIMER_EXPIRED_CLOUD received</desc>
+				<desc>SEND_TRIGGER received</desc>
 				<rect x="0" y="518.686" width="100.922" height="18.9921" class="st12"/>
-				<text x="14.12" y="526.38" class="st5">TIMER_EXPIRED_CLOUD <tspan x="39.12" dy="1.2em" class="st3">received</tspan></text>			</g>
+				<text x="23.12" y="526.38" class="st5">SEND_TRIGGER <tspan x="39.12" dy="1.2em" class="st3">received</tspan></text>			</g>
 			<g id="shape21-54" transform="translate(421.091,-448.583)">
 				<title>Sheet.21</title>
 				<desc>2.01 OK</desc>

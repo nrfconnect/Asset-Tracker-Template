@@ -10,9 +10,6 @@
 
 /** Device configuration parameters. */
 struct config_params {
-	/** Update interval in seconds. */
-	uint32_t update_interval;
-
 	/** Sample interval in seconds. */
 	uint32_t sample_interval;
 

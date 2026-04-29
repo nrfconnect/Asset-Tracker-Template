@@ -322,7 +322,7 @@ To test that everything is working as expected, complete the following steps:
     [00:00:08.995,483] <inf> wifi_nrf_bus: SPIM spi@b000: latency = 0
     [00:00:09.293,090] <dbg> cloud: cloud_configuration_poll: Shadow desired section not present
     [00:00:09.293,426] <dbg> main: connected_run: Received empty shadow response from cloud
-    [00:00:09.293,914] <dbg> main: update_shadow_reported_section: Configuration reported: update_interval=600, sample_interval=150, storage_threshold=1
+    [00:00:09.293,914] <dbg> main: update_shadow_reported_section: Configuration reported: sample_interval=150, storage_threshold=1
     [00:00:09.294,586] <dbg> cloud: cloud_configuration_reported_update: Configuration: Reporting config to cloud
     [00:00:10.072,174] <inf> nrf_cloud_fota_poll: No pending FOTA job
     [00:00:10.072,204] <dbg> fota: state_polling_for_update_entry: No FOTA job available

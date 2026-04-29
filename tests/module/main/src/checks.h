@@ -14,7 +14,6 @@
 /* Timer message type - must match the types in project/app/src/main.c */
 enum timer_msg_type {
 	TIMER_EXPIRED_SAMPLE_DATA,
-	TIMER_EXPIRED_CLOUD,
 	TIMER_CONFIG_CHANGED,
 };
 

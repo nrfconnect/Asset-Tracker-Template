@@ -78,13 +78,11 @@ runs:
           params+=("-DCONFIG_APP_STORAGE_LOG_LEVEL_DBG=y")
           params+=("-DCONFIG_APP_SAMPLING_INTERVAL_SECONDS=15")
           params+=("-DCONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=10")
-          params+=("-DCONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS=180")
         fi
         if [[ "${{ inputs.buffer_ram }}" == "true" ]]; then
           params+=("-DCONFIG_APP_STORAGE_LOG_LEVEL_DBG=y")
           params+=("-DCONFIG_APP_SAMPLING_INTERVAL_SECONDS=15")
           params+=("-DCONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=10")
-          params+=("-DCONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS=180")
         fi
         west build -b ${{ inputs.board }} \
             -d build \

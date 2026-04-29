@@ -38,7 +38,8 @@ CONFIG_LTE_PSM_REQ_RPTAU_SECONDS=1800  # Periodic TAU: 30 minutes
 CONFIG_LTE_PSM_REQ_RAT_SECONDS=60      # Active Time: 1 minute
 ```
 
-It is recommended to configure a periodic TAU timer longer than the update interval of the application to avoid synchronization with the network between updates.
+It is recommended to configure a periodic TAU timer longer than the update cycle (`sampling interval` * `storage threshold`) of the application to avoid synchronization with the
+network between uploads.
 
 See the [Configuration guide — PSM](configuration.md#power-saving-mode-psm) for additional options. The actual values are negotiated with the network.
 
@@ -53,23 +54,30 @@ CONFIG_LTE_EDRX_REQ_VALUE_NBIOT="0000"  # eDRX interval 5.12 s for NB-IoT
 
 eDRX is used to periodically sleep during the PSM active timer. With the default settings, the device monitors for downlink data every 5.12 seconds for the duration of the active timer (60 seconds by default) in case the cloud sends data to the device.
 
-### Update interval
+### Sampling and send behavior
 
-The following Kconfig options set in the `prj.conf` file control sampling and transmission frequency:
+The following Kconfig options set in the `prj.conf` file control sampling and
+transmission frequency:
 
 ```config
 CONFIG_APP_SAMPLING_INTERVAL_SECONDS=600      # Default: 10 minutes
-CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS=3600 # Default: 1 hour
 CONFIG_APP_STORAGE_INITIAL_THRESHOLD=1        # Default: 1 item
 ```
 
-Sensors and location are sampled and stored at the interval set by the `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` Kconfig option, and sent to the cloud at the interval set by the `CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS` Kconfig option or when the number of stored items reaches the `CONFIG_APP_STORAGE_INITIAL_THRESHOLD` threshold.
+Sensors and location are sampled and stored at the interval set by the
+`CONFIG_APP_SAMPLING_INTERVAL_SECONDS` Kconfig option. Buffered data is sent to the cloud
+when the number of stored items reaches
+`CONFIG_APP_STORAGE_INITIAL_THRESHOLD`.
 
-You can adjust these values at runtime using the nRF Cloud device shadow. See the [Configuration guide](configuration.md#runtime-configurations) for details.
+You can adjust these values at runtime using the nRF Cloud device shadow. See
+the [Configuration guide](configuration.md#runtime-configurations) for
+details.
 
 **Impact:** Using longer intervals between operations and increasing the storage threshold results in fewer network connections and leads to lower power consumption.
 
-Ensure that the PSM Periodic TAU interval is set reasonably longer than the cloud sync interval to avoid waking the modem up to perform tracking or updates.
+Ensure that the PSM Periodic TAU interval is set reasonably longer than the
+expected cloud upload cadence (`sampling interval` * `storage threshold`) to avoid waking the modem up too often for
+network maintenance.
 
 ### UART power management
 
@@ -115,7 +123,7 @@ If your use case requires 5 GHz AP coverage, remove `CONFIG_NRF_WIFI_2G_BAND=y` 
 ## Optimization best practices
 
 1. **Disable peripherals** - Disable UART and peripherals that consume a lot of power.
-2. **Increase update intervals** - Reduce sampling/transmission frequency.
+2. **Increase sampling interval** - Reduce sampling frequency.
 3. **Increase storage threshold** - Store more data before sending to cloud.
 4. **Minimize payload size** - Reduce transmission duration by using effective serialization formats (CBOR, Protobuf).
 5. **Validate with PPK2** - Measure actual power consumption.

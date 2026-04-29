@@ -37,12 +37,6 @@ int decode_shadow_parameters_from_cbor(const uint8_t *cbor, size_t len,
 	}
 
 	if (shadow.config_present) {
-		if (shadow.config.update_interval_present) {
-			config->update_interval = shadow.config.update_interval.update_interval;
-			LOG_DBG("Configuration: Decoded update_interval = %d seconds",
-				config->update_interval);
-		}
-
 		if (shadow.config.sample_interval_present) {
 			config->sample_interval = shadow.config.sample_interval.sample_interval;
 			LOG_DBG("Configuration: Decoded sample_interval = %d seconds",
@@ -78,13 +72,6 @@ int encode_shadow_parameters_to_cbor(const struct config_params *config, uint32_
 
 	if (!config || !buffer || !encoded_len || buffer_size == 0) {
 		return -EINVAL;
-	}
-
-	/* Build shadow object with config section */
-	if (config->update_interval > 0) {
-		shadow.config_present = true;
-		shadow.config.update_interval_present = true;
-		shadow.config.update_interval.update_interval = config->update_interval;
 	}
 
 	if (config->sample_interval > 0) {

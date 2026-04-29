@@ -972,6 +972,57 @@ void test_storage_stores_samples_while_batch_session_active(void)
 	close_batch_and_assert(received_msg.session_id);
 }
 
+void test_storage_wraps_when_max_records_reached(void)
+{
+	const struct storage_backend *backend = storage_backend_get();
+	const struct storage_data *env_type = NULL;
+	struct environmental_msg env_msg = { .type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE };
+	struct environmental_msg retrieved;
+	const size_t max_records = CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE;
+	const size_t total_samples = max_records + 3;
+
+	/* Find the registered environmental storage type used by the backend API. */
+	STRUCT_SECTION_FOREACH(storage_data, t) {
+		if (t->data_type == STORAGE_TYPE_ENVIRONMENTAL) {
+			env_type = t;
+			break;
+		}
+	}
+
+	TEST_ASSERT_NOT_NULL(env_type);
+
+	for (size_t i = 0; i < total_samples; i++) {
+		size_t sample_idx = i % ARRAY_SIZE(env_samples);
+
+		populate_env_message(sample_idx, &env_msg);
+		publish_and_assert(&environmental_chan, &env_msg);
+	}
+
+	/* Let the storage thread process all published samples before direct backend reads. */
+	k_sleep(K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(max_records, backend->count(env_type));
+
+	for (size_t i = 0; i < max_records; i++) {
+		size_t expected_publish_idx = (total_samples - max_records) + i;
+		size_t expected_sample_idx = expected_publish_idx % ARRAY_SIZE(env_samples);
+		int ret;
+
+		ret = backend->retrieve(env_type, &retrieved, sizeof(retrieved));
+		TEST_ASSERT_EQUAL(sizeof(retrieved), ret);
+
+		TEST_ASSERT_EQUAL_DOUBLE(env_samples[expected_sample_idx].temperature,
+					 retrieved.temperature);
+		TEST_ASSERT_EQUAL_DOUBLE(env_samples[expected_sample_idx].humidity,
+					 retrieved.humidity);
+		TEST_ASSERT_EQUAL_DOUBLE(env_samples[expected_sample_idx].pressure,
+					 retrieved.pressure);
+	}
+
+	TEST_ASSERT_EQUAL(0, backend->count(env_type));
+
+}
+
 void test_storage_threshold(void)
 {
 	int err;
@@ -1013,13 +1064,16 @@ void test_storage_threshold(void)
 	TEST_ASSERT_EQUAL(STORAGE_TYPE_ENVIRONMENTAL, received_msg.data_type);
 	TEST_ASSERT_EQUAL(6, received_msg.data_len);
 
-	/* Reset threshold to 0 and verify no further threshold messages are sent */
-	msg.data_len = 0;
+	/* Set threshold to max and verify no further threshold messages are sent */
+	msg.data_len = CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE;
 	err = zbus_chan_pub(&storage_chan, &msg, K_SECONDS(1));
 	TEST_ASSERT_EQUAL(0, err);
 
 	/* Wait for handling */
 	k_sleep(K_MSEC(100));
+
+	/* Clear previously captured message to detect a new threshold event if any */
+	memset(&received_msg, 0, sizeof(received_msg));
 
 	/* Send more data */
 	populate_env_message(6, &env_msg);
@@ -1028,7 +1082,7 @@ void test_storage_threshold(void)
 	/* Wait for handling */
 	k_sleep(K_MSEC(100));
 
-	/* Verify we did NOT get STORAGE_THRESHOLD_REACHED message since threshold is now 0 */
+	/* Verify we did NOT get STORAGE_THRESHOLD_REACHED message since threshold is now high */
 	TEST_ASSERT_NOT_EQUAL(STORAGE_THRESHOLD_REACHED, received_msg.type);
 
 }

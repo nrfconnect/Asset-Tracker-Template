@@ -199,19 +199,17 @@ class NRFCloud():
         diff = timedelta(hours=hours, minutes=minutes, seconds=seconds)
         return datetime.now(timezone.utc) - message[0].replace(tzinfo=timezone.utc) < diff
 
-    def patch_config(self, device_id: str, update_interval: int, sample_interval: int, storage_threshold: int) -> None:
+    def patch_config(self, device_id: str, sample_interval: int, storage_threshold: int) -> None:
         """
-        Update the device's configuration (update_interval, sample_interval, buffer_mode)
+        Update the device's configuration (sample_interval, storage_threshold)
 
         :param device_id: Device ID to update
-        :param update_interval: New update interval in seconds
         :param sample_interval: New sample interval in seconds
         :param storage_threshold: New storage threshold in samples
         """
         data = json.dumps({
             "desired": {
                 "config": {
-                    "update_interval": update_interval,
                     "sample_interval": sample_interval,
                     "storage_threshold": storage_threshold
                 }
