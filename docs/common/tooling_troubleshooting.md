@@ -433,80 +433,48 @@ backoff_time        : 60 (0x3C)
 ## Memfault Remote Debugging
 
 The template supports remote debugging using [Memfault](https://memfault.com/).
-Remote debugging enables the device to send metrics such as LTE, GNSS, and memory statistics, as well as coredump captures on crashes, to analyse problems across single devices or a fleet of devices once they occur.
-
-For more information, see the following documentation:
-
-- [Memfault Sample](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/samples/debug/memfault/README.html)
-- [Memfault Integration](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/debug/memfault_ncs.html)
+Remote debugging enables the device to send metrics such as LTE, location, and memory statistics, as well as coredump captures on crashes, to analyse problems across single devices or a fleet of devices once they occur.
 
 ### When to Use Memfault
 
-Memfault is a device observability platform that complements traditional debugging tools by providing remote diagnostics and fleet-wide insights. It is particularly valuable in the following scenarios:
+Memfault is a device observability platform that complements traditional debugging tools by providing remote diagnostics and fleet-wide insights. It is particularly valuable when:
 
-**Field debugging:**
+- Devices are deployed in remote or hard-to-reach locations and you need to capture crashes and diagnostics without physical access or a live debug session.
+- Issues only reproduce under real network conditions, or occur sporadically and are difficult to recreate on the bench.
+- You need full post-mortem context — register state, stack traces, memory contents, and (optionally) modem traces — to root-cause crashes after the fact.
+- You want to track device health, LTE connectivity, stack usage, and memory statistics across an entire fleet, and watch trends over time.
+- You want to spot systemic issues affecting specific firmware versions, hardware batches, or network configurations, and collect crash data to identify recurring patterns.
 
-- Capture crashes and diagnostics from devices deployed in remote locations where physical access is limited or impossible.
-- Investigate issues that only occur in production environments with real network conditions.
+### How to use Memfault
 
-**Intermittent issues:**
+1. **Provision the device.** Follow the [Getting Started](getting_started.md) guide to connect the device to your nRF Cloud instance. Once provisioned, the device automatically forwards coredumps, metrics, and (if the modem-trace overlay is enabled) modem traces to the Memfault project linked to your nRF Cloud account.
+2. **Open the Memfault dashboard from nRF Cloud.** Log in to [nRF Cloud](https://nrfcloud.com/) and click the **Memfault** entry in the left sidebar to open the linked Memfault project.
+3. **Upload the firmware symbol file.** Memfault needs the build's `zephyr.elf` to decode crash addresses into function names, line numbers, and variable names. Upload it once per build, either from the Memfault UI (**Symbol Files** → **Upload Symbol File** → select `build/app/zephyr/zephyr.elf`) or from the command line using the [Memfault CLI](https://docs.memfault.com/docs/ci/install-memfault-cli):
 
-- Debug problems that occur sporadically and are difficult to reproduce in a development environment.
-- Collect crash data over time to identify patterns and root causes.
+    ```bash
+    memfault \
+        --org-token <YOUR_ORG_TOKEN> \
+        --org <YOUR_ORG_SLUG> \
+        --project <YOUR_PROJECT_SLUG> \
+        upload-mcu-symbols build/app/zephyr/zephyr.elf
+    ```
 
-**Fleet monitoring:**
-
-- Track device health metrics across multiple deployed units.
-- Identify systemic issues affecting specific firmware versions, hardware batches, or network configurations.
-- Monitor LTE connectivity metrics, stack usage, and memory statistics across your device fleet.
-
-**Post-mortem analysis:**
-
-- Analyze crashes after they occur without requiring device physical access or live debugging sessions.
-- Capture full coredumps with register state, stack traces, and memory contents.
-- Include modem traces for in-depth cellular connectivity analysis.
-
-**Use Memfault alongside other debugging tools:**
-
-- **GDB**: Used for interactive development debugging with breakpoints and step-through execution.
-- **Crash analysis**: Use for immediate crash investigation during development with serial connection.
-- **Memfault**: Use for remote, asynchronous crash collection, fleet-wide analysis, and field diagnostics.
-
-**Symbol file management:**
-
-- Symbol files enable Memfault to decode crash addresses into meaningful function names and line numbers.
-- Upload symbol files for each firmware version you deploy using the Memfault user interface or the [Memfault CLI tool](https://docs.memfault.com/docs/ci/install-memfault-cli).
-- For local development builds, manually upload using the CLI tool or the Memfault user interface.
-- The CI pipeline automatically uploads symbols using the CLI tool.
-
-### Prerequisites
-
-1. Register at [nRF Cloud](https://app.nrfcloud.com/#/register)
-2. Complete the [Remote Debugging with Memfault](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/exercise-4-remote-debugging-with-memfault/) exercise.
+4. **List your devices.** In the Memfault UI, click **Devices** in the left toolbar to see every device that has reported in, then select one to look into its coredumps, metrics, and modem traces (CDRs).
 
 The template enables basic support for Memfault, forwarding captured LTE and location metrics as well as coredumps on crashes to Memfault via nRF Cloud CoAP.
-If you also want to send modem traces to Memfault on application crashes, include the `overlay-upload-modem-traces-to-memfault.conf` overlay in your west build command.
-
-> [!IMPORTANT]
-> Memfault data uploads increases your device's data usage.
-> This is especially true when using the modem trace upload feature, which can send upwards of 1 MB of modem trace data in case of application crashes.
-> Consider this when planning your data usage and costs.
-
-To build with the modem trace overlay:
+If you also want to send modem traces to Memfault on application crashes, include the `overlay-upload-modem-traces-to-memfault.conf` overlay in your west build command:
 
 ```bash
 west build -p -b <board> -- -DEXTRA_CONF_FILE="overlay-upload-modem-traces-to-memfault.conf"
 ```
 
-> Note: By default, Memfault data is routed via CoAP to the Memfault project linked to your provisioned nRF Cloud account. To override this, set `CONFIG_MEMFAULT_NCS_PROJECT_KEY="YOUR_PROJECT_KEY"`.
+> [!IMPORTANT]
+> The modem trace upload feature can send upwards of 1 MB of modem trace data in case of application crashes.
+> Consider this when planning your data usage and costs.
 
-Screen capture from a coredump received in Memfault:
+Example of a coredump received in Memfault:
 
 ![Memfault UI](../images/memfault.png)
-
-> [!IMPORTANT]
-> To properly use Memfault and decode the metrics and coredumps sent from the device, you need to upload the ELF file located in the build folder of the template once you have built the application.
-> This is covered in the [Remote Debugging with Memfault](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/exercise-4-remote-debugging-with-memfault/) Developer Academy exercise.
 
 #### Test shell commands
 
