@@ -135,7 +135,7 @@ def _wait_for_provisioning_completion_and_cloud_connection(
 
     dut_cloud.uart.wait_for_str(
         [
-            "cloud: nrf_provisioning_callback: Provisioning finished",
+            "main: running_run: Device provisioning completed",
             "cloud: Connected to Cloud",
         ],
         timeout=timeout,
