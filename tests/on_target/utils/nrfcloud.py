@@ -250,6 +250,26 @@ class NRFCloud():
         })
         return self._patch(f"/devices/{device_id}/state", data=data)
 
+    def patch_reset_config_and_command(self, device_id: str) -> None:
+        """
+        Null out the `config` and `command` sections from both `desired` and `reported`
+        shadow state so that the device starts from a clean slate. This is useful for
+        tests that need deterministic shadow content on first connect.
+
+        :param device_id: Device ID to reset
+        """
+        data = json.dumps({
+            "desired": {
+                "config": None,
+                "command": None,
+            },
+            "reported": {
+                "config": None,
+                "command": None,
+            }
+        })
+        return self._patch(f"/devices/{device_id}/state", data=data)
+
 class NRFCloudFOTA(NRFCloud):
     def upload_firmware(
         self, name: str, bin_file: str, version: str, description: str, fw_type: FWType, bin_file_2=None

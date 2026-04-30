@@ -73,6 +73,10 @@ def test_config(dut_cloud, hex_file):
     parameters. Tests both boot-time config pickup and runtime config updates.
     '''
 
+    # Clear shadow config and command sections before starting the test to ensure a clean slate
+    # and deterministic behavior.
+    dut_cloud.cloud.patch_reset_config_and_command(dut_cloud.device_id)
+
     # Phase 1: Boot-time config
     # Patch config before booting so the device picks it up from the shadow on first connect.
     dut_cloud.cloud.patch_config(
