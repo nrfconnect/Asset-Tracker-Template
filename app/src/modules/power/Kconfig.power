@@ -15,7 +15,6 @@ if APP_POWER
 
 config APP_POWER_SHELL
 	bool "Power module shell commands"
-	default y if SHELL
 	help
 	  Enable shell commands for the power module.
 

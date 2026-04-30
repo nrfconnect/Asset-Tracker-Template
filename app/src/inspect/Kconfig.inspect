@@ -9,7 +9,6 @@ menu "Inspect"
 config APP_INSPECT_SHELL
 	bool "Inspect shell command"
 	depends on SHELL
-	default y
 	help
 	  Enable the 'att_inspect' shell command.
 
