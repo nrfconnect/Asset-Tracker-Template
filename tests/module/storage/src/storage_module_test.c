@@ -409,6 +409,45 @@ void test_storage_batch_request_empty(void)
 	close_batch_and_assert(received_msg.session_id);
 }
 
+/* Regression test for the case where a STORAGE_BATCH_REQUEST is issued while the
+ * backend is empty. The module must roll back to STATE_BUFFER_IDLE on its own
+ * after replying with STORAGE_BATCH_EMPTY, so that a follow-up request with a
+ * different session id is served normally instead of being rejected with
+ * STORAGE_BATCH_BUSY.
+ */
+void test_storage_batch_empty_does_not_block_next_request(void)
+{
+	int err;
+	struct storage_msg first_request = {
+		.type = STORAGE_BATCH_REQUEST,
+		.session_id = 0xAAAA0001,
+	};
+	struct storage_msg second_request = {
+		.type = STORAGE_BATCH_REQUEST,
+		.session_id = 0xAAAA0002,
+	};
+
+	/* First request on an empty backend must produce BATCH_EMPTY for its session ID. */
+	err = zbus_chan_pub(&storage_chan, &first_request, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	k_sleep(K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_EMPTY, received_msg.type);
+	TEST_ASSERT_EQUAL(first_request.session_id, received_msg.session_id);
+
+	err = zbus_chan_pub(&storage_chan, &second_request, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	k_sleep(K_SECONDS(1));
+
+	TEST_ASSERT_NOT_EQUAL(STORAGE_BATCH_BUSY, received_msg.type);
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_EMPTY, received_msg.type);
+	TEST_ASSERT_EQUAL(second_request.session_id, received_msg.session_id);
+
+	close_batch_and_assert(received_msg.session_id);
+}
+
 void test_storage_batch_request_and_retrieve(void)
 {
 	int err;
