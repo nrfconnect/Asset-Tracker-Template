@@ -632,7 +632,6 @@ static int start_batch_session(struct storage_state *state_object,
 
 	/* Enforce non-zero session id */
 	if (request_msg->session_id == 0U) {
-		send_batch_error_response(request_msg->session_id);
 		return -EINVAL;
 	}
 
@@ -646,8 +645,6 @@ static int start_batch_session(struct storage_state *state_object,
 	}
 
 	if (total_items == 0) {
-		send_batch_empty_response(request_msg->session_id);
-
 		return -ENODATA;
 	}
 
@@ -662,9 +659,6 @@ static int start_batch_session(struct storage_state *state_object,
 	/* Try to populate the pipe */
 	err = populate_pipe(state_object);
 	if (err < 0) {
-		/* Error occurred during pipe population */
-		send_batch_error_response(request_msg->session_id);
-
 		LOG_ERR("Failed to populate pipe for session 0x%X: %d",
 			state_object->current_session.session_id, err);
 
@@ -877,11 +871,13 @@ static void state_buffer_pipe_active_entry(void *o)
 	if (err == -ENODATA) {
 		/* No data available, report it */
 		send_batch_empty_response(msg->session_id);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
 
 		return;
 	} else if (err) {
 		LOG_ERR("Failed to start pipe session: %d", err);
 		send_batch_error_response(msg->session_id);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
 
 		return;
 	}
@@ -917,7 +913,9 @@ static enum smf_state_result state_buffer_pipe_active_run(void *o)
 
 			return SMF_EVENT_HANDLED;
 
-		case STORAGE_BATCH_REQUEST:
+		case STORAGE_BATCH_REQUEST: {
+			int err;
+
 			LOG_DBG("Batch request received, session_id: 0x%X", msg->session_id);
 
 			if (state_object->current_session.session_id &&
@@ -932,7 +930,20 @@ static enum smf_state_result state_buffer_pipe_active_run(void *o)
 			/* We allow multiple requests in the same session.
 			 * The batch will be refreshed with new data.
 			 */
-			start_batch_session(state_object, msg);
+			err = start_batch_session(state_object, msg);
+			if (err == -ENODATA) {
+				send_batch_empty_response(msg->session_id);
+				smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
+
+				return SMF_EVENT_HANDLED;
+			} else if (err) {
+				LOG_ERR("Failed to refresh pipe session: %d", err);
+				send_batch_error_response(msg->session_id);
+				smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
+
+				return SMF_EVENT_HANDLED;
+			}
+
 			LOG_DBG("Session started: 0x%X", state_object->current_session.session_id);
 
 			/* Reset session timeout on activity */
@@ -940,6 +951,7 @@ static enum smf_state_result state_buffer_pipe_active_run(void *o)
 					  K_SECONDS(STORAGE_SESSION_TIMEOUT_SECONDS));
 
 			return SMF_EVENT_HANDLED;
+		}
 
 		default:
 			/* Don't care */
