@@ -4,7 +4,12 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-menu "Button"
+menuconfig APP_BUTTON
+	bool "Button"
+	default y
+	select DK_LIBRARY
+
+if APP_BUTTON
 
 config APP_BUTTON_SHELL
 	bool "Button module shell"
@@ -24,4 +29,4 @@ module = APP_BUTTON
 module-str = Button
 source "subsys/logging/Kconfig.template.log_config"
 
-endmenu # Button
+endif # APP_BUTTON
