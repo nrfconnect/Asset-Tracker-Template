@@ -18,10 +18,10 @@ target_sources(app PRIVATE src/main.c)
 
 # Module source folders
 add_subdirectory(src/modules/network)
-add_subdirectory(src/modules/button)
 add_subdirectory(src/cbor)
 
 # Optional modules
+add_subdirectory_ifdef(CONFIG_APP_BUTTON src/modules/button)
 add_subdirectory_ifdef(CONFIG_APP_POWER src/modules/power)
 add_subdirectory_ifdef(CONFIG_APP_ENVIRONMENTAL src/modules/environmental)
 add_subdirectory_ifdef(CONFIG_APP_LED src/modules/led)

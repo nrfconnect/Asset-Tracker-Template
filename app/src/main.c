@@ -16,15 +16,16 @@
 #ifdef CONFIG_APP_INSPECT_SHELL
 #include "app_inspect.h"
 #endif /* CONFIG_APP_INSPECT_SHELL */
-#include "button.h"
-#include "modules/button/button.h"
-#include "modules/storage/storage.h"
 #include "network.h"
 #include "cloud.h"
 #include "fota.h"
 #include "location.h"
 #include "storage.h"
 #include "cbor_helper.h"
+
+#if defined(CONFIG_APP_BUTTON)
+#include "button.h"
+#endif /* CONFIG_APP_BUTTON */
 
 #if defined(CONFIG_APP_LED)
 #include "led.h"
@@ -101,13 +102,13 @@ ZBUS_CHAN_DEFINE(priv_main_chan,
  */
 #define CHANNEL_LIST(X)						\
 	X(cloud_chan,		struct cloud_msg)		\
-	X(button_chan,		struct button_msg)		\
 	X(fota_chan,		struct fota_msg)		\
 	X(network_chan,		struct network_msg)		\
 	X(location_chan,	struct location_msg)		\
 	X(storage_chan,		struct storage_msg)		\
 	X(timer_chan,		struct timer_msg)		\
 	X(priv_main_chan,	struct priv_main_msg)		\
+	IF_ENABLED(CONFIG_APP_BUTTON, (X(button_chan, struct button_msg)))	\
 	IF_ENABLED(CONFIG_APP_POWER, (X(power_chan, struct power_msg)))
 
 /* Calculate the maximum message size from the list of channels */
@@ -1122,6 +1123,7 @@ static enum smf_state_result disconnected_run(void *o)
 		}
 	}
 
+#if defined(CONFIG_APP_BUTTON)
 	/* Ignore send trigers when disconnected */
 	if (state_object->chan == &button_chan) {
 		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
@@ -1130,6 +1132,7 @@ static enum smf_state_result disconnected_run(void *o)
 			return SMF_EVENT_HANDLED;
 		}
 	}
+#endif /* CONFIG_APP_BUTTON */
 
 	if (state_object->chan == &storage_chan) {
 		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
@@ -1220,6 +1223,7 @@ static enum smf_state_result connected_run(void *o)
 		}
 	}
 
+#if defined(CONFIG_APP_BUTTON)
 	/* Handle long button press to send immediately */
 	if (state_object->chan == &button_chan) {
 		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
@@ -1230,6 +1234,7 @@ static enum smf_state_result connected_run(void *o)
 			return SMF_EVENT_HANDLED;
 		}
 	}
+#endif /* CONFIG_APP_BUTTON */
 
 	/* Handle buffer limit reached to send immediately */
 	if (state_object->chan == &storage_chan) {
@@ -1269,6 +1274,7 @@ static enum smf_state_result disconnected_sampling_run(void *o)
 		}
 	}
 
+#if defined(CONFIG_APP_BUTTON)
 	/* Ignore other triggers while sampling */
 	if (state_object->chan == &button_chan) {
 		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
@@ -1277,6 +1283,7 @@ static enum smf_state_result disconnected_sampling_run(void *o)
 			return SMF_EVENT_HANDLED;
 		}
 	}
+#endif /* CONFIG_APP_BUTTON */
 
 	return SMF_EVENT_PROPAGATE;
 }
@@ -1336,6 +1343,7 @@ static enum smf_state_result disconnected_waiting_run(void *o)
 		}
 	}
 
+#if defined(CONFIG_APP_BUTTON)
 	if (state_object->chan == &button_chan) {
 		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
@@ -1346,6 +1354,7 @@ static enum smf_state_result disconnected_waiting_run(void *o)
 			return SMF_EVENT_HANDLED;
 		}
 	}
+#endif /* CONFIG_APP_BUTTON */
 
 	return SMF_EVENT_PROPAGATE;
 }
@@ -1381,6 +1390,7 @@ static enum smf_state_result connected_sampling_run(void *o)
 		}
 	}
 
+#if defined(CONFIG_APP_BUTTON)
 	/* Ignore other sample triggers while sampling */
 	if (state_object->chan == &button_chan) {
 		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
@@ -1389,6 +1399,7 @@ static enum smf_state_result connected_sampling_run(void *o)
 			return SMF_EVENT_HANDLED;
 		}
 	}
+#endif /* CONFIG_APP_BUTTON */
 
 	if (state_object->chan == &storage_chan) {
 		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
@@ -1434,6 +1445,7 @@ static enum smf_state_result connected_waiting_run(void *o)
 		}
 	}
 
+#if defined(CONFIG_APP_BUTTON)
 	if (state_object->chan == &button_chan) {
 		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
@@ -1444,6 +1456,7 @@ static enum smf_state_result connected_waiting_run(void *o)
 			return SMF_EVENT_HANDLED;
 		}
 	}
+#endif /* CONFIG_APP_BUTTON */
 
 	return SMF_EVENT_PROPAGATE;
 }
