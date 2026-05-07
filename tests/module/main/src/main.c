@@ -338,15 +338,6 @@ static void connect_to_cloud(void)
 {
 	send_cloud_connected();
 	expect_cloud_event(CLOUD_CONNECTED);
-
-	/* Expect events from connected_sending_entry -> cloud_send_now() */
-	expect_storage_event(STORAGE_BATCH_REQUEST);
-	expect_fota_event(FOTA_POLL_REQUEST);
-	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
-
-	/* Complete the send cycle to transition to STATE_CONNECTED_WAITING */
-	send_storage_batch_close();
-	expect_storage_event(STORAGE_BATCH_CLOSE);
 }
 
 void setUp(void)
@@ -392,11 +383,6 @@ void test_init_first_connection(void)
 	expect_cloud_event(CLOUD_SHADOW_UPDATE_REPORTED_DEVICE);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DESIRED);
-
-	/* STATE_CONNECTED_SENDING dispatches stored data on connection */
-	expect_storage_event(STORAGE_BATCH_REQUEST);
-	expect_fota_event(FOTA_POLL_REQUEST);
-	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
 }
 
 void test_short_button_press_connected(void)
@@ -461,6 +447,17 @@ void test_threshold_reached_disconnected(void)
 	send_storage_threshold_reached();
 	expect_storage_event(STORAGE_THRESHOLD_REACHED);
 	expect_no_events(500);
+
+	/* Connection after threshold reached should trigger immediate sending */
+	connect_to_cloud();
+	/* Expect events from connected_sending_entry -> cloud_send_now() */
+	expect_storage_event(STORAGE_BATCH_REQUEST);
+	expect_fota_event(FOTA_POLL_REQUEST);
+	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
+
+	/* Complete the send cycle to transition to STATE_CONNECTED_WAITING */
+	send_storage_batch_close();
+	expect_storage_event(STORAGE_BATCH_CLOSE);
 }
 
 void test_fota_downloading(void)
@@ -481,15 +478,6 @@ void test_fota_downloading(void)
 	/* Cleanup */
 	send_fota_msg(FOTA_DOWNLOAD_CANCELED);
 	expect_fota_event(FOTA_DOWNLOAD_CANCELED);
-
-	/* Resuming to STATE_CONNECTED enters STATE_CONNECTED_SENDING first */
-	expect_storage_event(STORAGE_BATCH_REQUEST);
-	expect_fota_event(FOTA_POLL_REQUEST);
-	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
-
-	/* Complete send cycle to transition to STATE_CONNECTED_WAITING */
-	send_storage_batch_close();
-	expect_storage_event(STORAGE_BATCH_CLOSE);
 
 	/* Then sampling resumes */
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
