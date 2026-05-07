@@ -265,6 +265,11 @@ struct main_state {
 	 */
 	bool cloud_synced_on_connect;
 
+	/* Flag to track if the storage threshold was reached while disconnected.
+	 * Used to decide whether to send data immediately on reconnection.
+	 */
+	bool threshold_reached;
+
 	/* Flags to track if each module is ready */
 	struct {
 		bool fota_ready;
@@ -321,7 +326,7 @@ static const struct smf_state states[] = {
 		connected_run,
 		NULL,
 		&states[STATE_RUNNING],
-		&states[STATE_CONNECTED_SENDING]
+		&states[STATE_CONNECTED_WAITING]
 	),
 	/* Connected operation states */
 	[STATE_CONNECTED_SAMPLING] = SMF_CREATE_STATE(
@@ -1105,7 +1110,13 @@ static enum smf_state_result disconnected_run(void *o)
 		const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
 
 		if (msg->type == CLOUD_CONNECTED) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
+			if (state_object->threshold_reached) {
+				state_object->threshold_reached = false;
+				smf_set_state(SMF_CTX(state_object),
+					      &states[STATE_CONNECTED_SENDING]);
+			} else {
+				smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED]);
+			}
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -1138,6 +1149,7 @@ static enum smf_state_result disconnected_run(void *o)
 		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 		if (msg->type == STORAGE_THRESHOLD_REACHED) {
+			state_object->threshold_reached = true;
 			return SMF_EVENT_HANDLED;
 		}
 	}
