@@ -150,6 +150,14 @@ config APP_NTN_REGISTERED_TIMEOUT_SECONDS
 	  This realises the gating rule "do not issue CFUN=45 while the network
 	  is registered until data transfer completes or fails".
 
+config APP_NTN_RRC_CONNECTED_DWELL_SECONDS
+	int "Wait after RRC connected before offline"
+	range 1 600
+	default 40
+	help
+	  After RRC connects and uplink data is sent, the NTN state machine waits
+	  this long before going offline.
+
 config APP_NTN_ABORT_ON_NOT_REGISTERED
 	bool "Abort NTN attempt immediately on CEREG=0"
 	default n

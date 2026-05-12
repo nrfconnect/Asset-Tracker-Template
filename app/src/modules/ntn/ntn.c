@@ -137,6 +137,7 @@ struct ntn_state_object {
 	struct k_timer network_connection_timeout_timer;
 	struct k_timer tn_timeout_timer;
 	struct k_timer sgp4_timer;
+	struct k_timer rrc_connected_timer;
 	int sock_fd;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
 	/* TLE storage */
@@ -164,7 +165,7 @@ static struct k_work gnss_timer_work;
 static struct k_work network_connection_timeout_work;
 static struct k_work tn_timeout_work;
 static struct k_work sgp4_timer_work;
-
+static struct k_work rrc_connected_timer_work;
 static struct k_work gnss_location_work;
 static struct k_work gnss_timeout_work;
 
@@ -322,6 +323,12 @@ static void network_connection_timeout_handler(struct k_timer *timer)
 	k_work_submit(&network_connection_timeout_work);
 }
 
+/* Timer callback for RRC connected dwell (post-uplink before CFUN offline) */
+static void rrc_connected_timer_handler(struct k_timer *timer)
+{
+	k_work_submit(&rrc_connected_timer_work);
+}
+
 /* Timer callback for GNSS fix */
 static void gnss_timer_handler(struct k_timer *timer)
 {
@@ -332,6 +339,13 @@ static void gnss_timer_work_fn(struct k_work *work)
 {
 	/* Time to get GNSS fix */
 	ntn_msg_publish(GNSS_TRIGGER);
+}
+
+static void rrc_connected_timer_work_fn(struct k_work *work)
+{
+	/* RRC connected timeout */
+	LOG_ERR("RRC connected timeout");
+	ntn_msg_publish(RRC_CONNECTED_TIMEOUT);
 }
 
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
@@ -1468,6 +1482,7 @@ static void state_running_entry(void *obj)
 	k_work_init(&ntn_timer_work, ntn_timer_work_fn);
 	k_work_init(&gnss_timer_work, gnss_timer_work_fn);
 	k_work_init(&network_connection_timeout_work, network_connection_timeout_work_fn);
+	k_work_init(&rrc_connected_timer_work, rrc_connected_timer_work_fn);
 	k_work_init(&tn_timeout_work, tn_timeout_work_fn);
 	k_work_init(&sgp4_timer_work, sgp4_timeout_work_fn);
 
@@ -1475,6 +1490,7 @@ static void state_running_entry(void *obj)
 	k_timer_init(&state->ntn_timer, ntn_timer_handler, NULL);
 	k_timer_init(&state->gnss_timer, gnss_timer_handler, NULL);
 	k_timer_init(&state->network_connection_timeout_timer, network_connection_timeout_handler, NULL);
+	k_timer_init(&state->rrc_connected_timer, rrc_connected_timer_handler, NULL);
 	k_timer_init(&state->tn_timeout_timer, tn_timeout_timer_handler, NULL);
 	k_timer_init(&state->sgp4_timer, sgp4_timer_handler, NULL);
 
@@ -2398,24 +2414,27 @@ static enum smf_state_result state_ntn_run(void *obj)
 				LOG_DBG("No valid GNSS data to send");
 			}
 
-			/*
-			 * Wait for data to be transmitted before going
-			 * offline.  NTN uplink can take ~10 s.
-			 */
-			k_sleep(K_MSEC(20000));
-
-#if defined(CONFIG_SOFTSIM)
-			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
-#else
-			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-#endif
+			k_timer_start(&state->rrc_connected_timer,
+				      K_SECONDS(CONFIG_APP_NTN_RRC_CONNECTED_DWELL_SECONDS),
+				      K_NO_WAIT);
 
 			return SMF_EVENT_HANDLED;
 
 		case NTN_RRC_IDLE:
 			LOG_DBG("Setting NTN RRC state to idle");
 
+			k_timer_stop(&state->rrc_connected_timer);
+
 			state->rrc_is_connected = false;
+
+			return SMF_EVENT_HANDLED;
+
+		case RRC_CONNECTED_TIMEOUT:
+#if defined(CONFIG_SOFTSIM)
+			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
+#else
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+#endif
 
 			return SMF_EVENT_HANDLED;
 
@@ -2554,6 +2573,7 @@ static void state_ntn_exit(void *obj)
 
 	k_timer_stop(&state->ntn_timer);
 	k_timer_stop(&state->network_connection_timeout_timer);
+	k_timer_stop(&state->rrc_connected_timer);
 
 	at_monitor_pause(&sib32_monitor);
 	at_monitor_pause(&cereg_monitor);
