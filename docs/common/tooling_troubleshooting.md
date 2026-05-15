@@ -462,10 +462,12 @@ Memfault is a device observability platform that complements traditional debuggi
 4. **List your devices.** In the Memfault UI, click **Devices** in the left toolbar to see every device that has reported in, then select one to look into its coredumps, metrics, and modem traces (CDRs).
 
 The template enables basic support for Memfault, forwarding captured LTE and location metrics as well as coredumps on crashes to Memfault via nRF Cloud CoAP.
-If you also want to send modem traces to Memfault on application crashes, include the `overlay-upload-modem-traces-to-memfault.conf` overlay in your west build command:
+If you also want to send modem traces to Memfault on application crashes, include the `overlay-upload-modem-traces-to-memfault.conf` Kconfig overlay **and** the devicetree overlay `overlay-upload-modem-traces-to-memfault.overlay` in your west build command:
 
 ```bash
-west build -p -b <board> -- -DEXTRA_CONF_FILE="overlay-upload-modem-traces-to-memfault.conf"
+west build -p -b <board> -- \
+    -DEXTRA_CONF_FILE="overlay-upload-modem-traces-to-memfault.conf" \
+    -DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay"
 ```
 
 > [!IMPORTANT]
@@ -492,10 +494,14 @@ Capture and analyze modem behavior live (AT, LTE, IP) using Wireshark.
 
 ### UART Tracing
 
-Build with:
+Build and flash the application with `overlay-modem-trace-over-uart.conf` and `overlay-modem-trace-shmem.overlay`:
 
 ```bash
-west build -p -b <board> -- -Dapp_SNIPPET=nrf91-modem-trace-uart
+west build -p -b <board> --sysbuild -- \
+    -DEXTRA_CONF_FILE="overlay-modem-trace-over-uart.conf" \
+    -DEXTRA_DTC_OVERLAY_FILE="overlay-modem-trace-shmem.overlay" \
+    && west flash --recover
+
 ```
 
 Capture traces using [nRF Connect for Desktop](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) Cellular Monitor application or manually using nRF Util:
@@ -524,19 +530,22 @@ nrfutil trace lte --input-serialport /dev/tty.usbmodem141405 --output-pcapng tra
 
 ### RTT Tracing
 
-Build with:
+Build and flash the application with the `nrf91-modem-trace-rtt` snippet and `overlay-modem-trace-shmem.overlay`:
 
 ```bash
-west build -p -b <board> -- -Dapp_SNIPPET=nrf91-modem-trace-rtt
+west build -p -b <board> --sysbuild -- \
+    -Dapp_SNIPPET=nrf91-modem-trace-rtt \
+    -DEXTRA_DTC_OVERLAY_FILE="overlay-modem-trace-shmem.overlay" \
+    && west flash --recover
 ```
 
-Capture traces using Segger JLink RTT Logger:
+Capture modem traces with Segger J-Link RTT Logger:
 
 ```bash
 JLinkRTTLogger -Device NRF9160_XXAA -If SWD -Speed 50000 -RTTChannel 1 modem_trace.bin
 ```
 
-and then convert the captured modem trace to pcapng using the Cellular Monitor application or nRF Util:
+Convert the trace file to PCAPNG with nRF Util or the Cellular Monitor application:
 
 ```bash
 nrfutil trace lte --input-file modem_trace.bin --output-pcapng rtt-trace.pcapng
@@ -545,6 +554,9 @@ nrfutil trace lte --input-file modem_trace.bin --output-pcapng rtt-trace.pcapng
 ### Dumping modem traces over UART after capture
 
 You can configure the device to continuously capture modem traces to external flash memory. After capture, you can use a shell command to dump the stored traces over UART using the [Cellular Monitor app](https://docs.nordicsemi.com/bundle/nrf-connect-cellularmonitor/page/index.html) for storage and analysis.
+
+> [!IMPORTANT]
+> The flash trace backend needs two things from devicetree on top of the Kconfig options below: the modem trace shared-memory region (see the [UART Tracing](#uart-tracing) note) and a dedicated `modem_trace` flash partition. Both are already declared by `app/overlay-upload-modem-traces-to-memfault.overlay`, which you can use directly or copy as a starting point. Pass it on the build command line with `-DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay"`.
 
 Add to `prj.conf`:
 

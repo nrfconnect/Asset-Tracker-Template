@@ -16,7 +16,7 @@
 #include <zephyr/net/coap.h>
 #include <zephyr/net/coap_client.h>
 #include <net/nrf_provisioning.h>
-#include <net/nrf_cloud_rest.h>
+#include <net/nrf_cloud_coap.h>
 #include <modem/modem_attest_token.h>
 #include <zephyr/zbus/zbus.h>
 
@@ -96,7 +96,8 @@ FAKE_VALUE_FUNC(int, nrf_cloud_coap_connect, const char * const);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_disconnect);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_configured_info_update, const char * const);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_network_info_update);
-FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_device_status_update);
+FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_device_status_update,
+		const struct nrf_cloud_device_status * const);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_bytes_send, uint8_t *, size_t, bool);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_sensor_send, const char *, double, int64_t, bool);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_json_message_send, const char *, bool, bool);
@@ -106,11 +107,11 @@ FAKE_VALUE_FUNC(int, nrf_cloud_coap_patch, const char *, const char *,
 		enum coap_content_format, bool,
 		coap_client_response_cb_t, void *);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_location_get,
-		struct nrf_cloud_rest_location_request const *,
+		struct nrf_cloud_coap_location_request const *,
 		struct nrf_cloud_location_result *const);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_agnss_data_get,
-		struct nrf_cloud_rest_agnss_request const *,
-		struct nrf_cloud_rest_agnss_result *);
+		struct nrf_cloud_coap_agnss_request const *,
+		struct nrf_cloud_coap_agnss_result *);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_location_send, const struct nrf_cloud_gnss_data *, bool);
 FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
 FAKE_VALUE_FUNC(int, date_time_uptime_to_unix_time_ms, int64_t *);
@@ -1308,13 +1309,13 @@ void test_location_cloud_request_combined_data(void)
 }
 
 static int nrf_cloud_coap_location_get_custom_fake(
-	const struct nrf_cloud_rest_location_request *request,
+	const struct nrf_cloud_coap_location_request *request,
 	struct nrf_cloud_location_result *const result)
 {
 	ARG_UNUSED(result);
 
 	/* This custom fake allows us to inspect the content of the opaque
-	 * nrf_cloud_rest_location_request struct, which is not possible in the
+	 * nrf_cloud_coap_location_request struct, which is not possible in the
 	 * test function itself.
 	 */
 	TEST_ASSERT_NOT_NULL(request->wifi_info);

@@ -8,7 +8,6 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
 #include <net/nrf_cloud_coap.h>
-#include <net/nrf_cloud_rest.h>
 #include <zephyr/net/coap.h>
 #include <date_time.h>
 
@@ -145,7 +144,7 @@ static void handle_cloud_location_request(const struct location_cloud_request_da
 	struct nrf_cloud_location_config loc_config = {
 		.do_reply = false,
 	};
-	struct nrf_cloud_rest_location_request loc_req = {
+	struct nrf_cloud_coap_location_request loc_req = {
 		.config = &loc_config,
 	};
 	struct nrf_cloud_location_result result = { 0 };
@@ -216,14 +215,14 @@ static void handle_agnss_request(const struct nrf_modem_gnss_agnss_data_frame *r
 {
 	int err;
 	static char agnss_buf[AGNSS_MAX_DATA_SIZE];
-	struct nrf_cloud_rest_agnss_request agnss_req = {
-		.type = NRF_CLOUD_REST_AGNSS_REQ_CUSTOM,
+	struct nrf_cloud_coap_agnss_request agnss_req = {
+		.type = NRF_CLOUD_COAP_AGNSS_REQ_CUSTOM,
 		.agnss_req = (struct nrf_modem_gnss_agnss_data_frame *)request,
 		.net_info = NULL,
 		.filtered = false,
 		.mask_angle = 0
 	};
-	struct nrf_cloud_rest_agnss_result result = {
+	struct nrf_cloud_coap_agnss_result result = {
 		.buf = agnss_buf,
 		.buf_sz = sizeof(agnss_buf),
 		.agnss_sz = 0

@@ -1,0 +1,38 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+&sram0_ns_modem {
+	reg = <0x0 0x8800>;
+	ranges = <0x0 0x0 0x8800>;
+
+	cpucell_cpuapp_ipc_shm_trace: sram0_ns_modem@4800 {
+		reg = <0x4800 0x4000>;
+	};
+};
+
+/delete-node/ &sram0_ns_app;
+
+&sram0_ns {
+	sram0_ns_app: sram0_ns@8800 {
+		reg = <0x8800 0x35800>;
+	};
+};
+
+/delete-node/ &external_flash_partition;
+
+&flash_ext {
+	partitions {
+		modem_trace: partition@5d2000 {
+			label = "modem_trace";
+			reg = <0x005d2000 0x000ff000>;
+		};
+
+		external_flash_partition: partition@6d1000 {
+			label = "external_flash";
+			reg = <0x006d1000 0x0192f000>;
+		};
+	};
+};

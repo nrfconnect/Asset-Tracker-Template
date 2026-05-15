@@ -54,17 +54,17 @@ struct storage_file_header {
 #define LFS_NODE DT_NODELABEL(lfs1)
 
 /*
- * @brief Declare mountpoint based on DTS node if available, otherwise use fixed partition
+ * Mount via the lfs1 fstab entry in att_flash_partitions.dtsi when present.
  */
 #if DT_NODE_EXISTS(LFS_NODE)
 FS_FSTAB_DECLARE_ENTRY(LFS_NODE);
 #else
-/* Fallback to PM if DTS not available */
+/* Fallback when the fstab entry is not in the devicetree (tests, custom boards). */
 FS_LITTLEFS_DECLARE_DEFAULT_CONFIG(lfs_config);
 static struct fs_mount_t lfs_storage_mnt = {
 	.type = FS_LITTLEFS,
 	.fs_data = &lfs_config,
-	.storage_dev = (void *)FIXED_PARTITION_ID(littlefs_storage),
+	.storage_dev = (void *)PARTITION_ID(littlefs_storage),
 	.mnt_point = "/att_storage",
 };
 #endif

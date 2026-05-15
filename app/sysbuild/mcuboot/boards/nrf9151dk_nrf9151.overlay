@@ -4,14 +4,10 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-&gd25wb256 {
-	status = "okay";
-};
+#include "../../../dts/nrf9151dk_prelude.dtsi"
+#include "../../../dts/att_flash_partitions.dtsi"
 
-/ {
-	/* Configure partition manager to use gd25wb256 as the external flash */
-	chosen {
-		zephyr,code-partition = &boot_partition;
-		nordic,pm-ext-flash = &gd25wb256;
-	};
+&uart0 {
+	status = "okay";
+	current-speed = <1000000>;
 };

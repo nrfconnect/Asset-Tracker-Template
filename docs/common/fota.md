@@ -28,7 +28,7 @@ EXTRAVERSION = dev
 
 ### Preparing firmware
 
-Complete the following steps for preparing firmware:
+Complete the following steps when preparing **application** or **bootloader** firmware. Modem firmware bundles are already available in nRF Cloud, skip to **Create a FOTA Update** below and select a modem bundle from the dropdown.
 
 1. Update the `app/VERSION` file. Increment the appropriate version component.
 1. Build the firmware.
@@ -48,13 +48,11 @@ Complete the following steps for preparing firmware:
 
 ### Version verification
 
-> [!IMPORTANT]
-> **All stored data in the storage module will be automatically cleared when applying firmware updates.** If you need to preserve data across updates, ensure it is sent to the cloud or retrieved before the update completes, or edit the source code to fit your needs.
-
 To verify a successful update:
 
 - **Application updates**: Check that the FOTA job shows `Succeeded` status and the **App Version** field in device information reflects the new version.
 - **Modem updates**: Check that the FOTA job shows `Succeeded` status and the **Modem Firmware** field in device information shows the new version.
+- **Bootloader updates**: Check that the FOTA job shows `Succeeded` status and the **Bootloader Version** field in device information shows the new version.
 
 ![Device information showing app version](../images/device_information.png)
 
@@ -68,7 +66,7 @@ This is the recommended method for manual updates and testing.
 
 1. Navigate to [nRF Cloud](https://nrfcloud.com) and log in to your account.
 1. Select **Firmware Updates** in the **Device Management** tab on the left.
-1. Create an update bundle:
+1. For **application** or **bootloader** updates only, create an update bundle:
 
     1. Click **Add bundle**.
     1. Upload your bundle file:
@@ -85,7 +83,11 @@ This is the recommended method for manual updates and testing.
     1. Click **Create FOTA Update**.
     1. Enter a **Name** for the update.
     1. Optionally enter a **Description**.
-    1. In the **Bundle** dropdown, select the bundle you uploaded in the previous step. The update type is determined by the bundle, so no separate type selector is required.
+    1. In the **Bundle** dropdown, select the target bundle:
+
+        - For application or bootloader updates: the bundle you uploaded in the previous step.
+        - For modem updates: a pre-provisioned **full** or **delta** modem bundle already listed in nRF Cloud.
+
     1. Select the target device or devices using one of the following fields:
 
         - **Group** — deploys to every device in a predefined device group.
@@ -141,7 +143,7 @@ Find your API key in **User Account** settings in [nRF Cloud](https://nrfcloud.c
             {
                 "file": "$(basename ${BIN_FILE})",
                 "type": "application",
-                "size": $(stat -f%z ${BIN_FILE})
+                "size": $(stat -c%s ${BIN_FILE} 2>/dev/null || stat -f%z ${BIN_FILE})
             }
         ]
     }

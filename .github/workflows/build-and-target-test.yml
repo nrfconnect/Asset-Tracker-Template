@@ -33,6 +33,12 @@ on:
         type: boolean
         required: false
         default: false
+      test_filter:
+        description: 'Pytest -k expression to isolate tests (e.g. "test_app_fota").
+                      Leave empty to run all tests for the selected devices.'
+        type: string
+        required: false
+        default: ""
 
   workflow_call:
     inputs:
@@ -157,3 +163,4 @@ jobs:
       artifact_run_id: ${{ needs.build.outputs.run_id }}
       devices: ${{ needs.setup.outputs.devices }}
       run_nightly_tests: ${{ needs.setup.outputs.run_nightly_tests == 'true' }}
+      pytest_args: ${{ inputs.test_filter != '' && format('-k "{0}"', inputs.test_filter) || '' }}

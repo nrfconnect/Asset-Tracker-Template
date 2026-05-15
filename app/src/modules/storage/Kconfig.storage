@@ -34,16 +34,14 @@ config APP_STORAGE_BACKEND_LITTLEFS
 	  Store data in LittleFS filesystem. Data will persist across power
 	  loss and resets, as long as the underlying flash storage is intact.
 
+	  Partition size and mount point are defined in devicetree
+	  (littlefs_storage and the lfs1 fstab entry in
+	  app/dts/att_flash_partitions.dtsi). See docs/modules/storage.md
+	  for sizing guidance.
+
 endchoice # APP_STORAGE_BACKEND
 
 if APP_STORAGE_BACKEND_LITTLEFS
-
-# Setup PM partition size for LittleFS to 64KB by default
-config PM_PARTITION_SIZE_LITTLEFS
-	default 0x40000
-
-config PM_PARTITION_REGION_LITTLEFS_EXTERNAL
-	default y if PM_EXTERNAL_FLASH_ENABLED
 
 config APP_STORAGE_LITTLEFS_MAX_PATH_LEN
 	int "Maximum length of storage file names"
@@ -73,6 +71,10 @@ config APP_STORAGE_MAX_RECORDS_PER_TYPE
 	  32 environmental samples, etc. This value affects RAM usage.
 	  Total RAM usage will be:
 	  MAX_TYPES * MAX_RECORDS_PER_TYPE * RECORD_SIZE bytes.
+
+	  With the LittleFS backend, the partition must be large enough for
+	  all enabled types at this record count; the backend checks at boot.
+	  See docs/modules/storage.md (Minimum partition size).
 
 config APP_STORAGE_BATCH_BUFFER_SIZE
 	int "Storage batch buffer size in bytes"

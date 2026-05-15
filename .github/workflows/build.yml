@@ -62,7 +62,7 @@ concurrency:
 jobs:
   build:
     runs-on: build_self_hosted
-    container: ghcr.io/zephyrproject-rtos/ci:v0.28.7
+    container: ghcr.io/zephyrproject-rtos/ci:v0.29.2
     env:
       CMAKE_PREFIX_PATH: /opt/toolchains
     outputs:
@@ -266,11 +266,6 @@ jobs:
           SIZE_COMMENT_PATH: ${{ github.workspace }}/size-comment.md
           CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          # Add the first Zephyr SDK binutils path to PATH if it exists
-          SDK_BIN=$(ls -d /opt/toolchains/zephyr-sdk-*/arm-zephyr-eabi/bin 2>/dev/null | head -1)
-          [ -n "$SDK_BIN" ] && export PATH="$SDK_BIN:$PATH"
-
-          # Generate the diff comment
           bash asset-tracker-template/scripts/ci/pr-size-diff.sh
 
       - name: Post PR app-size sticky comment for thingy91x image
