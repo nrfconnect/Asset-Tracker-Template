@@ -11,7 +11,6 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <net/nrf_cloud.h>
 #include <net/nrf_cloud_coap.h>
-#include <net/nrf_cloud_rest.h>
 #include <nrf_cloud_coap_transport.h>
 #include <zephyr/net/coap.h>
 #include <app_version.h>

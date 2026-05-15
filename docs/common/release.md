@@ -21,12 +21,12 @@ Each firmware variant includes the following set of artifacts:
 
 | **Artifact suffix** | **Description** | **Use case** |
 |---------------------|----------------|--------------|
-| `-nrf91.hex` | Full image including bootloader | Flashing using debugger (J-Link) |
+| `-nrf91.hex` | Full merged image (b0, MCUboot, signed application, provisioning data). Same contents as `build/merged.hex` from a local sysbuild. | Programming the entire internal flash with a J-Link debugger |
 | `-nrf91.elf` | ELF file with debug symbols | Debugging, coredump analysis, `addr2line` |
 | `-nrf91.config` | Build configuration snapshot | Inspecting the Kconfig options used for the build |
-| `-nrf91-update-signed.hex` | Signed application-only hex (no bootloader) | Flashing only the application via debugger |
+| `-nrf91-update-signed.hex` | Signed application-only hex (no bootloader) | Updating only the application slot with a debugger |
 | `-nrf91-update-signed.bin` | Signed application-only binary | FOTA updates using nRF Cloud |
-| `-nrf91-dfu.zip` | DFU package | Serial DFU updates |
+| `-nrf91-dfu.zip` | DFU package | Serial DFU updates over USB (no debugger) |
 
 #### Standard firmware variants
 
@@ -56,7 +56,8 @@ The firmware variants are built using different configuration overlays that modi
 | **Overlay file** | **Purpose** | **Key features** |
 |------------------|-------------|------------------|
 | `overlay-storage-minimal.conf` | Minimal storage configuration | Reduced memory footprint with storage for one sample and immediate sending |
-| `overlay-upload-modem-traces-to-memfault.conf` | Modem trace to Memfault | Automatic upload of modem traces for analysis |
+| `overlay-modem-trace-over-uart.conf` / `overlay-modem-trace-shmem.overlay` | Modem tracing over UART1 | UART trace backend (Kconfig) and 16 KiB `cpucell_cpuapp_ipc_shm_trace` in SRAM |
+| `overlay-upload-modem-traces-to-memfault.conf` / `overlay-upload-modem-traces-to-memfault.overlay` | Modem trace to Memfault | Memfault modem trace upload, on-flash trace partition, and trace shmem (mutually exclusive with UART overlay) |
 
 ### Hardware platform support
 

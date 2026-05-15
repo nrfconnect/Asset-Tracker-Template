@@ -3,7 +3,11 @@
  *
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
+
+#include "../../../dts/thingy91x_prelude.dtsi"
+#include "../../../dts/att_flash_partitions.dtsi"
+
 &uart0 {
 	status = "okay";
-	current-speed = < 1000000 >;
+	current-speed = <1000000>;
 };
