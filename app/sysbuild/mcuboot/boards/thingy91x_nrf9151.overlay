@@ -3,7 +3,10 @@
  *
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
+
+#include "../../../dts/memfault_coredump_partition.dtsi"
+
 &uart0 {
 	status = "okay";
-	current-speed = < 1000000 >;
+	current-speed = <1000000>;
 };

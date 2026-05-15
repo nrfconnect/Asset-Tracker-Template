@@ -136,9 +136,18 @@ where the `+3` accounts for LittleFS metadata and the CoW block.
   required blocks × block size
 </p>
 
-Choose a partition size that meets or exceeds `flash_size`. The LittleFS partition size is set by `CONFIG_PM_PARTITION_SIZE_LITTLEFS` (or the corresponding DTS partition definition).
+Choose a partition size that meets or exceeds `flash_size`. The LittleFS partition size is set by the `littlefs_storage` partition declaration in your board's devicetree overlay under `app/boards/`. For example, on the Thingy:91 X the relevant entry in [`app/boards/thingy91x_nrf9151_ns.overlay`](../../app/boards/thingy91x_nrf9151_ns.overlay) is:
 
-If the requirement is not met, either increase the partition (`CONFIG_PM_PARTITION_SIZE_LITTLEFS` or DTS partition size) or reduce storage pressure (fewer records, smaller data types, or fewer enabled types).
+```devicetree
+littlefs_storage: partition@4d2000 {
+    label = "littlefs_storage";
+    reg = <0x004d2000 0x00100000>;   /* 1 MiB */
+};
+```
+
+The second `reg` cell (`0x00100000` above) is the partition size in bytes. To make the partition larger, raise that value and shrink the adjacent `external_flash_partition` by the same amount so the flash chip's address space stays consistent.
+
+If the requirement is not met, either grow the partition in the overlay as shown above, or reduce storage pressure (fewer records, smaller data types, or fewer enabled types).
 
 > [!NOTE]
 > The data types are stored in separate files, so the minimum number of flash blocks needed is ∑ data types + 3.
@@ -202,13 +211,12 @@ To enable persistent flash storage:
 CONFIG_APP_STORAGE=y
 CONFIG_APP_STORAGE_BACKEND_LITTLEFS=y
 
-# Configure partition size (default is 64 KB)
-CONFIG_PM_PARTITION_SIZE_LITTLEFS=0x10000
-
 # Adjust for your needs
 CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=16
 CONFIG_APP_STORAGE_THREAD_STACK_SIZE=4000
 ```
+
+The partition size is configured in the board overlay (see *Minimum partition size* above). The default `littlefs_storage` partition shipped with the Asset Tracker Template is 1 MiB on both the Thingy:91 X and the nRF9151 DK.
 
 ##### Optimized for data persistence with minimal flash wear
 
@@ -217,12 +225,11 @@ CONFIG_APP_STORAGE_THREAD_STACK_SIZE=4000
 CONFIG_APP_STORAGE=y
 CONFIG_APP_STORAGE_BACKEND_LITTLEFS=y
 
-# Larger partition distributes writes across more flash blocks
-CONFIG_PM_PARTITION_SIZE_LITTLEFS=0x20000
-
 # Higher record count reduces rewrite frequency
 CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=50
 ```
+
+To improve wear leveling further, grow the `littlefs_storage` partition in your board overlay so writes are spread across more flash blocks. See *Minimum partition size* above for the exact devicetree snippet to edit.
 
 ## Messages
 
@@ -323,10 +330,9 @@ The following includes the key configuration categories:
 
 ### Flash configuration (LittleFS backend)
 
-- **CONFIG_PM_PARTITION_SIZE_LITTLEFS**: Size of the flash partition for LittleFS storage.
-  Must be large enough to accommodate the stored data and filesystem metadata. See flash management section above for sizing guidance.
+The `littlefs_storage` partition (size and host flash chip) is defined in devicetree, not in Kconfig. Both `thingy91x_nrf9151_ns` and `nrf9151dk_nrf9151_ns` place it on external SPI-NOR flash via [`app/boards/thingy91x_nrf9151_ns.overlay`](../../app/boards/thingy91x_nrf9151_ns.overlay) and [`app/boards/nrf9151dk_nrf9151_ns.overlay`](../../app/boards/nrf9151dk_nrf9151_ns.overlay), and `app/src/modules/storage/CMakeLists.txt` mounts it through the `lfs1` `zephyr,fstab` entry in those overlays.
 
-- **CONFIG_PM_PARTITION_REGION_LITTLEFS_EXTERNAL** (default: `y`): Use external flash for LittleFS storage (uses internal flash if set to `n`).
+To resize the partition, edit the second `reg` cell of `littlefs_storage` in the board overlay (and shrink the adjacent `external_flash_partition` by the same amount). To move it to internal flash, declare a `littlefs_storage: partition@... { label = "littlefs_storage"; reg = <... ...>; };` entry under `&flash0`'s `partitions` node instead — note that the nRF9151's 1 MiB internal flash is already heavily utilized by `slot0_partition`, so external flash is strongly recommended for any non-trivial storage size.
 
 ### Threshold configuration
 

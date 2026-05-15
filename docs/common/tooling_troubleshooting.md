@@ -462,10 +462,12 @@ Memfault is a device observability platform that complements traditional debuggi
 4. **List your devices.** In the Memfault UI, click **Devices** in the left toolbar to see every device that has reported in, then select one to look into its coredumps, metrics, and modem traces (CDRs).
 
 The template enables basic support for Memfault, forwarding captured LTE and location metrics as well as coredumps on crashes to Memfault via nRF Cloud CoAP.
-If you also want to send modem traces to Memfault on application crashes, include the `overlay-upload-modem-traces-to-memfault.conf` overlay in your west build command:
+If you also want to send modem traces to Memfault on application crashes, include the `overlay-upload-modem-traces-to-memfault.conf` Kconfig overlay **and** the devicetree overlay `overlay-upload-modem-traces-to-memfault.overlay` in your west build command:
 
 ```bash
-west build -p -b <board> -- -DEXTRA_CONF_FILE="overlay-upload-modem-traces-to-memfault.conf"
+west build -p -b <board> -- \
+    -DEXTRA_CONF_FILE="overlay-upload-modem-traces-to-memfault.conf" \
+    -DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay"
 ```
 
 > [!IMPORTANT]

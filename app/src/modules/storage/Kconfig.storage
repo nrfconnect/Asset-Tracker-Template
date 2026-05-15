@@ -38,13 +38,6 @@ endchoice # APP_STORAGE_BACKEND
 
 if APP_STORAGE_BACKEND_LITTLEFS
 
-# Setup PM partition size for LittleFS to 64KB by default
-config PM_PARTITION_SIZE_LITTLEFS
-	default 0x40000
-
-config PM_PARTITION_REGION_LITTLEFS_EXTERNAL
-	default y if PM_EXTERNAL_FLASH_ENABLED
-
 config APP_STORAGE_LITTLEFS_MAX_PATH_LEN
 	int "Maximum length of storage file names"
 	default 64

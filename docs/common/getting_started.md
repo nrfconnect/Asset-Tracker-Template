@@ -12,7 +12,7 @@ There are two options for setting up the project, depending on your preferred de
 * **Option 1**: Using Visual Studio Code and the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) extension (recommended).
 * **Option 2**: Using the command line and nRF Util.
 
-For pre-built binaries that do not require a build environment, refer to the latest tag and the [release artifacts](release.md) documentation.
+For pre-built binaries that do not require a build environment, refer to the latest tag and the [release artifacts](release.md) documentation, including [how to flash the merged full image](release.md#flashing-release-artifacts).
 
 ## Option 1: nRF Connect for VS Code (recommended)
 
@@ -153,6 +153,14 @@ west flash --erase
 ```
 
 The `--erase` option performs a full chip erase (including UICR) before programming. Without it, `west flash` fails with a UICR-related error when the new firmware writes different UICR contents.
+
+By default, `west flash` after a sysbuild programs each bootloader and application image separately. That is equivalent to programming `build/merged.hex`, which combines the same images into one file. To flash the merged image in a single step (for example after changing partition layout), use:
+
+```shell
+west flash --erase --skip-rebuild --hex-file build/merged.hex
+```
+
+Release builds publish the same merged image as `asset-tracker-template-{VERSION}-<board>-nrf91.hex`; see [Flashing release artifacts](release.md#flashing-release-artifacts).
 
 </details>
 
