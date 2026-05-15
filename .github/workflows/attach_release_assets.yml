@@ -38,7 +38,6 @@ jobs:
             fail_on_unmatched_files: true
             files: |
               asset-tracker-template-*.*
-              pmr-*-nrf91-*.txt
 
         - name: Trigger workflow that publishes symbol files to Memfault
           working-directory: .github/workflows

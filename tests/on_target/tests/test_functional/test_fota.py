@@ -27,6 +27,7 @@ MFW_DELTA_VERSION_FOTA_TEST = "mfw_nrf91x1_2.0.4-FOTA-TEST"
 MFW_VERSION = "mfw_nrf91x1_2.0.4"
 
 APP_BUNDLEID = os.getenv("APP_BUNDLEID")
+MCUBOOT_BUNDLEID = os.getenv("MCUBOOT_BUNDLEID")
 
 TEST_APP_BIN = {
     "thingy91x": "artifacts/stable_version_jan_2025-update-signed.bin",
@@ -34,7 +35,8 @@ TEST_APP_BIN = {
 }
 
 DEVICE_MSG_TIMEOUT = 60 * 5
-APP_FOTA_TIMEOUT = 60 * 10
+APP_FOTA_TIMEOUT = 60 * 15
+BOOTLOADER_FOTA_TIMEOUT = 60 * 20
 FULL_MFW_FOTA_TIMEOUT = 60 * 30
 
 def await_nrfcloud(func, expected, field, timeout):
@@ -60,6 +62,47 @@ def get_appversion(dut_fota):
 def get_modemversion(dut_fota):
     shadow = dut_fota.fota.get_device(dut_fota.device_id)
     return shadow["state"]["reported"]["device"]["deviceInfo"]["modemFirmware"]
+
+def get_bootloaderversion(dut_fota):
+    shadow = dut_fota.fota.get_device(dut_fota.device_id)
+    return shadow["state"]["reported"]["device"]["deviceInfo"]["bootloaderVersion"]
+
+def await_bootloader_version(dut_fota, expected, timeout=DEVICE_MSG_TIMEOUT):
+    start = time.time()
+    logger.info(f"Awaiting bootloaderVersion == {expected} in nrfcloud shadow...")
+    while True:
+        time.sleep(5)
+        if time.time() - start > timeout:
+            raise RuntimeError(
+                f"Timeout awaiting bootloaderVersion == {expected}")
+        try:
+            version = get_bootloaderversion(dut_fota)
+        except (KeyError, TypeError) as e:
+            logger.warning(f"bootloaderVersion not in shadow yet: {e}")
+            continue
+        except Exception as e:
+            logger.warning(f"Exception getting bootloaderVersion: {e}")
+            continue
+        logger.debug(f"Reported bootloaderVersion: {version}")
+        if version == expected:
+            return
+
+# Baseline merged.hex ships MCUboot fw_info v2; MCUBOOT_BUNDLEID must ship v3.
+BOOTLOADER_VERSION_BASELINE = "2"
+BOOTLOADER_VERSION_UPDATED = "3"
+# B0 UART line during boot after FOTA (corroborates active B1 slot fw_info).
+BOOTLOADER_FIRMWARE_VERSION_LOG = "Firmware version 3"
+
+def trigger_fota_poll(dut_fota, max_attempts=3):
+    for i in range(max_attempts):
+        try:
+            time.sleep(10)
+            dut_fota.uart.write("att_button press 1\r\n")
+            dut_fota.uart.wait_for_str("nrf_cloud_fota_poll: Starting FOTA download", timeout=30)
+            return
+        except AssertionError:
+            continue
+    raise AssertionError(f"Fota update not available after {max_attempts} attempts")
 
 def perform_disconnect_reconnect(dut_fota, expected_percentage):
     """Helper function to perform a disconnect/reconnect sequence and verify resumption at expected percentage"""
@@ -170,17 +213,7 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
             pytest.skip(f"FOTA create_job REST API error: {e}")
         logger.info(f"Created FOTA Job (ID: {dut_fota.data['job_id']})")
 
-        # Sleep a bit and trigger fota poll
-        for i in range(3):
-            try:
-                time.sleep(10)
-                dut_fota.uart.write("att_button press 1\r\n")
-                dut_fota.uart.wait_for_str("nrf_cloud_fota_poll: Starting FOTA download", timeout=30)
-                break
-            except AssertionError:
-                continue
-        else:
-            raise AssertionError(f"Fota update not available after {i} attempts")
+        trigger_fota_poll(dut_fota)
 
         if reschedule:
             run_fota_reschedule(dut_fota, fota_type)
@@ -283,6 +316,78 @@ def test_app_fota(run_fota_fixture):
     run_fota_fixture(
         bundle_id=APP_BUNDLEID,
     )
+
+@pytest.mark.slow
+def test_bootloader_fota(dut_fota, hex_file):
+    '''
+    Test MCUboot bootloader (B1) FOTA on Thingy:91 X using a pre-uploaded
+    dfu_mcuboot.zip bundle (MCUBOOT_BUNDLEID). Nightly CI only.
+
+    Verifies deviceInfo.bootloaderVersion in the nRF Cloud shadow (baseline v2,
+    v3 after FOTA) and B0 UART "Firmware version 3" after the swap reboot.
+
+    The finally block re-flashes baseline merged.hex to restore the DUT.
+    '''
+    if os.getenv("DUT_DEVICE_TYPE") != "thingy91x":
+        pytest.skip("Bootloader FOTA test runs on thingy91x only")
+    if not MCUBOOT_BUNDLEID:
+        pytest.skip("MCUBOOT_BUNDLEID environment variable not set")
+
+    try:
+        flash_device(os.path.abspath(hex_file))
+        dut_fota.uart.xfactoryreset()
+        dut_fota.uart.flush()
+        reset_device()
+
+        dut_fota.uart.wait_for_str_with_retries(
+            "Connected to Cloud", max_retries=3, timeout=240, reset_func=reset_device)
+
+        await_bootloader_version(dut_fota, BOOTLOADER_VERSION_BASELINE)
+
+        try:
+            dut_fota.data["job_id"] = dut_fota.fota.create_fota_job(
+                dut_fota.device_id, MCUBOOT_BUNDLEID)
+            dut_fota.data["bundle_id"] = MCUBOOT_BUNDLEID
+        except NRFCloudFOTAError as e:
+            pytest.skip(f"FOTA create_job REST API error: {e}")
+        logger.info(f"Created bootloader FOTA job (ID: {dut_fota.data['job_id']})")
+
+        trigger_fota_poll(dut_fota)
+
+        dut_fota.uart.wait_for_str("fota_download: B1 update, selected", timeout=120)
+        dut_fota.uart.wait_for_str("Download complete", timeout=BOOTLOADER_FOTA_TIMEOUT)
+        post_download_pos = dut_fota.uart.get_size()
+
+        # B1 FOTA: reboot, MCUboot test-swap, then B0 boots slot 1 with new fw_info.
+        dut_fota.uart.wait_for_str(
+            BOOTLOADER_FIRMWARE_VERSION_LOG,
+            timeout=BOOTLOADER_FOTA_TIMEOUT,
+            start_pos=post_download_pos,
+            error_msg="Expected B0 fw_info v3 after download",
+        )
+
+        await_nrfcloud(
+            functools.partial(dut_fota.fota.get_fota_status, dut_fota.data["job_id"]),
+            "IN_PROGRESS",
+            "FOTA status",
+            BOOTLOADER_FOTA_TIMEOUT,
+        )
+        await_nrfcloud(
+            functools.partial(dut_fota.fota.get_fota_status, dut_fota.data["job_id"]),
+            "COMPLETED",
+            "FOTA status",
+            BOOTLOADER_FOTA_TIMEOUT,
+        )
+        if not dut_fota.fota.get_fota_completed_executions(dut_fota.data["job_id"]) > 0:
+            raise AssertionError("Bootloader FOTA job completed but no devices succeeded")
+
+        dut_fota.uart.wait_for_str_with_retries(
+            "Connected to Cloud", max_retries=5, timeout=300, reset_func=reset_device)
+
+        await_bootloader_version(dut_fota, BOOTLOADER_VERSION_UPDATED,
+                                 timeout=BOOTLOADER_FOTA_TIMEOUT)
+    finally:
+        flash_device(os.path.abspath(hex_file))
 
 def test_delta_mfw_fota(run_fota_fixture):
     '''

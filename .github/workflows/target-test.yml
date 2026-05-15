@@ -22,6 +22,12 @@ on:
         type: string
         required: true
         default: thingy91x
+      pytest_args:
+        description: Extra arguments appended verbatim to the pytest invocation
+          (e.g. "-k test_app_fota"). Leave empty for the default behaviour.
+        type: string
+        required: false
+        default: ""
 
   workflow_dispatch:
     inputs:
@@ -48,6 +54,12 @@ on:
         type: string
         required: true
         default: thingy91x
+      pytest_args:
+        description: Extra arguments appended verbatim to the pytest invocation
+          (e.g. "-k test_app_fota"). Leave empty for the default behaviour.
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -161,7 +173,8 @@ jobs:
           pytest -v "${pytest_marker[@]}" \
             --junit-xml=results/test-results.xml \
             --html=results/test-results.html --self-contained-html \
-            ${PYTEST_PATH}
+            ${PYTEST_PATH} \
+            ${{ inputs.pytest_args }}
           
         shell: bash
         env:
@@ -175,6 +188,7 @@ jobs:
           MEMFAULT_ORGANIZATION_SLUG: ${{ vars.MEMFAULT_ORGANIZATION_SLUG }}
           MEMFAULT_PROJECT_SLUG: ${{ vars.MEMFAULT_PROJECT_SLUG }}
           APP_BUNDLEID: ${{ vars.APP_BUNDLEID }}
+          MCUBOOT_BUNDLEID: ${{ vars.MCUBOOT_BUNDLEID }}
 
       - name: Generate and Push Power Badge
         if: ${{ always() && matrix.device == 'ppk_thingy91x' }}

@@ -1,0 +1,21 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ *
+ * Thingy:91 X adaptation layer for att_flash_partitions.dtsi.
+ *
+ * The Thingy:91 X base board DTS (thingy91x_nrf9151_partition.dtsi)
+ * defines an `external_flash_partition` node in the external SPI-NOR
+ * flash, occupying the address range we need for our own settings /
+ * littlefs / external-flash layout. Remove it here so the shared file
+ * can place its own partitions without label or address collisions.
+ *
+ * Everything else the shared file needs (the `flash_ext` label, the
+ * b0/s0/s1 partitions and `fmfu_storage_partition`) already exists in
+ * the base DTS, so nothing more needs to be added.
+ *
+ * Must be included BEFORE att_flash_partitions.dtsi.
+ */
+
+/delete-node/ &external_flash_partition;

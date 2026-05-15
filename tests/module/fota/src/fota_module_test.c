@@ -8,6 +8,9 @@
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/storage/flash_map.h>
+#include <dfu/dfu_target.h>
+#include <net/nrf_cloud.h>
 #include <net/nrf_cloud_fota_poll.h>
 
 #include "app_common.h"
@@ -22,7 +25,22 @@ FAKE_VALUE_FUNC(int, nrf_cloud_fota_poll_process_pending, struct nrf_cloud_fota_
 FAKE_VALUE_FUNC(int, nrf_cloud_fota_poll_process, struct nrf_cloud_fota_poll_ctx *);
 FAKE_VALUE_FUNC(int, nrf_cloud_fota_poll_update_apply, struct nrf_cloud_fota_poll_ctx *);
 FAKE_VALUE_FUNC(int, fota_download_cancel);
+FAKE_VALUE_FUNC(int, flash_area_open, uint8_t, const struct flash_area **);
+FAKE_VALUE_FUNC(int, flash_area_erase, const struct flash_area *, off_t, size_t);
+FAKE_VOID_FUNC(flash_area_close, const struct flash_area *);
 FAKE_VOID_FUNC1(callback_t, int);
+
+static struct flash_area fake_slot1_area = {
+	.fa_size = 800 * 1024,
+};
+
+static int flash_area_open_fake_impl(uint8_t id, const struct flash_area **fa)
+{
+	ARG_UNUSED(id);
+
+	*fa = &fake_slot1_area;
+	return 0;
+}
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(fota_subscriber);
 ZBUS_CHAN_ADD_OBS(fota_chan, fota_subscriber, 0);
@@ -63,6 +81,12 @@ void setUp(void)
 	RESET_FAKE(nrf_cloud_fota_poll_process);
 	RESET_FAKE(nrf_cloud_fota_poll_update_apply);
 	RESET_FAKE(fota_download_cancel);
+	RESET_FAKE(flash_area_open);
+	RESET_FAKE(flash_area_erase);
+	RESET_FAKE(flash_area_close);
+
+	flash_area_open_fake.custom_fake = flash_area_open_fake_impl;
+	flash_area_erase_fake.return_val = 0;
 
 	FFF_RESET_HISTORY();
 

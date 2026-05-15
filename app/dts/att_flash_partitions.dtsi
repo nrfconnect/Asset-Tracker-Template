@@ -1,0 +1,143 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ *
+ * Single source of truth for the Asset Tracker Template flash layout on
+ * nRF9151 (Thingy:91 X and nRF9151 DK). Included by both the application
+ * overlay and the sysbuild MCUboot / b0 overlays so that every image in
+ * the build sees the same partition table.
+ *
+ * This file references the external SPI-NOR flash via the &flash_ext
+ * label. The Thingy:91 X board DTS defines that label natively; the
+ * nRF9151 DK does not, so it must be added via nrf9151dk_prelude.dtsi
+ * before this file is included.
+ *
+ * A per-board prelude (thingy91x_prelude.dtsi / nrf9151dk_prelude.dtsi)
+ * must always be included BEFORE this file. The prelude deletes anything
+ * in the base board DTS that would otherwise collide with the layout
+ * below (e.g. the Thingy:91 X's pre-existing `external_flash_partition`)
+ * and, on the DK, also rebuilds the parts of the partition table that
+ * the Zephyr default does not provide (b0/s0/s1, fmfu, flash_ext label).
+ *
+ * Flash layout (flash0, 1 MiB internal):
+ *   0x00000000  b0_partition                  ( 32 KiB)  immutable bootloader
+ *   0x00008000  s0_partition                  ( 80 KiB)  primary MCUboot
+ *   0x0001c000  s1_partition                  ( 80 KiB)  secondary MCUboot
+ *   0x00030000  slot0_partition (image-0)     (800 KiB)
+ *     0x00000000  slot0_s_partition           ( 32 KiB)
+ *     0x00008000  slot0_ns_partition          (768 KiB)
+ *   0x000f8000  memfault_coredump_partition   ( 32 KiB)
+ *
+ * Flash layout (flash_ext, 32 MiB external):
+ *   0x00000000  slot1_partition (image-1)     (800 KiB)  matches slot0 for MCUboot swap-move
+ *     0x00000000  slot1_s_partition           ( 32 KiB)
+ *     0x00008000  slot1_ns_partition          (768 KiB)
+ *   0x000d0000  fmfu_storage_partition        (  4 MiB)
+ *   0x004d0000  settings_storage              (  8 KiB)
+ *   0x004d2000  littlefs_storage              (  1 MiB)
+ *   0x005d2000  external_flash_partition      (~26.2 MiB) free space
+ */
+
+/delete-node/ &slot0_partition;
+/delete-node/ &slot1_partition;
+/delete-node/ &storage_partition;
+
+/ {
+	chosen {
+		zephyr,settings-partition = &settings_storage;
+		fmfu_storage = &fmfu_storage_partition;
+	};
+
+	fstab {
+		compatible = "zephyr,fstab";
+		lfs1: lfs1 {
+			compatible = "zephyr,fstab,littlefs";
+			mount-point = "/att_storage";
+			partition = <&littlefs_storage>;
+			automount;
+			read-size = <16>;
+			prog-size = <16>;
+			cache-size = <64>;
+			lookahead-size = <32>;
+			block-cycles = <512>;
+		};
+	};
+};
+
+&flash0 {
+	partitions {
+		slot0_partition: partition@30000 {
+			compatible = "fixed-subpartitions";
+			label = "image-0";
+			reg = <0x00030000 0xc8000>;
+			ranges = <0x0 0x00030000 0xc8000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			slot0_s_partition: partition@0 {
+				label = "image-0-secure";
+				reg = <0x00000000 0x8000>;
+			};
+
+			slot0_ns_partition: partition@8000 {
+				label = "image-0-nonsecure";
+				reg = <0x00008000 0xc0000>;
+			};
+		};
+
+		storage_partition: memfault_coredump_partition: partition@f8000 {
+			label = "memfault_coredump_partition";
+			reg = <0x000f8000 0x00008000>;
+		};
+	};
+};
+
+&flash_ext {
+	status = "okay";
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		slot1_partition: partition@0 {
+			compatible = "fixed-subpartitions";
+			label = "image-1";
+			reg = <0x00000000 0xc8000>;
+			ranges = <0x0 0x00000 0xc8000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			slot1_s_partition: partition@0 {
+				label = "image-1-secure";
+				reg = <0x00000000 0x8000>;
+			};
+
+			slot1_ns_partition: partition@8000 {
+				label = "image-1-nonsecure";
+				reg = <0x00008000 0xc0000>;
+			};
+		};
+
+		fmfu_storage_partition: partition@d0000 {
+			label = "fmfu_storage";
+			reg = <0x000d0000 0x00400000>;
+		};
+
+		settings_storage: partition@4d0000 {
+			label = "settings_storage";
+			reg = <0x004d0000 0x00002000>;
+		};
+
+		littlefs_storage: partition@4d2000 {
+			label = "littlefs_storage";
+			reg = <0x004d2000 0x00100000>;
+		};
+
+		external_flash_partition: partition@5d2000 {
+			label = "external_flash";
+			reg = <0x005d2000 0x01a2e000>;
+		};
+	};
+};

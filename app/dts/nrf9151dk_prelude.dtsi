@@ -1,0 +1,71 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ *
+ * nRF9151 DK adaptation layer for att_flash_partitions.dtsi.
+ *
+ * The shared partition file assumes the Thingy:91 X-style baseline:
+ *   - the external SPI-NOR flash is reachable via the `flash_ext` label
+ *   - the b0/s0/s1 MCUboot bootloader partitions and the
+ *     fmfu_storage_partition already exist
+ *
+ * Neither holds on the DK out of the box, so this prelude:
+ *   1. Aliases &gd25wb256 (the chip-named label) as `flash_ext`.
+ *   2. Deletes the small TF-M-style default partitions inherited from
+ *      <nordic/nrf91xx_partition.dtsi> that would otherwise collide.
+ *   3. Adds the missing b0/s0/s1 partitions to flash0 and
+ *      fmfu_storage_partition to the external flash.
+ *
+ * Must be included BEFORE att_flash_partitions.dtsi.
+ */
+
+/* Expose the external SPI-NOR flash under the name the shared file uses. */
+flash_ext: &gd25wb256 {
+	status = "okay";
+};
+
+/*
+ * Remove the small default partitions that the Zephyr nRF91 partition file
+ * places at the same addresses we need for our own layout.
+ */
+/delete-node/ &boot_partition;
+/delete-node/ &tfm_ps_partition;
+/delete-node/ &tfm_its_partition;
+/delete-node/ &tfm_otp_partition;
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		b0_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 0x8000>;
+		};
+
+		s0_partition: partition@8000 {
+			label = "mcuboot-0";
+			reg = <0x00008000 0x14000>;
+		};
+
+		s1_partition: partition@1c000 {
+			label = "mcuboot-1";
+			reg = <0x0001c000 0x14000>;
+		};
+	};
+};
+
+&gd25wb256 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		fmfu_storage_partition: partition@d0000 {
+			label = "fmfu_storage";
+			reg = <0x000d0000 0x00400000>;
+		};
+	};
+};

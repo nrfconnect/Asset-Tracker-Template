@@ -12,6 +12,7 @@
 #include <net/nrf_cloud_fota_poll.h>
 #include <zephyr/sys/reboot.h>
 #include <zephyr/dfu/mcuboot.h>
+#include <zephyr/storage/flash_map.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <nrf_cloud_fota.h>
 #include <zephyr/smf.h>
@@ -513,11 +514,51 @@ static enum smf_state_result state_polling_for_update_run(void *obj)
 	return SMF_EVENT_PROPAGATE;
 }
 
+/* Erase the trailer page of the MCUboot secondary slot before each download.
+ *
+ * dfu_target_mcuboot relies on stream_flash, which only erases the sectors it
+ * actually writes the new image into. The MCUboot trailer lives in the last
+ * sector of the slot and is therefore left untouched. On boards where the
+ * secondary slot lives in external SPI-NOR (e.g. nRF9151DK / Thingy:91 X) the
+ * J-Link flashing step only touches internal flash, so the trailer area boots
+ * with stale bytes from a previous run. When boot_set_pending() then tries to
+ * write the swap magic into that non-erased page the SPI-NOR write fails and
+ * boot_request_upgrade() returns -EFAULT, aborting the upgrade after a
+ * successful download.
+ *
+ * Erasing only the trailer page (4 KiB) keeps the stall short (~50 ms) versus
+ * erasing the whole 800 KiB slot up front.
+ */
+static void erase_secondary_trailer(void)
+{
+	const struct flash_area *fa;
+	int err = flash_area_open(PARTITION_ID(slot1_partition), &fa);
+
+	if (err) {
+		LOG_WRN("flash_area_open(slot1) failed: %d, skipping trailer erase", err);
+		return;
+	}
+
+	const size_t page_size = 4096;
+	const off_t trailer_off = fa->fa_size - page_size;
+
+	err = flash_area_erase(fa, trailer_off, page_size);
+	if (err) {
+		LOG_WRN("flash_area_erase(slot1 trailer) failed: %d", err);
+	} else {
+		LOG_DBG("Erased slot1 trailer page at offset 0x%lx", (long)trailer_off);
+	}
+
+	flash_area_close(fa);
+}
+
 static void state_downloading_update_entry(void *obj)
 {
 	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
+
+	erase_secondary_trailer();
 }
 
 static enum smf_state_result state_downloading_update_run(void *obj)

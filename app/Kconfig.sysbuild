@@ -11,6 +11,15 @@ endchoice
 config SECURE_BOOT_APPCORE
 	default y if BOARD_NRF9151DK_NRF9151_NS
 
+# Reuse the Nordic-provided Thingy:91 X debug signing key on the DK as well.
+# Without this, debug_keys.cmake generates a fresh random key on every
+# pristine build, which (a) re-bricks any already-flashed b0 for FOTA and
+# (b) makes signed images non-deterministic across CI runs. The Thingy:91 X
+# board package sets the same default unconditionally, so both boards now
+# sign with the same key. This is a public debug key - not for production.
+config SECURE_BOOT_SIGNING_KEY_FILE
+	default "$(ZEPHYR_NRF_MODULE_DIR)/boards/nordic/thingy91x/nsib_signing_key.pem" if BOARD_NRF9151DK_NRF9151_NS
+
 config WIFI_NRF70
 	default y if BOARD_THINGY91X_NRF9151_NS
 
@@ -18,7 +27,7 @@ choice WIFI_NRF70_OPER_MODES
 	default WIFI_NRF70_SCAN_ONLY if BOARD_THINGY91X_NRF9151_NS
 endchoice
 
-config PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY
-	default y if BOARD_NRF9151DK_NRF9151_NS
+config PARTITION_MANAGER
+	default n
 
 source "${ZEPHYR_BASE}/share/sysbuild/Kconfig"
