@@ -68,8 +68,8 @@ jobs:
           quit
           EOF
 
-  publish-docs-ft:
-    name: Publish documentation to ft
+  publish-docs-ft-dev:
+    name: Publish documentation to ft dev
     needs: create-doc-bundle
     runs-on: ubuntu-latest
     container:
@@ -80,10 +80,34 @@ jobs:
         with:
           name: asset-tracker-template-ft
 
-      - name: Publish documentation to fluid topics
+      - name: Publish documentation to fluid topics dev
         env:
           FT_URL: ${{ secrets.FLUIDTOPICS_URL_DEV }}
           FT_API_KEY: ${{ secrets.FLUIDTOPICS_API_KEY_DEV }}
+          FT_SOURCE: ${{ secrets.FLUIDTOPICS_SOURCE_ID }}
+        run: |
+          if [ -z "$FT_URL" ] || [ -z "$FT_API_KEY" ] || [ -z "$FT_SOURCE" ]; then
+            echo "::warning::Fluid Topics secrets are not configured; skipping upload"
+            exit 0
+          fi
+          ftpub publish asset-tracker-template-ft.zip "$FT_URL" -a "$FT_API_KEY" -s "$FT_SOURCE"
+
+  publish-docs-ft-prod:
+    name: Publish documentation to ft prod
+    needs: create-doc-bundle
+    runs-on: ubuntu-latest
+    container:
+      image: fluidtopics/publish:latest
+    steps:
+      - name: Download bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: asset-tracker-template-ft
+
+      - name: Publish documentation to fluid topics prod
+        env:
+          FT_URL: ${{ secrets.FLUIDTOPICS_URL_PROD }}
+          FT_API_KEY: ${{ secrets.FLUIDTOPICS_API_KEY_PROD }}
           FT_SOURCE: ${{ secrets.FLUIDTOPICS_SOURCE_ID }}
         run: |
           if [ -z "$FT_URL" ] || [ -z "$FT_API_KEY" ] || [ -z "$FT_SOURCE" ]; then
