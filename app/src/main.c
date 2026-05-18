@@ -254,9 +254,6 @@ struct main_state {
 	/* Flags to track if each module is ready */
 	struct {
 		bool fota_ready;
-#if defined(CONFIG_APP_POWER)
-		bool power_ready;
-#endif /* CONFIG_APP_POWER */
 		bool location_ready;
 	} modules_ready;
 };
@@ -884,9 +881,6 @@ static void check_modules_ready(const struct main_state *state_object)
 	int err;
 
 	if (state_object->modules_ready.fota_ready &&
-#if defined(CONFIG_APP_POWER)
-	    state_object->modules_ready.power_ready &&
-#endif /* CONFIG_APP_POWER */
 	    state_object->modules_ready.location_ready) {
 		err = zbus_chan_pub(&priv_main_chan, &msg, PUB_TIMEOUT);
 		if (err) {
@@ -913,16 +907,6 @@ static enum smf_state_result waiting_for_modules_init_run(void *o)
 			check_modules_ready(state_object);
 			return SMF_EVENT_HANDLED;
 		}
-#if defined(CONFIG_APP_POWER)
-	} else if (state_object->chan == &power_chan) {
-		const struct power_msg *msg = (const struct power_msg *)state_object->msg_buf;
-
-		if (msg->type == POWER_MODULE_READY) {
-			state_object->modules_ready.power_ready = true;
-			check_modules_ready(state_object);
-			return SMF_EVENT_HANDLED;
-		}
-#endif /* CONFIG_APP_POWER */
 	} else if (state_object->chan == &location_chan) {
 		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 

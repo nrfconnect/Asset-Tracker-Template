@@ -15,9 +15,7 @@ extern "C" {
 #endif
 
 /* Channels provided by this module */
-ZBUS_CHAN_DECLARE(
-	power_chan
-);
+ZBUS_CHAN_DECLARE(power_chan);
 
 enum power_msg_type {
 	/* Output message types */
@@ -36,6 +34,12 @@ enum power_msg_type {
 	 * POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE message.
 	 */
 	POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST,
+
+	/* Request to set the power module to idle state. */
+	POWER_SET_IDLE,
+
+	/* Request to set the power module to active state. */
+	POWER_SET_ACTIVE,
 };
 
 struct power_msg {
@@ -58,6 +62,17 @@ struct power_msg {
 	 */
 	int64_t timestamp;
 };
+
+/**
+ * @brief Get the latest sampled battery data.
+ *
+ * @param[out] out Latest battery snapshot.
+ *
+ * @retval 0 on success.
+ * @retval -EINVAL if @p out is NULL.
+ * @retval -ENODATA if no sample is available yet.
+ */
+int power_get_battery_data(struct power_msg *out);
 
 #ifdef __cplusplus
 }
