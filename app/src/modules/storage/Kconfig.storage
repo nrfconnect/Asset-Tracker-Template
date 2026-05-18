@@ -88,7 +88,7 @@ config APP_STORAGE_BATCH_BUFFER_SIZE
 
 config APP_STORAGE_SESSION_TIMEOUT_SECONDS
 	int "Storage batch session timeout"
-	default 60
+	default 30
 	help
 	  Timeout for an active storage batch session. If no activity
 	  occurs on the session for this duration, it will be automatically

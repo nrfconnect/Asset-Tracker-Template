@@ -595,7 +595,52 @@ static void handle_storage_batch_available(const struct storage_msg *msg)
 
 		err = send_storage_data_to_cloud(&item);
 		if (err) {
-			LOG_ERR("Failed to send storage data to cloud, error: %d", err);
+			int send_err = err;
+
+			/* Non-network errors (ENOTSUP, EINVAL, ENODATA) indicate malformed or
+			 * unsupported data that will never succeed. Drop the item to prevent
+			 * an infinite retry loop.
+			 */
+			if (send_err == -ENOTSUP || send_err == -EINVAL || send_err == -ENODATA) {
+				LOG_ERR("Permanent error sending storage data (type %d), "
+					"dropping item: %d", item.type, send_err);
+				continue;
+			}
+
+			/* Network/transport error: requeue the item so it can be retried in a
+			 * future batch session, then abort the loop since remaining sends will
+			 * also fail.
+			 */
+			LOG_ERR("Network error sending storage data (type %d), "
+				"requeueing item: %d", item.type, send_err);
+
+			struct storage_msg requeue_msg = {
+				.type = STORAGE_REQUEUE,
+				.data_type = item.type,
+			};
+
+			memcpy(requeue_msg.buffer, &item.data, sizeof(item.data));
+
+			err = zbus_chan_pub(&storage_chan, &requeue_msg, PUB_TIMEOUT);
+			if (err) {
+				LOG_ERR("Failed to requeue item, error: %d", err);
+			}
+
+			session_error = true;
+			continue;
+		}
+
+		/* Reset the storage session timeout so slow sends don't cause
+		 * premature session expiry
+		 */
+		struct storage_msg keepalive_msg = {
+			.type = STORAGE_BATCH_KEEPALIVE,
+			.session_id = session_id,
+		};
+
+		err = zbus_chan_pub(&storage_chan, &keepalive_msg, PUB_TIMEOUT);
+		if (err) {
+			LOG_ERR("Failed to send batch keepalive, error: %d", err);
 		}
 
 		items_processed++;

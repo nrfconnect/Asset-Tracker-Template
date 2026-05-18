@@ -1087,6 +1087,172 @@ void test_storage_threshold(void)
 
 }
 
+/* Verify that STORAGE_REQUEUE re-inserts a previously read item so it appears in the
+ * next batch session.
+ */
+void test_storage_requeue_stores_item_for_next_batch(void)
+{
+	int err;
+	struct environmental_msg env_msg = {
+		.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE,
+	};
+	struct storage_msg requeue_msg;
+	uint32_t session_id;
+	size_t items_read;
+
+	/* Store one environmental sample */
+	populate_env_message(0, &env_msg);
+	publish_and_assert(&environmental_chan, &env_msg);
+
+	/* Open a batch session and wait for data to be ready */
+	request_batch_and_assert();
+	k_sleep(K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
+	TEST_ASSERT_GREATER_THAN(0, received_msg.data_len);
+	session_id = received_msg.session_id;
+
+	/* Read the item from the batch pipe */
+	items_read = read_batch_data(1);
+	TEST_ASSERT_EQUAL(1, items_read);
+	TEST_ASSERT_EQUAL(1, received_env_samples_count);
+
+	/* Requeue the item while the batch session is still active. */
+	memset(&requeue_msg, 0, sizeof(requeue_msg));
+	requeue_msg.type = STORAGE_REQUEUE;
+	requeue_msg.data_type = STORAGE_TYPE_ENVIRONMENTAL;
+	memcpy(requeue_msg.buffer, &received_env_samples[0], sizeof(struct environmental_msg));
+
+	err = zbus_chan_pub(&storage_chan, &requeue_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Close the batch session (pipe is empty — no items to requeue from pipe) */
+	close_batch_and_assert(session_id);
+	k_sleep(K_MSEC(500));
+
+	/* Reset counters before the next batch read */
+	received_env_samples_count = 0;
+	memset(&received_env_samples, 0, sizeof(received_env_samples));
+
+	/* The explicitly requeued item must appear in the next batch */
+	request_batch_and_assert();
+	k_sleep(K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
+	TEST_ASSERT_GREATER_THAN(0, received_msg.data_len);
+
+	items_read = read_batch_data(received_msg.data_len);
+	TEST_ASSERT_EQUAL(1, items_read);
+	TEST_ASSERT_EQUAL(1, received_env_samples_count);
+	TEST_ASSERT_EQUAL_DOUBLE(env_samples[0].temperature, received_env_samples[0].temperature);
+	TEST_ASSERT_EQUAL_DOUBLE(env_samples[0].humidity, received_env_samples[0].humidity);
+	TEST_ASSERT_EQUAL_DOUBLE(env_samples[0].pressure, received_env_samples[0].pressure);
+
+	close_batch_and_assert(received_msg.session_id);
+}
+
+/* Verify that STORAGE_BATCH_KEEPALIVE is handled without corrupting state: the session
+ * must remain active (subsequent batch requests must return STORAGE_BATCH_BUSY).
+ */
+void test_storage_keepalive_keeps_session_alive(void)
+{
+	int err;
+	struct environmental_msg env_msg = {
+		.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE,
+	};
+	struct storage_msg keepalive_msg;
+	struct storage_msg second_request = {
+		.type = STORAGE_BATCH_REQUEST,
+		.session_id = 0x22222222,
+	};
+	uint32_t session_id;
+
+	/* Store a sample so the batch session opens successfully */
+	populate_env_message(0, &env_msg);
+	publish_and_assert(&environmental_chan, &env_msg);
+
+	/* Open a batch session */
+	request_batch_and_assert();
+	k_sleep(K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
+	session_id = received_msg.session_id;
+
+	/* Send a keepalive for the active session */
+	memset(&keepalive_msg, 0, sizeof(keepalive_msg));
+	keepalive_msg.type = STORAGE_BATCH_KEEPALIVE;
+	keepalive_msg.session_id = session_id;
+
+	err = zbus_chan_pub(&storage_chan, &keepalive_msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(200));
+
+	/* A new request while the session is active must be rejected with STORAGE_BATCH_BUSY */
+	err = zbus_chan_pub(&storage_chan, &second_request, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+	k_sleep(K_MSEC(200));
+
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_BUSY, received_msg.type);
+
+	/* Close the original session cleanly */
+	close_batch_and_assert(session_id);
+}
+
+/* Verify that items remaining in the pipe when a batch session closes are re-stored
+ * in the backend by requeue_pipe_data() and become available in the next batch session.
+ */
+void test_storage_pipe_data_requeued_on_session_close(void)
+{
+	struct environmental_msg env_msg = {
+		.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE,
+	};
+	uint32_t session_id;
+	size_t items_read;
+	const uint8_t num_samples = 3;
+
+	/* Store multiple environmental samples */
+	for (size_t i = 0; i < num_samples; i++) {
+		populate_env_message(i, &env_msg);
+		publish_and_assert(&environmental_chan, &env_msg);
+	}
+
+	/* Open a batch session and wait for all samples to be loaded into the pipe */
+	request_batch_and_assert();
+	k_sleep(K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
+	/* Verify enough items are present to leave at least one in the pipe after partial read */
+	TEST_ASSERT_GREATER_THAN(1, received_msg.data_len);
+	session_id = received_msg.session_id;
+
+	/* Intentionally read only one item, leaving the rest in the pipe */
+	items_read = read_batch_data(1);
+	TEST_ASSERT_EQUAL(1, items_read);
+
+	/* Close the session — state_buffer_pipe_active_exit calls requeue_pipe_data()
+	 * which must store the remaining pipe items back to the storage backend.
+	 */
+	close_batch_and_assert(session_id);
+	k_sleep(K_MSEC(500));
+
+	/* Reset counters before the next batch read */
+	received_env_samples_count = 0;
+	memset(&received_env_samples, 0, sizeof(received_env_samples));
+
+	/* The requeued pipe items must appear in the next batch */
+	request_batch_and_assert();
+	k_sleep(K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
+	TEST_ASSERT_GREATER_THAN(0, received_msg.data_len);
+
+	/* At least the (num_samples - 1) items left in the pipe must be available */
+	items_read = read_batch_data(received_msg.data_len);
+	TEST_ASSERT_GREATER_THAN(1, items_read);
+
+	close_batch_and_assert(received_msg.session_id);
+}
+
 extern int unity_main(void);
 
 int main(void)

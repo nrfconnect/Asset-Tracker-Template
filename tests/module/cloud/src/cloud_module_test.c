@@ -148,8 +148,12 @@ static K_SEM_DEFINE(cloud_connected, 0, 1);
 static K_SEM_DEFINE(data_sent, 0, 1);
 static K_SEM_DEFINE(cloud_module_response_recv_sem, 0, 1);
 static K_SEM_DEFINE(storage_batch_closed, 0, 1);
+static K_SEM_DEFINE(storage_requeue_sem, 0, 1);
+static K_SEM_DEFINE(storage_keepalive_sem, 0, 4);
 static struct cloud_msg last_shadow_response;
 static struct storage_msg last_storage_msg;
+static struct storage_msg last_requeue_msg;
+static struct storage_msg last_keepalive_msg;
 static struct nrf_cloud_gnss_data last_gnss_data;
 
 static nrf_provisioning_event_cb_t handler;
@@ -172,6 +176,8 @@ enum fake_batch_mode {
 	FAKE_BATCH_NONE = 0,
 	FAKE_BATCH_BATTERY,
 	FAKE_BATCH_ENV,
+	/* Returns two battery items, call 0 and call 1 both yield a battery item */
+	FAKE_BATCH_TWO_BATTERY,
 };
 
 static enum fake_batch_mode fake_mode;
@@ -185,9 +191,12 @@ static int storage_batch_read_custom(struct storage_data_item *out_item, k_timeo
 		return -EAGAIN;
 	}
 
-	if (fake_read_calls++ == 0) {
+	int call = fake_read_calls++;
+
+	if (call == 0) {
 		switch (fake_mode) {
 		case FAKE_BATCH_BATTERY:
+		case FAKE_BATCH_TWO_BATTERY:
 			out_item->type = STORAGE_TYPE_BATTERY;
 			out_item->data.BATTERY.percentage = 87.5;
 			out_item->data.BATTERY.timestamp = TEST_BATTERY_UPTIME_MS;
@@ -202,11 +211,36 @@ static int storage_batch_read_custom(struct storage_data_item *out_item, k_timeo
 		default:
 			return -EAGAIN;
 		}
+		return 0;
+	}
 
+	else if (call == 1 && (fake_mode == FAKE_BATCH_TWO_BATTERY)) {
+		out_item->type = STORAGE_TYPE_BATTERY;
+		out_item->data.BATTERY.percentage = 85.5;
+		out_item->data.BATTERY.timestamp = TEST_BATTERY_UPTIME_MS;
 		return 0;
 	}
 
 	return -EAGAIN;
+}
+
+/*
+ * Custom fake for nrf_cloud_coap_sensor_send that fails only on the first call
+ * (simulating a single bad item in a multi-item batch).
+ */
+static int nrf_cloud_coap_sensor_send_fail_first_custom_fake(
+	const char *app_id, double value, int64_t ts, bool confirmable)
+{
+	ARG_UNUSED(app_id);
+	ARG_UNUSED(value);
+	ARG_UNUSED(ts);
+	ARG_UNUSED(confirmable);
+
+	if (nrf_cloud_coap_sensor_send_fake.call_count == 1) {
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 static int nrf_cloud_client_id_get_custom_fake(char *buf, size_t len)
@@ -279,6 +313,12 @@ static void cloud_chan_cb(const struct zbus_channel *chan)
 		if (storage_msg->type == STORAGE_BATCH_CLOSE) {
 			memcpy(&last_storage_msg, storage_msg, sizeof(struct storage_msg));
 			k_sem_give(&storage_batch_closed);
+		} else if (storage_msg->type == STORAGE_REQUEUE) {
+			memcpy(&last_requeue_msg, storage_msg, sizeof(struct storage_msg));
+			k_sem_give(&storage_requeue_sem);
+		} else if (storage_msg->type == STORAGE_BATCH_KEEPALIVE) {
+			memcpy(&last_keepalive_msg, storage_msg, sizeof(struct storage_msg));
+			k_sem_give(&storage_keepalive_sem);
 		}
 	}
 }
@@ -420,6 +460,10 @@ void setUp(void)
 	k_sem_reset(&data_sent);
 	k_sem_reset(&cloud_module_response_recv_sem);
 	k_sem_reset(&storage_batch_closed);
+	k_sem_reset(&storage_requeue_sem);
+	k_sem_reset(&storage_keepalive_sem);
+	memset(&last_requeue_msg, 0, sizeof(last_requeue_msg));
+	memset(&last_keepalive_msg, 0, sizeof(last_keepalive_msg));
 
 	/* Set default return values */
 	nrf_cloud_coap_location_send_fake.return_val = 0;
@@ -1619,6 +1663,24 @@ static void wait_for_storage_batch_close(k_timeout_t timeout)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
+/* Helper to wait for a STORAGE_REQUEUE message from the cloud module */
+static void wait_for_requeue(k_timeout_t timeout)
+{
+	int err;
+
+	err = k_sem_take(&storage_requeue_sem, timeout);
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+/* Helper to wait for a STORAGE_BATCH_KEEPALIVE message from the cloud module */
+static void wait_for_keepalive(k_timeout_t timeout)
+{
+	int err;
+
+	err = k_sem_take(&storage_keepalive_sem, timeout);
+	TEST_ASSERT_EQUAL(0, err);
+}
+
 void test_storage_batch_available_when_paused_should_close_session(void)
 {
 	struct storage_msg batch_available = {
@@ -1727,6 +1789,128 @@ void test_agnss_request_cached_while_disconnected_and_sent_on_connect(void)
 	/* Verify the cached A-GNSS request was sent after connecting */
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_agnss_data_get_fake.call_count);
 	TEST_ASSERT_EQUAL(1, location_agnss_data_process_fake.call_count);
+}
+
+/* Verify STORAGE_BATCH_KEEPALIVE is published to storage_chan after each successful send */
+void test_batch_keepalive_sent_after_successful_send(void)
+{
+	struct storage_msg batch_available = {
+		.type = STORAGE_BATCH_AVAILABLE,
+		.data_len = 1,
+		.session_id = 0x12AB34CD,
+		.more_data = false,
+	};
+
+	connect_cloud();
+
+	/* Prepare fake to return one battery item, then -EAGAIN */
+	fake_mode = FAKE_BATCH_BATTERY;
+	fake_read_calls = 0;
+	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+
+	publish_and_assert(&storage_chan, &batch_available);
+
+	/* Keepalive is published after the successful send */
+	wait_for_keepalive(K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_KEEPALIVE, last_keepalive_msg.type);
+	TEST_ASSERT_EQUAL(batch_available.session_id, last_keepalive_msg.session_id);
+
+	/* Verify the send was made */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_sensor_send_fake.call_count);
+
+	/* Verify session is closed after processing */
+	wait_for_storage_batch_close(K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(batch_available.session_id, last_storage_msg.session_id);
+}
+
+/* Verify that a permanent/non-network error (-EINVAL) on one batch item drops only
+ * that item, and that the batch loop continues to process remaining items without
+ * requeuing the failed item.
+ */
+void test_batch_permanent_error_drops_item_without_requeue(void)
+{
+	struct storage_msg batch_available = {
+		.type = STORAGE_BATCH_AVAILABLE,
+		.data_len = 2,
+		.session_id = 0xABCD1234,
+		.more_data = false,
+	};
+
+	connect_cloud();
+
+	/* Setup fake to return two battery items, then -EAGAIN, and configure send to fail with
+	 * -EINVAL for the first item and succeed for the second item
+	 */
+	fake_mode = FAKE_BATCH_TWO_BATTERY;
+	fake_read_calls = 0;
+	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+	nrf_cloud_coap_sensor_send_fake.custom_fake = nrf_cloud_coap_sensor_send_fail_first_custom_fake;
+
+	publish_and_assert(&storage_chan, &batch_available);
+
+	/* Keepalive must be sent for the successfully delivered second battery item */
+	wait_for_keepalive(K_SECONDS(WAIT_TIMEOUT));
+
+	/* Session must be closed after processing both items */
+	wait_for_storage_batch_close(K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(batch_available.session_id, last_storage_msg.session_id);
+
+	/* Exactly one keepalive was sent, confirming only one item succeeded */
+	TEST_ASSERT_EQUAL(0, k_sem_count_get(&storage_keepalive_sem));
+
+	/* The failed first battery item must NOT have been requeued */
+	TEST_ASSERT_EQUAL(0, k_sem_count_get(&storage_requeue_sem));
+
+	/* Shadow network info was updated */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_network_info_update_fake.call_count);
+
+	/* 1 failed send + 1 successful send = 2 total */
+	TEST_ASSERT_EQUAL(2, nrf_cloud_coap_sensor_send_fake.call_count);
+}
+
+/* Verify that a network error (-EIO) causes the batch loop to abort, and requeue is published
+ * for the failed item.
+ */
+void test_batch_network_error_aborts_loop_and_requeues(void)
+{
+	struct storage_msg batch_available = {
+		.type = STORAGE_BATCH_AVAILABLE,
+		.data_len = 2,
+		.session_id = 0xFEEDFACE,
+		.more_data = false,
+	};
+
+	connect_cloud();
+
+
+	/* Setup fake to return two battery items, then -EAGAIN */
+	fake_mode = FAKE_BATCH_TWO_BATTERY;
+	fake_read_calls = 0;
+	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+	/* Network send fails with -EIO */
+	nrf_cloud_coap_sensor_send_fake.return_val = -EIO;
+
+	publish_and_assert(&storage_chan, &batch_available);
+
+	/* Requeue should be published for the failed item */
+	wait_for_requeue(K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(STORAGE_REQUEUE, last_requeue_msg.type);
+	TEST_ASSERT_EQUAL(STORAGE_TYPE_BATTERY, last_requeue_msg.data_type);
+
+	/* Session should be closed  */
+	wait_for_storage_batch_close(K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(batch_available.session_id, last_storage_msg.session_id);
+
+	/* No items were successfully delivered, so shadow network info should not be updated */
+	TEST_ASSERT_EQUAL(0, nrf_cloud_coap_shadow_network_info_update_fake.call_count);
+
+	/* Loop should have aborted after the failure, only one send should have been attempted */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_sensor_send_fake.call_count);
+	/* Verify it was the first item (87.5%) — memcmp avoids Unity double support requirement */
+	double expected_pct = 87.5;
+	TEST_ASSERT_EQUAL_MEMORY(&expected_pct,
+				 &nrf_cloud_coap_sensor_send_fake.arg1_history[0],
+				 sizeof(double));
 }
 
 /* This is required to be added to each test. That is because unity's

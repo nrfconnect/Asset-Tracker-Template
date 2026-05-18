@@ -1,5 +1,5 @@
 tests:
-  storage.module.ram:
+  asset_tracker_template.fw.storage.ram:
     tags: storage
     platform_allow:
       - native_sim

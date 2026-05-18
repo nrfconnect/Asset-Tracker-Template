@@ -462,6 +462,73 @@ static void drain_pipe(void)
 	}
 }
 
+/* Re-store an item that failed to be sent to cloud so it can be retried later */
+static void requeue_item(enum storage_data_type data_type, const uint8_t *buf)
+{
+	int err;
+	const struct storage_backend *backend = storage_backend_get();
+	bool found = false;
+
+	STRUCT_SECTION_FOREACH(storage_data, type) {
+		if (type->data_type == data_type) {
+			found = true;
+			err = backend->store(type, buf, type->data_size);
+			if (err) {
+				LOG_ERR("Failed to requeue item (type %d): %d", data_type, err);
+			} else {
+				LOG_DBG("Requeued item (type %d) for later send", data_type);
+			}
+			break;
+		}
+	}
+
+	if (!found) {
+		LOG_WRN("Requeue: unknown data type %d", data_type);
+	}
+}
+
+/* Requeue all items remaining in the pipe back to the storage backend. */
+static void requeue_pipe_data(void)
+{
+	int ret;
+	int requeued = 0;
+	struct storage_pipe_header header;
+	uint8_t data[STORAGE_MAX_DATA_SIZE];
+
+	while (true) {
+		ret = pipe_read_exact(&storage_pipe, (uint8_t *)&header,
+				      sizeof(header), K_NO_WAIT);
+		if (ret == -EAGAIN) {
+			/* Pipe empty - done */
+			break;
+		} else if (ret < 0) {
+			LOG_ERR("Pipe read error during requeue: %d, draining", ret);
+			drain_pipe();
+			return;
+		}
+
+		if (header.data_size > STORAGE_MAX_DATA_SIZE) {
+			LOG_ERR("Corrupt pipe header (size=%u), draining", header.data_size);
+			drain_pipe();
+			return;
+		}
+
+		ret = pipe_read_exact(&storage_pipe, data, header.data_size, K_NO_WAIT);
+		if (ret < 0) {
+			LOG_ERR("Failed to read pipe data for requeue: %d, draining", ret);
+			drain_pipe();
+			return;
+		}
+
+		requeue_item((enum storage_data_type)header.type, data);
+		requeued++;
+	}
+
+	if (requeued > 0) {
+		LOG_DBG("Requeued %d item(s) from pipe back to storage backend", requeued);
+	}
+}
+
 /* Send batch response message with session_id and optional data_len */
 static void send_batch_response(enum storage_msg_type response_type,
 			       uint32_t session_id,
@@ -816,6 +883,9 @@ static enum smf_state_result state_running_run(void *o)
 			handle_storage_stats();
 			break;
 #endif /* CONFIG_APP_STORAGE_SHELL_STATS */
+		case STORAGE_REQUEUE:
+			requeue_item(msg->data_type, msg->buffer);
+			break;
 		default:
 			break;
 		}
@@ -906,6 +976,19 @@ static enum smf_state_result state_buffer_pipe_active_run(void *o)
 
 			return SMF_EVENT_HANDLED;
 
+		case STORAGE_REQUEUE:
+			requeue_item(msg->data_type, msg->buffer);
+			return SMF_EVENT_HANDLED;
+
+		case STORAGE_BATCH_KEEPALIVE:
+			if (state_object->current_session.session_id == msg->session_id) {
+				k_work_reschedule(&state_object->session_timeout_work,
+						  K_SECONDS(STORAGE_SESSION_TIMEOUT_SECONDS));
+				LOG_DBG("Session 0x%X keepalive, timeout reset",
+					msg->session_id);
+			}
+			return SMF_EVENT_HANDLED;
+
 		case STORAGE_BATCH_REQUEST: {
 			int err;
 
@@ -987,8 +1070,10 @@ static void state_buffer_pipe_active_exit(void *o)
 	/* Cancel session timeout */
 	k_work_cancel_delayable(&state_object->session_timeout_work);
 
-	/* Drain any remaining data from pipe */
-	drain_pipe();
+	/* Requeue unconsumed pipe items back to storage backend so they
+	 * are not lost if the session closes with unsent data.
+	 */
+	requeue_pipe_data();
 
 	/* Clear session state */
 	memset(&state_object->current_session, 0, sizeof(state_object->current_session));

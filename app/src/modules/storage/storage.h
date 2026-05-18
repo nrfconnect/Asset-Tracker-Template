@@ -52,6 +52,15 @@ enum storage_msg_type {
 	 */
 	STORAGE_STATS,
 
+	/* Re-store a previously retrieved item that failed to be sent to cloud.
+	 * Use this when sending an item fails and the item should be re-queued
+	 * for a future send attempt.
+	 * The message must contain:
+	 *   - `data_type`: identifies the type of data to re-store
+	 *   - `buffer`: the raw data in storage format (same layout as originally stored)
+	 */
+	STORAGE_REQUEUE,
+
 	/* Output messages */
 
 	/* Number of items in storage >= trigger limit.
@@ -82,6 +91,13 @@ enum storage_msg_type {
 
 	/* Batch is busy - cannot process request at this time. */
 	STORAGE_BATCH_BUSY,
+
+	/* Keepalive to reset the batch session timeout while items are being processed.
+	 * The consumer should send this after each successfully delivered item to prevent
+	 * the session from timing out during slow sends (e.g. congested CoAP links).
+	 * The message must contain the same session_id as the active batch session.
+	 */
+	STORAGE_BATCH_KEEPALIVE,
 };
 
 /**
