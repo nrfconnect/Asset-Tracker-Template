@@ -1,0 +1,555 @@
+/*
+ * Copyright (c) 2024 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/device.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/zbus/zbus.h>
+#include <zephyr/drivers/sensor/npm13xx_charger.h>
+#include <nrf_fuel_gauge.h>
+#include <math.h>
+#include <errno.h>
+#include <date_time.h>
+#if defined(CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX)
+#include "memfault/metrics/platform/battery.h"
+#endif /* CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
+
+#include "lp803448_model.h"
+#include "app_common.h"
+#include "power.h"
+#include "fuel_gauge_state.h"
+
+LOG_MODULE_REGISTER(power, CONFIG_APP_POWER_LOG_LEVEL);
+
+/* Define channels provided by this module */
+ZBUS_CHAN_DEFINE(power_chan,
+		 struct power_msg,
+		 NULL,
+		 NULL,
+		 ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0));
+
+/* CHARGER.BCHGCHARGESTATUS.CHARGECOMPLETE */
+#define NPM13XX_CHG_STATUS_COMPLETE_MASK BIT(1)
+/* CHARGER.BCHGCHARGESTATUS.TRICKLECHARGE */
+#define NPM13XX_CHG_STATUS_TC_MASK BIT(2)
+/* CHARGER.BCHGCHARGESTATUS.CONSTANTCURRENT */
+#define NPM13XX_CHG_STATUS_CC_MASK BIT(3)
+/* CHARGER.BCHGCHARGESTATUS.CONSTANTVOLTAGE */
+#define NPM13XX_CHG_STATUS_CV_MASK BIT(4)
+#if !defined(CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX)
+#define NPM13XX_CHG_ACTIVE_MASK (NPM13XX_CHG_STATUS_TC_MASK | \
+				 NPM13XX_CHG_STATUS_CC_MASK | \
+				 NPM13XX_CHG_STATUS_CV_MASK)
+#endif /* !CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
+
+static const struct device *charger = DEVICE_DT_GET(DT_NODELABEL(npm1300_charger));
+
+K_THREAD_STACK_DEFINE(power_sample_workq_stack, CONFIG_APP_POWER_SAMPLE_WORKQ_STACK_SIZE);
+static struct k_work_q power_sample_workq;
+
+struct power_context
+{
+	struct k_mutex lock;
+	struct power_msg latest_sample;
+	bool sample_valid;
+	int64_t fuel_gauge_ref_time;
+	struct k_work_delayable sample_work;
+	struct k_work response_work;
+	struct power_msg pending_response;
+	bool response_pending;
+};
+
+static struct power_context power_ctx;
+
+#if !defined(CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX)
+static bool power_is_charging(int32_t chg_status)
+{
+	return (chg_status & NPM13XX_CHG_ACTIVE_MASK) != 0;
+}
+
+static void power_update_charge_state_if_changed(int32_t chg_status, int32_t *prev_chg_status)
+{
+	union nrf_fuel_gauge_ext_state_info_data ext_data;
+
+	if (chg_status == *prev_chg_status)
+	{
+		return;
+	}
+
+	*prev_chg_status = chg_status;
+
+	if (chg_status & NPM13XX_CHG_STATUS_COMPLETE_MASK)
+	{
+		ext_data.charge_state = NRF_FUEL_GAUGE_CHARGE_STATE_COMPLETE;
+	}
+	else if (chg_status & NPM13XX_CHG_STATUS_TC_MASK)
+	{
+		ext_data.charge_state = NRF_FUEL_GAUGE_CHARGE_STATE_TRICKLE;
+	}
+	else if (chg_status & NPM13XX_CHG_STATUS_CC_MASK)
+	{
+		ext_data.charge_state = NRF_FUEL_GAUGE_CHARGE_STATE_CC;
+	}
+	else if (chg_status & NPM13XX_CHG_STATUS_CV_MASK)
+	{
+		ext_data.charge_state = NRF_FUEL_GAUGE_CHARGE_STATE_CV;
+	}
+	else
+	{
+		ext_data.charge_state = NRF_FUEL_GAUGE_CHARGE_STATE_IDLE;
+	}
+
+	(void)nrf_fuel_gauge_ext_state_update(
+	    NRF_FUEL_GAUGE_EXT_STATE_INFO_CHARGE_STATE_CHANGE, &ext_data);
+}
+#endif /* !CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
+
+static int charger_read_sensors(float *voltage, float *current, float *temp,
+				int32_t *chg_status, bool *vbus_connected)
+{
+	struct sensor_value value = {0};
+	int err;
+
+	err = sensor_sample_fetch(charger);
+	if (err < 0)
+	{
+		return err;
+	}
+
+	err = sensor_channel_get(charger, SENSOR_CHAN_GAUGE_VOLTAGE, &value);
+	if (err)
+	{
+		return err;
+	}
+
+	*voltage = sensor_value_to_float(&value);
+
+	err = sensor_channel_get(charger, SENSOR_CHAN_GAUGE_TEMP, &value);
+	if (err)
+	{
+		return err;
+	}
+
+	*temp = sensor_value_to_float(&value);
+
+	err = sensor_channel_get(charger, SENSOR_CHAN_GAUGE_AVG_CURRENT, &value);
+	if (err)
+	{
+		return err;
+	}
+
+	/* Zephyr sensor API returns current as negative for discharging, positive for charging,
+	 * but nRF fuel gauge library expects opposite. Flip here for uniformity.
+	 */
+	*current = -sensor_value_to_float(&value);
+
+	err = sensor_channel_get(charger, (enum sensor_channel)SENSOR_CHAN_NPM13XX_CHARGER_STATUS,
+				 &value);
+	if (err)
+	{
+		return err;
+	}
+
+	*chg_status = value.val1;
+
+	if (vbus_connected != NULL)
+	{
+		struct sensor_value vbus_present;
+
+		err = sensor_attr_get(
+		    charger,
+		    (enum sensor_channel)SENSOR_CHAN_NPM13XX_CHARGER_VBUS_STATUS,
+		    (enum sensor_attribute)SENSOR_ATTR_NPM13XX_CHARGER_VBUS_PRESENT,
+		    &vbus_present);
+		if (err == 0)
+		{
+			*vbus_connected = (vbus_present.val1 != 0);
+		}
+		else
+		{
+			LOG_DBG("Failed to read VBUS state: %d", err);
+			*vbus_connected = false;
+		}
+	}
+
+	return 0;
+}
+
+static int sample_and_store(void)
+{
+	/* Static state tracks changes between samples to avoid redundant updates. */
+	static int32_t prev_chg_status = -1;
+	int err;
+	float voltage;
+	float current;
+	float temp;
+	int32_t chg_status;
+	float state_of_charge;
+	float delta;
+	bool charging;
+	bool vbus_connected;
+	struct power_msg msg = {
+	    .type = POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE,
+	    .timestamp = k_uptime_get()};
+#if defined(CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX)
+	sMfltPlatformBatterySoc soc;
+#endif /* CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
+
+	err = charger_read_sensors(&voltage, &current, &temp, &chg_status, &vbus_connected);
+	if (err)
+	{
+		LOG_ERR("charger_read_sensors, error: %d", err);
+		return err;
+	}
+
+#if defined(CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX)
+	err = memfault_platform_get_stateofcharge(&soc);
+	if (err)
+	{
+		LOG_ERR("memfault_platform_get_stateofcharge, error: %d", err);
+		return err;
+	}
+
+	state_of_charge =
+	    (float)soc.soc / (float)CONFIG_MEMFAULT_METRICS_BATTERY_SOC_PCT_SCALE_VALUE;
+	charging = !soc.discharging;
+	(void)delta;
+	(void)vbus_connected;
+	(void)prev_chg_status;
+#else
+	delta = (float)k_uptime_delta(&power_ctx.fuel_gauge_ref_time) / 1000.0f;
+
+	charging = power_is_charging(chg_status);
+
+	/* Inform fuel gauge of VBUS state */
+	(void)nrf_fuel_gauge_ext_state_update(
+	    vbus_connected ? NRF_FUEL_GAUGE_EXT_STATE_INFO_VBUS_CONNECTED
+			   : NRF_FUEL_GAUGE_EXT_STATE_INFO_VBUS_DISCONNECTED,
+	    NULL);
+
+	/* Inform fuel gauge of charge state changes */
+	power_update_charge_state_if_changed(chg_status, &prev_chg_status);
+
+	state_of_charge = nrf_fuel_gauge_process(voltage, current, temp, delta, NULL);
+#endif /* CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
+
+	err = fuel_gauge_state_save();
+	if (err)
+	{
+		LOG_WRN("Failed to save fuel gauge state: %d", err);
+	}
+
+	msg.percentage = (double)roundf(state_of_charge);
+	msg.charging = charging;
+	msg.voltage = (double)voltage;
+
+	err = date_time_now(&msg.timestamp);
+	if (err != 0 && err != -ENODATA)
+	{
+		LOG_ERR("date_time_now, error: %d", err);
+		return err;
+	}
+
+	err = k_mutex_lock(&power_ctx.lock, K_FOREVER);
+	if (err)
+	{
+		return err;
+	}
+
+	power_ctx.latest_sample = msg;
+	power_ctx.sample_valid = true;
+
+	k_mutex_unlock(&power_ctx.lock);
+
+	LOG_DBG("Updated battery snapshot: %.0f%%, %.3f V, charging: %s",
+		msg.percentage,
+		msg.voltage,
+		msg.charging ? "yes" : "no");
+
+	return 0;
+}
+
+static int power_schedule_next_sample(void)
+{
+	int err;
+
+	err = k_work_reschedule_for_queue(&power_sample_workq,
+					  &power_ctx.sample_work,
+					  K_SECONDS(CONFIG_APP_POWER_SAMPLE_INTERVAL_SECONDS));
+	if (err < 0)
+	{
+		LOG_ERR("k_work_reschedule sample_work, error: %d", err);
+	}
+
+	return err;
+}
+
+int power_get_battery_data(struct power_msg *out)
+{
+	int err;
+
+	if (out == NULL)
+	{
+		return -EINVAL;
+	}
+
+	err = k_mutex_lock(&power_ctx.lock, K_FOREVER);
+	if (err)
+	{
+		return err;
+	}
+
+	if (!power_ctx.sample_valid)
+	{
+		k_mutex_unlock(&power_ctx.lock);
+		return -ENODATA;
+	}
+
+	*out = power_ctx.latest_sample;
+	k_mutex_unlock(&power_ctx.lock);
+
+	return 0;
+}
+
+static void sample_work_fn(struct k_work *work)
+{
+	int err;
+
+	ARG_UNUSED(work);
+
+	err = sample_and_store();
+	if (err)
+	{
+		LOG_ERR("sample_and_store, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	err = power_schedule_next_sample();
+	if (err < 0)
+	{
+		SEND_FATAL_ERROR();
+	}
+}
+
+static int power_module_init(void)
+{
+	int err;
+	int32_t chg_status;
+	struct nrf_fuel_gauge_init_parameters parameters = {
+	    .model = &battery_model};
+	struct power_msg ready_msg = {
+	    .type = POWER_MODULE_READY};
+
+	if (!device_is_ready(charger))
+	{
+		LOG_ERR("Charger device not ready");
+		return -ENODEV;
+	}
+
+	err = charger_read_sensors(&parameters.v0, &parameters.i0, &parameters.t0,
+				   &chg_status, NULL);
+	if (err)
+	{
+		LOG_ERR("charger_read_sensors, error: %d", err);
+		return err;
+	}
+
+	parameters.state = fuel_gauge_state_get();
+	if (parameters.state)
+	{
+		LOG_DBG("Restoring fuel gauge from saved state (%zu bytes)",
+			fuel_gauge_state_size_get());
+	}
+	else
+	{
+		LOG_DBG("No saved fuel gauge state found, initializing from scratch");
+	}
+
+	err = nrf_fuel_gauge_init(&parameters, NULL);
+	if (err)
+	{
+		LOG_ERR("nrf_fuel_gauge_init, error: %d", err);
+		return err;
+	}
+
+	/* Set charge current limit and termination current for accurate TTF prediction */
+	struct sensor_value desired_charge_current;
+
+	err = sensor_channel_get(charger, SENSOR_CHAN_GAUGE_DESIRED_CHARGING_CURRENT,
+				 &desired_charge_current);
+	if (err == 0)
+	{
+		float charge_current_limit = sensor_value_to_float(&desired_charge_current);
+		union nrf_fuel_gauge_ext_state_info_data ext_data = {
+		    .charge_current_limit = charge_current_limit,
+		};
+
+		(void)nrf_fuel_gauge_ext_state_update(
+		    NRF_FUEL_GAUGE_EXT_STATE_INFO_CHARGE_CURRENT_LIMIT, &ext_data);
+
+		ext_data.charge_term_current = charge_current_limit / 10.0f;
+		(void)nrf_fuel_gauge_ext_state_update(
+		    NRF_FUEL_GAUGE_EXT_STATE_INFO_TERM_CURRENT, &ext_data);
+	}
+	else
+	{
+		LOG_DBG("Failed to read desired charge current: %d", err);
+	}
+
+	power_ctx.fuel_gauge_ref_time = k_uptime_get();
+
+	/* Run first sample immediately so getter callers have data right after module ready. */
+	err = sample_and_store();
+	if (err)
+	{
+		LOG_ERR("Initial battery sample failed, error: %d", err);
+		return err;
+	}
+
+	err = zbus_chan_pub(&power_chan, &ready_msg, PUB_TIMEOUT);
+	if (err)
+	{
+		LOG_ERR("zbus_chan_pub POWER_MODULE_READY, error: %d", err);
+		return err;
+	}
+
+	err = k_work_schedule_for_queue(&power_sample_workq,
+					&power_ctx.sample_work,
+					K_SECONDS(CONFIG_APP_POWER_SAMPLE_INTERVAL_SECONDS));
+	if (err < 0)
+	{
+		LOG_ERR("k_work_schedule sample_work, error: %d", err);
+		return err;
+	}
+
+	return 0;
+}
+
+static void response_work_fn(struct k_work *work)
+{
+	int err;
+	struct power_msg response;
+
+	ARG_UNUSED(work);
+
+	err = k_mutex_lock(&power_ctx.lock, K_FOREVER);
+	if (err)
+	{
+		LOG_ERR("k_mutex_lock, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	if (!power_ctx.response_pending)
+	{
+		k_mutex_unlock(&power_ctx.lock);
+		return;
+	}
+
+	response = power_ctx.pending_response;
+	power_ctx.response_pending = false;
+
+	k_mutex_unlock(&power_ctx.lock);
+
+	err = zbus_chan_pub(&power_chan, &response, PUB_TIMEOUT);
+	if (err)
+	{
+		LOG_ERR("zbus_chan_pub deferred sample response, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+static int power_enqueue_response_work(const struct power_msg *response)
+{
+	int err;
+
+	err = k_mutex_lock(&power_ctx.lock, K_FOREVER);
+	if (err)
+	{
+		LOG_ERR("k_mutex_lock, error: %d", err);
+		return err;
+	}
+
+	power_ctx.pending_response = *response;
+	power_ctx.response_pending = true;
+	k_mutex_unlock(&power_ctx.lock);
+
+	err = k_work_submit(&power_ctx.response_work);
+	if (err < 0)
+	{
+		LOG_ERR("k_work_submit response_work, error: %d", err);
+	}
+
+	return err;
+}
+
+static void power_listener_cb(const struct zbus_channel *chan)
+{
+	const struct power_msg *msg = zbus_chan_const_msg(chan);
+
+	if (msg->type == POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST)
+	{
+		int err;
+		struct power_msg response;
+
+		err = power_get_battery_data(&response);
+		if (err)
+		{
+			LOG_WRN("power_get_battery_data unavailable, error: %d", err);
+			return;
+		}
+
+		err = power_enqueue_response_work(&response);
+		if (err < 0)
+		{
+			SEND_FATAL_ERROR();
+		}
+	}
+}
+
+ZBUS_LISTENER_DEFINE(power_listener, power_listener_cb);
+ZBUS_CHAN_ADD_OBS(power_chan, power_listener, 0);
+
+static void power_workq_init(void)
+{
+	k_mutex_init(&power_ctx.lock);
+	k_work_init_delayable(&power_ctx.sample_work, sample_work_fn);
+	k_work_init(&power_ctx.response_work, response_work_fn);
+	k_work_queue_start(&power_sample_workq,
+			   power_sample_workq_stack,
+			   K_THREAD_STACK_SIZEOF(power_sample_workq_stack),
+			   CONFIG_APP_POWER_SAMPLE_WORKQ_PRIORITY,
+			   NULL);
+}
+
+static void power_module_thread(void)
+{
+	int err;
+
+	power_workq_init();
+
+	err = power_module_init();
+	if (err)
+	{
+		LOG_ERR("power_module_init, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	LOG_DBG("Power module started");
+}
+
+static int power_module_sys_init(void)
+{
+	power_module_thread();
+
+	return 0;
+}
+
+SYS_INIT(power_module_sys_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);

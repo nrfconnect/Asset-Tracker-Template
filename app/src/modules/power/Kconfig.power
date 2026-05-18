@@ -18,6 +18,20 @@ config APP_POWER_SHELL
 	help
 	  Enable shell commands for the power module.
 
+# TODO: nA?
+config APP_POWER_IDLE_CURRENT_UA
+	int "Idle current in microamperes"
+	default 4
+	help
+	  Idle current in microamperes used for battery life estimation when the device is idle.
+
+config APP_POWER_SAMPLE_INTERVAL_SECONDS
+	int "Battery sample interval"
+	range 1 86400
+	default 10
+	help
+	  Interval in seconds for periodic fuel gauge sampling.
+
 config APP_POWER_DISABLE_UART_ON_VBUS_REMOVED
 	bool "Disable UART when VBUS is removed"
 	default y
