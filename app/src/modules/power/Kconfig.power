@@ -18,6 +18,18 @@ config APP_POWER_SHELL
 	help
 	  Enable shell commands for the power module.
 
+config APP_POWER_IDLE_CURRENT_NA
+	int "Idle current in nanoamperes"
+	default 3500
+	help
+	  Idle current in nanoamperes used for battery life estimation when the device is idle.
+
+config APP_POWER_SAMPLE_INTERVAL_MS
+	int "Battery sample interval"
+	default 1000
+	help
+	  Interval in milliseconds for periodic fuel gauge sampling.
+
 config APP_POWER_DISABLE_UART_ON_VBUS_REMOVED
 	bool "Disable UART when VBUS is removed"
 	default y
@@ -30,6 +42,10 @@ config APP_POWER_THREAD_STACK_SIZE
 	int "Thread stack size"
 	default 2048 if MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX
 	default 1536
+
+config APP_POWER_VBUS_THREAD_STACK_SIZE
+	int "VBUS initialization thread stack size"
+	default 512
 
 config APP_POWER_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout"

@@ -1,18 +1,40 @@
 # Power module
 
-The power module manages power-related functionality for devices with nPM1300, like the Thingy:91 X, including the following:
+The power module manages power-related functionality for devices with nPM1300,
+like the Thingy:91 X, including the following:
 
 - Monitoring battery voltage and calculating remaining battery percentage.
-- Handling VBUS (USB) connect and disconnect events to enable or disable UART peripherals.
+- Handling VBUS (USB) connect and disconnect events to enable or disable
+  UART peripherals.
+- Tracking modem sleep and wake events to adjust fuel gauge behaviour.
 - Publishing battery percentage updates via zbus messages.
 
 ## Architecture
 
 ### State diagram
 
-The Power module implements a state machine with the following states and transitions:
+The Power module implements a hierarchical state machine with the following
+states and transitions:
 
 ![Power module state diagram](../images/power_module_state_diagram.svg "Power module state diagram")
+
+**Note:** The diagram requires updating to reflect the current state
+hierarchy.
+
+### States
+
+- **STATE_WAITING_FOR_MODEM_INIT:** Initial state. Waits for the modem
+  library to complete initialization before proceeding.
+- **STATE_RUNNING:** Parent state entered after modem initialization.
+  Handles battery sample requests at this level regardless of sub-state.
+  - **STATE_ACTIVE:** Default sub-state of `STATE_RUNNING`. Periodically
+    samples the fuel gauge on a timer controlled by
+    `CONFIG_APP_POWER_SAMPLE_INTERVAL_MS`. Entered when the modem
+    wakes from sleep.
+  - **STATE_IDLE:** Sub-state entered when the modem enters sleep. Calls
+    `nrf_fuel_gauge_idle_set()` with the configured idle current
+    (`CONFIG_APP_POWER_IDLE_CURRENT_NA`) so the fuel gauge can estimate
+    consumption while sampling is paused.
 
 ## Messages
 
@@ -46,6 +68,15 @@ The following Kconfig options control this module’s behavior:
 - **CONFIG_APP_POWER:**
   Enables the Power module.
 
+- **CONFIG_APP_POWER_IDLE_CURRENT_NA:**
+  Idle current in nanoamperes used by the fuel gauge for battery life
+  estimation when the modem is in sleep and the module is in
+  `STATE_IDLE`.
+
+- **CONFIG_APP_POWER_SAMPLE_INTERVAL_MS:**
+  Interval in milliseconds between periodic fuel gauge samples while in
+  `STATE_ACTIVE`.
+
 - **CONFIG_APP_POWER_DISABLE_UART_ON_VBUS_REMOVED:**
   If enabled, suspends UART devices when VBUS is removed.
 
@@ -53,7 +84,8 @@ The following Kconfig options control this module’s behavior:
   Size of the Power module’s thread stack.
 
 - **CONFIG_APP_POWER_WATCHDOG_TIMEOUT_SECONDS:**
-  Defines the watchdog timeout for the module. Must be larger than the message processing timeout.
+  Defines the watchdog timeout for the module. Must be larger than the
+  message processing timeout.
 
 - **CONFIG_APP_POWER_MSG_PROCESSING_TIMEOUT_SECONDS:**
   Maximum time spent processing a single message.

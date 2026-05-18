@@ -11,6 +11,8 @@
 #include <errno.h>
 #include <string.h>
 #include <nrf_fuel_gauge.h>
+#include "redef.h"
+#include <modem/lte_lc.h>
 
 #include "app_common.h"
 #include "power.h"
@@ -21,12 +23,14 @@ FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
 FAKE_VALUE_FUNC(float, nrf_fuel_gauge_process, float, float, float, float,
 		struct nrf_fuel_gauge_state_info *);
-FAKE_VALUE_FUNC(int, charger_read_sensors, float *, float *, float *, int32_t *);
 FAKE_VALUE_FUNC(int, nrf_fuel_gauge_init, const struct nrf_fuel_gauge_init_parameters *, float *);
-FAKE_VALUE_FUNC(int, mfd_npm13xx_add_callback, const struct device *, struct gpio_callback *);
 FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
-FAKE_VALUE_FUNC(int, nrf_modem_lib_trace_level_set, int);
 FAKE_VALUE_FUNC(int, nrf_fuel_gauge_state_get, void *, size_t);
+FAKE_VALUE_FUNC(int, nrf_fuel_gauge_ext_state_update,
+		enum nrf_fuel_gauge_ext_state_info_type,
+		union nrf_fuel_gauge_ext_state_info_data *);
+FAKE_VOID_FUNC(nrf_fuel_gauge_idle_set, float, float, float);
+FAKE_VOID_FUNC(lte_lc_register_handler, lte_lc_evt_handler_t);
 
 /* Define nrf_fuel_gauge_state_size for tests (normally provided by the library) */
 const size_t nrf_fuel_gauge_state_size = 128;
@@ -51,15 +55,19 @@ void setUp(void)
 	RESET_FAKE(task_wdt_feed);
 	RESET_FAKE(task_wdt_add);
 	RESET_FAKE(date_time_now);
-	RESET_FAKE(nrf_modem_lib_trace_level_set);
 	RESET_FAKE(nrf_fuel_gauge_state_get);
 	RESET_FAKE(nrf_fuel_gauge_init);
 	RESET_FAKE(nrf_fuel_gauge_process);
-	RESET_FAKE(charger_read_sensors);
-	RESET_FAKE(mfd_npm13xx_add_callback);
+	RESET_FAKE(nrf_fuel_gauge_ext_state_update);
+	RESET_FAKE(nrf_fuel_gauge_idle_set);
+	/* NOTE: lte_lc_register_handler is intentionally NOT reset here.
+	 * The handler is registered once in state_running_entry() on the first
+	 * modem init. Since the power module thread never re-enters STATE_RUNNING,
+	 * resetting this fake would clear arg0_val to NULL and crash the modem
+	 * sleep test helpers that invoke the stored handler.
+	 */
 
 	/* Set default return values */
-	nrf_modem_lib_trace_level_set_fake.return_val = 0;
 	nrf_fuel_gauge_state_get_fake.return_val = 0;
 
 	const struct zbus_channel *chan;
@@ -140,7 +148,7 @@ void test_module_init(void)
 	 * nrf_fuel_gauge_init was called
 	 */
 	TEST_ASSERT_EQUAL(1, nrf_fuel_gauge_init_fake.call_count);
-	TEST_ASSERT_EQUAL(1, mfd_npm13xx_add_callback_fake.call_count);
+	TEST_ASSERT_EQUAL(1, lte_lc_register_handler_fake.call_count);
 
 	/* Verify that the module published a ready message */
 	check_power_event(POWER_MODULE_READY);
@@ -162,18 +170,38 @@ void test_power_percentage_sample(void)
 	}
 }
 
-void test_fuel_gauge_state_saved_after_sample(void)
+static void send_modem_sleep_entry(void)
 {
-	/* When - Request battery percentage sample */
-	send_power_battery_percentage_sample_request();
-	k_sleep(K_SECONDS(1));
+	lte_lc_evt_handler_t handler = lte_lc_register_handler_fake.arg0_val;
+	struct lte_lc_evt evt = {
+		.type = (enum lte_lc_evt_type)LTE_LC_EVT_MODEM_SLEEP_ENTER,
+	};
 
-	/* Then - Verify fuel gauge state was saved */
-	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
-	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE);
+	handler(&evt);
+}
 
-	/* State should be saved exactly once after the sample */
-	TEST_ASSERT_EQUAL(1, nrf_fuel_gauge_state_get_fake.call_count);
+static void send_modem_sleep_exit(void)
+{
+	lte_lc_evt_handler_t handler = lte_lc_register_handler_fake.arg0_val;
+	struct lte_lc_evt evt = {
+		.type = (enum lte_lc_evt_type)LTE_LC_EVT_MODEM_SLEEP_EXIT,
+	};
+
+	handler(&evt);
+}
+
+void test_fuel_gauge_state_saved_periodically(void)
+{
+	/* The fuel gauge state is saved by the periodic timer (sample_and_process),
+	 * not by POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST. The timer fires every
+	 * CONFIG_APP_POWER_SAMPLE_INTERVAL_MS (1000ms in test).
+	 */
+
+	/* Wait for at least 2 timer expirations */
+	k_sleep(K_MSEC(2100));
+
+	/* State should have been saved at least twice */
+	TEST_ASSERT_GREATER_OR_EQUAL(2, nrf_fuel_gauge_state_get_fake.call_count);
 }
 
 void test_fuel_gauge_state_save_error_handling(void)
@@ -183,28 +211,77 @@ void test_fuel_gauge_state_save_error_handling(void)
 
 	/* When - Request battery percentage sample */
 	send_power_battery_percentage_sample_request();
-	k_sleep(K_SECONDS(1));
+	k_sleep(K_MSEC(1000));
 
-	/* Then - Module should still produce response even if state save fails */
+	/* Then - Module should still produce a response even if state save fails */
 	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
 	check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE);
-
-	/* Verify state_get was attempted exactly once */
-	TEST_ASSERT_EQUAL(1, nrf_fuel_gauge_state_get_fake.call_count);
 }
 
-void test_fuel_gauge_state_multiple_samples_save_state(void)
+void test_fuel_gauge_state_saved_multiple_times_by_timer(void)
 {
-	/* When - Request multiple battery samples */
-	for (int i = 0; i < 5; i++) {
-		send_power_battery_percentage_sample_request();
-		k_sleep(K_SECONDS(1));
-		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
-		check_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE);
-	}
+	/* Wait for N timer expirations and verify state is saved each time */
+	k_sleep(K_MSEC(5100));
 
-	/* Then - State should be saved exactly once per sample (5 calls total) */
-	TEST_ASSERT_EQUAL(5, nrf_fuel_gauge_state_get_fake.call_count);
+	/* State should be saved at least 5 times (once per timer firing) */
+	TEST_ASSERT_GREATER_OR_EQUAL(5, nrf_fuel_gauge_state_get_fake.call_count);
+}
+
+void test_modem_sleep_entry_transitions_to_idle(void)
+{
+	/* Given - Module is in STATE_ACTIVE after init; reset idle_set counter */
+	RESET_FAKE(nrf_fuel_gauge_idle_set);
+
+	/* When - Modem sleep entry event */
+	send_modem_sleep_entry();
+	k_sleep(K_MSEC(100));
+
+	/* Then - idle_set should have been called once (in state_idle_entry) */
+	TEST_ASSERT_EQUAL(1, nrf_fuel_gauge_idle_set_fake.call_count);
+
+	/* And - No further samples should be taken while in IDLE state
+	 * (timer was stopped by state_active_exit)
+	 */
+	RESET_FAKE(nrf_fuel_gauge_state_get);
+	k_sleep(K_SECONDS(3));
+	TEST_ASSERT_EQUAL(0, nrf_fuel_gauge_state_get_fake.call_count);
+}
+
+void test_modem_sleep_exit_transitions_to_active(void)
+{
+	/* Given - Module is in STATE_IDLE */
+	send_modem_sleep_entry();
+	k_sleep(K_MSEC(100));
+
+	/* Reset state counters before testing the transition back */
+	RESET_FAKE(nrf_fuel_gauge_idle_set);
+	RESET_FAKE(nrf_fuel_gauge_state_get);
+
+	/* When - Modem sleep exit event */
+	send_modem_sleep_exit();
+	k_sleep(K_MSEC(100));
+
+	/* Then - idle_set should NOT be called again (now in STATE_ACTIVE) */
+	TEST_ASSERT_EQUAL(0, nrf_fuel_gauge_idle_set_fake.call_count);
+
+	/* And - Periodic sampling should resume (timer restarted in state_active_entry) */
+	k_sleep(K_SECONDS(2));
+	TEST_ASSERT_GREATER_OR_EQUAL(1, nrf_fuel_gauge_state_get_fake.call_count);
+}
+
+void test_idle_state_ignores_additional_sleep_entry(void)
+{
+	/* Given - Module is already in STATE_IDLE */
+	send_modem_sleep_entry();
+	k_sleep(K_MSEC(100));
+	RESET_FAKE(nrf_fuel_gauge_idle_set);
+
+	/* When - A duplicate sleep entry event arrives */
+	send_modem_sleep_entry();
+	k_sleep(K_MSEC(100));
+
+	/* Then - idle_set should NOT be called again */
+	TEST_ASSERT_EQUAL(0, nrf_fuel_gauge_idle_set_fake.call_count);
 }
 
 /* This is required to be added to each test. That is because unity's

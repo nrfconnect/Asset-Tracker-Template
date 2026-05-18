@@ -5,37 +5,10 @@
  */
 
 #include <zephyr/shell/shell.h>
-#include <zephyr/zbus/zbus.h>
-#include <zephyr/kernel.h>
-#include <zephyr/logging/log.h>
 #include <errno.h>
 
-#include "app_common.h"
 #include "power.h"
-
-LOG_MODULE_DECLARE(power, CONFIG_APP_POWER_LOG_LEVEL);
-
-static bool sample_requested;
-
-void power_shell_listener_callback(const struct zbus_channel *chan)
-{
-	if (!sample_requested) {
-		return;
-	}
-
-	const struct power_msg *msg = zbus_chan_const_msg(chan);
-
-	if (msg->type == POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE) {
-		LOG_INF("Battery state of charge: %.2f%%", msg->percentage);
-		LOG_INF("Battery voltage: %.2fV", msg->voltage);
-		LOG_INF("Charging: %s", msg->charging ? "Yes" : "No");
-		sample_requested = false;
-	}
-}
-
-ZBUS_LISTENER_DEFINE(power_shell_listener, power_shell_listener_callback);
-
-ZBUS_CHAN_ADD_OBS(power_chan, power_shell_listener, 0);
+#include "app_common.h"
 
 static int cmd_power_sample(const struct shell *shell, size_t argc, char **argv)
 {
@@ -44,17 +17,14 @@ static int cmd_power_sample(const struct shell *shell, size_t argc, char **argv)
 
 	int err;
 	struct power_msg msg = {
-		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST,
+		.type = POWER_BATTERY_SAMPLE_LOG,
 	};
-
 	err = zbus_chan_pub(&power_chan, &msg, PUB_TIMEOUT);
 	if (err) {
-		shell_print(shell, "Failed to send request: %d", err);
-		return err;
+		shell_error(shell, "Failed to publish battery sample log message, error: %d", err);
+		SEND_FATAL_ERROR();
 	}
 
-	sample_requested = true;
-	shell_print(shell, "Requesting battery sample...");
 	return 0;
 }
 
@@ -62,7 +32,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 	sub_cmds,
 	SHELL_CMD(sample,
 		  NULL,
-		  "Request a battery sample (state of charge, voltage, charging state)",
+		  "Get latest sampled battery data (state of charge, voltage, charging state)",
 		  cmd_power_sample),
 	SHELL_SUBCMD_SET_END);
 
