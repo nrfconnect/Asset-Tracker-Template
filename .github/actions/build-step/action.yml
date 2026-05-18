@@ -62,12 +62,14 @@ runs:
             echo CONFIG_MEMFAULT_NCS_FW_VERSION_STATIC=y >> overlay-debug-att.conf
           fi
           params+=("-DEXTRA_CONF_FILE=overlay-debug-att.conf")
+          params+=("-DEXTRA_DTC_OVERLAY_FILE=overlay-upload-modem-traces-to-memfault.overlay")
         fi
         if [[ "${{ inputs.mqtt }}" == "true" ]]; then
           params+=("-DEXTRA_CONF_FILE=$(pwd)/../examples/modules/cloud/overlay-mqtt.conf")
         fi
         if [[ "${{ inputs.modem_trace }}" == "true" ]]; then
           params+=("-Dapp_SNIPPET=nrf91-modem-trace-uart")
+          params+=("-DEXTRA_DTC_OVERLAY_FILE=boards/${{ inputs.short_board }}_nrf9151_ns_modem_trace.overlay")
         fi
         if [[ "${{ inputs.external_gnss }}" == "true" ]]; then
           echo "CONFIG_MODEM_ANTENNA_GNSS_EXTERNAL=y" > overlay-external-gnss.conf
@@ -113,10 +115,3 @@ runs:
           artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-nrf91.elf
         cp ${{ inputs.path }}/build/dfu_application.zip \
           artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-nrf91-dfu.zip
-        cd ${{ inputs.path }}/build
-        ninja partition_manager_report > partition_manager_report.txt
-
-    - name: Generate Partition Manager Report
-      shell: bash
-      run: |
-        sed '1d' ${{ inputs.path }}/build/partition_manager_report.txt > artifacts/pmr-${{ inputs.short_board }}-nrf91-default-${{ inputs.version }}.txt

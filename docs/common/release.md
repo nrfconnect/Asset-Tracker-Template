@@ -9,7 +9,7 @@ Pre-built firmware binaries and release notes are published on the project's Git
 
 [https://github.com/nrfconnect/Asset-Tracker-Template/releases](https://github.com/nrfconnect/Asset-Tracker-Template/releases)
 
-Pick the firmware that matches your hardware platform and desired configuration from the tables below, download it from the release page, and flash it to your device with `west` or `nrfutil`.
+Pick the firmware that matches your hardware platform and desired configuration from the tables below, download it from the release page, and flash it using the instructions in [Flashing release artifacts](#flashing-release-artifacts).
 
 ## Firmware deliverables
 
@@ -21,12 +21,12 @@ Each firmware variant includes the following set of artifacts:
 
 | **Artifact suffix** | **Description** | **Use case** |
 |---------------------|----------------|--------------|
-| `-nrf91.hex` | Full image including bootloader | Flashing using debugger (J-Link) |
+| `-nrf91.hex` | Full merged image (b0, MCUboot, signed application, provisioning data). Same contents as `build/merged.hex` from a local sysbuild. | Programming the entire internal flash with a J-Link debugger |
 | `-nrf91.elf` | ELF file with debug symbols | Debugging, coredump analysis, `addr2line` |
 | `-nrf91.config` | Build configuration snapshot | Inspecting the Kconfig options used for the build |
-| `-nrf91-update-signed.hex` | Signed application-only hex (no bootloader) | Flashing only the application via debugger |
+| `-nrf91-update-signed.hex` | Signed application-only hex (no bootloader) | Updating only the application slot with a debugger |
 | `-nrf91-update-signed.bin` | Signed application-only binary | FOTA updates using nRF Cloud |
-| `-nrf91-dfu.zip` | DFU package | Serial DFU updates |
+| `-nrf91-dfu.zip` | DFU package | Serial DFU updates over USB (no debugger) |
 
 #### Standard firmware variants
 
@@ -72,3 +72,86 @@ The firmware variants are built using different configuration overlays that modi
 - **SoC**: nRF9151
 - **Features**: On-board debugger (J-Link), external antenna connectors, Arduino-compatible headers
 - **Target Use**: Development, testing, and prototyping
+
+## Flashing release artifacts
+
+Release builds produce a single merged HEX file per variant, published as `asset-tracker-template-{VERSION}-<board>-nrf91.hex`. This file is a copy of `merged.hex` from the sysbuild output (b0 bootloader, MCUboot slots, signed TF-M + application, and application provisioning data merged into one image).
+
+> **Note:** A local `west flash` after `west build --sysbuild` programs each image separately and does **not** use `merged.hex` automatically. That is expected. For release binaries, or whenever you want one-shot programming, use the `-nrf91.hex` file (or `build/merged.hex` from your own build) as described below.
+
+### Full image (`-nrf91.hex` / `merged.hex`)
+
+Use this when installing a release for the first time, when changing partition layout, or when you need to replace bootloaders and provisioning data together with the application.
+
+#### Thingy:91 X or nRF9151 DK with J-Link
+
+Connect a 10-pin SWD debugger (for example, an nRF9151 DK used as a debug probe). On Thingy:91 X, set **SW2** to **nRF91**.
+
+**Option 1 — `nrfutil device` (recommended for release downloads):**
+
+```shell
+nrfutil device program \
+  --firmware asset-tracker-template-{VERSION}-thingy91x-nrf91.hex \
+  --options chip_erase_mode=ERASE_ALL,reset=RESET_SYSTEM
+```
+
+Replace the firmware path and filename with the artifact you downloaded (for example `...-nrf9151dk-nrf91.hex` for the DK).
+
+**Option 2 — `west flash` (requires an nRF Connect SDK environment and the template repository):**
+
+From the `app` folder, after `west update` (no local build required if you only flash a downloaded HEX file):
+
+```shell
+west flash --erase --skip-rebuild --hex-file /path/to/asset-tracker-template-{VERSION}-thingy91x-nrf91.hex
+```
+
+Use `--board thingy91x/nrf9151/ns` or `nrf9151dk/nrf9151/ns` if west prompts for a board. The `--erase` flag performs a full chip erase (including UICR) before programming, which is required when UICR contents change between builds.
+
+#### Thingy:91 X without J-Link (USB only)
+
+The merged HEX file cannot be programmed over the Thingy:91 X USB port. Use the DFU package instead; see [Application update over USB](#application-update-over-usb-dfu).
+
+### Application-only update (`-nrf91-update-signed.hex`)
+
+Use this to refresh only the signed application in the primary MCUboot slot while leaving b0, MCUboot, and provisioning data unchanged. Requires a debugger:
+
+```shell
+nrfutil device program \
+  --firmware asset-tracker-template-{VERSION}-thingy91x-nrf91-update-signed.hex \
+  --options chip_erase_mode=ERASE_RANGES_TOUCHED_BY_FIRMWARE,reset=RESET_SYSTEM
+```
+
+### Application update over USB (DFU)
+
+Use `-nrf91-dfu.zip` on Thingy:91 X without an external debugger.
+
+**With west** (from the `app` folder, copy the release ZIP to `build/dfu_application.zip` or pass the path your west extension expects):
+
+```shell
+west thingy91x-dfu
+```
+
+**With nrfutil:**
+
+```shell
+nrfutil device program --firmware asset-tracker-template-{VERSION}-thingy91x-nrf91-dfu.zip \
+  --serial-number <THINGY91X_SERIAL> --traits mcuboot \
+  --x-family nrf91 --core Application
+```
+
+See [Getting Started — Flash the device](getting_started.md#flash-the-device) for how to find the Thingy:91 X serial number.
+
+### Local builds
+
+When you build from source with `west build --sysbuild`, the same merged image is written to `build/merged.hex`. You can program it the same way as a release `-nrf91.hex` file:
+
+```shell
+nrfutil device program --firmware build/merged.hex \
+  --options chip_erase_mode=ERASE_ALL,reset=RESET_SYSTEM
+```
+
+Or, from the `app` folder:
+
+```shell
+west flash --erase --skip-rebuild --hex-file build/merged.hex
+```

@@ -5,6 +5,8 @@
  */
 
 #include <thingy91x_wifi.dtsi>
+#include "../dts/att_sram_partitions.dtsi"
+#include "../dts/memfault_coredump_partition.dtsi"
 
 &bme680 {
 	status = "okay";
@@ -14,6 +16,7 @@
 	chosen {
 		nordic,modem-trace-uart = &uart1;
 		zephyr,wifi = &nordic_wlan0;
+		fmfu_storage = &fmfu_storage_partition;
 	};
 };
 
@@ -27,14 +30,13 @@
 	compatible = "nordic,nrf7000-spi";
 };
 
-
 / {
 	fstab {
 		compatible = "zephyr,fstab";
 		lfs1: lfs1 {
 			compatible = "zephyr,fstab,littlefs";
 			mount-point = "/att_storage";
-			partition = <&littlefs_storage>;  /* Reference PM partition */
+			partition = <&littlefs_storage>;
 			automount;
 			read-size = <16>;
 			prog-size = <16>;
@@ -45,16 +47,33 @@
 	};
 };
 
+/delete-node/ &external_flash_partition;
+
+/ {
+	chosen {
+		zephyr,settings-partition = &settings_storage;
+	};
+};
+
 &flash_ext {
-	/* Partitions will be overridden by PM but needed for DTS parsing */
 	partitions {
 		compatible = "fixed-partitions";
 		#address-cells = <1>;
 		#size-cells = <1>;
 
-		littlefs_storage: partition@0 {
+		settings_storage: partition@4d0000 {
+			label = "settings_storage";
+			reg = <0x004d0000 0x00002000>;
+		};
+
+		littlefs_storage: partition@4d2000 {
 			label = "littlefs_storage";
-			reg = <0x00000000 0x00100000>;
+			reg = <0x004d2000 0x00100000>;
+		};
+
+		external_flash_partition: partition@5d2000 {
+			label = "external_flash";
+			reg = <0x005d2000 0x01a2e000>;
 		};
 	};
 };
