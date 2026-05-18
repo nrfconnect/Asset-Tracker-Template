@@ -22,6 +22,30 @@
 
 LOG_MODULE_REGISTER(lfs_backend, CONFIG_APP_STORAGE_LOG_LEVEL);
 
+/*
+ * Per-type state keeping the header file permanently open.
+ *
+ * LittleFS replays its entire metadata commit-log on every fs_open().
+ * The log grows by one entry per fs_close(), so at write_offset N there are
+ * ~N log entries to scan before any data is read — giving O(N) latency.
+ *
+ * By opening each header file once at init and leaving it open, the replay
+ * is paid only once at boot. Subsequent reads/writes use fs_seek + fs_read/
+ * fs_write + fs_sync on the already-open handle, which are O(1).
+ */
+struct lfs_type_state {
+	struct fs_file_t header_file;
+	bool header_open;
+};
+
+static struct lfs_type_state type_state[CONFIG_APP_STORAGE_MAX_TYPES];
+
+/* Block size cached from fs_statvfs() during init. The value is a hardware property of the flash
+ * and is therefore constant, so caching it avoids repeated fs_statvfs() calls and calculations
+ * in the hot path.
+ */
+static size_t cached_block_size;
+
 struct storage_file_header {
 	uint32_t read_offset;
 	uint32_t write_offset;
@@ -113,6 +137,8 @@ static void verify_partition_size(void)
 	LOG_DBG("Filesystem stats for %s: block size = %lu ; total blocks = %lu",
 		mountpoint->mnt_point, stat.f_frsize, stat.f_blocks);
 
+	cached_block_size = stat.f_frsize;
+
 	STRUCT_SECTION_FOREACH(storage_data, type) {
 
 		size_t max_file_size = type->data_size * RECORDS_PER_TYPE;
@@ -177,6 +203,29 @@ static int create_storage_header_file_path(const struct storage_data *type, char
 }
 
 /*
+ * @brief Map a storage_data pointer to its index in type_state[]
+ *
+ * @param type Storage data type pointer
+ * @param idx_out Output index in type_state[]
+ * @return int 0 on success, negative errno on failure
+ */
+static int get_type_index(const struct storage_data *type, int *idx_out)
+{
+	int idx = 0;
+
+	STRUCT_SECTION_FOREACH(storage_data, t) {
+		if (t == type) {
+			*idx_out = idx;
+			return 0;
+		}
+		idx++;
+	}
+
+	__ASSERT_NO_MSG(false); /* type pointer not found in registered section */
+	return -ENOENT;
+}
+
+/*
  * @brief Read storage file header
  *
  * Reads the storage file header for the given storage data type.
@@ -188,41 +237,28 @@ static int create_storage_header_file_path(const struct storage_data *type, char
 static int read_storage_file_header(const struct storage_data *type,
 				    struct storage_file_header *header)
 {
+	int idx;
 	int ret;
-	char file_path[MAX_PATH_LEN];
-	struct fs_file_t file;
 
-	ret = create_storage_header_file_path(type, file_path);
+	ret = get_type_index(type, &idx);
 	if (ret < 0) {
+		LOG_ERR("Failed to map storage type %s to index: %d", type->name, ret);
 		return ret;
 	}
 
-	fs_file_t_init(&file);
+	__ASSERT(type_state[idx].header_open,
+		 "Header file not open for type %s", type->name);
 
-	ret = fs_open(&file, file_path, FS_O_READ);
+	ret = fs_seek(&type_state[idx].header_file, 0, FS_SEEK_SET);
 	if (ret < 0) {
-		LOG_ERR("Failed to open header file %s: %d", file_path, ret);
-
-		return ret;
-	}
-
-	ret = fs_seek(&file, 0, FS_SEEK_SET);
-	if (ret < 0) {
-		fs_close(&file);
+		LOG_ERR("Failed to seek header file for %s: %d", type->name, ret);
 
 		return ret;
 	}
 
-	ret = (int)fs_read(&file, header, sizeof(*header));
+	ret = (int)fs_read(&type_state[idx].header_file, header, sizeof(*header));
 	if (ret < 0) {
-		fs_close(&file);
-
-		return ret;
-	}
-
-	ret = fs_close(&file);
-	if (ret < 0) {
-		LOG_ERR("Failed to close header file %s: %d", file_path, ret);
+		LOG_ERR("Failed to read header file for %s: %d", type->name, ret);
 
 		return ret;
 	}
@@ -242,42 +278,35 @@ static int read_storage_file_header(const struct storage_data *type,
 static int write_storage_file_header(const struct storage_data *type,
 				     const struct storage_file_header *header)
 {
+	int idx;
 	int ret;
-	char file_path[MAX_PATH_LEN];
-	struct fs_file_t file;
 
-	ret = create_storage_header_file_path(type, file_path);
+	ret = get_type_index(type, &idx);
 	if (ret < 0) {
+		LOG_ERR("Failed to map storage type %s to index: %d", type->name, ret);
 		return ret;
 	}
 
-	fs_file_t_init(&file);
+	__ASSERT(type_state[idx].header_open,
+		 "Header file not open for type %s", type->name);
 
-	ret = fs_open(&file, file_path, FS_O_RDWR | FS_O_CREATE);
+	ret = fs_seek(&type_state[idx].header_file, 0, FS_SEEK_SET);
 	if (ret < 0) {
-		LOG_ERR("Failed to open header file %s: %d", file_path, ret);
-
-		return ret;
-	}
-
-	ret = fs_seek(&file, 0, FS_SEEK_SET);
-	if (ret < 0) {
-		LOG_ERR("Failed to seek in header file %s: %d", file_path, ret);
-		fs_close(&file);
+		LOG_ERR("Failed to seek header file for %s: %d", type->name, ret);
 
 		return ret;
 	}
 
-	ret = (int)fs_write(&file, header, sizeof(*header));
+	ret = (int)fs_write(&type_state[idx].header_file, header, sizeof(*header));
 	if (ret < 0) {
-		fs_close(&file);
+		LOG_ERR("Failed to write header file for %s: %d", type->name, ret);
 
 		return ret;
 	}
 
-	ret = fs_close(&file);
+	ret = fs_sync(&type_state[idx].header_file);
 	if (ret < 0) {
-		LOG_ERR("Failed to close header file %s: %d", file_path, ret);
+		LOG_ERR("Failed to sync header file for %s: %d", type->name, ret);
 
 		return ret;
 	}
@@ -297,20 +326,13 @@ static int write_storage_file_header(const struct storage_data *type,
  */
 static int get_entries_per_block(const struct storage_data *type, size_t *entries_per_block)
 {
+	__ASSERT(cached_block_size > 0,
+		 "Block size not yet cached; verify_partition_size() must run first");
 
-	struct fs_statvfs stat;
-	int ret;
-
-	ret = fs_statvfs(mountpoint->mnt_point, &stat);
-	if (ret < 0) {
-		LOG_ERR("Failed to get block size: %d", ret);
-
-		return ret;
-	}
-
-	*entries_per_block = stat.f_frsize / type->data_size;
+	*entries_per_block = cached_block_size / type->data_size;
 	if (*entries_per_block == 0) {
-		LOG_ERR("Data size %zu exceeds block size %d", type->data_size, (int)stat.f_frsize);
+		LOG_ERR("Data size %zu exceeds block size %zu",
+			type->data_size, cached_block_size);
 
 		return -EFBIG;
 	}
@@ -353,38 +375,86 @@ static int get_entry_offset_index(size_t entries_per_block, uint32_t index)
 static int init_header_files(void)
 {
 	int ret;
+	int idx = 0;
 
 	STRUCT_SECTION_FOREACH(storage_data, type) {
-
 		char header_file_path[MAX_PATH_LEN];
-		struct fs_dirent entry_stat;
-		struct storage_file_header header = {
-			.read_offset = 0,
-			.write_offset = 0,
-		};
+		struct storage_file_header header;
+		int read_bytes;
 
 		ret = create_storage_header_file_path(type, header_file_path);
 		if (ret < 0) {
 			return ret;
 		}
 
-		/* Check if header file exists */
-		ret = fs_stat(header_file_path, &entry_stat);
-		if (ret == 0) {
-			/* Header file exists, nothing to do */
-			LOG_DBG("Header file %s already exists", header_file_path);
-			continue;
-		}
+		/* Open the header file and leave it open for the lifetime of the backend. */
+		fs_file_t_init(&type_state[idx].header_file);
 
-		/* Create and initialize header file */
-		ret = write_storage_file_header(type, &header);
+		ret = fs_open(&type_state[idx].header_file, header_file_path,
+			      FS_O_RDWR | FS_O_CREATE);
 		if (ret < 0) {
-			LOG_ERR("Failed to initialize header file %s: %d", header_file_path, ret);
+			LOG_ERR("Failed to open header file %s: %d", header_file_path, ret);
 
 			return ret;
 		}
 
-		LOG_DBG("Initialized header file %s", header_file_path);
+		type_state[idx].header_open = true;
+
+		/* Try to read an existing header. */
+		ret = fs_seek(&type_state[idx].header_file, 0, FS_SEEK_SET);
+		if (ret < 0) {
+			LOG_ERR("Failed to seek header file %s: %d", header_file_path, ret);
+
+			return ret;
+		}
+
+		read_bytes = (int)fs_read(&type_state[idx].header_file, &header, sizeof(header));
+		if (read_bytes < 0) {
+			LOG_ERR("Failed to read header file %s: %d", header_file_path, read_bytes);
+
+			return read_bytes;
+		}
+
+		if (read_bytes < (int)sizeof(header)) {
+			/* New or empty file: write and sync a zero-initialised header. */
+			const struct storage_file_header zero_header = {
+				.read_offset = 0,
+				.write_offset = 0,
+			};
+
+			ret = fs_seek(&type_state[idx].header_file, 0, FS_SEEK_SET);
+			if (ret < 0) {
+				LOG_ERR("Failed to seek header file %s: %d",
+					header_file_path, ret);
+
+				return ret;
+			}
+
+			ret = (int)fs_write(&type_state[idx].header_file,
+					    &zero_header, sizeof(zero_header));
+			if (ret < 0) {
+				LOG_ERR("Failed to write initial header to %s: %d",
+					header_file_path, ret);
+
+				return ret;
+			}
+
+			ret = fs_sync(&type_state[idx].header_file);
+			if (ret < 0) {
+				LOG_ERR("Failed to sync header file %s: %d",
+					header_file_path, ret);
+
+				return ret;
+			}
+
+			LOG_DBG("Initialized header file %s", header_file_path);
+		} else {
+			LOG_DBG("Opened header file %s (read_offset=%u, write_offset=%u)",
+				header_file_path,
+				header.read_offset, header.write_offset);
+		}
+
+		idx++;
 	}
 
 	return 0;
@@ -736,6 +806,22 @@ static int lfs_storage_clear(void)
 	struct fs_dirent entry;
 	char file_path[MAX_PATH_LEN];
 	int ret;
+
+	/* Close all open header file handles before deleting the files.
+	 * init_header_files(), called at the end of this function, will re-open them.
+	 */
+	{
+		int close_idx = 0;
+
+		STRUCT_SECTION_FOREACH(storage_data, t) {
+			(void)t;
+			if (type_state[close_idx].header_open) {
+				fs_close(&type_state[close_idx].header_file);
+				type_state[close_idx].header_open = false;
+			}
+			close_idx++;
+		}
+	}
 
 	fs_dir_t_init(&dir);
 
