@@ -116,6 +116,9 @@ int location_cloud_request_data_copy(struct location_cloud_request_data *dest,
 
 	LOG_DBG("Copying cloud request data, size of dest: %zu", sizeof(*dest));
 
+	/* Mark cell id as invalid by default, overwritten if valid data is available. */
+	dest->current_cell.id = LTE_LC_CELL_EUTRAN_ID_INVALID;
+
 #if defined(CONFIG_LOCATION_METHOD_CELLULAR)
 	if (src->cell_data) {
 		err = copy_cellular_data(dest, src->cell_data);
