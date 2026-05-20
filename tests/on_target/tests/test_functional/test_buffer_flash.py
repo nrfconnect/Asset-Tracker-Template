@@ -92,7 +92,7 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
         pre_reboot_offsets = []
         try:
             offsets = dut_cloud.uart.wait_for_str_re(
-                r"Storing data in file /att_storage/(?:ENVIRONMENTAL|BATTERY|LOCATION).*write_offset=(\d+), read_offset=(\d+)",
+                r"Storing data in file /att_storage/ENVIRONMENTAL.*write_offset=(\d+), read_offset=(\d+)",
                 timeout=120,
                 start_pos=start_pos,
             )
@@ -118,7 +118,7 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
         # Capture write and read offsets after reboot (only using LOCATION as all types should be in sync)
         post_reboot_offsets = []
         offsets = dut_cloud.uart.wait_for_str_re(
-            r"Storing data in file /att_storage/(?:ENVIRONMENTAL|BATTERY|LOCATION).*write_offset=(\d+), read_offset=(\d+)",
+            r"Storing data in file /att_storage/ENVIRONMENTAL.*write_offset=(\d+), read_offset=(\d+)",
             timeout=120,
             start_pos=reboot_start_pos,
         )
