@@ -62,7 +62,6 @@ int fuel_gauge_state_save(void)
 	fuel_gauge_noinit.size = state_size;
 	fuel_gauge_noinit.magic = FUEL_GAUGE_MAGIC;
 
-	LOG_DBG("Saved fuel gauge state to no-init RAM (%zu bytes)", state_size);
 	return 0;
 }
 

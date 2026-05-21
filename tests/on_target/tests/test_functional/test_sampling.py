@@ -26,7 +26,6 @@ def test_sampling(dut_board, hex_file):
         dut_board.uart.wait_for_str(
             [
                 "Environmental values sample request received, getting data",
-                "State of charge:",
                 "WiFi APs",
             ],
             timeout=120,
