@@ -52,13 +52,14 @@ extra_javascript:
 plugins:
   - macros
   - search
+  - gh-admonitions
 
 ft_metadata:
-  ft:title: "Asset Tracker Template Add-on latest"
+  ft:title: "Asset Tracker Template"
   ft:clusterId: "asset-tracker-template-latest"
   ft:locale: "en-US"
   tags:
-    - "Asset Tracker Template Add-on latest"
+    - "Asset Tracker Template"
 
 ft_options:
   copy_button_on_content_code: false
