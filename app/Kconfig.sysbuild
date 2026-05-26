@@ -11,6 +11,9 @@ endchoice
 config SECURE_BOOT_APPCORE
 	default y if BOARD_NRF9151DK_NRF9151_NS
 
+config SECURE_BOOT_SIGNING_KEY_FILE
+	default "$(ZEPHYR_NRF_MODULE_DIR)/boards/nordic/thingy91x/nsib_signing_key.pem" if BOARD_NRF9151DK_NRF9151_NS
+
 config WIFI_NRF70
 	default y if BOARD_THINGY91X_NRF9151_NS
 

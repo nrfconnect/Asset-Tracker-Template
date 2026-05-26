@@ -188,6 +188,7 @@ jobs:
           MEMFAULT_ORGANIZATION_SLUG: ${{ vars.MEMFAULT_ORGANIZATION_SLUG }}
           MEMFAULT_PROJECT_SLUG: ${{ vars.MEMFAULT_PROJECT_SLUG }}
           APP_BUNDLEID: ${{ vars.APP_BUNDLEID }}
+          MCUBOOT_BUNDLEID: ${{ vars.MCUBOOT_BUNDLEID }}
 
       - name: Generate and Push Power Badge
         if: ${{ always() && matrix.device == 'ppk_thingy91x' }}
