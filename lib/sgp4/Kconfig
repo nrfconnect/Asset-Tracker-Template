@@ -13,6 +13,5 @@ config SGP4_PASS_PREDICT
 	bool "SGP4 satellite pass prediction"
 	default n
 	select SGP4
-	select DATE_TIME
 	help
 	  Enable satellite pass prediction using SGP4 and TLE/SIB32 data.

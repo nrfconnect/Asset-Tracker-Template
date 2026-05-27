@@ -1,5 +1,5 @@
 tests:
-  asset_tracker_template.fw.ntn:
+  asset_tracker_template.lib.ntn:
     platform_allow:
       - native_sim
       - native_sim/native/64

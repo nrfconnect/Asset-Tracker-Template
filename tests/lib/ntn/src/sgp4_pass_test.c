@@ -17,19 +17,28 @@
 
 /* missing headers */
 struct tm *gmtime_r(const int64_t *timep, struct tm *result);
-char *strtok_r(char *str, const char *delim, char **saveptr);
-
 
 DEFINE_FFF_GLOBALS;
+
+FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
+
+LOG_MODULE_REGISTER(ntn_sgp4_test, LOG_LEVEL_DBG);
 
 static struct sat_data sat_data_tle;
 
 /* Mon Mar 02 2026 08:50:24 */
 #define FAKE_TIME_MS 1772441424123LL
-int date_time_now(int64_t *time)
+
+static int date_time_now_custom_fake(int64_t *time)
 {
 	*time = FAKE_TIME_MS;
 	return 0;
+}
+
+void setUp(void)
+{
+	RESET_FAKE(date_time_now);
+	date_time_now_fake.custom_fake = date_time_now_custom_fake;
 }
 
 static void debug_print_next_pass(struct sat_data *data)

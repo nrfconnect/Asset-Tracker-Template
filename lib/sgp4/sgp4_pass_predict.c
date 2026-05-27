@@ -4,6 +4,12 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+#ifdef _POSIX_C_SOURCE
+#undef _POSIX_C_SOURCE
+#endif
+/* Required for strtok_r() on native_sim / picolibc. */
+#define _POSIX_C_SOURCE 200809L
+
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -32,26 +38,6 @@ struct datetime {
 	int hour;
 	int minute;
 	double second;
-};
-
-/* 3GPP TS 36.331 ephemeris parameters format */
-struct sat_data_sib32 {
-	int64_t satelliteId;
-	int64_t epochStar;
-	int64_t meanMotion;
-	int64_t eccentricity;
-	int64_t inclination;
-	int64_t rightAscension;
-	int64_t argumentPerigee;
-	int64_t meanAnomaly;
-	int64_t bStarDecimal;
-	int64_t bStarExponent;
-	int64_t serviceStart;
-	int64_t elevationAngleLeft;
-	int64_t elevationAngleRight;
-	int64_t referencePointLongitude;
-	int64_t referencePointLatitude;
-	int64_t radius;
 };
 
 /* SIBCONFIG 32 AT ephemeris struct field order */
@@ -190,7 +176,7 @@ static uint64_t datetime_to_ts(struct datetime *dt)
 	return days*86400000 + dt->hour*3600000 + dt->minute*60000 + dt->second*1000;
 }
 
-static void jd_from_unix_time_ms(int64_t unix_time_ms, double *jd, double *jdfract)
+void jd_from_unix_time_ms(int64_t unix_time_ms, double *jd, double *jdfract)
 {
 	*jd = (unix_time_ms / 86400000) + 2440587.5;
 	*jdfract = (unix_time_ms % 86400000) / 86400000.0;
@@ -359,7 +345,7 @@ static int parse_ephemeris_struct(char **saveptr, struct sat_data_sib32 *sib32)
 	return 0;
 }
 
-static int parse_sibconfig32_at(const char *atsib32, char *cell_id, struct sat_data_sib32 *sib32)
+int parse_sibconfig32_at(const char *atsib32, char *cell_id, struct sat_data_sib32 *sib32)
 {
 	int err;
 	int sibnr;
