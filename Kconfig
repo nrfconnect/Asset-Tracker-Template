@@ -5,4 +5,5 @@
 # as the module Kconfig entry point (see zephyr/module.yml). You can browse
 # module options by going to Zephyr -> Modules in Kconfig.
 
+rsource "lib/Kconfig"
 rsource "examples/modules/cloud/Kconfig.cloud_mqtt"

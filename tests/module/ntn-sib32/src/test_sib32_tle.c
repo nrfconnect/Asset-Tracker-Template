@@ -19,7 +19,6 @@
 struct tm *gmtime_r(const int64_t *timep, struct tm *result);
 char *strtok_r(char *str, const char *delim, char **saveptr);
 
-#include "../../../app/src/modules/sgp4/sgp4_pass_predict.c"
 
 DEFINE_FFF_GLOBALS;
 
