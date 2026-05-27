@@ -15,7 +15,6 @@
 #include "sgp4_pass_predict.h"
 #include "SGP4.h"
 
-#include <modem/at_monitor.h>
 #include <zephyr/logging/log.h>
 
 #define DEG2RAD (3.14159265358979323846 / 180.0)

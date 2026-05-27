@@ -14,12 +14,11 @@ test_runner_generate(src/test_sib32_tle.c)
 target_sources(app
   PRIVATE
   src/test_sib32_tle.c
-  ../../../app/src/modules/sgp4/SGP4.c
 )
 
 zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)
 zephyr_include_directories(${ZEPHYR_BASE}/subsys/testsuite/include)
 zephyr_include_directories(../../../app/src/common)
-zephyr_include_directories(../../../app/src/modules/sgp4)
+zephyr_include_directories(../../../lib/sgp4)
 
 target_link_options(app PRIVATE --whole-archive)
