@@ -19,9 +19,6 @@
 #include <modem/nrf_modem_lib.h>
 
 #include "app_common.h"
-#ifdef CONFIG_APP_INSPECT_SHELL
-#include "app_inspect.h"
-#endif /* CONFIG_APP_INSPECT_SHELL */
 #include "fota.h"
 
 /* Register log module */
@@ -199,42 +196,6 @@ static const struct smf_state states[] = {
 				 &states[STATE_RUNNING],
 				 NULL),
 };
-
-#if defined(CONFIG_APP_INSPECT_SHELL)
-static struct fota_state_object *fota_state_ctx;
-
-static const char *fota_state_to_string(enum fota_module_state state)
-{
-	switch (state) {
-	case STATE_RUNNING:
-		return "STATE_RUNNING";
-	case STATE_WAITING_FOR_MODEM_INIT:
-		return "STATE_WAITING_FOR_MODEM_INIT";
-	case STATE_WAITING_FOR_POLL_REQUEST:
-		return "STATE_WAITING_FOR_POLL_REQUEST";
-	case STATE_POLLING_FOR_UPDATE:
-		return "STATE_POLLING_FOR_UPDATE";
-	case STATE_DOWNLOADING_UPDATE:
-		return "STATE_DOWNLOADING_UPDATE";
-	case STATE_WAITING_FOR_IMAGE_APPLY:
-		return "STATE_WAITING_FOR_IMAGE_APPLY";
-	case STATE_IMAGE_APPLYING:
-		return "STATE_IMAGE_APPLYING";
-	case STATE_REBOOT_PENDING:
-		return "STATE_REBOOT_PENDING";
-	case STATE_CANCELING:
-		return "STATE_CANCELING";
-	default:
-		return "STATE_UNKNOWN";
-	}
-}
-
-APP_INSPECT_MODULE_REGISTER_STATE(fota,
-				  fota_state_ctx,
-				  states,
-				  enum fota_module_state,
-				  fota_state_to_string);
-#endif /* CONFIG_APP_INSPECT_SHELL */
 
 static void on_modem_init(int ret, void *ctx)
 {
@@ -666,10 +627,6 @@ static void fota_module_thread(void)
 		.fota_ctx.reboot_fn = fota_reboot,
 		.fota_ctx.status_fn = fota_status,
 	};
-
-#if defined(CONFIG_APP_INSPECT_SHELL)
-	fota_state_ctx = &fota_state;
-#endif /* CONFIG_APP_INSPECT_SHELL */
 
 	LOG_DBG("FOTA module task started");
 
