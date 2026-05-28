@@ -22,8 +22,11 @@ FLASH_BUFFER_TEST_STORAGE_THRESHOLD = 10
 def get_storing_str(datatype, file_index=0):
     return "Storing data in file /att_storage/" + datatype + "_" + str(file_index) + ".bin"
 
-def get_header_str(datatype):
-    return "Header file /att_storage/" + datatype + ".header already exists"
+def get_init_header_str(datatype):
+    return "Initialized header file /att_storage/" + datatype + ".header"
+
+def get_open_header_str(datatype):
+    return "Opened header file /att_storage/" + datatype + ".header"
 
 @pytest.mark.slow
 def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
@@ -50,10 +53,16 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
         get_storing_str("ENVIRONMENTAL")
     ]
 
-    header_list = [
-        get_header_str("LOCATION"),
-        get_header_str("BATTERY"),
-        get_header_str("ENVIRONMENTAL")
+    init_header_list = [
+        get_init_header_str("LOCATION"),
+        get_init_header_str("BATTERY"),
+        get_init_header_str("ENVIRONMENTAL")
+    ]
+
+    open_header_list = [
+        get_open_header_str("LOCATION"),
+        get_open_header_str("BATTERY"),
+        get_open_header_str("ENVIRONMENTAL")
     ]
 
     try:
@@ -66,6 +75,9 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
         # Clear buffer
         start_pos = dut_cloud.uart.get_size()
         dut_cloud.uart.write(clear_str)
+
+        # Header files initialized
+        dut_cloud.uart.wait_for_str(init_header_list, timeout=60, start_pos=start_pos)
 
         # Initial data storing
         dut_cloud.uart.wait_for_str(storing_list, timeout=60, start_pos=start_pos)
@@ -112,8 +124,8 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
         reset_device()
         reboot_start_pos = dut_cloud.uart.get_size()
 
-        # Files exist after reboot
-        dut_cloud.uart.wait_for_str(header_list, timeout=120, start_pos=reboot_start_pos)
+        # Header files re-opened from existing data after reboot
+        dut_cloud.uart.wait_for_str(open_header_list, timeout=120, start_pos=reboot_start_pos)
 
         # Capture write and read offsets after reboot (only using LOCATION as all types should be in sync)
         post_reboot_offsets = []
