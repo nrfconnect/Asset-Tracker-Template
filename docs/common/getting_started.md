@@ -368,8 +368,8 @@ To test that everything is working as expected, complete the following steps:
     [00:00:17.871,215] <dbg> storage: ram_records_count: Counted 1 items in LOCATION ring buffer
     [00:00:17.871,276] <dbg> storage: ram_records_count: Counted 1 items in LOCATION ring buffer
     [00:00:17.871,368] <dbg> storage: ram_retrieve: Retrieved item in LOCATION ring buffer, size: 488 bytes, 0 items left
-    [00:00:17.871,459] <dbg> storage: populate_pipe: Batch population complete for session 0x45CA: 1/1 items
-    [00:00:17.871,978] <dbg> storage: start_batch_session: Started batch session (session_id 0x45CA), 1 items in batch (1 total)
+    [00:00:17.871,459] <dbg> storage: populate_pipe: Pipe populated for session 0x45CA: with LOCATION item (493 bytes)
+    [00:00:17.871,978] <dbg> storage: start_batch_session: Started batch session (session_id 0x45CA), 1 items in batch
     [00:00:17.872,009] <dbg> storage: state_buffer_pipe_active_entry: Batch session started, session_id: 17866
     [00:00:17.872,131] <dbg> storage: state_buffer_pipe_active_run: state_buffer_pipe_active_run
     [00:00:17.872,161] <dbg> storage: state_running_run: state_running_run

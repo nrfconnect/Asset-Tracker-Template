@@ -41,6 +41,31 @@ The storage module supports two backends:
 Data producing modules publish sampled data to their respective zbus channel.
 Data is stored and later emitted by flush or streamed over the batch pipe, using the batch interface described in the following section.
 
+### Batch session protocol
+
+Batch reads use a consume-on-confirm contract so that an item is only removed
+from the backend after the consumer has confirmed it was processed (for example,
+successfully sent to the cloud). A typical session looks like this:
+
+1. Consumer publishes `STORAGE_BATCH_REQUEST` with a non-zero `session_id`.
+2. Storage replies with `STORAGE_BATCH_AVAILABLE` (with `data_len` set to the
+   number of items available) and primes the pipe with the head item.
+   If there is no data, `STORAGE_BATCH_EMPTY` is sent instead, and the session must still be closed.
+3. Consumer calls `storage_batch_read()` to read the head item. The item is
+   **not** removed from the backend by this call.
+4. After the item has been processed, the consumer publishes
+   `STORAGE_BATCH_CONSUME` with the matching `session_id` and the `data_type`
+   of the item. Storage removes the head item and primes the next one in the
+   pipe.
+5. Steps 3 and 4 are repeated until `storage_batch_read()` returns `-EAGAIN`,
+   or until the consumer decides to stop.
+6. Consumer publishes `STORAGE_BATCH_CLOSE` to end the session.
+
+If the consumer reads without consuming, `storage_batch_read()` will repeatedly
+return the same head item. If a `STORAGE_BATCH_CONSUME` arrives with an
+unknown or mismatched `data_type`, the storage module aborts the session with
+`STORAGE_BATCH_ERROR` to avoid silent stalls.
+
 ### Memory management
 
 This module allocates RAM from the following places, and understanding these helps you tune it down:
@@ -243,6 +268,15 @@ All message types are defined in the `storage.h` file.
   Responds with `STORAGE_BATCH_AVAILABLE`, `STORAGE_BATCH_EMPTY`, `STORAGE_BATCH_BUSY`, or `STORAGE_BATCH_ERROR`.
   Available in both operational modes.
 
+- **STORAGE_BATCH_CONSUME**: Confirms that the head item of an active batch session has been
+  processed (for example, successfully sent to the cloud). The `session_id` must match the
+  active session and `data_type` must identify the type of the item just read with
+  `storage_batch_read()`. Storage removes the item from the backend and makes the next item
+  available in the pipe. An unknown or mismatched `data_type` aborts the session.
+
+- **STORAGE_BATCH_CLOSE**: Ends a batch session. Must be sent for every session, including
+  sessions that received `STORAGE_BATCH_EMPTY` or `STORAGE_BATCH_ERROR`.
+
 - **STORAGE_CLEAR**: Clears all stored data from the backend.
   Available in both operational modes.
 
@@ -283,14 +317,12 @@ The message structure used by the storage module is defined in `storage.h`:
 ```c
 struct storage_msg {
     enum storage_msg_type type;           /* Message type */
-    enum storage_data_type data_type;     /* Data type for STORAGE_DATA */
+    enum storage_data_type data_type;     /* Data type for STORAGE_DATA / STORAGE_BATCH_CONSUME */
     union {
         uint8_t buffer[STORAGE_MAX_DATA_SIZE];
         uint32_t session_id;              /* Batch session id */
-        enum storage_reject_reason reject_reason; /* For MODE_CHANGE_REJECTED */
     };
-    uint32_t data_len: 31;                /* Length or count */
-    bool     more_data: 1;                /* More data available in batch */
+    uint32_t data_len;                    /* Length or count */
 };
 ```
 

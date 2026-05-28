@@ -22,8 +22,11 @@ RAM_BUFFER_TEST_STORAGE_THRESHOLD = 10
 def get_initialized_str(datatype):
     return f"Ring buffer {datatype} initialized with size"
 
-def get_storing_str(datatype):
-    return f"Stored {datatype} item, count: 1"
+def get_storing_str(datatype, count=None):
+    if count is None:
+        return f"Stored {datatype} item, count:"
+    else:
+        return f"Stored {datatype} item, count: {count}"
 
 @pytest.mark.slow
 def test_buffer_ram(dut_cloud, hex_file_buffer_ram):
@@ -50,6 +53,12 @@ def test_buffer_ram(dut_cloud, hex_file_buffer_ram):
                 get_initialized_str("LOCATION")
         ]
 
+        first_storing_list = [
+                get_storing_str("ENVIRONMENTAL", 1),
+                get_storing_str("BATTERY", 1),
+                get_storing_str("LOCATION", 1)
+        ]
+
         storing_list = [
                 get_storing_str("ENVIRONMENTAL"),
                 get_storing_str("BATTERY"),
@@ -63,17 +72,16 @@ def test_buffer_ram(dut_cloud, hex_file_buffer_ram):
         dut_cloud.uart.wait_for_str(initialization_list, timeout=60)
 
         # wait for initial storage
-        dut_cloud.uart.wait_for_str(storing_list, timeout=60)
+        dut_cloud.uart.wait_for_str(first_storing_list, timeout=60)
 
-        # Wait for buffer processing, expecting 30 items to be stored total ((BATTERY, ENVIRONMENTAL, LOCATION) x 10 samples)
-        dut_cloud.uart.wait_for_str_re(r"Batch population complete for session 0x[0-9A-F]+: \d+/30 items", timeout=500)
+        # Wait for buffer processing, expecting all 30 items to be consumed ((BATTERY, ENVIRONMENTAL, LOCATION) x 10 samples)
+        dut_cloud.uart.wait_for_str("All items consumed, pipe empty", timeout=500)
 
         # Wait for buffer processing to complete
-        dut_cloud.uart.wait_for_str("state_buffer_pipe_active_exit", timeout=60)
+        pipe_exit_pos = dut_cloud.uart.wait_for_str("state_buffer_pipe_active_exit", timeout=60)
 
-        # Wait for next sample after buffer processing, expecting count to be back to 1
-        dut_cloud.uart.flush()
-        dut_cloud.uart.wait_for_str(storing_list, timeout=60)
+        # Wait for next sample after buffer processing, verifying the device continues storing new items
+        dut_cloud.uart.wait_for_str(storing_list, timeout=120, start_pos=pipe_exit_pos)
     finally:
         # Restore default config
         dut_cloud.cloud.patch_config(

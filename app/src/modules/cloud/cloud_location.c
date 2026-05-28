@@ -254,8 +254,11 @@ static void handle_agnss_request(const struct nrf_modem_gnss_agnss_data_frame *r
 #endif /* CONFIG_NRF_CLOUD_AGNSS */
 
 #if defined(CONFIG_LOCATION_METHOD_GNSS)
-/* Handle GNSS location data from the location module */
-static void handle_gnss_location_data(const struct location_msg *location_msg)
+/* Handle GNSS location data from the location module.
+ *
+ * Returns 0 on successful send, or a negative errno on failure.
+ */
+static int handle_gnss_location_data(const struct location_msg *location_msg)
 {
 	int err;
 	int64_t timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
@@ -307,10 +310,11 @@ static void handle_gnss_location_data(const struct location_msg *location_msg)
 	if (err) {
 		LOG_ERR("nrf_cloud_coap_location_send, error: %d", err);
 		send_request_failed();
-		return;
+		return err;
 	}
 
 	LOG_INF("GNSS location data sent to nRF Cloud successfully");
+	return 0;
 }
 #endif /* CONFIG_LOCATION_METHOD_GNSS */
 
@@ -343,29 +347,28 @@ void cloud_location_agnss_process_cached(void)
 }
 #endif /* CONFIG_NRF_CLOUD_AGNSS */
 
-void cloud_location_handle_message(const struct location_msg *msg)
+int cloud_location_handle_message(const struct location_msg *msg)
 {
 	switch (msg->type) {
 	case LOCATION_CLOUD_REQUEST:
 		LOG_DBG("Cloud location request received");
 		handle_cloud_location_request(&msg->cloud_request);
-		break;
+		return 0;
 
 #if defined(CONFIG_NRF_CLOUD_AGNSS)
 	case LOCATION_AGNSS_REQUEST:
 		LOG_DBG("A-GNSS data request received");
 		handle_agnss_request(&msg->agnss_request);
-		break;
+		return 0;
 #endif /* CONFIG_NRF_CLOUD_AGNSS */
 
 #if defined(CONFIG_LOCATION_METHOD_GNSS)
 	case LOCATION_GNSS_DATA:
 		LOG_DBG("GNSS location data received");
-		handle_gnss_location_data(msg);
-		break;
+		return handle_gnss_location_data(msg);
 #endif /* CONFIG_LOCATION_METHOD_GNSS */
 
 	default:
-		break;
+		return 0;
 	}
 }

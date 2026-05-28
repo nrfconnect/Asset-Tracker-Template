@@ -86,16 +86,15 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
         start_pos = dut_cloud.uart.get_size()
         dut_cloud.uart.wait_for_str(get_storing_str("LOCATION", file_index=1), timeout=300, start_pos=start_pos)
 
-        # Wait for buffer processing, expecting 30 items to be stored total ((BATTERY, ENVIRONMENTAL, LOCATION) x 10 samples)
-        # NOTE: If default sampling behavior changes (e.g. additional types) this needs to be updated to match expected total samples
-        start_pos = dut_cloud.uart.get_size()
-        dut_cloud.uart.wait_for_str_re(
-            r"Batch population complete for session 0x[0-9A-F]+: \d+/30 items",
+        # Wait for buffer processing and pipe exit using the same start_pos captured before the rollover.
+        # Avoids a race where "All items consumed" or "state_buffer_pipe_active_exit" is logged between
+        # the rollover detection and a new get_size() call, which would cause the search to miss them.
+        dut_cloud.uart.wait_for_str(
+            "All items consumed, pipe empty",
             timeout=300,
             start_pos=start_pos,
         )
 
-        start_pos = dut_cloud.uart.get_size()
         dut_cloud.uart.wait_for_str("state_buffer_pipe_active_exit", timeout=120, start_pos=start_pos)
 
         # Capture write and read offsets before reboot (only using LOCATION as all types should be in sync)

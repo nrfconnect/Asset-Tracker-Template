@@ -149,12 +149,16 @@ struct storage_pipe_header {
 	uint16_t data_size;
 };
 
+/* Ensure the batch pipe is large enough to hold one full item plus its header. */
+BUILD_ASSERT(CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE >=
+	     sizeof(struct storage_pipe_header) + STORAGE_MAX_DATA_SIZE,
+	     "CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE is too small to hold the largest "
+	     "storage_data_item plus its pipe header");
+
 /* Pipe session tracking */
 struct pipe_session {
 	uint32_t session_id;
 	size_t total_items;
-	size_t items_sent;
-	bool more_data;
 };
 
 /* Storage module state object */
@@ -440,8 +444,7 @@ static void drain_pipe(void)
 /* Send batch response message with session_id and optional data_len */
 static void send_batch_response(enum storage_msg_type response_type,
 			       uint32_t session_id,
-			       size_t data_len,
-			       bool more_data)
+			       size_t data_len)
 {
 	int err;
 	struct storage_msg response_msg = { 0 };
@@ -449,7 +452,6 @@ static void send_batch_response(enum storage_msg_type response_type,
 	response_msg.type = response_type;
 	response_msg.session_id = session_id;
 	response_msg.data_len = (uint16_t)MIN(data_len, (size_t)UINT16_MAX);
-	response_msg.more_data = more_data;
 
 	err = zbus_chan_pub(&storage_chan, &response_msg, PUB_TIMEOUT);
 	if (err) {
@@ -461,129 +463,128 @@ static void send_batch_response(enum storage_msg_type response_type,
 /* Convenience wrappers for batch responses */
 static void send_batch_busy_response(uint32_t session_id)
 {
-	send_batch_response(STORAGE_BATCH_BUSY, session_id, 0, false);
+	send_batch_response(STORAGE_BATCH_BUSY, session_id, 0);
 }
 
 static void send_batch_empty_response(uint32_t session_id)
 {
-	send_batch_response(STORAGE_BATCH_EMPTY, session_id, 0, false);
+	send_batch_response(STORAGE_BATCH_EMPTY, session_id, 0);
 }
 
 static void send_batch_error_response(uint32_t session_id)
 {
-	send_batch_response(STORAGE_BATCH_ERROR, session_id, 0, false);
+	send_batch_response(STORAGE_BATCH_ERROR, session_id, 0);
 }
 
-static void send_batch_available_response(uint32_t session_id, size_t item_count,
-					  bool more_available)
+static void send_batch_available_response(uint32_t session_id, size_t item_count)
 {
-	send_batch_response(STORAGE_BATCH_AVAILABLE, session_id, item_count, more_available);
+	send_batch_response(STORAGE_BATCH_AVAILABLE, session_id, item_count);
 }
 
-/* Populate the pipe with all stored data
+/* Populate the pipe with the next pending item.
  *
- * @return 0 on success (all data written or pipe full)
- * @return -EIO on data retrieval or size validation error
+ * Peeks the head item of the first non-empty type and writes it to the pipe.
+ * The item is NOT removed from the backend; that only happens on STORAGE_BATCH_CONSUME.
+ *
+ * @return 0 on success (one item written to pipe)
+ * @return -ENODATA if no items are available across all types
+ * @return -EIO on peek or pipe write error
  */
 static int populate_pipe(struct storage_state *state_object)
 {
 	const struct storage_backend *backend = storage_backend_get();
-	size_t total_bytes_sent = 0;
 
-	state_object->current_session.more_data = false;
-
-	/* Populate pipe with all stored data */
 	STRUCT_SECTION_FOREACH(storage_data, type) {
-		int count = backend->count(type);
+		int ret;
+		uint8_t item_buffer[sizeof(struct storage_pipe_header) + STORAGE_MAX_DATA_SIZE];
+		struct storage_pipe_header *header = (struct storage_pipe_header *)item_buffer;
+		uint8_t *data = item_buffer + sizeof(struct storage_pipe_header);
+		size_t total_size;
 
-		while (count > 0) {
-			int ret;
-			size_t total_size;
-			uint8_t item_buffer[sizeof(struct storage_pipe_header) +
-					    STORAGE_MAX_DATA_SIZE];
-			struct storage_pipe_header *header =
-				(struct storage_pipe_header *)item_buffer;
-			uint8_t *data = item_buffer + sizeof(struct storage_pipe_header);
+		/* Peek the head item */
+		ret = backend->peek(type, data, STORAGE_MAX_DATA_SIZE);
+		if (ret == -EAGAIN) {
+			/* No items of this type, try next */
+			continue;
+		} else if (ret < 0) {
+			LOG_ERR("Failed to peek %s data: %d", type->name, ret);
+			return -EIO;
+		}
 
-			/* Peek at size without copying data (data = NULL) */
-			ret = backend->peek(type, NULL, 0);
-			if (ret == -EAGAIN) {
-				/* No more data of this type */
-				break;
-			} else if (ret < 0) {
-				LOG_ERR("Failed to peek %s data size: %d", type->name, ret);
+		if (ret > UINT16_MAX) {
+			LOG_ERR("Peek returned oversized item for %s: %d", type->name, ret);
+			return -EIO;
+		}
 
-				return -EIO;
-			}
+		header->type = (uint8_t)type->data_type;
+		header->data_size = (uint16_t)ret;
+		total_size = sizeof(struct storage_pipe_header) + (size_t)ret;
 
-			/* Prepare header with actual size */
-			header->type = (uint8_t)type->data_type;
+		ret = pipe_write_all(&storage_pipe, item_buffer, total_size, PUB_TIMEOUT);
+		if (ret < 0) {
+			LOG_ERR("Unexpected pipe write failure: %d", ret);
+			return -EIO;
+		}
 
-			if ((ret < 0) || (ret > (int)STORAGE_MAX_DATA_SIZE) ||
-			    (ret > UINT16_MAX)) {
-				LOG_ERR("Invalid data size for header: %d", ret);
+		LOG_DBG("Pipe populated for session 0x%X: with %s item (%zu bytes)",
+			state_object->current_session.session_id,
+			type->name, total_size);
 
-				return -EIO;
-			}
+		return 0;
+	}
 
-			header->data_size = (uint16_t)ret;
+	return -ENODATA;
+}
 
-			/* Calculate exact total size needed using actual data size */
-			total_size = sizeof(struct storage_pipe_header) + ret;
-			if (total_size > sizeof(item_buffer)) {
-				LOG_ERR("Combined data too large: %zu > %zu",
-					total_size, sizeof(item_buffer));
+/* Consume the confirmed-sent item from the backend and peek the next one into the pipe. */
+static bool handle_batch_consume(struct storage_state *state_object,
+				 const struct storage_msg *msg)
+{
+	const struct storage_backend *backend = storage_backend_get();
+	uint8_t discard[STORAGE_MAX_DATA_SIZE];
+	int ret;
 
-				return -EIO;
-			}
+	if (msg->session_id != state_object->current_session.session_id) {
+		LOG_WRN("CONSUME session ID mismatch: 0x%X (current: 0x%X), ignoring",
+			msg->session_id, state_object->current_session.session_id);
+		return false;
+	}
 
-			/* Check if exact size fits in remaining pipe buffer space */
-			if (total_bytes_sent + total_size > CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE) {
-				/* Pipe buffer full - stop here without consuming data */
-				LOG_DBG("Pipe buffer full");
+	/* Remove the confirmed-sent item from the backend queue head */
+	bool type_matched = false;
 
-				state_object->current_session.more_data = true;
-
-				break;
-			}
-
-			/* Now that we know it fits, retrieve the data from backend */
-			ret = backend->retrieve(type, data, STORAGE_MAX_DATA_SIZE);
+	STRUCT_SECTION_FOREACH(storage_data, type) {
+		if (type->data_type == msg->data_type) {
+			type_matched = true;
+			ret = backend->retrieve(type, discard, sizeof(discard));
 			if (ret < 0) {
-				LOG_ERR("Failed to retrieve %s data after peek: %d",
-					type->name, ret);
-
-				return -EIO;
+				LOG_ERR("Failed to consume item (type %d): %d, aborting session",
+					msg->data_type, ret);
+				send_batch_error_response(msg->session_id);
+				smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
+				return false;
 			}
-
-			/* Sanity check: retrieved size should match peeked size */
-			__ASSERT_NO_MSG(ret == (int)header->data_size);
-
-			/* Write combined buffer atomically to pipe */
-			ret = pipe_write_all(&storage_pipe, item_buffer, total_size, PUB_TIMEOUT);
-			if (ret < 0) {
-				/* This should never happen since we checked space above */
-				LOG_ERR("Unexpected pipe write failure after space check: %d", ret);
-
-				return -EIO;
-			}
-
-			__ASSERT_NO_MSG(ret == (int)total_size);
-
-			/* Update session progress and byte tracking */
-			state_object->current_session.items_sent++;
-			total_bytes_sent += total_size;
-
-			count--;
+			LOG_DBG("Consumed %s item from backend", type->name);
+			break;
 		}
 	}
 
-	LOG_DBG("Batch population complete for session 0x%X: %zu/%zu items",
-		state_object->current_session.session_id,
-		state_object->current_session.items_sent,
-		state_object->current_session.total_items);
+	if (!type_matched) {
+		LOG_ERR("CONSUME for unknown data_type %d, aborting session", msg->data_type);
+		send_batch_error_response(msg->session_id);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
+		return false;
+	}
 
-	return 0;
+	/* Peek the next item into the pipe for the consumer */
+	ret = populate_pipe(state_object);
+	if (ret == -ENODATA) {
+		LOG_DBG("All items consumed, pipe empty");
+	} else if (ret < 0) {
+		LOG_ERR("Failed to populate pipe after consume: %d", ret);
+	}
+
+	return true;
 }
 
 /* Start a new batch session.
@@ -622,7 +623,6 @@ static int start_batch_session(struct storage_state *state_object,
 	/* Start new session using requester's session ID */
 	state_object->current_session.session_id = request_msg->session_id;
 	state_object->current_session.total_items = total_items;
-	state_object->current_session.items_sent = 0;
 
 	/* Try to populate the pipe */
 	err = populate_pipe(state_object);
@@ -633,14 +633,11 @@ static int start_batch_session(struct storage_state *state_object,
 		return err;
 	}
 
-	/* Success - pipe populated (fully or partially) */
-	send_batch_available_response(request_msg->session_id,
-				      state_object->current_session.items_sent,
-				      state_object->current_session.more_data);
+	/* Success, one item in pipe, report total available to consumer */
+	send_batch_available_response(request_msg->session_id, total_items);
 
-	LOG_DBG("Started batch session (session_id 0x%X), %zu items in batch (%zu total)",
+	LOG_DBG("Started batch session (session_id 0x%X), %zu items in batch",
 		state_object->current_session.session_id,
-		state_object->current_session.items_sent,
 		total_items);
 
 	return 0;
@@ -879,6 +876,13 @@ static enum smf_state_result state_buffer_pipe_active_run(void *o)
 					msg->session_id, state_object->current_session.session_id);
 			}
 
+			return SMF_EVENT_HANDLED;
+
+		case STORAGE_BATCH_CONSUME:
+			if (handle_batch_consume(state_object, msg)) {
+				k_work_reschedule(&state_object->session_timeout_work,
+						  K_SECONDS(STORAGE_SESSION_TIMEOUT_SECONDS));
+			}
 			return SMF_EVENT_HANDLED;
 
 		case STORAGE_BATCH_REQUEST: {

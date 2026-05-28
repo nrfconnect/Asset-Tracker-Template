@@ -148,8 +148,10 @@ static K_SEM_DEFINE(cloud_connected, 0, 1);
 static K_SEM_DEFINE(data_sent, 0, 1);
 static K_SEM_DEFINE(cloud_module_response_recv_sem, 0, 1);
 static K_SEM_DEFINE(storage_batch_closed, 0, 1);
+static K_SEM_DEFINE(storage_consume_sem, 0, 10);
 static struct cloud_msg last_shadow_response;
 static struct storage_msg last_storage_msg;
+static struct storage_msg last_consume_msg;
 static struct nrf_cloud_gnss_data last_gnss_data;
 
 static nrf_provisioning_event_cb_t handler;
@@ -171,6 +173,7 @@ static int date_time_uptime_to_unix_time_ms_custom_fake(int64_t *unix_time_ms)
 enum fake_batch_mode {
 	FAKE_BATCH_NONE = 0,
 	FAKE_BATCH_BATTERY,
+	FAKE_BATCH_TWO_BATTERY,
 	FAKE_BATCH_ENV,
 };
 
@@ -185,28 +188,66 @@ static int storage_batch_read_custom(struct storage_data_item *out_item, k_timeo
 		return -EAGAIN;
 	}
 
-	if (fake_read_calls++ == 0) {
-		switch (fake_mode) {
-		case FAKE_BATCH_BATTERY:
+	int call = fake_read_calls++;
+
+	switch (fake_mode) {
+	case FAKE_BATCH_BATTERY:
+		if (call == 0) {
 			out_item->type = STORAGE_TYPE_BATTERY;
 			out_item->data.BATTERY.percentage = 87.5;
 			out_item->data.BATTERY.timestamp = TEST_BATTERY_UPTIME_MS;
-			break;
-		case FAKE_BATCH_ENV:
+			return 0;
+		}
+		break;
+	case FAKE_BATCH_TWO_BATTERY:
+		if (call == 0) {
+			out_item->type = STORAGE_TYPE_BATTERY;
+			out_item->data.BATTERY.percentage = 87.5;
+			out_item->data.BATTERY.timestamp = TEST_BATTERY_UPTIME_MS;
+			return 0;
+		} else if (call == 1) {
+			out_item->type = STORAGE_TYPE_BATTERY;
+			out_item->data.BATTERY.percentage = 95.0;
+			out_item->data.BATTERY.timestamp = TEST_BATTERY_UPTIME_MS;
+			return 0;
+		}
+		break;
+	case FAKE_BATCH_ENV:
+		if (call == 0) {
 			out_item->type = STORAGE_TYPE_ENVIRONMENTAL;
 			out_item->data.ENVIRONMENTAL.temperature = 21.5;
 			out_item->data.ENVIRONMENTAL.humidity = 40.0;
 			out_item->data.ENVIRONMENTAL.pressure = 1002.3;
 			out_item->data.ENVIRONMENTAL.timestamp = TEST_ENVIRONMENTAL_UPTIME_MS;
-			break;
-		default:
-			return -EAGAIN;
+			return 0;
 		}
-
-		return 0;
+		break;
+	default:
+		break;
 	}
 
 	return -EAGAIN;
+}
+
+/* Custom fake for nrf_cloud_coap_sensor_send that fails with -EINVAL on the first call
+ * and succeeds (returns 0) on subsequent calls.
+ */
+static int nrf_cloud_coap_sensor_send_fail_first_custom_fake(const char *app_id, double value,
+							     int64_t ts, bool confirmable)
+{
+	ARG_UNUSED(app_id);
+	ARG_UNUSED(value);
+	ARG_UNUSED(ts);
+	ARG_UNUSED(confirmable);
+
+	/* fail_count tracks calls independently of the FFF call_count which is
+	 * incremented before the custom_fake is invoked.
+	 */
+	if (nrf_cloud_coap_sensor_send_fake.call_count == 1) {
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 static int nrf_cloud_client_id_get_custom_fake(char *buf, size_t len)
@@ -279,6 +320,9 @@ static void cloud_chan_cb(const struct zbus_channel *chan)
 		if (storage_msg->type == STORAGE_BATCH_CLOSE) {
 			memcpy(&last_storage_msg, storage_msg, sizeof(struct storage_msg));
 			k_sem_give(&storage_batch_closed);
+		} else if (storage_msg->type == STORAGE_BATCH_CONSUME) {
+			memcpy(&last_consume_msg, storage_msg, sizeof(struct storage_msg));
+			k_sem_give(&storage_consume_sem);
 		}
 	}
 }
@@ -420,6 +464,8 @@ void setUp(void)
 	k_sem_reset(&data_sent);
 	k_sem_reset(&cloud_module_response_recv_sem);
 	k_sem_reset(&storage_batch_closed);
+	k_sem_reset(&storage_consume_sem);
+	memset(&last_consume_msg, 0, sizeof(last_consume_msg));
 
 	/* Set default return values */
 	nrf_cloud_coap_location_send_fake.return_val = 0;
@@ -728,7 +774,6 @@ void test_storage_data_battery_sent_to_cloud(void)
 		.type = STORAGE_BATCH_AVAILABLE,
 		.data_len = 1,
 		.session_id = 0xAABBCCDD,
-		.more_data = false,
 	};
 
 	connect_cloud();
@@ -759,7 +804,6 @@ void test_storage_data_environmental_sent_to_cloud(void)
 		.type = STORAGE_BATCH_AVAILABLE,
 		.data_len = 1,
 		.session_id = 0x11223344,
-		.more_data = false,
 	};
 
 	connect_cloud();
@@ -794,7 +838,6 @@ void test_storage_batch_no_items_should_not_update_shadow_network_info(void)
 		.type = STORAGE_BATCH_AVAILABLE,
 		.data_len = 1,
 		.session_id = 0x55667788,
-		.more_data = false,
 	};
 
 	connect_cloud();
@@ -820,7 +863,6 @@ void test_storage_batch_shadow_network_info_update_error_should_still_close_sess
 		.type = STORAGE_BATCH_AVAILABLE,
 		.data_len = 1,
 		.session_id = 0x99AABBCC,
-		.more_data = false,
 	};
 
 	connect_cloud();
@@ -1619,13 +1661,21 @@ static void wait_for_storage_batch_close(k_timeout_t timeout)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
+/* Helper to wait for a STORAGE_BATCH_CONSUME message from the cloud module */
+static void wait_for_consume(k_timeout_t timeout)
+{
+	int err;
+
+	err = k_sem_take(&storage_consume_sem, timeout);
+	TEST_ASSERT_EQUAL(0, err);
+}
+
 void test_storage_batch_available_when_paused_should_close_session(void)
 {
 	struct storage_msg batch_available = {
 		.type = STORAGE_BATCH_AVAILABLE,
 		.data_len = 5,
 		.session_id = 0x12345678,
-		.more_data = false,
 	};
 
 	setup_cloud_paused();
@@ -1727,6 +1777,121 @@ void test_agnss_request_cached_while_disconnected_and_sent_on_connect(void)
 	/* Verify the cached A-GNSS request was sent after connecting */
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_agnss_data_get_fake.call_count);
 	TEST_ASSERT_EQUAL(1, location_agnss_data_process_fake.call_count);
+}
+
+/* Verify STORAGE_BATCH_CONSUME is published to storage_chan after each successful send */
+void test_batch_consume_sent_after_successful_send(void)
+{
+	struct storage_msg batch_available = {
+		.type = STORAGE_BATCH_AVAILABLE,
+		.data_len = 1,
+		.session_id = 0x12AB34CD,
+	};
+
+	connect_cloud();
+
+	/* Prepare fake to return one battery item, then -EAGAIN */
+	fake_mode = FAKE_BATCH_BATTERY;
+	fake_read_calls = 0;
+	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+
+	publish_and_assert(&storage_chan, &batch_available);
+
+	/* CONSUME is published after the successful send */
+	wait_for_consume(K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_CONSUME, last_consume_msg.type);
+	TEST_ASSERT_EQUAL(STORAGE_TYPE_BATTERY, last_consume_msg.data_type);
+
+	/* Verify the send was made */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_sensor_send_fake.call_count);
+
+	/* Verify session is closed after processing */
+	wait_for_storage_batch_close(K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(batch_available.session_id, last_storage_msg.session_id);
+}
+
+/* Verify that a permanent/non-network error (-EINVAL) on one batch item drops only
+ * that item via CONSUME (to skip it), and that the batch loop continues to process
+ * remaining items.
+ */
+void test_batch_permanent_error_drops_item_without_requeue(void)
+{
+	struct storage_msg batch_available = {
+		.type = STORAGE_BATCH_AVAILABLE,
+		.data_len = 2,
+		.session_id = 0xABCD1234,
+	};
+
+	connect_cloud();
+
+	/* Setup fake to return two battery items, then -EAGAIN, and configure send to fail with
+	 * -EINVAL for the first item and succeed for the second item
+	 */
+	fake_mode = FAKE_BATCH_TWO_BATTERY;
+	fake_read_calls = 0;
+	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+	nrf_cloud_coap_sensor_send_fake.custom_fake =
+		nrf_cloud_coap_sensor_send_fail_first_custom_fake;
+
+	publish_and_assert(&storage_chan, &batch_available);
+
+	/* Two CONSUMEs: one to skip the bad item, one for the successful item */
+	wait_for_consume(K_SECONDS(WAIT_TIMEOUT));
+	wait_for_consume(K_SECONDS(WAIT_TIMEOUT));
+
+	/* Session must be closed after processing both items */
+	wait_for_storage_batch_close(K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(batch_available.session_id, last_storage_msg.session_id);
+
+	/* Exactly two CONSUMEs were sent */
+	TEST_ASSERT_EQUAL(0, k_sem_count_get(&storage_consume_sem));
+
+	/* Shadow network info was updated */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_network_info_update_fake.call_count);
+
+	/* 1 failed send + 1 successful send = 2 total */
+	TEST_ASSERT_EQUAL(2, nrf_cloud_coap_sensor_send_fake.call_count);
+}
+
+/* Verify that a network error (-EIO) causes the batch loop to abort without consuming
+ * the failed item — it stays at the backend head and will be retried next session.
+ */
+void test_batch_network_error_aborts_loop(void)
+{
+	struct storage_msg batch_available = {
+		.type = STORAGE_BATCH_AVAILABLE,
+		.data_len = 2,
+		.session_id = 0xFEEDFACE,
+	};
+	double expected_pct = 87.5;
+
+	connect_cloud();
+
+	/* Setup fake to return two battery items, then -EAGAIN */
+	fake_mode = FAKE_BATCH_TWO_BATTERY;
+	fake_read_calls = 0;
+	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+	/* Network send fails with -EIO */
+	nrf_cloud_coap_sensor_send_fake.return_val = -EIO;
+
+	publish_and_assert(&storage_chan, &batch_available);
+
+	/* Session should be closed — no CONSUME sent for network errors */
+	wait_for_storage_batch_close(K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(batch_available.session_id, last_storage_msg.session_id);
+
+	/* No CONSUME was sent — failed item stays at backend head for next session */
+	TEST_ASSERT_EQUAL(0, k_sem_count_get(&storage_consume_sem));
+
+	/* No items were successfully delivered, so shadow network info should not be updated */
+	TEST_ASSERT_EQUAL(0, nrf_cloud_coap_shadow_network_info_update_fake.call_count);
+
+	/* Loop should have aborted after the failure, only one send should have been attempted */
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_sensor_send_fake.call_count);
+	/* Verify it was the first item (87.5%) — memcmp avoids Unity double support requirement */
+	TEST_ASSERT_EQUAL_MEMORY(&expected_pct,
+				 &nrf_cloud_coap_sensor_send_fake.arg1_history[0],
+				 sizeof(double));
 }
 
 /* This is required to be added to each test. That is because unity's
