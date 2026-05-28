@@ -66,7 +66,11 @@ enum storage_msg_type {
 	/* Response to a STORAGE_BATCH_REQUEST message. Indicates batch is ready for reading.
 	 * The `data_len` field contains the total number of items available.
 	 * The `session_id` field echoes back the session ID from the request.
-	 * Use storage_batch_read() to consume data from the batch.
+	 *
+	 * Call storage_batch_read() to read the next item from the batch. After the item
+	 * has been confirmed sent, publish STORAGE_BATCH_CONSUME (with the matching
+	 * `session_id` and `data_type`) to remove it from the backend and advance to the
+	 * next item. Reading without consuming will repeatedly return the same head item.
 	 */
 	STORAGE_BATCH_AVAILABLE,
 
@@ -82,6 +86,13 @@ enum storage_msg_type {
 
 	/* Batch is busy - cannot process request at this time. */
 	STORAGE_BATCH_BUSY,
+
+	/* Confirm that a batch item was successfully sent to cloud.
+	 * Must contain `data_type` identifying the type of the item just sent.
+	 * Storage removes the item from the backend queue head and makes the next
+	 * item available in the pipe. Only valid during an active batch session.
+	 */
+	STORAGE_BATCH_CONSUME,
 };
 
 /**
@@ -110,14 +121,7 @@ struct storage_msg {
 	 * - STORAGE_BATCH_AVAILABLE: number of items available in batch
 	 * - STORAGE_DATA: size of flushed data
 	 */
-	uint32_t data_len: 31;
-
-	/* Indicates if there is more data to be read from the batch.
-	 * Valid only for STORAGE_BATCH_AVAILABLE messages.
-	 * This is used by the batch reader to determine if it should continue reading after
-	 * the current batch has been read.
-	 */
-	bool more_data: 1;
+	uint32_t data_len;
 };
 
 /**

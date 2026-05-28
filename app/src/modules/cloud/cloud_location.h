@@ -19,8 +19,10 @@ extern "C" {
  * Processes location requests, A-GNSS requests, and GNSS location data.
  *
  * @param msg Pointer to location message
+ *
+ * @retval 0 on success or a negative errno on failure.
  */
-void cloud_location_handle_message(const struct location_msg *msg);
+int cloud_location_handle_message(const struct location_msg *msg);
 
 #if defined(CONFIG_NRF_CLOUD_AGNSS)
 /**

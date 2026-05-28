@@ -27,10 +27,17 @@ The Cloud module implements a state machine with the following states and transi
 The cloud module subscribes to the `storage_chan` and `storage_data_chan` channels to receive data
 from the storage module.
 It handles `STORAGE_BATCH_AVAILABLE`, `STORAGE_BATCH_EMPTY`, `STORAGE_BATCH_BUSY`, and
-`STORAGE_BATCH_ERROR` messages on the `storage_chan` channel to manage batch data flow, and consumes
-batch items using the `storage_batch_read()` function until the batch is exhausted, then issues
-`STORAGE_BATCH_CLOSE`. It also handles `STORAGE_DATA` messages on the `storage_data_chan` channel to
-forward individual data items to nRF Cloud.
+`STORAGE_BATCH_ERROR` messages on the `storage_chan` channel to manage batch data flow.
+
+For each `STORAGE_BATCH_AVAILABLE` event, the cloud module drains the batch by repeatedly
+calling `storage_batch_read()` and sending each item to nRF Cloud. Reads do not remove items
+from storage; the cloud module publishes `STORAGE_BATCH_CONSUME` only **after** an item has
+been successfully sent, which removes it from the backend and primes the next item. On a
+network send error the session is aborted without consuming the item, so that data is
+retained for the next batch attempt. When the batch is drained (or aborted), the cloud
+module issues `STORAGE_BATCH_CLOSE` to end the session.
+
+It also handles `STORAGE_DATA` messages on the `storage_data_chan` channel to forward individual data items to nRF Cloud.
 
 ## Messages
 

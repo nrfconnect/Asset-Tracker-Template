@@ -76,19 +76,15 @@ config APP_STORAGE_MAX_RECORDS_PER_TYPE
 
 config APP_STORAGE_BATCH_BUFFER_SIZE
 	int "Storage batch buffer size in bytes"
-	default 1024
+	default 512
 	help
-	  Size of the internal buffer for batch data access.
-	  This buffer is used to transfer data from the storage backend
-	  to consuming modules via the batch interface.
-
-	  Larger buffers can improve throughput but use more RAM.
-	  Must be large enough to hold at least one complete data item
-	  plus its header.
+	  Size of the internal pipe used to stream batch data from the
+	  storage backend to the consumer. Must be large enough to hold
+	  one storage data item plus its pipe header.
 
 config APP_STORAGE_SESSION_TIMEOUT_SECONDS
 	int "Storage batch session timeout"
-	default 60
+	default 30
 	help
 	  Timeout for an active storage batch session. If no activity
 	  occurs on the session for this duration, it will be automatically

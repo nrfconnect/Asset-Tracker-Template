@@ -174,9 +174,13 @@ static void storage_chan_cb(const struct zbus_channel *chan)
 	}
 }
 
-static size_t read_batch_data(size_t expected_item_count)
+static size_t read_batch_data(size_t expected_item_count, uint32_t session_id)
 {
 	struct storage_data_item tmp;
+	struct storage_msg consume_msg = {
+		.type = STORAGE_BATCH_CONSUME,
+		.session_id = session_id,
+	};
 	size_t items_read = 0;
 
 	while (items_read < expected_item_count) {
@@ -188,6 +192,12 @@ static size_t read_batch_data(size_t expected_item_count)
 		}
 
 		TEST_ASSERT_EQUAL(0, ret);
+
+		/* Confirm the send: removes item from backend queue head and
+		 * makes the next item available in the pipe.
+		 */
+		consume_msg.data_type = tmp.type;
+		(void)zbus_chan_pub(&storage_chan, &consume_msg, K_SECONDS(1));
 
 		items_read++;
 
@@ -473,7 +483,7 @@ void test_storage_batch_request_and_retrieve(void)
 	/* Verify we have data available, but don't assume exact count due to buffer limits */
 	TEST_ASSERT_GREATER_THAN(0, received_msg.data_len);
 
-	items_read = read_batch_data(received_msg.data_len);
+	items_read = read_batch_data(received_msg.data_len, received_msg.session_id);
 
 	for (size_t i = 0; i < items_read; i++) {
 		TEST_ASSERT_EQUAL_DOUBLE(env_samples[i].temperature,
@@ -543,10 +553,10 @@ void test_storage_batch_request_multiple(void)
 		/* The data_len reflects items available in batch buffer for this request */
 		TEST_ASSERT_GREATER_THAN(0, received_msg.data_len);
 
-		samples_received = read_batch_data(received_msg.data_len);
+		samples_received = read_batch_data(received_msg.data_len, request_msg.session_id);
 
-		/* Compare received samples iteratively - storage consumes data
-		 * destructively, so we expect samples in sequence: first iteration
+		/* Compare received samples iteratively - storage consumes items on
+		 * confirm, so we expect samples in sequence: first iteration
 		 * gets 0-15, second gets 16-31, etc.
 		 */
 		for (size_t i = 0; i < samples_received; i++) {
@@ -669,12 +679,12 @@ void test_storage_batch_request_mixed_data(void)
 		/* Don't assume batch can fit all remaining data - just verify we got some */
 		TEST_ASSERT_GREATER_THAN(0, received_msg.data_len);
 
-		items_read = read_batch_data(received_msg.data_len);
+		items_read = read_batch_data(received_msg.data_len, batch_msg.session_id);
 
-		/* Verify received data matches expected values based on destructive
-		 * consumption. Since storage consumes data destructively, we expect
-		 * samples in sequence: first iteration gets samples 0-N, second gets
-		 * N+1-M, etc.
+		/* Verify received data matches expected values based on consume-on-confirm
+		 * behavior. Since storage consumes items only after the consumer confirms
+		 * each one, we expect samples in sequence: first iteration gets samples
+		 * 0-N, second gets N+1-M, etc.
 		 */
 		for (size_t i = 0; i < received_battery_samples_count; i++) {
 			size_t expected_idx = total_battery_received + i;
@@ -930,7 +940,7 @@ void test_storage_stores_samples_while_batch_session_active(void)
 
 	memset(&received_env_samples, 0, sizeof(received_env_samples));
 
-	items_read = read_batch_data(received_msg.data_len);
+	items_read = read_batch_data(received_msg.data_len, first_request.session_id);
 
 	TEST_ASSERT_EQUAL(1, items_read);
 
@@ -953,7 +963,7 @@ void test_storage_stores_samples_while_batch_session_active(void)
 
 	memset(&received_env_samples, 0, sizeof(received_env_samples));
 
-	items_read = read_batch_data(received_msg.data_len);
+	items_read = read_batch_data(received_msg.data_len, received_msg.session_id);
 
 	TEST_ASSERT_EQUAL(3, items_read);
 
@@ -1085,6 +1095,60 @@ void test_storage_threshold(void)
 	/* Verify we did NOT get STORAGE_THRESHOLD_REACHED message since threshold is now high */
 	TEST_ASSERT_NOT_EQUAL(STORAGE_THRESHOLD_REACHED, received_msg.type);
 
+}
+
+/* Verify that items not confirmed via STORAGE_BATCH_CONSUME are retained at the
+ * backend queue head and appear again in the next batch session.
+ */
+void test_storage_unconsumed_item_retained_on_session_close(void)
+{
+	struct environmental_msg env_msg = {
+		.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE,
+	};
+	struct storage_data_item item;
+	uint32_t session_id;
+	size_t items_read;
+	const uint8_t num_samples = 3;
+	int ret;
+
+	/* Store multiple environmental samples */
+	for (size_t i = 0; i < num_samples; i++) {
+		populate_env_message(i, &env_msg);
+		publish_and_assert(&environmental_chan, &env_msg);
+	}
+
+	/* Open a batch session — one item is peeked into the pipe */
+	request_batch_and_assert();
+	k_sleep(K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
+	TEST_ASSERT_EQUAL(num_samples, received_msg.data_len);
+	session_id = received_msg.session_id;
+
+	/* Read the item but do NOT send CONSUME — item stays at the backend head */
+	ret = storage_batch_read(&item, K_SECONDS(5));
+	TEST_ASSERT_EQUAL(0, ret);
+
+	/* Close without consuming: backend is unchanged */
+	close_batch_and_assert(session_id);
+	k_sleep(K_MSEC(500));
+
+	/* Reset counters before the next batch read */
+	received_env_samples_count = 0;
+	memset(&received_env_samples, 0, sizeof(received_env_samples));
+
+	/* All items must still be present in the next batch */
+	request_batch_and_assert();
+	k_sleep(K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(STORAGE_BATCH_AVAILABLE, received_msg.type);
+	TEST_ASSERT_EQUAL(num_samples, received_msg.data_len);
+
+	/* Read and consume all items */
+	items_read = read_batch_data(received_msg.data_len, received_msg.session_id);
+	TEST_ASSERT_EQUAL(num_samples, items_read);
+
+	close_batch_and_assert(received_msg.session_id);
 }
 
 extern int unity_main(void);

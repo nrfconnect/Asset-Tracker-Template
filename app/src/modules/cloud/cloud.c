@@ -489,9 +489,7 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 	if (item->type == STORAGE_TYPE_LOCATION) {
 		const struct location_msg *loc = &item->data.LOCATION;
 
-		cloud_location_handle_message(loc);
-
-		return 0;
+		return cloud_location_handle_message(loc);
 	}
 #endif /* CONFIG_APP_LOCATION && CONFIG_LOCATION_METHOD_GNSS */
 
@@ -505,26 +503,6 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 	return -ENOTSUP;
 }
 
-static int request_storage_batch_data(uint32_t session_id)
-{
-	int err;
-	struct storage_msg msg = {
-		.type = STORAGE_BATCH_REQUEST,
-		.session_id = session_id,
-	};
-
-	LOG_DBG("Requesting storage batch data, session_id: 0x%X", msg.session_id);
-
-	err = zbus_chan_pub(&storage_chan, &msg, PUB_TIMEOUT);
-	if (err) {
-		LOG_ERR("Failed to request storage batch data, error: %d", err);
-
-		return err;
-	}
-
-	return 0;
-}
-
 static void handle_storage_batch_available(const struct storage_msg *msg)
 {
 	int err;
@@ -532,13 +510,18 @@ static void handle_storage_batch_available(const struct storage_msg *msg)
 	uint32_t items_processed = 0;
 	uint32_t items_available = msg->data_len;
 	uint32_t session_id = msg->session_id;
-	struct storage_msg close_msg = {
-		.type = STORAGE_BATCH_CLOSE,
+	struct storage_msg out_msg = {
 		.session_id = session_id,
 	};
 	bool session_error = false;
 
 	LOG_INF("Processing storage batch: %u items available", items_available);
+
+	/* Suppress delivery of storage_chan messages back to cloud_subscriber while we
+	 * are blocking in this loop.
+	 */
+	err = zbus_obs_set_chan_notification_mask(&cloud_subscriber, &storage_chan, true);
+	__ASSERT(err == 0, "cloud_subscriber not registered on storage_chan: %d", err);
 
 	/* Drain the batch buffer: read until timeout, abort on hard error */
 	while (!session_error) {
@@ -549,7 +532,6 @@ static void handle_storage_batch_available(const struct storage_msg *msg)
 			break;
 		} else if (err) {
 			LOG_ERR("storage_batch_read failed, error: %d", err);
-
 			session_error = true;
 
 			continue;
@@ -557,25 +539,33 @@ static void handle_storage_batch_available(const struct storage_msg *msg)
 
 		err = send_storage_data_to_cloud(&item);
 		if (err) {
-			LOG_ERR("Failed to send storage data to cloud, error: %d", err);
+			if (err == -ENOTSUP || err == -EINVAL) {
+				LOG_ERR("Data error sending data (type %d): %d", item.type, err);
+			} else {
+				LOG_WRN("Network error sending data (type %d): %d", item.type, err);
+				session_error = true;
+
+				continue;
+			}
+		} else {
+			items_processed++;
 		}
 
-		items_processed++;
+		/* Consume the item: confirms a successful send or skips a malformed item */
+		out_msg.type = STORAGE_BATCH_CONSUME;
+		out_msg.data_type = item.type;
+		err = zbus_chan_pub(&storage_chan, &out_msg, PUB_TIMEOUT);
+		if (err) {
+			LOG_ERR("Failed to consume storage item, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
 	}
 
 	LOG_DBG("Processed %u/%u storage items", items_processed, items_available);
 
-	if (!session_error && msg->more_data) {
-		LOG_DBG("More data available in batch, requesting next batch");
-
-		err = request_storage_batch_data(session_id);
-		if (err) {
-			LOG_ERR("Failed to request next storage batch data, error: %d", err);
-			SEND_FATAL_ERROR();
-		}
-
-		return;
-	}
+	/* Re-enable storage_chan notifications to cloud_subscriber */
+	err = zbus_obs_set_chan_notification_mask(&cloud_subscriber, &storage_chan, false);
+	__ASSERT(err == 0, "cloud_subscriber not registered on storage_chan: %d", err);
 
 	if (items_processed > 0) {
 		err = nrf_cloud_coap_shadow_network_info_update();
@@ -587,7 +577,8 @@ static void handle_storage_batch_available(const struct storage_msg *msg)
 	}
 
 	/* Close the batch session */
-	err = zbus_chan_pub(&storage_chan, &close_msg, PUB_TIMEOUT);
+	out_msg.type = STORAGE_BATCH_CLOSE;
+	err = zbus_chan_pub(&storage_chan, &out_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to close storage batch session, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -1182,7 +1173,7 @@ static enum smf_state_result state_connected_ready_run(void *obj)
 		if (msg->type == LOCATION_AGNSS_REQUEST) {
 			LOG_DBG("A-GNSS data request received");
 
-			cloud_location_handle_message(msg);
+			(void)cloud_location_handle_message(msg);
 		}
 
 		return SMF_EVENT_HANDLED;
