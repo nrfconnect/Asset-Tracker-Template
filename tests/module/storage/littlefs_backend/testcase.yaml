@@ -1,5 +1,5 @@
 tests:
-  storage.module.littlefs:
+  asset_tracker_template.fw.storage.littlefs:
     tags: storage
     platform_allow:
       - native_sim
