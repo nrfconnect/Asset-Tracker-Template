@@ -32,11 +32,6 @@ The FOTA module implements a state machine with the following states and transit
 
 ![FOTA module state diagram](../images/fota_module_state_diagram.svg "FOTA module state diagram")
 
-## Storage clearing on reboot
-
-> [!IMPORTANT]
-> Before rebooting to apply firmware updates, the FOTA module automatically clears all stored data in the storage module by sending a `STORAGE_CLEAR` message. This ensures a clean state after the firmware update and prevents potential data corruption or compatibility issues between firmware versions.
-
 ## Messages
 
 The FOTA module communicates through the zbus channel `fota_chan`, using input and output messages defined in `fota.h`.
