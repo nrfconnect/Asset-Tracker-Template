@@ -31,6 +31,19 @@ The Main module uses the following zbus channels, both for subscribing to incomi
 | **power_chan**         | Request battery status and initiate low-power mode.                                        |
 | **timer_chan**         | Handle timer events for sampling.                                                          |
 
+## Firmware updates (FOTA)
+
+The Main module coordinates firmware over-the-air updates by subscribing to [`fota_chan`](fota_module.md) and driving a dedicated FOTA branch of its state machine. The [FOTA module](fota_module.md) handles polling, download, and apply; the Main module handles orchestration around those steps.
+
+When a download completes:
+
+- **Application and delta modem updates:** On `FOTA_SUCCESS_REBOOT_NEEDED`, the Main module disconnects LTE via `network_chan`, then enters the reboot path.
+- **Full modem updates:** On `FOTA_IMAGE_APPLY_NEEDED`, it disconnects LTE, sends `FOTA_IMAGE_APPLY` on `fota_chan`, waits for `FOTA_SUCCESS_REBOOT_NEEDED`, then enters the reboot path.
+
+Before rebooting to apply the update (`STATE_FOTA_REBOOTING`), the Main module publishes `STORAGE_CLEAR` on `storage_chan` so the [storage module](storage.md) wipes buffered data. This avoids stale or incompatible data after the new firmware runs. The device then reboots.
+
+For operator steps (bundles, nRF Cloud jobs, verification), see [Firmware updates (FOTA)](../common/fota.md).
+
 ## LED status indicators
 
 The Main module uses LED colors to indicate different device states:

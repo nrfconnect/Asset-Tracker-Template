@@ -161,21 +161,32 @@ where the `+3` accounts for LittleFS metadata and the CoW block.
 \text{flash size} = \text{required blocks} \times \text{block size}
 ```
 
-Choose a partition size that meets or exceeds `flash_size`. The LittleFS partition size is set by `CONFIG_PM_PARTITION_SIZE_LITTLEFS` (or the corresponding DTS partition definition).
+Choose a partition size that meets or exceeds `flash_size`. The LittleFS partition size is set by the `littlefs_storage` node in [`app/dts/att_flash_partitions.dtsi`](../../app/dts/att_flash_partitions.dtsi), which both board overlays include:
 
-If the requirement is not met, either increase the partition (`CONFIG_PM_PARTITION_SIZE_LITTLEFS` or DTS partition size) or reduce storage pressure (fewer records, smaller data types, or fewer enabled types).
+```devicetree
+littlefs_storage: partition@4d2000 {
+    label = "littlefs_storage";
+    reg = <0x004d2000 0x00100000>;   /* 1 MiB */
+};
+```
+
+The second `reg` cell (`0x00100000` above) is the partition size in bytes. To make the partition larger, raise that value and shrink the adjacent `external_flash_partition` by the same amount so the 32 MiB external flash layout stays consistent.
+
+If the requirement is not met, either grow the partition in `att_flash_partitions.dtsi` as shown above, or reduce storage pressure (fewer records, smaller data types, or fewer enabled types).
 
 > [!NOTE]
 > The data types are stored in separate files, so the minimum number of flash blocks needed is ∑ data types + 3.
 
 #### Target-specific defaults
 
-| **Target** | **Block size** | **Default blocks needed** | **Minimal partition size** |
+Block size comes from the mounted filesystem (`fs_statvfs()`), which on ATT targets uses external SPI-NOR with `CONFIG_SPI_NOR_FLASH_LAYOUT_PAGE_SIZE=4096` (0x1000). The table below illustrates minimal sizing for a **small** configuration (three data types, eight records per type); the shipped default is **1 MiB** with up to **256** records per type, which needs far more blocks—the LittleFS backend checks sizing at init (see the `LittleFS partition size verified` log line) or use the formula above.
+
+| **Target** | **Block size** | **Example blocks needed** | **Example minimal partition** |
 | - | - | - | - |
-| nrf9151 DK (internal flash) | 0x1000 | 5 | 0x5000 |
-| nrf9151 DK (external flash, gd25wb256) | 0x10000 | 5 | 0x50000 |
-| thingy91x (internal flash) | 0x1000 | 8 | 0x8000 |
-| thingy91x (external flash) | 0x1000 | 8 | 0x8000 |
+| nrf9151 DK / Thingy:91 X (external SPI-NOR) | 0x1000 (4096 B) | 8 + 3 metadata | 0x2c000 (~176 KiB) |
+| Internal flash (not recommended) | 0x1000 | 8 + 3 metadata | 0x2c000 |
+
+The default **1 MiB** (`0x00100000`) partition on both boards leaves ample margin for all enabled data types at `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=256`.
 
 #### LittleFS built-in wear leveling
 
@@ -227,13 +238,12 @@ To enable persistent flash storage:
 CONFIG_APP_STORAGE=y
 CONFIG_APP_STORAGE_BACKEND_LITTLEFS=y
 
-# Configure partition size (default is 64 KB)
-CONFIG_PM_PARTITION_SIZE_LITTLEFS=0x10000
-
 # Adjust for your needs
 CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=16
 CONFIG_APP_STORAGE_THREAD_STACK_SIZE=4000
 ```
+
+The partition size is configured in devicetree (see *Minimum partition size* above). The default `littlefs_storage` partition is 1 MiB on both the Thingy:91 X and the nRF9151 DK.
 
 ##### Optimized for data persistence with minimal flash wear
 
@@ -242,12 +252,11 @@ CONFIG_APP_STORAGE_THREAD_STACK_SIZE=4000
 CONFIG_APP_STORAGE=y
 CONFIG_APP_STORAGE_BACKEND_LITTLEFS=y
 
-# Larger partition distributes writes across more flash blocks
-CONFIG_PM_PARTITION_SIZE_LITTLEFS=0x20000
-
 # Higher record count reduces rewrite frequency
 CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=50
 ```
+
+To improve wear leveling further, grow the `littlefs_storage` partition in `att_flash_partitions.dtsi` so writes are spread across more flash blocks. See *Minimum partition size* above for the exact devicetree snippet to edit.
 
 ## Messages
 
@@ -339,25 +348,21 @@ The following includes the key configuration categories:
 - **CONFIG_APP_STORAGE_BACKEND_LITTLEFS** : Uses the LittleFS filesystem for flash storage.
   Data is persistent across power cycles but provides slower access.
 
-> [!NOTE]
-> Regardless of the backend used, stored data is automatically cleared when FOTA updates are applied to ensure a clean state after firmware updates. See the [FOTA module documentation](fota_module.md#storage-clearing-on-reboot) for details.
-
 ### Memory configuration
 
 - **CONFIG_APP_STORAGE_MAX_TYPES** (default: `3`): Maximum number of different data types that can be registered.
   Affects RAM usage.
 
-- **CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE** (default: `8` for the RAM backend, `64` for the LittleFS backend): Maximum records stored per data type.
+- **CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE** (default: `8` for the RAM backend, `256` for the LittleFS backend): Maximum records stored per data type.
   Total RAM usage = `MAX_TYPES` × `MAX_RECORDS_PER_TYPE` × `RECORD_SIZE`.
 
 - **CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE** (default: `1024`): Size of the internal buffer for batch data access.
 
 ### Flash configuration (LittleFS backend)
 
-- **CONFIG_PM_PARTITION_SIZE_LITTLEFS**: Size of the flash partition for LittleFS storage.
-  Must be large enough to accommodate the stored data and filesystem metadata. See flash management section above for sizing guidance.
+The `littlefs_storage` partition (size and host flash chip) is defined in devicetree. [`app/dts/att_flash_partitions.dtsi`](../../app/dts/att_flash_partitions.dtsi) declares the partition on external SPI-NOR and the `lfs1` `zephyr,fstab,littlefs` entry (mount point `/att_storage`, automount). Board overlays [`thingy91x_nrf9151_ns.overlay`](../../app/boards/thingy91x_nrf9151_ns.overlay) and [`nrf9151dk_nrf9151_ns.overlay`](../../app/boards/nrf9151dk_nrf9151_ns.overlay) include that file.
 
-- **CONFIG_PM_PARTITION_REGION_LITTLEFS_EXTERNAL** (default: `y`): Use external flash for LittleFS storage (uses internal flash if set to `n`).
+To resize the partition, edit the second `reg` cell of `littlefs_storage` in `att_flash_partitions.dtsi` (and shrink `external_flash_partition` by the same amount). To move it to internal flash, declare a `littlefs_storage` node under `&flash0`'s `partitions` instead, note that the nRF9151's 1 MiB internal flash is already heavily utilized by `slot0_partition`, so external flash is strongly recommended for any non-trivial storage size.
 
 ### Threshold configuration
 

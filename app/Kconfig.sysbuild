@@ -11,6 +11,12 @@ endchoice
 config SECURE_BOOT_APPCORE
 	default y if BOARD_NRF9151DK_NRF9151_NS
 
+# Shared NSIB (b0) signing key for all ATT sysbuild targets. Sysbuild signs images with this
+# key; b0 verifies them. Without this, sysbuild autogenerates a new debug key on each pristine
+# build. Not for production.
+config SECURE_BOOT_SIGNING_KEY_FILE
+	default "$(ZEPHYR_NRF_MODULE_DIR)/boards/nordic/thingy91x/nsib_signing_key.pem"
+
 config WIFI_NRF70
 	default y if BOARD_THINGY91X_NRF9151_NS
 
@@ -18,7 +24,7 @@ choice WIFI_NRF70_OPER_MODES
 	default WIFI_NRF70_SCAN_ONLY if BOARD_THINGY91X_NRF9151_NS
 endchoice
 
-config PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY
-	default y if BOARD_NRF9151DK_NRF9151_NS
+config PARTITION_MANAGER
+	default n
 
 source "${ZEPHYR_BASE}/share/sysbuild/Kconfig"
