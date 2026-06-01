@@ -33,8 +33,7 @@ The FOTA module implements a state machine with the following states and transit
 
 ## Reboot and storage handling
 
-> [!IMPORTANT]
-> The FOTA module does not reboot the device on its own. After publishing `FOTA_SUCCESS`, it is the application's responsibility to perform any cleanup and trigger the reboot. In this template, the main module reacts to `FOTA_SUCCESS` by publishing `STORAGE_CLEAR` on `storage_chan` to wipe staged sample data, and then transitions to `STATE_REBOOTING`, which performs the actual reboot. This ensures a clean state after the firmware update and prevents potential data corruption or compatibility issues between firmware versions.
+The FOTA module does not reboot the device on its own. After publishing `FOTA_SUCCESS`, it is the application's responsibility to perform any cleanup and trigger the reboot. In this template, the main module reacts to `FOTA_SUCCESS` by publishing `STORAGE_CLEAR` on `storage_chan` to wipe staged sample data, and then transitions to `STATE_REBOOTING`, which performs the actual reboot. This ensures a clean state after the firmware update and prevents potential data corruption or compatibility issues between firmware versions.
 
 ## Messages
 

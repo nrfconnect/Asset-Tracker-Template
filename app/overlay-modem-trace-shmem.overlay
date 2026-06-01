@@ -1,0 +1,22 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+&sram0_ns_modem {
+	reg = <0x0 0x64e8>;
+	ranges = <0x0 0x0 0x64e8>;
+
+	cpucell_cpuapp_ipc_shm_trace: sram0_ns_modem@24e8 {
+		reg = <0x24e8 0x4000>;
+	};
+};
+
+/delete-node/ &sram0_ns_app;
+
+&sram0_ns {
+	sram0_ns_app: sram0_ns@64e8 {
+		reg = <0x64e8 0x37b18>;
+	};
+};
