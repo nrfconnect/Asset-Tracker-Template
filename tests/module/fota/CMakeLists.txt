@@ -26,6 +26,7 @@ zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/)
 zephyr_include_directories(${ZEPHYR_BASE}/subsys/testsuite/include)
 zephyr_include_directories(${ZEPHYR_BASE}/../nrfxlib/nrf_modem/include)
 
+zephyr_include_directories(${NRF_DIR}/include)
 zephyr_include_directories(${NRF_DIR}/include/net)
 zephyr_include_directories(${NRF_DIR}/subsys/net/lib/nrf_cloud/include)
 zephyr_include_directories(${NRF_DIR}/subsys/net/lib/nrf_cloud/common/include)
@@ -54,4 +55,5 @@ target_compile_definitions(app PRIVATE
 	-DCONFIG_COAP_CLIENT_BLOCK_SIZE=64
 	-DCONFIG_COAP_CLIENT_MAX_EXTRA_OPTIONS=2
 	-DCONFIG_COAP_CLIENT_MAX_PATH_LENGTH=128
+	-DCONFIG_SPI_NOR_FLASH_LAYOUT_PAGE_SIZE=4096
 )
