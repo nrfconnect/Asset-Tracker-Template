@@ -13,27 +13,6 @@ permissions:
   contents: read
 
 jobs:
-  create-zoomin-doc-bundle:
-    name: Create zoomin documentation bundle
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Copy documentation properties
-        run: cp zoomin/* .
-
-      - name: Create zip file
-        run: |
-          zip -r asset-tracker-template.zip \
-          docs/* mkdocs.yml custom.properties tags.yml
-
-      - name: Upload documentation artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: asset-tracker-template
-          path: asset-tracker-template.zip
-          retention-days: 7
-
   create-ft-bundle:
     name: Create ft documentation bundle
     runs-on: ubuntu-latest
