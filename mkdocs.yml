@@ -32,6 +32,13 @@ copyright:
 markdown_extensions:
   - pymdownx.arithmatex:
       generic: true
+  - pymdownx.highlight:
+      linenums_style: pymdownx-inline
+      pygments_lang_class: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
   - abbr
   - admonition
   - attr_list
@@ -62,7 +69,7 @@ ft_metadata:
     - "Asset Tracker Template"
 
 ft_options:
-  copy_button_on_content_code: false
+  copy_button_on_content_code: true
   nav_mapping: first_heading_as_page
 
 nav:
