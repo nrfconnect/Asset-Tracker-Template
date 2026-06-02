@@ -14,11 +14,12 @@
 LOG_MODULE_DECLARE(power, CONFIG_APP_POWER_LOG_LEVEL);
 
 #define FUEL_GAUGE_MAGIC 0x4647534F /* "FGSO" - Fuel Gauge State OK */
+#define FUEL_GAUGE_STATE_BUF_SIZE 512
 
 struct fuel_gauge_state {
 	uint32_t magic;     /* Magic number to identify valid state */
 	uint32_t size;      /* Size of state data */
-	uint8_t state[256]; /* Fuel gauge state buffer */
+	uint8_t state[FUEL_GAUGE_STATE_BUF_SIZE];
 };
 
 /* Place the fuel gauge state in the noinit RAM section.

@@ -424,9 +424,14 @@ static int sample_and_process(struct power_state_object *state_object)
 
 	delta = (float)k_uptime_delta(&state_object->fuel_gauge_ref_time) / 1000.0f;
 
-	state_object->percentage =
-		nrf_fuel_gauge_process(state_object->voltage, state_object->current,
-				       state_object->temperature, delta, NULL);
+	err = nrf_fuel_gauge_process(state_object->voltage,
+				     state_object->current,
+				     state_object->temperature, delta,
+				     &state_object->percentage, NULL);
+	if (err) {
+		LOG_ERR("nrf_fuel_gauge_process, error: %d", err);
+		return err;
+	}
 
 #endif /* CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
 
@@ -667,8 +672,18 @@ static void power_module_thread(void)
 	power_state.voltage = parameters.v0;
 	power_state.current = parameters.i0;
 	power_state.temperature = parameters.t0;
-	power_state.percentage =
-		nrf_fuel_gauge_process(parameters.v0, parameters.i0, parameters.t0, 0.0f, NULL);
+
+	err = nrf_fuel_gauge_process(parameters.v0,
+				     parameters.i0,
+				     parameters.t0,
+				     0.0f,
+				     &power_state.percentage,
+				     NULL);
+	if (err) {
+		LOG_ERR("nrf_fuel_gauge_process, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
 
 	/* Set charge current limit and termination current for accurate TTF prediction */
 	struct sensor_value desired_charge_current;

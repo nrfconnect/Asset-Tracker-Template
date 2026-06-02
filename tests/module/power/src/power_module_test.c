@@ -21,7 +21,7 @@ DEFINE_FFF_GLOBALS;
 
 FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
-FAKE_VALUE_FUNC(float, nrf_fuel_gauge_process, float, float, float, float,
+FAKE_VALUE_FUNC(int, nrf_fuel_gauge_process, float, float, float, float, float *,
 		struct nrf_fuel_gauge_state_info *);
 FAKE_VALUE_FUNC(int, nrf_fuel_gauge_init, const struct nrf_fuel_gauge_init_parameters *, float *);
 FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
@@ -29,11 +29,11 @@ FAKE_VALUE_FUNC(int, nrf_fuel_gauge_state_get, void *, size_t);
 FAKE_VALUE_FUNC(int, nrf_fuel_gauge_ext_state_update,
 		enum nrf_fuel_gauge_ext_state_info_type,
 		union nrf_fuel_gauge_ext_state_info_data *);
-FAKE_VOID_FUNC(nrf_fuel_gauge_idle_set, float, float, float);
+FAKE_VALUE_FUNC(int, nrf_fuel_gauge_idle_set, float, float, float);
 FAKE_VOID_FUNC(lte_lc_register_handler, lte_lc_evt_handler_t);
 
 /* Define nrf_fuel_gauge_state_size for tests (normally provided by the library) */
-const size_t nrf_fuel_gauge_state_size = 128;
+const size_t nrf_fuel_gauge_state_size = 512;
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(power_subscriber);
 ZBUS_CHAN_ADD_OBS(power_chan, power_subscriber, 0);
