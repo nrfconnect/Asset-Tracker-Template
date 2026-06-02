@@ -11,6 +11,17 @@ The Main module implements a state machine with the following states and transit
 
 ![Main module state diagram](../images/main_module_state_diagram.svg "Main module state diagram")
 
+### Connection lifecycle
+
+The Main module owns the connection lifecycle. On startup it publishes `NETWORK_CONNECT_TN` to start a terrestrial (TN) search. When the cloud connection is lost, it schedules a new TN search using an exponential back-off, starting at 60 seconds and capped by `CONFIG_APP_RECONNECT_BACKOFF_MAX_SECONDS`.
+
+NTN is a fallback bearer only. A fresh cloud connection (DTLS handshake and JWT authentication) is never established over NTN; NTN is used solely to resume an existing cloud session through the DTLS connection ID. The Main module tracks the session lifetime through the `CLOUD_SESSION_ESTABLISHED` and `CLOUD_SESSION_STOPPED` messages and only falls back to NTN on `NETWORK_TN_SEARCH_FAILED` while a session is alive. Without a session, a failed TN search schedules a TN retry instead.
+
+While connected over NTN, the module periodically returns to TN:
+
+- A recovery timer (`CONFIG_APP_TN_RECOVERY_INTERVAL_SECONDS`) disconnects from NTN, which pauses the cloud session, and searches for TN. If the search fails, the session is resumed over NTN again.
+- A sampling cycle started while on NTN triggers the same bounce, because the modem cannot run GNSS or cellular location in NTN system mode. Sensor data is sampled in place, then the bearer is bounced. If TN is found, the location sample is taken there. If not, the NTN reconnect is requested with `.fresh_location` set so the GNSS fix acquired during the attach doubles as the location sample.
+
 ## Messages
 
 The main module does not implement messages available to other modules. Instead, it processes messages from other modules to control the application's behavior.
@@ -55,3 +66,9 @@ The Main module can be configured using the following Kconfig options:
 
 * **CONFIG_APP_WATCHDOG_TIMEOUT_SECONDS:**
   Defines the watchdog timeout for the main module.
+
+* **CONFIG_APP_RECONNECT_BACKOFF_MAX_SECONDS:**
+  Upper bound for the network reconnect back-off. The delay before the next TN search doubles on each consecutive failure until it reaches this value.
+
+* **CONFIG_APP_TN_RECOVERY_INTERVAL_SECONDS:**
+  Interval between attempts to return to TN while connected over NTN.

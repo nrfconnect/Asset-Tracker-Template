@@ -12,6 +12,8 @@ The module performs the following tasks:
 
 nRF Cloud over CoAP utilizes DTLS connection ID, which allows the device to quickly re-establish a secure connection with the cloud after a network disconnection without the need for a full DTLS handshake. The module uses the nRF Cloud CoAP library to handle the CoAP communication and DTLS connection management.
 
+A fresh cloud connection (DTLS handshake and JWT authentication) is only established over a terrestrial network (`NETWORK_CONNECTED_TN`). NTN connectivity is used solely to resume an existing session through the DTLS connection ID. For the same reason, a failed CoAP request while connected pauses the session (`STATE_CONNECTED_PAUSED`) instead of tearing it down, since the failure typically means connectivity was lost before the modem reported it. The session resumes when connectivity is re-established over either bearer.
+
 The following sections cover the module’s main messages, configurations, and state machine. Refer to the source files (`cloud.c`, `cloud.h`, and `Kconfig.cloud`) for implementation details.
 
 ## Architecture
@@ -47,10 +49,16 @@ The cloud module publishes and receives messages over the zbus channel `cloud_ch
 ### Output messages
 
 - **CLOUD_DISCONNECTED:**
-  Indicates that the cloud connection is not established (or has been lost).
+  Indicates that the cloud connection is not established (or has been lost). Also published when the session is paused due to lost network connectivity.
 
 - **CLOUD_CONNECTED:**
   Indicates that the module is connected to nRF Cloud and ready to send data.
+
+- **CLOUD_SESSION_ESTABLISHED:**
+  The cloud session (DTLS connection ID) has been established. Not republished as the link pauses and resumes; it brackets the window in which the session can be resumed over a different bearer without a new handshake. The Main module uses this to decide whether NTN fallback is permitted.
+
+- **CLOUD_SESSION_STOPPED:**
+  The cloud session has been torn down. Reconnecting requires a fresh DTLS handshake, which is only permitted over a terrestrial network.
 
 - **CLOUD_SHADOW_RESPONSE:**
   Returns shadow data or a shadow delta received from nRF Cloud.

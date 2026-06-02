@@ -557,3 +557,70 @@ int wait_for_location_event(enum location_msg_type expected_type, uint32_t timeo
 
 	return elapsed_time;
 }
+
+int wait_for_network_gnss_location(struct network_msg *out, uint32_t timeout_sec)
+{
+	int err;
+	const struct zbus_channel *chan;
+	struct network_msg network_msg;
+	int i;
+
+	/* Allow the test thread to sleep so that the DUT's thread is allowed to run. */
+	k_sleep(K_MSEC(100));
+
+	/* Other network messages (e.g. the echoed request) may precede the location, so
+	 * skip non-matching messages until the NETWORK_GNSS_LOCATION is found.
+	 */
+	for (i = 0; i < 10; i++) {
+		err = zbus_sub_wait_msg(&network_subscriber, &chan, &network_msg,
+					K_SECONDS(timeout_sec));
+		if (err == -ENOMSG) {
+			return -ENOMSG;
+		} else if (err) {
+			LOG_ERR("zbus_sub_wait, error: %d", err);
+			return err;
+		}
+
+		if (chan == &network_chan && network_msg.type == NETWORK_GNSS_LOCATION) {
+			*out = network_msg;
+			return 0;
+		}
+	}
+
+	return -ENOMSG;
+}
+
+int wait_for_network_event(enum network_msg_type expected_type, uint32_t timeout_sec)
+{
+	int err;
+	const struct zbus_channel *chan;
+	struct network_msg network_msg;
+	uint32_t start_time = k_uptime_seconds();
+	uint32_t elapsed_time;
+
+	err = zbus_sub_wait_msg(&network_subscriber, &chan, &network_msg, K_SECONDS(timeout_sec));
+	if (err == -ENOMSG) {
+		return -ENOMSG;
+	} else if (err) {
+		LOG_ERR("zbus_sub_wait, error: %d", err);
+
+		return err;
+	}
+
+	if (chan != &network_chan) {
+		LOG_ERR("Received message from wrong channel, expected %s, got %s",
+			zbus_chan_name(&network_chan), zbus_chan_name(chan));
+		return -EINVAL;
+	}
+
+	if (network_msg.type != expected_type) {
+		LOG_ERR("Received unexpected network event: %d", network_msg.type);
+		return -EINVAL;
+	}
+
+	elapsed_time = k_uptime_seconds() - start_time;
+
+	LOG_DBG("Received expected network event: %d, wait: %d", network_msg.type, elapsed_time);
+
+	return elapsed_time;
+}

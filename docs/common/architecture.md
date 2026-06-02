@@ -46,7 +46,7 @@ Each module follows a similar design:
 Modules in the Asset Tracker Template are designed as loosely coupled units with well-defined message-based interfaces.
 Modules communicate exclusively through their defined zbus interfaces, without reference to other modules' internals. This design ensures that modules are self-contained and can be developed, tested, and maintained independently. Most modules except the Main module can also be reused in other applications.
 
-Modules often handle state transitions based on messages they themselves publish. For example, when the Network module publishes a `NETWORK_CONNECTED` message, it also receives this message in its own state machine, allowing it to transition to the connected state with consistent handling.
+Modules often handle state transitions based on messages they themselves publish. For example, when the Network module publishes `NETWORK_CONNECTED_TN` or `NETWORK_CONNECTED_NTN`, it also receives that message in its own state machine, allowing it to transition to the connected state with consistent handling.
 
 ### Module threads
 
@@ -141,8 +141,8 @@ Each module exposes a set of message types through an enumeration. The message t
 
 The message types can be divided into two categories:
 
-- **Input message types**: Commands or requests sent by other modules to the defining module to trigger actions (for example, `NETWORK_CONNECT` to request the network module to establish a network connection).
-- **Output message types**: Responses or notifications sent by the defining module to other modules to report status, data, or events (for example, `NETWORK_CONNECTED` when a network connection has been established).
+- **Input message types**: Commands or requests sent by other modules to the defining module to trigger actions (for example, `NETWORK_CONNECT_TN` to request a terrestrial network connection).
+- **Output message types**: Responses or notifications sent by the defining module to other modules to report status, data, or events (for example, `NETWORK_CONNECTED_TN` when a terrestrial connection has been established).
 
 Each module's message types are defined in its public header file located at `app/src/modules/<module_name>/<module_name>.h`. For example, the network module's messages are defined in `app/src/modules/network/network.h` in the `enum network_msg_type` enumeration:
 
@@ -151,34 +151,25 @@ enum network_msg_type {
         /* Output message types */
         NETWORK_DISCONNECTED = 0x1,
 
-        /* The device is connected to the network and has an IP address */
-        NETWORK_CONNECTED,
-
-        /* ... */
-
-        /* Response message to a request for the current system mode. The current system mode is
-         * found in the .system_mode field of the message.
-         */
-        NETWORK_SYSTEM_MODE_RESPONSE,
+        NETWORK_CONNECTED_TN,
+        NETWORK_CONNECTED_NTN,
 
         /* ... */
 
         /* Input message types */
 
-        /* Request to connect to the network, which includes searching for a suitable network
-         * and attempting to attach to it if a usable cell is found.
-         */
-        NETWORK_CONNECT,
+        NETWORK_CONNECT_TN,
+        NETWORK_CONNECT_NTN,
 
         /* Request to disconnect from the network */
         NETWORK_DISCONNECT,
 
         /* ... */
 
-        /* Request to retrieve the current system mode. The response is sent as a
-         * NETWORK_SYSTEM_MODE_RESPONSE message.
+        /* Provide a GNSS location fix for NTN search. Latitude, longitude, and altitude
+         * are found in the .location field of the message.
          */
-        NETWORK_SYSTEM_MODE_REQUEST,
+        NETWORK_GNSS_LOCATION,
 };
 ```
 
@@ -189,10 +180,12 @@ The complete message structure for the network module is also defined in `app/sr
 struct network_msg {
         enum network_msg_type type;
         union {
-                /** Contains the currently configured system mode.
-                 *  system_mode is set for NETWORK_SYSTEM_MODE_RESPONSE events
-                 */
-                enum lte_lc_system_mode system_mode;
+                /** GNSS location fix. Valid for NETWORK_GNSS_LOCATION events. */
+                struct {
+                        double lat;
+                        double lon;
+                        float alt;
+                } location;
 
                 /** Contains the current PSM configuration.
                  *  psm_cfg is valid for NETWORK_PSM_PARAMS events.
@@ -201,16 +194,10 @@ struct network_msg {
 
                 /* ... */
         };
-        /** Timestamp when the sample was taken in milliseconds.
-         *  This is either:
-         * - Unix time in milliseconds if the system clock was synchronized at sampling time, or
-         * - Uptime in milliseconds if the system clock was not synchronized at sampling time.
-         */
-        int64_t timestamp;
 };
 ```
 
-In the above example, a module receiving a `NETWORK_SYSTEM_MODE_RESPONSE` message can read the current system mode from the `system_mode` field in the message.
+In the above example, a module receiving a `NETWORK_GNSS_LOCATION` message can read the location fix from the `location` field in the message.
 
 ### Sending messages
 
@@ -312,10 +299,42 @@ This section covers how SMF is used in the modules in the Asset Tracker Template
 
 SMF supports defining a hierarchy of states. For example, the network module's states can be graphically described as follows:
 
-![Network module state diagram](../images/network_module_state_diagram.svg)
+```mermaid
+stateDiagram-v2
+    direction TB
+
+    state Running {
+        [*] --> Disconnected
+        Disconnected --> ConnectedTN: NETWORK_CONNECTED_TN
+        Disconnected --> ConnectedNTN: NETWORK_CONNECTED_NTN
+        ConnectedTN --> Disconnecting: NETWORK_DISCONNECT
+        ConnectedNTN --> Disconnecting: NETWORK_DISCONNECT
+        Disconnecting --> DisconnectedIdle: NETWORK_DISCONNECTED
+    }
+
+    state Disconnected {
+        [*] --> Idle
+        Idle --> TnSearching: NETWORK_CONNECT_TN
+        Idle --> NtnSearching: NETWORK_CONNECT_NTN
+        TnSearching --> Idle: NETWORK_TN_SEARCH_FAILED
+        state NtnSearching {
+            [*] --> CheckLocation
+            CheckLocation --> AwaitingLocation: LOCATION_NEEDED
+            CheckLocation --> CellSearch: LOCATION_VALID
+            AwaitingLocation --> CellSearch: NETWORK_GNSS_LOCATION
+            NtnSearching --> Idle: NETWORK_GNSS_LOCATION_FAILED
+            CellSearch --> Idle: NO_SUITABLE_CELL_NTN
+        }
+    }
+
+    state Connected {
+        ConnectedTN
+        ConnectedNTN
+    }
+```
 
 In the diagram, the black dots with arrows indicate initial transitions.
-In this case, the initial state of the machine is set to the top-level `STATE_RUNNING` state. In the state definitions, initial transitions are configured such that the state machine ends up in `STATE_DISCONNECTED_SEARCHING` when first initialized.
+In this case, the initial state of the machine is set to the top-level `STATE_RUNNING` state. In the state definitions, initial transitions are configured such that the state machine ends up in `STATE_DISCONNECTED_IDLE` when first initialized. The [Main module](../modules/main.md) starts the network search by publishing `NETWORK_CONNECT_TN`.
 
 In SMF, a single state is defined using the `SMF_CREATE_STATE` macro. You can specify the following parameters:
 

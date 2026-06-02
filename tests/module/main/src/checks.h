@@ -74,3 +74,16 @@ void purge_all_events(void);
  * Otherwise, it returns a negative value.
  */
 int wait_for_location_event(enum location_msg_type expected_type, uint32_t timeout_sec);
+
+/* Wait for a network event of the expected type.
+ *
+ * Returns the time in seconds it took to receive the event if it is received within the timeout.
+ * Otherwise, it returns a negative value.
+ */
+int wait_for_network_event(enum network_msg_type expected_type, uint32_t timeout_sec);
+
+/* Wait for a NETWORK_GNSS_LOCATION event and copy its payload into *out.
+ *
+ * Returns 0 if the event is received within the timeout, a negative value otherwise.
+ */
+int wait_for_network_gnss_location(struct network_msg *out, uint32_t timeout_sec);

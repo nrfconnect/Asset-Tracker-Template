@@ -121,6 +121,7 @@ FAKE_VALUE_FUNC(int, location_agnss_data_process, const char *, size_t);
 FAKE_VALUE_FUNC(int, nrf_provisioning_init, nrf_provisioning_event_cb_t);
 FAKE_VALUE_FUNC(int, nrf_provisioning_trigger_manually);
 FAKE_VALUE_FUNC(int, storage_batch_read, struct storage_data_item *, k_timeout_t);
+FAKE_VALUE_FUNC(bool, network_in_ntn_mode);
 
 /* Forward declarations */
 static void dummy_cb(const struct zbus_channel *chan);
@@ -145,6 +146,8 @@ ZBUS_CHAN_ADD_OBS(cloud_chan, cloud_test_sub, 0);
 
 static K_SEM_DEFINE(cloud_disconnected, 0, 1);
 static K_SEM_DEFINE(cloud_connected, 0, 1);
+static K_SEM_DEFINE(cloud_session_established, 0, 1);
+static K_SEM_DEFINE(cloud_session_stopped, 0, 1);
 static K_SEM_DEFINE(data_sent, 0, 1);
 static K_SEM_DEFINE(cloud_module_response_recv_sem, 0, 1);
 static K_SEM_DEFINE(storage_batch_closed, 0, 1);
@@ -227,7 +230,7 @@ static int nrf_provisioning_init_custom_fake(nrf_provisioning_event_cb_t cb)
 static void connect_cloud(void)
 {
 	int err;
-	struct network_msg nw = { .type = NETWORK_CONNECTED };
+	struct network_msg nw = { .type = NETWORK_CONNECTED_TN };
 
 	err = zbus_chan_pub(&network_chan, &nw, K_NO_WAIT);
 	TEST_ASSERT_EQUAL(0, err);
@@ -239,7 +242,7 @@ static void setup_cloud(void)
 {
 	int err;
 	struct network_msg network_msg = {
-		.type = NETWORK_CONNECTED
+		.type = NETWORK_CONNECTED_TN
 	};
 
 	/* Connect to cloud */
@@ -264,6 +267,10 @@ static void cloud_chan_cb(const struct zbus_channel *chan)
 			k_sem_give(&cloud_disconnected);
 		} else if (status == CLOUD_CONNECTED) {
 			k_sem_give(&cloud_connected);
+		} else if (status == CLOUD_SESSION_ESTABLISHED) {
+			k_sem_give(&cloud_session_established);
+		} else if (status == CLOUD_SESSION_STOPPED) {
+			k_sem_give(&cloud_session_stopped);
 		} else if (status == CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED ||
 			   status == CLOUD_SHADOW_RESPONSE_EMPTY_DELTA ||
 			   status == CLOUD_SHADOW_RESPONSE_DESIRED ||
@@ -381,6 +388,43 @@ static void wait_for_cloud_disconnected(k_timeout_t timeout)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
+/* Drive the cloud module all the way back to STATE_DISCONNECTED. A plain NETWORK_DISCONNECTED
+ * only pauses the (preserved) session, so the only path back to a fully disconnected state is via
+ * a provisioning failure while the network is down. Used by tests that need a fresh connect.
+ */
+static void force_cloud_disconnected(void)
+{
+	struct network_msg net = { .type = NETWORK_CONNECTED_TN };
+	struct cloud_msg prov = { .type = CLOUD_PROVISIONING_REQUEST };
+	struct nrf_provisioning_callback_data event = {
+		.type = NRF_PROVISIONING_EVENT_FAILED
+	};
+
+	publish_and_assert(&network_chan, &net);
+	wait_for_processing();
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
+
+	publish_and_assert(&cloud_chan, &prov);
+	wait_for_processing();
+
+	net.type = NETWORK_DISCONNECTED;
+	publish_and_assert(&network_chan, &net);
+	wait_for_processing();
+
+	handler(&event);
+	wait_for_processing();
+
+	/* Clear the connect/disconnect bookkeeping used to reach this state so callers start
+	 * from a clean slate.
+	 */
+	RESET_FAKE(nrf_cloud_coap_connect);
+	RESET_FAKE(nrf_cloud_coap_disconnect);
+	k_sem_reset(&cloud_connected);
+	k_sem_reset(&cloud_disconnected);
+	k_sem_reset(&cloud_session_established);
+	k_sem_reset(&cloud_session_stopped);
+}
+
 void setUp(void)
 {
 	const struct zbus_channel *chan;
@@ -404,6 +448,7 @@ void setUp(void)
 	RESET_FAKE(nrf_provisioning_init);
 	RESET_FAKE(nrf_provisioning_trigger_manually);
 	RESET_FAKE(storage_batch_read);
+	RESET_FAKE(network_in_ntn_mode);
 	RESET_FAKE(nrf_cloud_coap_sensor_send);
 	RESET_FAKE(nrf_cloud_coap_location_get);
 	RESET_FAKE(nrf_cloud_coap_agnss_data_get);
@@ -417,6 +462,8 @@ void setUp(void)
 
 	k_sem_reset(&cloud_disconnected);
 	k_sem_reset(&cloud_connected);
+	k_sem_reset(&cloud_session_established);
+	k_sem_reset(&cloud_session_stopped);
 	k_sem_reset(&data_sent);
 	k_sem_reset(&cloud_module_response_recv_sem);
 	k_sem_reset(&storage_batch_closed);
@@ -464,7 +511,7 @@ void test_should_initially_transition_to_disconnected(void)
 void test_should_handle_provisioning_when_device_not_claimed(void)
 {
 	struct network_msg network_msg = {
-		.type = NETWORK_CONNECTED
+		.type = NETWORK_CONNECTED_TN
 	};
 	struct nrf_provisioning_callback_data event = {
 		.type = NRF_PROVISIONING_EVENT_FAILED
@@ -513,7 +560,7 @@ void test_should_handle_provisioning_when_device_not_claimed(void)
 void test_should_handle_provisioning_when_no_commands_received(void)
 {
 	struct network_msg network_msg = {
-		.type = NETWORK_CONNECTED
+		.type = NETWORK_CONNECTED_TN
 	};
 	struct cloud_msg cloud_msg = {
 		.type = CLOUD_PROVISIONING_REQUEST
@@ -546,12 +593,64 @@ void test_should_handle_provisioning_when_no_commands_received(void)
 void test_should_transition_from_disconnected_to_connected_ready(void)
 {
 	struct network_msg msg = {
-		.type = NETWORK_CONNECTED
+		.type = NETWORK_CONNECTED_TN
 	};
 
 	publish_and_assert(&network_chan, &msg);
 	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
 	wait_for_processing();
+}
+
+void test_ntn_connectivity_does_not_establish_connection(void)
+{
+	struct network_msg ntn = { .type = NETWORK_CONNECTED_NTN };
+	struct network_msg tn = { .type = NETWORK_CONNECTED_TN };
+
+	/* This test requires a fresh, fully disconnected starting point. */
+	force_cloud_disconnected();
+
+	/* A fresh cloud connection (DTLS handshake + JWT authentication) must only be established
+	 * over a terrestrial network. NTN connectivity while disconnected must not trigger a
+	 * connect attempt, since NTN is reserved for resuming an existing session via the DTLS
+	 * connection ID.
+	 */
+	publish_and_assert(&network_chan, &ntn);
+	wait_for_processing();
+	TEST_ASSERT_EQUAL(0, nrf_cloud_coap_connect_fake.call_count);
+
+	/* TN connectivity must trigger the connect. */
+	publish_and_assert(&network_chan, &tn);
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_connect_fake.call_count);
+}
+
+void test_session_events_bracket_connection(void)
+{
+	struct network_msg tn = { .type = NETWORK_CONNECTED_TN };
+	struct network_msg disc = { .type = NETWORK_DISCONNECTED };
+	int err;
+
+	/* This test requires a fresh, fully disconnected starting point so the connect produces a
+	 * CLOUD_SESSION_ESTABLISHED (entering the connected super-state), not just a resume.
+	 */
+	force_cloud_disconnected();
+
+	/* Establishing a connection over TN must publish CLOUD_SESSION_ESTABLISHED. */
+	publish_and_assert(&network_chan, &tn);
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
+
+	err = k_sem_take(&cloud_session_established, K_SECONDS(WAIT_TIMEOUT));
+	TEST_ASSERT_EQUAL(0, err);
+
+	/* Losing the network only pauses the session; it must NOT publish CLOUD_SESSION_STOPPED. */
+	publish_and_assert(&network_chan, &disc);
+	wait_for_processing();
+	TEST_ASSERT_EQUAL(-EBUSY, k_sem_take(&cloud_session_stopped, K_NO_WAIT));
+
+	/* Resuming over NTN reuses the session (no new connect) and keeps it alive. */
+	publish_and_assert(&network_chan, &(struct network_msg){ .type = NETWORK_CONNECTED_NTN });
+	wait_for_processing();
+	TEST_ASSERT_EQUAL(-EBUSY, k_sem_take(&cloud_session_stopped, K_NO_WAIT));
 }
 
 void test_should_handle_provisioning_request_from_connected_state(void)
@@ -619,10 +718,54 @@ void test_should_send_json_payload_to_cloud(void)
 	TEST_ASSERT_EQUAL(false, nrf_cloud_coap_json_message_send_fake.arg2_val);
 }
 
+void test_send_failure_pauses_session_not_stopped(void)
+{
+	struct cloud_msg msg = {
+		.type = CLOUD_PAYLOAD_JSON,
+		.payload.buffer = "{\"test\": 1}",
+		.payload.buffer_data_len = strnlen(msg.payload.buffer, sizeof(msg.payload.buffer)),
+	};
+	struct network_msg tn = { .type = NETWORK_CONNECTED_TN };
+	struct network_msg ntn = { .type = NETWORK_CONNECTED_NTN };
+	int disconnect_count_before;
+
+	/* Ensure a live, ready cloud session. Works whether the module starts disconnected
+	 * (connects) or paused from a previous test (resumes).
+	 */
+	publish_and_assert(&network_chan, &tn);
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
+	wait_for_processing();
+	k_sem_reset(&cloud_disconnected);
+	k_sem_reset(&cloud_session_stopped);
+	disconnect_count_before = nrf_cloud_coap_disconnect_fake.call_count;
+
+	/* A send fails, as happens when the radio link dies before the modem reports it. The DTLS
+	 * session must be preserved (paused) so it can resume over another bearer, not torn down.
+	 */
+	nrf_cloud_coap_json_message_send_fake.return_val = -ENETDOWN;
+
+	publish_and_assert(&cloud_chan, &msg);
+	wait_for_processing();
+
+	/* Pausing publishes CLOUD_DISCONNECTED... */
+	TEST_ASSERT_EQUAL(0, k_sem_take(&cloud_disconnected, K_SECONDS(WAIT_TIMEOUT)));
+	/* ...but the session is NOT stopped and the DTLS context is NOT disconnected. */
+	TEST_ASSERT_EQUAL(-EBUSY, k_sem_take(&cloud_session_stopped, K_NO_WAIT));
+	TEST_ASSERT_EQUAL(disconnect_count_before, nrf_cloud_coap_disconnect_fake.call_count);
+
+	/* Resuming over NTN brings the session back without tearing it down. */
+	nrf_cloud_coap_json_message_send_fake.return_val = 0;
+	publish_and_assert(&network_chan, &ntn);
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
+
+	TEST_ASSERT_EQUAL(-EBUSY, k_sem_take(&cloud_session_stopped, K_NO_WAIT));
+	TEST_ASSERT_EQUAL(disconnect_count_before, nrf_cloud_coap_disconnect_fake.call_count);
+}
+
 void test_connected_to_disconnected(void)
 {
 	struct network_msg msg = {
-		.type = NETWORK_CONNECTED
+		.type = NETWORK_CONNECTED_TN
 	};
 
 	publish_and_assert(&network_chan, &msg);
@@ -637,7 +780,7 @@ void test_connected_to_disconnected(void)
 void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 {
 	struct network_msg network_msg = {
-		.type = NETWORK_CONNECTED
+		.type = NETWORK_CONNECTED_TN
 	};
 	struct cloud_msg msg = {
 		.type = CLOUD_PAYLOAD_JSON,
@@ -672,7 +815,7 @@ void test_connected_disconnected_to_connected_send_payload_disconnect(void)
 void test_gnss_location_data_handling(void)
 {
 	struct network_msg network_msg = {
-		.type = NETWORK_CONNECTED
+		.type = NETWORK_CONNECTED_TN
 	};
 	struct location_data mock_location = {
 		.latitude = 63.421,
@@ -851,7 +994,7 @@ void test_storage_batch_shadow_network_info_update_error_should_still_close_sess
 void test_provisioning_failed_with_network_connected_should_go_to_backoff(void)
 {
 	struct network_msg network_msg = {
-		.type = NETWORK_CONNECTED
+		.type = NETWORK_CONNECTED_TN
 	};
 	struct cloud_msg cloud_msg = {
 		.type = CLOUD_PROVISIONING_REQUEST
@@ -890,7 +1033,7 @@ void test_provisioning_failed_with_network_connected_should_go_to_backoff(void)
 void test_provisioning_failed_with_network_disconnected_should_go_to_disconnected(void)
 {
 	struct network_msg network_msg = {
-		.type = NETWORK_CONNECTED
+		.type = NETWORK_CONNECTED_TN
 	};
 	struct cloud_msg cloud_msg = {
 		.type = CLOUD_PROVISIONING_REQUEST
@@ -1594,7 +1737,7 @@ void test_location_cloud_request_neighbor_and_gci_cells(void)
 static void setup_cloud_paused(void)
 {
 	struct network_msg network_msg = {
-		.type = NETWORK_CONNECTED
+		.type = NETWORK_CONNECTED_TN
 	};
 
 	/* Connect to cloud */

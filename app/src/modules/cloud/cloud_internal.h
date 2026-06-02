@@ -7,11 +7,27 @@
 #ifndef _CLOUD_INTERNAL_H_
 #define _CLOUD_INTERNAL_H_
 
+#include <stdint.h>
 #include <zephyr/zbus/zbus.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * @brief Normalize a data sample timestamp to Unix time in milliseconds.
+ *
+ * Converts a timestamp expressed as uptime (in milliseconds) to Unix time when needed. A value
+ * that is already Unix time is left untouched. When conversion is not possible the configured
+ * CONFIG_APP_CLOUD_HANDLE_WRONG_SAMPLE_TIMESTAMPS_* policy is applied.
+ *
+ * This is shared by all data paths (battery, environmental, GNSS location) so they handle
+ * timestamps identically and a timestamp that is already in Unix time is never double-converted.
+ *
+ * @param timestamp_ms In/out timestamp in milliseconds.
+ * @return 0 on success or when the configured policy handled the value, negative errno otherwise.
+ */
+int cloud_timestamp_normalize(int64_t *timestamp_ms);
 
 /**
  * @brief Private cloud channel message types.

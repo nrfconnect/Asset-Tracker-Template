@@ -125,10 +125,76 @@ static void send_cloud_disconnected(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
+static void send_cloud_session_established(void)
+{
+	struct cloud_msg cloud_msg = {
+		.type = CLOUD_SESSION_ESTABLISHED,
+	};
+
+	int err = zbus_chan_pub(&cloud_chan, &cloud_msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+static void send_cloud_session_stopped(void)
+{
+	struct cloud_msg cloud_msg = {
+		.type = CLOUD_SESSION_STOPPED,
+	};
+
+	int err = zbus_chan_pub(&cloud_chan, &cloud_msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
 static void send_network_disconnected(void)
 {
 	struct network_msg network_msg = {
 		.type = NETWORK_DISCONNECTED,
+	};
+
+	int err = zbus_chan_pub(&network_chan, &network_msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+static void send_network_tn_search_failed(void)
+{
+	struct network_msg network_msg = {
+		.type = NETWORK_TN_SEARCH_FAILED,
+	};
+
+	int err = zbus_chan_pub(&network_chan, &network_msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+static void send_network_ntn_search_failed(void)
+{
+	struct network_msg network_msg = {
+		.type = NETWORK_NTN_SEARCH_FAILED,
+	};
+
+	int err = zbus_chan_pub(&network_chan, &network_msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+static void send_network_connected_tn(void)
+{
+	struct network_msg network_msg = {
+		.type = NETWORK_CONNECTED_TN,
+	};
+
+	int err = zbus_chan_pub(&network_chan, &network_msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+static void send_network_connected_ntn(void)
+{
+	struct network_msg network_msg = {
+		.type = NETWORK_CONNECTED_NTN,
 	};
 
 	int err = zbus_chan_pub(&network_chan, &network_msg, K_SECONDS(1));
@@ -143,6 +209,33 @@ static void send_location_search_done(void)
 	};
 
 	int err = zbus_chan_pub(&location_chan, &msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+static void send_network_gnss_location_req(void)
+{
+	struct network_msg network_msg = {
+		.type = NETWORK_GNSS_LOCATION_REQ,
+	};
+
+	int err = zbus_chan_pub(&network_chan, &network_msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+static void send_location_gnss_data(double lat, double lon, float alt)
+{
+	struct location_msg msg = {
+		.type = LOCATION_GNSS_DATA,
+	};
+	int err;
+
+	msg.gnss_data.latitude = lat;
+	msg.gnss_data.longitude = lon;
+	msg.gnss_data.details.gnss.pvt_data.altitude = alt;
+
+	err = zbus_chan_pub(&location_chan, &msg, K_SECONDS(1));
 
 	TEST_ASSERT_EQUAL(0, err);
 }
@@ -307,8 +400,18 @@ void setUp(void)
 	send_power_ready();
 	send_fota_msg(FOTA_MODULE_READY);
 
-	/* Ensure clean disconnected state */
+	/* Ensure clean disconnected state. Also clear any cloud session left active by a previous
+	 * test, since the gate controlling NTN fallback (cloud_session_active in main) persists
+	 * across tests with the singleton state machine and is only cleared by CLOUD_SESSION_STOPPED.
+	 */
 	send_cloud_disconnected();
+	send_cloud_session_stopped();
+
+	/* Losing the cloud connection now schedules a TN reconnect back-off. Cancel any such
+	 * pending reconnect left by a previous test (or by the disconnect just above) so it does
+	 * not fire mid-test; a NETWORK_CONNECTED_TN resets the back-off without changing state.
+	 */
+	send_network_connected_tn();
 	k_sleep(K_MSEC(500));
 
 	/* Trigger a button press to "burn" the current sampling cycle and reset state.
@@ -387,6 +490,320 @@ void test_short_button_press_disconnected(void)
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+}
+
+void test_ntn_fallback_pending(void)
+{
+	/* NTN fallback is only permitted to resume an existing cloud session, so establish one.
+	 * Consume the echoed event so the later expect_no_events() does not flag it.
+	 */
+	send_cloud_session_established();
+	expect_cloud_event(CLOUD_SESSION_ESTABLISHED);
+
+	/* Trigger sampling to enter STATE_DISCONNECTED_SAMPLING with a location search in progress */
+	send_button_press_short();
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+	/* TN search fails while the location search is still ongoing. The NTN fallback must be
+	 * deferred until the search completes, so no NETWORK_CONNECT_NTN should be sent yet.
+	 */
+	send_network_tn_search_failed();
+	expect_network_event(NETWORK_TN_SEARCH_FAILED);
+	expect_no_events(2);
+
+	/* Completing the location search should trigger the deferred NTN fallback */
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_network_event(NETWORK_CONNECT_NTN);
+}
+
+void test_gnss_location_forwarded_intact(void)
+{
+	struct network_msg msg;
+	int err;
+
+	/* The network module requests a GNSS fix; main triggers a GNSS-only search. */
+	send_network_gnss_location_req();
+	expect_network_event(NETWORK_GNSS_LOCATION_REQ);
+	expect_location_event(LOCATION_GNSS_SEARCH_TRIGGER);
+
+	send_location_gnss_data(63.421000, 10.437000, 123.5f);
+
+	err = wait_for_network_gnss_location(&msg, 5);
+	TEST_ASSERT_EQUAL(0, err);
+
+	TEST_ASSERT_FLOAT_WITHIN(0.0001f, 63.421000f, (float)msg.location.lat);
+	TEST_ASSERT_FLOAT_WITHIN(0.0001f, 10.437000f, (float)msg.location.lon);
+	TEST_ASSERT_FLOAT_WITHIN(0.0001f, 123.5f, msg.location.alt);
+}
+
+void test_ntn_fallback_immediate(void)
+{
+	/* NTN fallback is only permitted to resume an existing cloud session, so establish one. */
+	send_cloud_session_established();
+
+	/* When no location search is in progress (STATE_DISCONNECTED_WAITING), a TN search
+	 * failure should trigger the NTN fallback immediately via the top-level handler.
+	 */
+	send_network_tn_search_failed();
+	expect_network_event(NETWORK_TN_SEARCH_FAILED);
+	expect_network_event(NETWORK_CONNECT_NTN);
+}
+
+void test_no_ntn_fallback_without_session(void)
+{
+	/* Without an established cloud session, a TN search failure must NOT fall back to NTN
+	 * (a fresh connection over NTN is not permitted). The top-level handler instead schedules
+	 * a TN retry via the reconnect back-off, so no immediate NETWORK_CONNECT_NTN is emitted.
+	 */
+	send_network_tn_search_failed();
+	expect_network_event(NETWORK_TN_SEARCH_FAILED);
+	expect_no_events(2);
+}
+
+void test_no_ntn_fallback_after_session_stopped(void)
+{
+	/* A session that has been torn down must clear the gate, so a later TN search failure
+	 * does not fall back to NTN.
+	 */
+	send_cloud_session_established();
+	send_cloud_session_stopped();
+	k_sleep(K_MSEC(100));
+	purge_all_events();
+
+	send_network_tn_search_failed();
+	expect_network_event(NETWORK_TN_SEARCH_FAILED);
+	expect_no_events(2);
+}
+
+void test_no_ntn_fallback_without_tn_failure(void)
+{
+	/* A location search that completes without a preceding TN search failure must not
+	 * trigger an NTN fallback.
+	 */
+	send_button_press_short();
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_no_events(2);
+}
+
+void test_ntn_fallback_pending_cleared_on_new_cycle(void)
+{
+	/* NTN fallback is only permitted to resume an existing cloud session, so establish one. */
+	send_cloud_session_established();
+
+	/* Begin a sampling cycle and let a TN search failure mark the NTN fallback as pending */
+	send_button_press_short();
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+	send_network_tn_search_failed();
+	expect_network_event(NETWORK_TN_SEARCH_FAILED);
+
+	/* Abort the cycle before the location search completes by connecting to cloud, then
+	 * disconnect again. The pending fallback must not survive into the next cycle.
+	 */
+	send_cloud_connected();
+	k_sleep(K_MSEC(500));
+	purge_all_events();
+
+	send_cloud_disconnected();
+	expect_cloud_event(CLOUD_DISCONNECTED);
+
+	/* Start a fresh sampling cycle. Completing the search must not trigger a stale NTN
+	 * fallback left over from the aborted cycle.
+	 */
+	send_button_press_short();
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_no_events(2);
+}
+
+/* The reconnect back-off starts at APP_RECONNECT_BACKOFF_INITIAL_SECONDS (60 s) in main.c. */
+#define RECONNECT_BACKOFF_INITIAL_SECONDS 60
+
+void test_ntn_reconnect_backoff_schedules_tn(void)
+{
+	int delay;
+
+	/* An exhausted NTN attempt must schedule a retry that restarts from TN after the
+	 * back-off elapses.
+	 */
+	send_network_ntn_search_failed();
+	expect_network_event(NETWORK_NTN_SEARCH_FAILED);
+
+	delay = wait_for_network_event(NETWORK_CONNECT_TN,
+				       RECONNECT_BACKOFF_INITIAL_SECONDS * 2);
+	TEST_ASSERT_GREATER_OR_EQUAL(0, delay);
+}
+
+/* Matches CONFIG_APP_TN_RECOVERY_INTERVAL_SECONDS set in CMakeLists.txt. */
+#define TN_RECOVERY_INTERVAL_SECONDS 600
+
+void test_tn_recovery_returns_to_tn(void)
+{
+	int delay;
+
+	/* NTN is a fallback bearer only. While connected over NTN, the recovery timer must
+	 * periodically request a disconnect so a TN search can be attempted.
+	 */
+	connect_to_cloud();
+
+	send_network_connected_ntn();
+	expect_network_event(NETWORK_CONNECTED_NTN);
+	purge_all_events();
+
+	delay = wait_for_network_event(NETWORK_DISCONNECT, TN_RECOVERY_INTERVAL_SECONDS * 2);
+	TEST_ASSERT_GREATER_OR_EQUAL(0, delay);
+
+	/* Once the network reports the disconnect, the TN search must start immediately,
+	 * not after the reconnect back-off.
+	 */
+	send_network_disconnected();
+	expect_network_event(NETWORK_DISCONNECTED);
+	expect_network_event(NETWORK_CONNECT_TN);
+}
+
+void test_sampling_on_ntn_bounces_to_tn(void)
+{
+	/* GNSS cannot run while the modem is in NTN system mode, so a sampling cycle started
+	 * while connected over NTN must bounce the bearer instead of triggering a location
+	 * search that would fail.
+	 */
+	connect_to_cloud();
+	send_network_connected_ntn();
+	expect_network_event(NETWORK_CONNECTED_NTN);
+	purge_all_events();
+
+	send_button_press_short();
+
+	/* Non-location sources are sampled in place; the bearer is bounced for the rest. */
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	expect_network_event(NETWORK_DISCONNECT);
+
+	/* Once the network reports the disconnect, the TN search starts immediately. */
+	send_network_disconnected();
+	expect_network_event(NETWORK_DISCONNECTED);
+	expect_network_event(NETWORK_CONNECT_TN);
+
+	/* TN is back: the deferred location sample is taken in place. */
+	send_network_connected_tn();
+	expect_network_event(NETWORK_CONNECTED_TN);
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+}
+
+void test_sampling_on_ntn_falls_back_to_ntn_when_tn_unavailable(void)
+{
+	/* Same bounce, but TN is still gone: with a live cloud session the device must fall
+	 * back to NTN (where the attach acquires a fresh GNSS fix as the location sample).
+	 */
+	send_cloud_session_established();
+	expect_cloud_event(CLOUD_SESSION_ESTABLISHED);
+
+	connect_to_cloud();
+	send_network_connected_ntn();
+	expect_network_event(NETWORK_CONNECTED_NTN);
+	purge_all_events();
+
+	send_button_press_short();
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	expect_network_event(NETWORK_DISCONNECT);
+
+	/* The cloud module pauses the session when the network drops. Mimic it so the state
+	 * machine leaves the connected state (where search-failed events are ignored) before
+	 * the TN search result arrives, as happens on hardware.
+	 */
+	send_cloud_disconnected();
+	expect_cloud_event(CLOUD_DISCONNECTED);
+
+	send_network_disconnected();
+	expect_network_event(NETWORK_DISCONNECTED);
+	expect_network_event(NETWORK_CONNECT_TN);
+
+	send_network_tn_search_failed();
+	expect_network_event(NETWORK_TN_SEARCH_FAILED);
+	expect_network_event(NETWORK_CONNECT_NTN);
+}
+
+void test_tn_recovery_cancelled_on_tn_connect(void)
+{
+	/* Returning to TN must cancel the pending recovery, so no disconnect is requested
+	 * after the recovery interval elapses.
+	 */
+	connect_to_cloud();
+
+	send_network_connected_ntn();
+	expect_network_event(NETWORK_CONNECTED_NTN);
+
+	send_network_connected_tn();
+	expect_network_event(NETWORK_CONNECTED_TN);
+	purge_all_events();
+
+	TEST_ASSERT_EQUAL(-ENOMSG, wait_for_network_event(NETWORK_DISCONNECT,
+							  TN_RECOVERY_INTERVAL_SECONDS + 100));
+}
+
+void test_cloud_loss_schedules_tn_reconnect(void)
+{
+	int delay;
+
+	/* Losing the cloud connection while connected must drive the connection lifecycle back up:
+	 * schedule a TN search after the back-off so the (possibly paused) session can be resumed,
+	 * falling back to NTN only if the TN search then fails.
+	 */
+	connect_to_cloud();
+	purge_all_events();
+
+	send_cloud_disconnected();
+	expect_cloud_event(CLOUD_DISCONNECTED);
+
+	delay = wait_for_network_event(NETWORK_CONNECT_TN,
+				       RECONNECT_BACKOFF_INITIAL_SECONDS * 2);
+	TEST_ASSERT_GREATER_OR_EQUAL(0, delay);
+}
+
+void test_ntn_reconnect_backoff_reset_on_connect(void)
+{
+	/* A pending reconnect must be cancelled when a connection is established, so that no
+	 * NETWORK_CONNECT_TN is emitted after the back-off would otherwise have elapsed.
+	 */
+	send_network_ntn_search_failed();
+	expect_network_event(NETWORK_NTN_SEARCH_FAILED);
+
+	send_network_connected_tn();
+	expect_network_event(NETWORK_CONNECTED_TN);
+
+	/* Wait past the initial back-off; the cancelled retry must not fire. */
+	expect_no_events(RECONNECT_BACKOFF_INITIAL_SECONDS + 5);
+}
+
+void test_ntn_reconnect_backoff_doubles(void)
+{
+	int first_delay;
+	int second_delay;
+
+	/* First failure retries after the initial back-off. */
+	send_network_ntn_search_failed();
+	expect_network_event(NETWORK_NTN_SEARCH_FAILED);
+	first_delay = wait_for_network_event(NETWORK_CONNECT_TN,
+					     RECONNECT_BACKOFF_INITIAL_SECONDS * 3);
+	TEST_ASSERT_GREATER_OR_EQUAL(0, first_delay);
+
+	/* Second consecutive failure must back off longer (exponential growth). */
+	send_network_ntn_search_failed();
+	expect_network_event(NETWORK_NTN_SEARCH_FAILED);
+	second_delay = wait_for_network_event(NETWORK_CONNECT_TN,
+					      RECONNECT_BACKOFF_INITIAL_SECONDS * 5);
+	TEST_ASSERT_GREATER_OR_EQUAL(0, second_delay);
+
+	TEST_ASSERT_GREATER_THAN(first_delay, second_delay);
 }
 
 void test_long_button_press_disconnected(void)

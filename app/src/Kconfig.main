@@ -32,6 +32,37 @@ config APP_MSG_PROCESSING_TIMEOUT_SECONDS
 	  Maximum time allowed for processing a single message in the module's state machine.
 	  The value must be smaller than CONFIG_APP_WATCHDOG_TIMEOUT_SECONDS.
 
+config APP_RECONNECT_BACKOFF_MAX_SECONDS
+	int "Maximum network reconnect back-off"
+	default 3600
+	help
+	  Upper bound in seconds for the network reconnect back-off. After a failed connection
+	  attempt the application restarts the terrestrial (TN) search, and on each consecutive
+	  failure the delay before the next attempt doubles until it reaches this value. The
+	  back-off is reset on a successful connection.
+
+config APP_TN_RECOVERY_INTERVAL_SECONDS
+	int "TN recovery interval while on NTN"
+	default 600
+	help
+	  Interval in seconds between attempts to return to a terrestrial network (TN) while
+	  connected over NTN. NTN is a fallback bearer only: it is slow, expensive, and blocks
+	  GNSS and cellular location while active. When the interval expires the application
+	  disconnects (pausing the cloud session) and searches for TN; if the search fails the
+	  existing NTN fallback resumes the session over NTN again.
+
+config APP_NTN_FALLBACK_ON_LIGHT_SEARCH_DONE
+	bool "Fall back to NTN after light TN search"
+	help
+	  Fall back to NTN when a light search is completed on TN without finding a suitable cell.
+	  If disabled, a full search will be done.
+
+config APP_NTN_CLOUD_ALLOW_CONNECTION_ESTABLISHMENT
+	bool "Allow cloud connect on NTN"
+	help
+	  Allow to establish cloud connection on NTN. Depending on the cloud in question,
+	  it might be hard and/or expensive to establish cloud connection over NTN.
+
 module = APP
 module-str = APP
 source "subsys/logging/Kconfig.template.log_config"

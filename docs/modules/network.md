@@ -1,74 +1,101 @@
 # Network module
 
-The Network module manages the cellular connectivity for applications running on nRF91 Series devices. It handles network connection states, system mode configuration, and network power saving features such as eDRX (Extended Discontinuous Reception) and PSM (Power Saving Mode). It utilizes the [LTE Link Control](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/modem/lte_lc.html) library from the nRF Connect SDK to control the modem and monitor network events. Internally, the module implements a state machine that uses Zephyr's [State Machine Framework](https://docs.zephyrproject.org/latest/services/smf/index.html).
+The Network module manages cellular connectivity for nRF91 Series devices with terrestrial (TN) and NTN GEO fallback. It handles connection states, dual cellular profiles (terrestrial on profile 0, NTN on profile 1), GNSS location preconditioning for NTN search, and power saving (eDRX, PSM). It uses [LTE Link Control](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/modem/lte_lc.html) and the NTN library. The module implements a state machine with Zephyr's [State Machine Framework](https://docs.zephyrproject.org/latest/services/smf/index.html).
 
-By default, the module automatically searches for a suitable network on startup and maintains the connection for the lifetime of the application.
-The library can also be configured to be fully controlled by the application instead, giving closer control over the LTE link and current consumption.
-See the [Configurations](#configurations) section for more information.
+The module starts idle and stays idle until the [Main module](main.md) publishes `NETWORK_CONNECT_TN`. Main owns the connection lifecycle and handles TN → NTN fallback on `NETWORK_TN_SEARCH_FAILED`.
+
+The module tracks both the PDN context and the network registration status. Losing registration (for example `+CEREG: 4` when moving out of coverage) is reported as `NETWORK_DISCONNECTED` even while the PDN context is still active, so the cloud session can be paused before data transactions start failing. If registration is regained while the PDN survived, the module re-asserts the current connectivity (`NETWORK_CONNECTED_TN` or `NETWORK_CONNECTED_NTN`) so a paused cloud session can resume.
 
 ## Architecture
 
 ### State diagram
 
-The Network module implements a state machine with the following states and transitions:
+```mermaid
+stateDiagram-v2
+    direction TB
 
-![Network module state diagram](../images/network_module_state_diagram.svg "Network module state diagram")
+    state Running {
+        [*] --> Disconnected
+        Disconnected --> ConnectedTN: NETWORK_CONNECTED_TN
+        Disconnected --> ConnectedNTN: NETWORK_CONNECTED_NTN
+        ConnectedTN --> Disconnecting: NETWORK_DISCONNECT
+        ConnectedNTN --> Disconnecting: NETWORK_DISCONNECT
+        Disconnecting --> DisconnectedIdle: NETWORK_DISCONNECTED
+    }
+
+    state Disconnected {
+        [*] --> Idle
+        Idle --> TnSearching: NETWORK_CONNECT_TN
+        Idle --> NtnSearching: NETWORK_CONNECT_NTN
+        TnSearching --> Idle: NETWORK_TN_SEARCH_FAILED
+        state NtnSearching {
+            [*] --> CheckLocation
+            CheckLocation --> AwaitingLocation: LOCATION_NEEDED
+            CheckLocation --> CellSearch: LOCATION_VALID
+            AwaitingLocation --> CellSearch: NETWORK_GNSS_LOCATION
+            NtnSearching --> Idle: NETWORK_GNSS_LOCATION_FAILED
+            CellSearch --> Idle: NO_SUITABLE_CELL_NTN
+        }
+    }
+
+    state Connected {
+        ConnectedTN
+        ConnectedNTN
+    }
+```
+
+The Main module orchestrates fallback: on `NETWORK_TN_SEARCH_FAILED` it publishes `NETWORK_CONNECT_NTN`. On `NETWORK_GNSS_LOCATION_REQ` it triggers a GNSS-only location search and returns the fix via `NETWORK_GNSS_LOCATION`.
+
+### SMF state names
+
+| Diagram state | SMF symbol |
+|---------------|------------|
+| `STATE_DISCONNECTED_IDLE` | `STATE_DISCONNECTED_IDLE` |
+| `STATE_DISCONNECTED_TN_SEARCHING` | `STATE_DISCONNECTED_TN_SEARCHING` |
+| `STATE_DISCONNECTED_NTN_SEARCHING` | `STATE_DISCONNECTED_NTN_SEARCHING` |
+| `STATE_DISCONNECTED_NTN_CHECK_LOCATION` | `STATE_DISCONNECTED_NTN_CHECK_LOCATION` |
+| `STATE_DISCONNECTED_NTN_AWAITING_LOCATION` | `STATE_DISCONNECTED_NTN_AWAITING_LOCATION` |
+| `STATE_DISCONNECTED_NTN_CELL_SEARCH` | `STATE_DISCONNECTED_NTN_CELL_SEARCH` |
+| `STATE_CONNECTED_TN` / `STATE_CONNECTED_NTN` | `STATE_CONNECTED_TN` / `STATE_CONNECTED_NTN` |
+| `STATE_DISCONNECTING` | `STATE_DISCONNECTING` |
+
+Internal events `LOCATION_VALID` and `LOCATION_NEEDED` are raised on `priv_network_chan` from `STATE_DISCONNECTED_NTN_CHECK_LOCATION` entry; transitions run in that state's **run** handler. `NETWORK_GNSS_LOCATION_FAILED` is handled on the `STATE_DISCONNECTED_NTN_SEARCHING` parent; `NO_SUITABLE_CELL_NTN` (`NETWORK_NTN_SEARCH_FAILED`) is handled in `STATE_DISCONNECTED_NTN_CELL_SEARCH` only.
 
 ## Messages
 
-The network module communicates through the zbus channel ``network_chan``.
-The messages are defined in `network.h`. A message consists of a type and optional data. Each message is either an input message or an output message.
-All input messages are requests from the application to the network module. The output messages may be responses to input messages or notifications from the network module to the application.
-
-The following messages are supported:
+The network module communicates through the zbus channel `network_chan`. Messages are defined in `network.h`.
 
 ### Input messages
 
-- **NETWORK_CONNECT**: Request to connect to the network.
-- **NETWORK_DISCONNECT**: Request to disconnect from the network.
-- **NETWORK_SEARCH_STOP**: Stop searching for a network. The module will not attempt to connect to a network until a new `NETWORK_CONNECT` message is received.
-- **NETWORK_SYSTEM_MODE_REQUEST**: Request to retrieve the current system mode. The response will be sent as a `NETWORK_SYSTEM_MODE_RESPONSE` message.
-- **NETWORK_SYSTEM_MODE_SET_LTEM**: Request to set the system mode to only use LTE-M only.
-- **NETWORK_SYSTEM_MODE_SET_NBIOT**: Request to set the system mode to only use NB-IoT only.
-- **NETWORK_SYSTEM_MODE_SET_LTEM_NBIOT**: Request to set the system mode to use both LTE-M and NB-IoT.
+- **NETWORK_CONNECT_TN**: Start terrestrial search (LTE-M + NB-IoT + GPS).
+- **NETWORK_CONNECT_NTN**: Start NTN search (location check, optional GNSS, then NTN NB-IoT). With `.fresh_location` set, a new GNSS fix is acquired before the cell search even when the cached fix is still valid, so the fix can double as a location sample.
+- **NETWORK_DISCONNECT**: Disconnect.
+- **NETWORK_SEARCH_STOP**: Stop search (`lte_lc_offline()`).
+- **NETWORK_GNSS_LOCATION**: Provide lat/lon/alt (from Main / Location module).
+- **NETWORK_GNSS_LOCATION_FAILED**: GNSS fix failed or timed out.
+
+A `NETWORK_CONNECT_TN` or `NETWORK_CONNECT_NTN` received while already connected re-asserts the current connectivity instead of starting a new search.
 
 ### Output messages
 
-- **NETWORK_DISCONNECTED**: The device is disconnected from the network.
-- **NETWORK_CONNECTED**: The device is connected to the network and has an IP address.
-- **NETWORK_MODEM_RESET_LOOP**: The modem has detected a reset loop with too many attach requests within a short time.
-- **NETWORK_UICC_FAILURE**: The modem has detected an error with the SIM card. Confirm that it is installed correctly.
-- **NETWORK_LIGHT_SEARCH_DONE**: The modem has completed a light search based on previous cell history without finding a suitable cell. This message can be used to stop the search to save power.
-- **NETWORK_ATTACH_REJECTED**: A network attach request has been rejected by the network.
-- **NETWORK_PSM_PARAMS**: PSM parameters have been received (in the `.psm_cfg` field of the message).
-- **NETWORK_EDRX_PARAMS**: eDRX parameters have been received (in `.edrx_cfg` field).
-- **NETWORK_SYSTEM_MODE_RESPONSE**: Response to a system mode request (`NETWORK_SYSTEM_MODE_REQUEST`) with current mode in `.system_mode` field.
+- **NETWORK_DISCONNECTED**: PDN context deactivated, or network registration lost while the PDN is still active.
+- **NETWORK_CONNECTED_TN** / **NETWORK_CONNECTED_NTN**: Connected over terrestrial or NTN.
+- **NETWORK_TN_SEARCH_FAILED** / **NETWORK_NTN_SEARCH_FAILED**: Search failed (Main may fall back TN → NTN).
+- **NETWORK_GNSS_LOCATION_REQ**: Module needs a GNSS fix before NTN cell search.
+- **NETWORK_UICC_FAILURE**, **NETWORK_PSM_PARAMS**, **NETWORK_EDRX_PARAMS**
 
-### Message structure
+## Build
 
-The network module uses the `struct network_msg` structure for communication:
+Requires `CONFIG_NTN`, `CONFIG_LTE_LC_CELLULAR_PROFILE_MODULE`, and NTN modem firmware (`mfw_nrf9151-ntn`) on hardware targets.
 
-```c
-struct network_msg {
-    enum network_msg_type type;
-    union {
-        enum lte_lc_system_mode system_mode;
-        struct lte_lc_psm_cfg psm_cfg;
-        struct lte_lc_edrx_cfg edrx_cfg;
-    };
-};
+```bash
+tm33 west build -b thingy91x/nrf9151/ns app
 ```
 
-## Configurations
+## Unit tests
 
-The Network module can be configured using the following Kconfig options:
-
-- **CONFIG_APP_NETWORK_THREAD_STACK_SIZE**: Sets the stack size for the network module thread.
-
-- **CONFIG_APP_NETWORK_WATCHDOG_TIMEOUT_SECONDS**: Defines the timeout in seconds for the network module watchdog. This timeout covers both waiting for incoming messages and message processing time.
-
-- **CONFIG_APP_NETWORK_MSG_PROCESSING_TIMEOUT_SECONDS**: Sets the maximum time allowed for processing a single message in the module's state machine. This value must be smaller than the watchdog timeout.
-
-- **CONFIG_APP_NETWORK_SEARCH_NETWORK_ON_STARTUP**: When enabled, the module will automatically search for a network on startup. If disabled, network search must be triggered by a NETWORK_CONNECT message.
-
-- **CONFIG_APP_NETWORK_LOG_LEVEL_***: Controls the logging level for the network module. This follows Zephyr's standard logging configuration pattern.
+```bash
+cd tests/module/network
+att_run_32 west build -b native_sim .
+att_run_32 ./build/network/zephyr/zephyr.exe
+```

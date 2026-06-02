@@ -11,11 +11,13 @@
 #include <net/nrf_cloud_rest.h>
 #include <zephyr/net/coap.h>
 #include <date_time.h>
+#include <modem/lte_lc.h>
 
 #include "cloud_location.h"
 #include "cloud_internal.h"
 #include "app_common.h"
 #include "location.h"
+#include "network.h"
 
 LOG_MODULE_DECLARE(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 
@@ -215,6 +217,16 @@ static void handle_cloud_location_request(const struct location_cloud_request_da
 static void handle_agnss_request(const struct nrf_modem_gnss_agnss_data_frame *request)
 {
 	int err;
+
+	/* GNSS cannot run while the modem is in NTN system mode, so A-GNSS assistance is useless
+	 * and the modem rejects it (-EACCES). Skip the request entirely while on NTN.
+	 */
+	if (network_in_ntn_mode()) {
+		LOG_DBG("Skipping A-GNSS request while in NTN mode");
+
+		return;
+	}
+
 	static char agnss_buf[AGNSS_MAX_DATA_SIZE];
 	struct nrf_cloud_rest_agnss_request agnss_req = {
 		.type = NRF_CLOUD_REST_AGNSS_REQ_CUSTOM,
@@ -262,11 +274,15 @@ static void handle_gnss_location_data(const struct location_msg *location_msg)
 	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
 	const struct location_data *location_data = &location_msg->gnss_data;
 
-	/* Convert uptime to unix time */
+	/* Normalize the timestamp to Unix time. The location module already stamps the message
+	 * with Unix time when date/time is valid, so use the shared helper that detects an
+	 * already-converted value instead of unconditionally treating it as uptime (which would
+	 * fail with -EINVAL on an already-Unix timestamp).
+	 */
 	timestamp_ms = location_msg->timestamp;
-	err = date_time_uptime_to_unix_time_ms(&timestamp_ms);
+	err = cloud_timestamp_normalize(&timestamp_ms);
 	if (err) {
-		LOG_ERR("date_time_uptime_to_unix_time_ms, error: %d", err);
+		LOG_ERR("cloud_timestamp_normalize, error: %d", err);
 	}
 
 	struct nrf_cloud_gnss_data gnss_data = {

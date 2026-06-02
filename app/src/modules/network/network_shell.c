@@ -14,25 +14,6 @@
 
 LOG_MODULE_DECLARE(network, CONFIG_APP_NETWORK_LOG_LEVEL);
 
-static int cmd_connect(const struct shell *sh, size_t argc, char **argv)
-{
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-
-	int err;
-	const struct network_msg msg = {
-		.type = NETWORK_CONNECT,
-	};
-
-	err = zbus_chan_pub(&network_chan, &msg, PUB_TIMEOUT);
-	if (err) {
-		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
-		return 1;
-	}
-
-	return 0;
-}
-
 static int cmd_disconnect(const struct shell *sh, size_t argc, char **argv)
 {
 	ARG_UNUSED(argc);
@@ -52,14 +33,56 @@ static int cmd_disconnect(const struct shell *sh, size_t argc, char **argv)
 	return 0;
 }
 
+static int cmd_connect_tn(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	int err;
+	const struct network_msg msg = {
+		.type = NETWORK_CONNECT_TN,
+	};
+
+	err = zbus_chan_pub(&network_chan, &msg, PUB_TIMEOUT);
+	if (err) {
+		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
+		return 1;
+	}
+
+	return 0;
+}
+
+static int cmd_connect_ntn(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	int err;
+	const struct network_msg msg = {
+		.type = NETWORK_CONNECT_NTN,
+	};
+
+	err = zbus_chan_pub(&network_chan, &msg, PUB_TIMEOUT);
+	if (err) {
+		(void)shell_print(sh, "zbus_chan_pub, error: %d", err);
+		return 1;
+	}
+
+	return 0;
+}
+
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_cmds,
-			       SHELL_CMD(connect,
+			       SHELL_CMD(connect_tn,
 					 NULL,
-					 "Connect to LTE",
-					 cmd_connect),
+					 "Connect to terrestrial network",
+					 cmd_connect_tn),
+			       SHELL_CMD(connect_ntn,
+					 NULL,
+					 "Connect to NTN network",
+					 cmd_connect_ntn),
 			       SHELL_CMD(disconnect,
 					 NULL,
-					 "Disconnect from LTE",
+					 "Disconnect from network",
 					 cmd_disconnect),
 			       SHELL_SUBCMD_SET_END
 );

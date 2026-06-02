@@ -75,6 +75,11 @@ ZBUS_CHAN_DEFINE(timer_chan,
 enum priv_main_msg_type {
 	/* All modules have signaled that they are ready. */
 	MAIN_MODULES_READY,
+
+	/* The TN recovery interval has expired while connected over NTN. Time to leave NTN and
+	 * attempt to return to a terrestrial network.
+	 */
+	MAIN_TN_RECOVERY_TIMEOUT,
 };
 
 struct priv_main_msg {
@@ -126,6 +131,7 @@ static K_WORK_DELAYABLE_DEFINE(timer_sample_data_work, timer_sample_data_work_fn
 
 /* Forward declarations of state handlers */
 static enum smf_state_result waiting_for_modules_init_run(void *o);
+static void running_entry(void *o);
 static enum smf_state_result running_run(void *o);
 static void running_exit(void *o);
 
@@ -251,6 +257,40 @@ struct main_state {
 	 */
 	bool threshold_reached;
 
+	/* Track if NTN fallback is pending. This is used to prevent immediate switch to NTN if
+	 * location search is in progress when TN search fails.
+	 * The fallback to NTN will happen when the location search completes.
+	 */
+	bool ntn_fallback_pending;
+
+	/* True while a cloud session (DTLS security context / connection ID) is alive, i.e. from
+	 * CLOUD_SESSION_ESTABLISHED until CLOUD_SESSION_STOPPED. NTN fallback is only permitted to
+	 * resume such a session via the connection ID; a fresh cloud connection is never attempted
+	 * over NTN. Cleared means TN search failures retry TN instead of falling back to NTN.
+	 */
+	bool cloud_session_active;
+
+	/* True while the network connection is over NTN. Used to arm the periodic TN recovery:
+	 * NTN is a fallback bearer only, so the device must keep trying to return to TN.
+	 */
+	bool connected_via_ntn;
+
+	/* Set when the TN recovery timer has fired and the network has been told to disconnect.
+	 * When the resulting NETWORK_DISCONNECTED arrives, a TN search is started immediately
+	 * instead of waiting for the reconnect back-off.
+	 */
+	bool tn_recovery_pending;
+
+	/* Set when a sampling cycle started while connected over NTN, where GNSS (and cellular
+	 * location) cannot run. The location sample is instead taken during the bearer bounce
+	 * that follows: in place after reconnecting over TN, or - if TN is still unavailable -
+	 * as the fresh GNSS fix forced into the NTN re-attach sequence.
+	 */
+	bool location_sample_pending;
+
+	/* Periodic work that triggers a return-to-TN attempt while connected over NTN */
+	struct k_work_delayable tn_recovery_work;
+
 	/* Flags to track if each module is ready */
 	struct {
 		bool fota_ready;
@@ -259,6 +299,16 @@ struct main_state {
 #endif /* CONFIG_APP_POWER */
 		bool location_ready;
 	} modules_ready;
+
+	/* True while waiting for GNSS fix requested by the network module */
+	bool gnss_for_ntn_pending;
+
+	/* Network reconnect back-off. After a failed connection attempt the TN->NTN cycle is
+	 * restarted from TN, with the delay doubling on each consecutive failure up to
+	 * CONFIG_APP_RECONNECT_BACKOFF_MAX_SECONDS. Reset on a successful connection.
+	 */
+	struct k_work_delayable reconnect_work;
+	uint32_t reconnect_backoff_sec;
 };
 
 /* Construct state table */
@@ -273,7 +323,7 @@ static const struct smf_state states[] = {
 	),
 	/* Top-level states */
 	[STATE_RUNNING] = SMF_CREATE_STATE(
-		NULL,
+		running_entry,
 		running_run,
 		running_exit,
 		NULL,
@@ -479,7 +529,11 @@ static void poll_triggers_send(void)
 
 /* Common helpers for substates */
 
-static void trigger_sampling(struct main_state *state_object)
+/* Request a sample from all data sources. The location search is skipped when
+ * include_location is false, i.e. while connected over NTN where neither GNSS nor cellular
+ * location can run; the location sample is then taken during the bearer bounce instead.
+ */
+static void trigger_sampling_ex(struct main_state *state_object, bool include_location)
 {
 	int err;
 	struct location_msg location_msg = {
@@ -538,12 +592,124 @@ static void trigger_sampling(struct main_state *state_object)
 	}
 #endif /* CONFIG_APP_ENVIRONMENTAL */
 
+	if (!include_location) {
+		return;
+	}
+
 	err = zbus_chan_pub(&location_chan, &location_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish location search trigger, error: %d", err);
 		SEND_FATAL_ERROR();
 
 		return;
+	}
+}
+
+static void trigger_sampling(struct main_state *state_object)
+{
+	trigger_sampling_ex(state_object, true);
+}
+
+/* Request the network module to (re)connect over a terrestrial network. */
+static void request_tn_connect(void)
+{
+	int err;
+	const struct network_msg msg = { .type = NETWORK_CONNECT_TN };
+
+	err = zbus_chan_pub(&network_chan, &msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("Failed to publish NETWORK_CONNECT_TN, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+/* Request the network module to fall back to use NTN. With fresh_location set, the network module
+ * acquires a new GNSS fix before the cell search even if its cached fix is still valid, so the
+ * fix can double as a location sample.
+ */
+static void request_ntn_connect(bool fresh_location)
+{
+	int err;
+	struct network_msg msg = {
+		.type = NETWORK_CONNECT_NTN,
+		.fresh_location = fresh_location,
+	};
+
+	err = zbus_chan_pub(&network_chan, &msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("Failed to publish NETWORK_CONNECT_NTN, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+/* Start a return-to-TN bounce: disconnect from the current (NTN) bearer, which pauses the cloud
+ * session, and flag the recovery so the TN search starts as soon as the network reports the
+ * disconnect. If the TN search fails, the normal fallback resumes the session over NTN again.
+ */
+static void tn_recovery_start(struct main_state *state_object)
+{
+	int err;
+	const struct network_msg msg = { .type = NETWORK_DISCONNECT };
+
+	state_object->tn_recovery_pending = true;
+
+	err = zbus_chan_pub(&network_chan, &msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("Failed to publish NETWORK_DISCONNECT, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+/* Initial reconnect back-off. The delay doubles on each consecutive failure up to
+ * CONFIG_APP_RECONNECT_BACKOFF_MAX_SECONDS.
+ */
+#define APP_RECONNECT_BACKOFF_INITIAL_SECONDS 60
+
+static void reconnect_work_fn(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	LOG_DBG("Reconnect back-off expired, restarting network search from TN");
+
+	request_tn_connect();
+}
+
+/* Schedule the next reconnect attempt and grow the back-off for the following failure. */
+static void reconnect_schedule(struct main_state *state_object)
+{
+	const uint32_t cap = CONFIG_APP_RECONNECT_BACKOFF_MAX_SECONDS;
+	uint32_t delay_sec = MIN(state_object->reconnect_backoff_sec, cap);
+
+	LOG_WRN("Connection attempt failed, restarting from TN in %u seconds", delay_sec);
+
+	(void)k_work_reschedule(&state_object->reconnect_work, K_SECONDS(delay_sec));
+
+	state_object->reconnect_backoff_sec = MIN(delay_sec * 2, cap);
+}
+
+/* Cancel any pending reconnect and reset the back-off after a successful connection. */
+static void reconnect_reset(struct main_state *state_object)
+{
+	(void)k_work_cancel_delayable(&state_object->reconnect_work);
+	state_object->reconnect_backoff_sec = APP_RECONNECT_BACKOFF_INITIAL_SECONDS;
+}
+
+/* TN recovery: NTN is a fallback bearer only, so while connected over NTN the application
+ * periodically tries to return to TN. The timer fires on the system workqueue and defers the
+ * actual work to the state machine thread via a private message, where it is acted on only if
+ * the device is still connected over NTN.
+ */
+static void tn_recovery_work_fn(struct k_work *work)
+{
+	int err;
+	const struct priv_main_msg msg = { .type = MAIN_TN_RECOVERY_TIMEOUT };
+
+	ARG_UNUSED(work);
+
+	err = zbus_chan_pub(&priv_main_chan, &msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("Failed to publish MAIN_TN_RECOVERY_TIMEOUT, error: %d", err);
+		SEND_FATAL_ERROR();
 	}
 }
 
@@ -946,34 +1112,243 @@ static enum smf_state_result waiting_for_modules_init_run(void *o)
 	return SMF_EVENT_PROPAGATE;
 }
 
+static void running_entry(void *o)
+{
+	struct main_state *state_object = (struct main_state *)o;
+
+	LOG_DBG("%s", __func__);
+
+	state_object->gnss_for_ntn_pending = false;
+
+	request_tn_connect();
+}
+
+static enum smf_state_result handle_running_network_msg(struct main_state *state_object,
+							const struct network_msg *msg)
+{
+	int err;
+
+	switch (msg->type) {
+	case NETWORK_TN_LIGHT_SEARCH_DONE:
+		LOG_WRN("Light search on TN done, no suitable cell");
+
+		if (IS_ENABLED(CONFIG_APP_NTN_FALLBACK_ON_LIGHT_SEARCH_DONE)) {
+			request_ntn_connect(state_object->location_sample_pending);
+
+			return SMF_EVENT_HANDLED;
+		}
+
+		break;
+	case NETWORK_TN_SEARCH_FAILED:
+		/* Only fall back to NTN to resume an existing cloud connection or if the app is
+		 * configured to allow cloud connection establishment over NTN.
+		 */
+		if (state_object->cloud_session_active ||
+		    IS_ENABLED(CONFIG_APP_NTN_CLOUD_ALLOW_CONNECTION_ESTABLISHMENT)) {
+			request_ntn_connect(state_object->location_sample_pending);
+		} else {
+			LOG_INF("No active cloud session to resume, not falling back to NTN");
+			reconnect_schedule(state_object);
+		}
+
+		return SMF_EVENT_HANDLED;
+	case NETWORK_NTN_LIGHT_SEARCH_DONE:
+		LOG_WRN("Light search on NTN done, no suitable cell");
+
+		break;
+	case NETWORK_NTN_SEARCH_FAILED:
+		/* The TN->NTN connection attempt is exhausted. Retry from TN after a back-off so
+		 * the device can recover (e.g. when no GNSS fix is available for NTN).
+		 */
+		reconnect_schedule(state_object);
+
+		return SMF_EVENT_HANDLED;
+	case NETWORK_CONNECTED_TN:
+		reconnect_reset(state_object);
+
+		state_object->connected_via_ntn = false;
+
+		/* Back on TN; no recovery needed. */
+		(void)k_work_cancel_delayable(&state_object->tn_recovery_work);
+
+		if (state_object->location_sample_pending) {
+			/* A sampling cycle was interrupted by the bearer bounce. GNSS works on TN,
+			 * so take the location sample in place now.
+			 */
+			struct location_msg loc_trigger = { .type = LOCATION_SEARCH_TRIGGER };
+
+			state_object->location_sample_pending = false;
+
+			err = zbus_chan_pub(&location_chan, &loc_trigger, PUB_TIMEOUT);
+			if (err) {
+				LOG_ERR("Failed to publish LOCATION_SEARCH_TRIGGER, error: %d", err);
+				SEND_FATAL_ERROR();
+			}
+		}
+
+		return SMF_EVENT_HANDLED;
+	case NETWORK_CONNECTED_NTN:
+		reconnect_reset(state_object);
+		state_object->connected_via_ntn = true;
+
+		/* NTN is a fallback bearer only: it is slow, expensive, and blocks GNSS and
+		 * cellular location while active. Periodically try to return to TN.
+		 * k_work_schedule() keeps an already-running interval instead of pushing it out
+		 * when the connected event is re-asserted.
+		 */
+		(void)k_work_schedule(
+			&state_object->tn_recovery_work,
+			K_SECONDS(CONFIG_APP_TN_RECOVERY_INTERVAL_SECONDS));
+
+		return SMF_EVENT_HANDLED;
+	case NETWORK_DISCONNECTED:
+		state_object->connected_via_ntn = false;
+
+		if (state_object->tn_recovery_pending) {
+			/* This disconnect was requested by the TN recovery timer. Start the TN
+			 * search right away; if it fails, the normal fallback resumes the session
+			 * over NTN again.
+			 */
+			state_object->tn_recovery_pending = false;
+
+			LOG_DBG("TN recovery: disconnected from NTN, searching for TN");
+			request_tn_connect();
+
+			return SMF_EVENT_HANDLED;
+		}
+
+		return SMF_EVENT_PROPAGATE;
+	case NETWORK_GNSS_LOCATION_REQ: {
+		struct location_msg loc_msg = { .type = LOCATION_GNSS_SEARCH_TRIGGER };
+
+		state_object->gnss_for_ntn_pending = true;
+
+		err = zbus_chan_pub(&location_chan, &loc_msg, PUB_TIMEOUT);
+		if (err) {
+			LOG_ERR("Failed to publish LOCATION_GNSS_SEARCH_TRIGGER, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
+
+		return SMF_EVENT_HANDLED;
+	}
+	default:
+		return SMF_EVENT_PROPAGATE;
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
+
+/* Relay a GNSS fix requested by the network module (for the NTN attach) back to it. Only reached
+ * while gnss_for_ntn_pending is set.
+ */
+static enum smf_state_result handle_running_location_msg(struct main_state *state_object,
+							 const struct location_msg *msg)
+{
+	struct network_msg nw_msg;
+	int err;
+
+	if (msg->type == LOCATION_GNSS_DATA) {
+		state_object->gnss_for_ntn_pending = false;
+
+		/* The location module has published this fix, so it has also been stored as a
+		 * location sample; a sample deferred by an NTN bounce is now taken.
+		 */
+		state_object->location_sample_pending = false;
+
+		nw_msg.type = NETWORK_GNSS_LOCATION;
+		nw_msg.location.lat = msg->gnss_data.latitude;
+		nw_msg.location.lon = msg->gnss_data.longitude;
+		nw_msg.location.alt = msg->gnss_data.details.gnss.pvt_data.altitude;
+
+		err = zbus_chan_pub(&network_chan, &nw_msg, PUB_TIMEOUT);
+		if (err) {
+			LOG_ERR("Failed to publish NETWORK_GNSS_LOCATION, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
+
+		return SMF_EVENT_HANDLED;
+	}
+
+	if (msg->type == LOCATION_SEARCH_DONE) {
+		state_object->gnss_for_ntn_pending = false;
+		nw_msg.type = NETWORK_GNSS_LOCATION_FAILED;
+
+		err = zbus_chan_pub(&network_chan, &nw_msg, PUB_TIMEOUT);
+		if (err) {
+			LOG_ERR("Failed to publish NETWORK_GNSS_LOCATION_FAILED, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
+
+		return SMF_EVENT_HANDLED;
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
+
+static enum smf_state_result handle_running_fota_msg(struct main_state *state_object,
+						     const struct fota_msg *msg)
+{
+	if (msg->type == FOTA_DOWNLOADING_UPDATE) {
+		smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA]);
+
+		return SMF_EVENT_HANDLED;
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
+
+static enum smf_state_result handle_running_cloud_msg(struct main_state *state_object,
+						      const struct cloud_msg *msg)
+{
+	switch (msg->type) {
+	case CLOUD_PROVISIONED:
+		LOG_DBG("Device provisioning completed");
+
+		/* After reprovisioning, the device shadow is no longer considered synced with the
+		 * cloud, so reset the flag to trigger a new sync on the next connection.
+		 */
+		state_object->cloud_synced_on_connect = false;
+
+		return SMF_EVENT_HANDLED;
+	case CLOUD_SESSION_ESTABLISHED:
+		/* A cloud session is now alive. NTN fallback is permitted to resume it. */
+		state_object->cloud_session_active = true;
+
+		return SMF_EVENT_HANDLED;
+	case CLOUD_SESSION_STOPPED:
+		/* The cloud session is gone. NTN fallback is no longer permitted; a new connection
+		 * must be (re)established over TN.
+		 */
+		state_object->cloud_session_active = false;
+
+		return SMF_EVENT_HANDLED;
+	default:
+		return SMF_EVENT_PROPAGATE;
+	}
+}
+
 static enum smf_state_result running_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
-	/* Handle FOTA download initiation at top level */
-	if (state_object->chan == &fota_chan) {
-		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
-
-		if (msg->type == FOTA_DOWNLOADING_UPDATE) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA]);
-
-			return SMF_EVENT_HANDLED;
-		}
+	if (state_object->chan == &network_chan) {
+		return handle_running_network_msg(
+			state_object, (const struct network_msg *)state_object->msg_buf);
 	}
 
-	/* Handle cloud provisioning completion */
-	if (state_object->chan == &cloud_chan) {
-		const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
+	if (state_object->chan == &location_chan && state_object->gnss_for_ntn_pending) {
+		return handle_running_location_msg(
+			state_object, (const struct location_msg *)state_object->msg_buf);
+	}
 
-		if (msg->type == CLOUD_PROVISIONED) {
-			LOG_DBG("Device provisioning completed");
-			/* After reprovisioning, the device shadow is no longer considered synced
-			 * with the cloud, so reset the flag to trigger a new sync on the next
-			 * connection.
-			 */
-			state_object->cloud_synced_on_connect = false;
-			return SMF_EVENT_HANDLED;
-		}
+	if (state_object->chan == &fota_chan) {
+		return handle_running_fota_msg(
+			state_object, (const struct fota_msg *)state_object->msg_buf);
+	}
+
+	if (state_object->chan == &cloud_chan) {
+		return handle_running_cloud_msg(
+			state_object, (const struct cloud_msg *)state_object->msg_buf);
 	}
 
 	return SMF_EVENT_PROPAGATE;
@@ -1085,12 +1460,53 @@ static enum smf_state_result connected_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
+	/* TN recovery: while connected over NTN, the recovery timer periodically requests a
+	 * return to TN. Disconnect (which pauses the cloud session, preserving it) and flag the
+	 * recovery so the TN search starts as soon as the network reports the disconnect. Acted
+	 * on here, in the connected state only, so a timeout firing during FOTA or after the NTN
+	 * link already dropped is ignored.
+	 */
+	if (state_object->chan == &priv_main_chan) {
+		const struct priv_main_msg *msg =
+			(const struct priv_main_msg *)state_object->msg_buf;
+
+		if (msg->type == MAIN_TN_RECOVERY_TIMEOUT) {
+			if (state_object->connected_via_ntn) {
+				LOG_INF("TN recovery: leaving NTN to search for terrestrial network");
+				tn_recovery_start(state_object);
+			}
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	/* While connected, ignore search-failed events instead of letting them propagate to the
+	 * top-level handler that would start a fallback search. A search timeout work item can be
+	 * delivered just after the connection comes up (timer cancellation in the network module
+	 * is best-effort), and acting on it would tear down a healthy link.
+	 */
+	if (state_object->chan == &network_chan) {
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
+
+		if (msg->type == NETWORK_TN_SEARCH_FAILED ||
+		    msg->type == NETWORK_NTN_SEARCH_FAILED) {
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
 	/* Handle connectivity changes */
 	if (state_object->chan == &cloud_chan) {
 		const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
 
 		switch (msg->type) {
 		case CLOUD_DISCONNECTED:
+			/* The cloud link dropped (the cloud module either paused a still-alive
+			 * session or tore it down). Drive the connection lifecycle back up: schedule a
+			 * TN search after the back-off. If TN returns, the (possibly paused) session
+			 * resumes over it; if the TN search fails and a cloud session is still alive,
+			 * the top-level handler falls back to NTN to resume it.
+			 */
+			reconnect_schedule(state_object);
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED]);
 
 			return SMF_EVENT_HANDLED;
@@ -1143,6 +1559,12 @@ static void disconnected_sampling_entry(void *o)
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
+
+	/* Start each sampling cycle with a clean NTN fallback state. This prevents a deferred
+	 * fallback left over from an earlier cycle that was aborted.
+	 */
+	state_object->ntn_fallback_pending = false;
+
 	trigger_sampling(state_object);
 }
 
@@ -1154,7 +1576,43 @@ static enum smf_state_result disconnected_sampling_run(void *o)
 		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
 		if (msg->type == LOCATION_SEARCH_DONE) {
+			if (state_object->ntn_fallback_pending) {
+				state_object->ntn_fallback_pending = false;
+
+				/* The location search that just completed already produced (and
+				 * stored) a fix, so the NTN attach can use the cached one.
+				 */
+				request_ntn_connect(false);
+			}
+
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_WAITING]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	if (state_object->chan == &network_chan) {
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
+
+		/* A location search is already in progress, so do not start the NTN search
+		 * immediately. Starting it now would switch the modem system mode and could request
+		 * a GNSS fix, conflicting with the ongoing search. Defer the fallback until the
+		 * search completes (handled on LOCATION_SEARCH_DONE above).
+		 */
+		if (msg->type == NETWORK_TN_SEARCH_FAILED) {
+			/* Only defer an NTN fallback when there is a paused cloud session to resume.
+			 * Without one, NTN cannot be used (a fresh connection over NTN is not
+			 * permitted), so retry TN instead.
+			 */
+			if (state_object->cloud_session_active) {
+				state_object->ntn_fallback_pending = true;
+
+				LOG_DBG("TN search failed, NTN fallback pending");
+			} else {
+				LOG_INF("No active cloud session to resume; "
+					"not falling back to NTN, retrying TN");
+				reconnect_schedule(state_object);
+			}
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -1260,6 +1718,26 @@ static void connected_sampling_entry(void *o)
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
+
+	if (state_object->connected_via_ntn) {
+		/* GNSS and cellular location cannot run while the modem is in NTN system mode.
+		 * Sample the non-location sources in place, then bounce the bearer: disconnect
+		 * (pausing the cloud session) and search TN first. If TN is back, the location
+		 * sample is taken there; if not, the NTN re-attach is forced to acquire a fresh
+		 * GNSS fix which doubles as the sample. The cloud disconnect that follows moves
+		 * this state machine out of the sampling state.
+		 */
+		LOG_INF("Sampling on NTN: bouncing bearer to take the location sample");
+
+		trigger_sampling_ex(state_object, false);
+
+		state_object->location_sample_pending = true;
+
+		tn_recovery_start(state_object);
+
+		return;
+	}
+
 	trigger_sampling(state_object);
 }
 
@@ -1685,6 +2163,10 @@ int main(void)
 	main_state.sample_interval_sec = CONFIG_APP_SAMPLING_INTERVAL_SECONDS;
 	main_state.storage_threshold = CONFIG_APP_STORAGE_INITIAL_THRESHOLD;
 	main_state.first_sample_pending = true;
+	main_state.reconnect_backoff_sec = APP_RECONNECT_BACKOFF_INITIAL_SECONDS;
+
+	k_work_init_delayable(&main_state.reconnect_work, reconnect_work_fn);
+	k_work_init_delayable(&main_state.tn_recovery_work, tn_recovery_work_fn);
 
 	LOG_DBG("Main has started");
 

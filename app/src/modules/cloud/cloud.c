@@ -42,6 +42,11 @@
 /* Register log module */
 LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 
+static bool network_msg_is_connected(enum network_msg_type type)
+{
+	return (type == NETWORK_CONNECTED_TN) || (type == NETWORK_CONNECTED_NTN);
+}
+
 #define CUSTOM_JSON_APPID_VAL_BATTERY "BATTERY"
 #define AGNSS_MAX_DATA_SIZE 3800
 
@@ -431,8 +436,7 @@ static inline int attempt_timestamp_to_unix_ms(int64_t *uptime_ms)
 	return 0;
 }
 
-#if (defined(CONFIG_APP_POWER) || defined(CONFIG_APP_ENVIRONMENTAL))
-static int handle_data_timestamp(int64_t *timestamp_ms)
+int cloud_timestamp_normalize(int64_t *timestamp_ms)
 {
 	int err;
 
@@ -467,7 +471,6 @@ static int handle_data_timestamp(int64_t *timestamp_ms)
 		return err;
 	}
 }
-#endif /* CONFIG_APP_POWER || CONFIG_APP_ENVIRONMENTAL */
 
 /* Storage handling functions */
 
@@ -484,7 +487,7 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 		/* Convert timestamp to unix time */
 		timestamp_ms = power->timestamp;
 
-		err = handle_data_timestamp(&timestamp_ms);
+		err = cloud_timestamp_normalize(&timestamp_ms);
 		if (err) {
 			return err;
 		}
@@ -514,7 +517,7 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 		/* Convert timestamp to unix time */
 		timestamp_ms = env->timestamp;
 
-		err = handle_data_timestamp(&timestamp_ms);
+		err = cloud_timestamp_normalize(&timestamp_ms);
 		if (err) {
 			return err;
 		}
@@ -766,7 +769,15 @@ static void handle_priv_cloud_message(struct cloud_state_object const *state_obj
 	const struct priv_cloud_msg *msg = (const struct priv_cloud_msg *)state_object->msg_buf;
 
 	if (msg->type == CLOUD_SEND_REQUEST_FAILED) {
-		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
+		/* A CoAP request failed - typically because connectivity was lost before the modem
+		 * reported it (e.g. a marginal radio link). Pause the session rather than
+		 * reconnecting: leaving the connected super-state would call
+		 * nrf_cloud_coap_disconnect() and destroy the DTLS connection ID, which is the only
+		 * thing that lets the session resume over a different bearer (NTN) without a fresh
+		 * handshake. From STATE_CONNECTED_PAUSED the session resumes when connectivity is
+		 * re-established (NETWORK_CONNECTED_TN/NTN).
+		 */
+		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_PAUSED]);
 	}
 }
 
@@ -813,10 +824,9 @@ static void network_connection_status_retain(struct cloud_state_object *state_ob
 	if (state_object->chan == &network_chan) {
 		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		if (msg->type == NETWORK_DISCONNECTED || msg->type == NETWORK_CONNECTED) {
+		if (msg->type == NETWORK_DISCONNECTED || network_msg_is_connected(msg->type)) {
 			/* Update network status to retain the last connection status */
-			state_object->network_connected =
-				(msg->type == NETWORK_CONNECTED) ? true : false;
+			state_object->network_connected = network_msg_is_connected(msg->type);
 		}
 	}
 }
@@ -875,7 +885,14 @@ static enum smf_state_result state_disconnected_run(void *obj)
 	if (state_object->chan == &network_chan) {
 		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		if (msg->type == NETWORK_CONNECTED) {
+		/* A fresh cloud connection (DTLS handshake + JWT authentication) must only ever be
+		 * established over a terrestrial network. NTN is reserved for resuming an
+		 * already-established session by reusing the DTLS connection ID (the
+		 * CONNECTED_PAUSED -> CONNECTED_READY path). The handshake over NTN is
+		 * prohibitively expensive and unreliable, so only TN connectivity starts a connect
+		 * here. With no live session, NTN connectivity is intentionally ignored.
+		 */
+		if (msg->type == NETWORK_CONNECTED_TN) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
 
 			return SMF_EVENT_HANDLED;
@@ -1048,7 +1065,7 @@ static enum smf_state_result state_connecting_provisioning_run(void *obj)
 	if (state_object->chan == &network_chan) {
 		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		if (msg->type == NETWORK_DISCONNECTED || msg->type == NETWORK_CONNECTED) {
+		if (msg->type == NETWORK_DISCONNECTED || network_msg_is_connected(msg->type)) {
 			return SMF_EVENT_HANDLED;
 		}
 	}
@@ -1113,10 +1130,25 @@ static void state_connecting_backoff_exit(void *obj)
 
 static void state_connected_entry(void *obj)
 {
+	int err;
+	const struct cloud_msg cloud_msg = {
+		.type = CLOUD_SESSION_ESTABLISHED,
+	};
+
 	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 	LOG_INF("Connected to Cloud");
+
+	/* The DTLS session/connection ID is now valid and remains so until this super-state is
+	 * exited (the PAUSED/READY substates do not tear it down). Notify listeners so NTN
+	 * fallback can be permitted to resume this session.
+	 */
+	err = zbus_chan_pub(&cloud_chan, &cloud_msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
 }
 
 static void state_connected_exit(void *obj)
@@ -1124,6 +1156,9 @@ static void state_connected_exit(void *obj)
 	int err;
 	struct cloud_msg cloud_msg = {
 		.type = CLOUD_DISCONNECTED,
+	};
+	const struct cloud_msg session_msg = {
+		.type = CLOUD_SESSION_STOPPED,
 	};
 
 	ARG_UNUSED(obj);
@@ -1142,6 +1177,15 @@ static void state_connected_exit(void *obj)
 		SEND_FATAL_ERROR();
 
 		return;
+	}
+
+	/* The DTLS session has been torn down. A subsequent (re)connection requires a fresh
+	 * handshake and JWT authentication, which is only permitted over TN.
+	 */
+	err = zbus_chan_pub(&cloud_chan, &session_msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
 	}
 }
 
@@ -1186,7 +1230,8 @@ static enum smf_state_result state_connected_ready_run(void *obj)
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_PAUSED]);
 
 			return SMF_EVENT_HANDLED;
-		case NETWORK_CONNECTED:
+		case NETWORK_CONNECTED_TN:
+		case NETWORK_CONNECTED_NTN:
 			return SMF_EVENT_HANDLED;
 		default:
 			break;
@@ -1259,7 +1304,7 @@ static enum smf_state_result state_connected_paused_run(void *obj)
 	if (state_object->chan == &network_chan) {
 		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
-		if (msg->type == NETWORK_CONNECTED) {
+		if (network_msg_is_connected(msg->type)) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_READY]);
 
 			return SMF_EVENT_HANDLED;

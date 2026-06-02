@@ -45,6 +45,21 @@ enum cloud_msg_type {
 	/* The device is connected to the cloud and ready to send/receive data */
 	CLOUD_CONNECTED,
 
+	/* The cloud session (DTLS security context / connection ID) has been established and is
+	 * alive. Published when the cloud module enters the connected super-state. Unlike
+	 * CLOUD_CONNECTED, this is NOT republished as the link pauses and resumes
+	 * (CONNECTED_PAUSED <-> CONNECTED_READY); it brackets the window in which the session can
+	 * be resumed over a different bearer (e.g. NTN) by reusing the DTLS connection ID, without
+	 * a new handshake. The Main module uses this to decide whether NTN fallback is permitted.
+	 */
+	CLOUD_SESSION_ESTABLISHED,
+
+	/* The cloud session has been torn down (DTLS disconnect). Published when the cloud module
+	 * leaves the connected super-state. After this, (re)connecting requires a fresh DTLS
+	 * handshake and JWT authentication, which is only permitted over a terrestrial network.
+	 */
+	CLOUD_SESSION_STOPPED,
+
 	/* Response message containing the desired section of the device shadow. The shadow data
 	 * is CBOR-encoded and can be found in the .response.buffer field with length specified
 	 * in .response.buffer_data_len. This is a response to CLOUD_SHADOW_GET_DESIRED.
