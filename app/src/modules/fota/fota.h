@@ -23,9 +23,6 @@ enum fota_msg_type {
 	/* Event notified when downloading the FOTA update failed. */
 	FOTA_DOWNLOAD_FAILED = 0x1,
 
-	/* Event notified when downloading the FOTA update timed out. */
-	FOTA_DOWNLOAD_TIMED_OUT,
-
 	/* Event notified when a FOTA update is being downloaded. */
 	FOTA_DOWNLOADING_UPDATE,
 

@@ -1382,8 +1382,6 @@ static enum smf_state_result fota_run(void *o)
 			__fallthrough;
 		case FOTA_DOWNLOAD_REJECTED:
 			__fallthrough;
-		case FOTA_DOWNLOAD_TIMED_OUT:
-			__fallthrough;
 		case FOTA_DOWNLOAD_FAILED:
 			smf_set_state(SMF_CTX(state_object), &states[resume_state]);
 

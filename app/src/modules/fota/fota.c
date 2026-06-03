@@ -6,18 +6,12 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
-#include <zephyr/logging/log_ctrl.h>
 #include <zephyr/zbus/zbus.h>
-#include <net/nrf_cloud_coap.h>
-#include <net/nrf_cloud_fota_poll.h>
-#include <zephyr/sys/reboot.h>
-#include <zephyr/dfu/mcuboot.h>
 #include <zephyr/storage/flash_map.h>
 #include <zephyr/task_wdt/task_wdt.h>
-#include <nrf_cloud_fota.h>
 #include <zephyr/smf.h>
 #include <net/fota_download.h>
-#include <modem/nrf_modem_lib.h>
+#include <memfault/ports/zephyr/fota.h>
 
 #include "app_common.h"
 #include "fota.h"
@@ -43,31 +37,11 @@ ZBUS_CHAN_DEFINE(fota_chan,
 		 ZBUS_MSG_INIT(0)
 );
 
-/* Private channel message types for internal state management. */
-enum priv_fota_msg_type {
-	/* Modem has completed initialization. */
-	FOTA_PRIV_MODEM_INITIALIZED,
-};
-
-struct priv_fota_msg {
-	enum priv_fota_msg_type type;
-};
-
-/* Create private fota channel for internal messaging that is not intended for external use. */
-ZBUS_CHAN_DEFINE(priv_fota_chan,
-		 struct priv_fota_msg,
-		 NULL,
-		 NULL,
-		 ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(0)
-);
-
 /* Define the channels that the module subscribes to, their associated message types
  * and the subscriber that will receive the messages on the channel.
  */
-#define CHANNEL_LIST(X)							\
-	X(fota_chan,		struct fota_msg)				\
-	X(priv_fota_chan,	struct priv_fota_msg)			\
+#define CHANNEL_LIST(X)				\
+	X(fota_chan,	struct fota_msg)	\
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE			MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
@@ -87,8 +61,6 @@ CHANNEL_LIST(ADD_OBSERVERS)
 enum fota_module_state {
 	/* The module is initialized and running */
 	STATE_RUNNING,
-		/* The module is waiting for modem initialization */
-		STATE_WAITING_FOR_MODEM_INIT,
 		/* The module is waiting for a poll request */
 		STATE_WAITING_FOR_POLL_REQUEST,
 		/* The module is polling for an update */
@@ -117,16 +89,11 @@ struct fota_state_object {
 
 	/* Buffer for last zbus message */
 	uint8_t msg_buf[MAX_MSG_SIZE];
-
-	/* FOTA context */
-	struct nrf_cloud_fota_poll_ctx fota_ctx;
 };
 
 /* Forward declarations of state handlers */
 static void state_running_entry(void *obj);
 static enum smf_state_result state_running_run(void *obj);
-static void state_waiting_for_modem_init_entry(void *obj);
-static enum smf_state_result state_waiting_for_modem_init_run(void *obj);
 static void state_waiting_for_poll_request_entry(void *obj);
 static enum smf_state_result state_waiting_for_poll_request_run(void *obj);
 static void state_polling_for_update_entry(void *obj);
@@ -147,13 +114,7 @@ static const struct smf_state states[] = {
 				 state_running_run,
 				 NULL,
 				 NULL,	/* No parent state */
-				 &states[STATE_WAITING_FOR_MODEM_INIT]),
-	[STATE_WAITING_FOR_MODEM_INIT] =
-		SMF_CREATE_STATE(state_waiting_for_modem_init_entry,
-				 state_waiting_for_modem_init_run,
-				 NULL,
-				 &states[STATE_RUNNING],
-				 NULL), /* No initial transition */
+				 &states[STATE_WAITING_FOR_POLL_REQUEST]),
 	[STATE_WAITING_FOR_POLL_REQUEST] =
 		SMF_CREATE_STATE(state_waiting_for_poll_request_entry,
 				 state_waiting_for_poll_request_run,
@@ -198,98 +159,52 @@ static const struct smf_state states[] = {
 				 NULL),
 };
 
-static void on_modem_init(int ret, void *ctx)
+/* Custom Memfault FOTA download callback. Translates fota_download events into
+ * the application's fota_chan event API.
+ * Called from the download client thread while the fota module thread waits for messages.
+ */
+void memfault_fota_download_callback(const struct fota_download_evt *evt)
 {
 	int err;
-	struct priv_fota_msg msg = { .type = FOTA_PRIV_MODEM_INITIALIZED };
+	struct fota_msg fota_evt = { 0 };
 
-	ARG_UNUSED(ctx);
+	/* Track when the download has already started to report FOTA_DOWNLOADING_UPDATE
+	 * only on the first progress event.
+	 */
+	static bool download_started;
 
-	if (ret) {
-		LOG_ERR("Modem init failed: %d, fota module cannot initialize", ret);
-
+	switch (evt->id) {
+	case FOTA_DOWNLOAD_EVT_PROGRESS:
+		if (!download_started) {
+			download_started = true;
+			fota_evt.type = FOTA_DOWNLOADING_UPDATE;
+			break;
+		}
 		return;
-	}
-
-	err = zbus_chan_pub(&priv_fota_chan, &msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-}
-
-NRF_MODEM_LIB_ON_INIT(fota_modem_init_hook, on_modem_init, NULL);
-
-/* FOTA support functions */
-
-static void fota_reboot(enum nrf_cloud_fota_reboot_status status)
-{
-	int err;
-	struct fota_msg evt = { .type = FOTA_SUCCESS_REBOOT_NEEDED };
-
-	LOG_DBG("Reboot requested with FOTA status %d", status);
-
-	err = zbus_chan_pub(&fota_chan, &evt, PUB_TIMEOUT);
-	if (err) {
-		LOG_DBG("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
-}
-
-static void fota_status(enum nrf_cloud_fota_status status, const char *const status_details)
-{
-	int err;
-	struct fota_msg evt = { 0 };
-
-	LOG_DBG("FOTA status: %d, details: %s", status, status_details ? status_details : "None");
-
-	switch (status) {
-	case NRF_CLOUD_FOTA_DOWNLOADING:
-		LOG_DBG("Downloading firmware update");
-
-		evt.type = FOTA_DOWNLOADING_UPDATE;
+	case FOTA_DOWNLOAD_EVT_FINISHED:
+		download_started = false;
+		LOG_INF("FOTA image downloaded successfully! Reboot request sent to apply update");
+		fota_evt.type = FOTA_SUCCESS_REBOOT_NEEDED;
 		break;
-	case NRF_CLOUD_FOTA_FAILED:
-		LOG_WRN("Firmware download failed");
-
-		evt.type = FOTA_DOWNLOAD_FAILED;
+	case FOTA_DOWNLOAD_EVT_CANCELLED:
+		download_started = false;
+		LOG_WRN("FOTA download canceled");
+		fota_evt.type = FOTA_DOWNLOAD_CANCELED;
 		break;
-	case NRF_CLOUD_FOTA_CANCELED:
-		LOG_WRN("Firmware download canceled");
-
-		evt.type = FOTA_DOWNLOAD_CANCELED;
-		break;
-	case NRF_CLOUD_FOTA_REJECTED:
-		LOG_WRN("Firmware update rejected");
-
-		evt.type = FOTA_DOWNLOAD_REJECTED;
-		break;
-	case NRF_CLOUD_FOTA_TIMED_OUT:
-		LOG_WRN("Firmware download timed out");
-
-		evt.type = FOTA_DOWNLOAD_TIMED_OUT;
-		break;
-	case NRF_CLOUD_FOTA_SUCCEEDED:
-		LOG_DBG("Firmware update succeeded");
-		LOG_DBG("Waiting for reboot request from the nRF Cloud FOTA Poll library");
-
-		/* Don't send any event in case of success, the nRF Cloud FOTA poll library will
-		 * notify when a reboot is needed via the fota_reboot() callback.
-		 */
-		return;
-	case NRF_CLOUD_FOTA_FMFU_VALIDATION_NEEDED:
-		LOG_DBG("Full Modem FOTA Update validation needed, network disconnect required");
-
-		evt.type = FOTA_IMAGE_APPLY_NEEDED;
+	case FOTA_DOWNLOAD_EVT_ERROR:
+		download_started = false;
+		LOG_WRN("FOTA download error, cause: %d", evt->cause);
+		if (evt->cause == FOTA_DOWNLOAD_ERROR_CAUSE_TYPE_MISMATCH) {
+			fota_evt.type = FOTA_DOWNLOAD_REJECTED;
+		} else {
+			fota_evt.type = FOTA_DOWNLOAD_FAILED;
+		}
 		break;
 	default:
-		LOG_DBG("Unknown FOTA status: %d", status);
 		return;
 	}
 
-	err = zbus_chan_pub(&fota_chan, &evt, PUB_TIMEOUT);
+	err = zbus_chan_pub(&fota_chan, &fota_evt, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
@@ -309,14 +224,15 @@ static void fota_wdt_callback(int channel_id, void *user_data)
 static void state_running_entry(void *obj)
 {
 	int err;
-	struct fota_state_object *state_object = obj;
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 
-	/* Initialize the FOTA context */
-	err = nrf_cloud_fota_poll_init(&state_object->fota_ctx);
+	const struct fota_msg msg = { .type = FOTA_MODULE_READY };
+
+	err = zbus_chan_pub(&fota_chan, &msg, PUB_TIMEOUT);
 	if (err) {
-		LOG_ERR("nrf_cloud_fota_poll_init failed: %d", err);
+		LOG_ERR("zbus_chan_pub, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
 }
@@ -330,53 +246,6 @@ static enum smf_state_result state_running_run(void *obj)
 
 		if (msg->type == FOTA_DOWNLOAD_CANCEL) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CANCELING]);
-
-			return SMF_EVENT_HANDLED;
-		}
-	}
-
-	return SMF_EVENT_PROPAGATE;
-}
-
-static void state_waiting_for_modem_init_entry(void *obj)
-{
-	ARG_UNUSED(obj);
-
-	LOG_DBG("%s", __func__);
-	LOG_DBG("Waiting for modem initialization before processing pending FOTA job");
-}
-
-static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
-{
-	struct fota_state_object *state_object = obj;
-
-	if (&priv_fota_chan == state_object->chan) {
-		const struct priv_fota_msg *msg =
-			(const struct priv_fota_msg *)state_object->msg_buf;
-
-		/* Wait for modem initialization to complete before processing pending FOTA job.
-		 * This ensures the modem DFU result callback has been invoked.
-		 */
-		if (msg->type == FOTA_PRIV_MODEM_INITIALIZED) {
-			LOG_DBG("Modem initialized, processing pending FOTA job");
-
-			int err = nrf_cloud_fota_poll_process_pending(&state_object->fota_ctx);
-
-			if (err < 0) {
-				LOG_ERR("nrf_cloud_fota_poll_process_pending failed: %d", err);
-				SEND_FATAL_ERROR();
-			}
-
-			const struct fota_msg msg_out = { .type = FOTA_MODULE_READY };
-
-			err = zbus_chan_pub(&fota_chan, &msg_out, PUB_TIMEOUT);
-			if (err) {
-				LOG_ERR("zbus_chan_pub, error: %d", err);
-				SEND_FATAL_ERROR();
-			}
-
-			smf_set_state(SMF_CTX(state_object),
-				      &states[STATE_WAITING_FOR_POLL_REQUEST]);
 
 			return SMF_EVENT_HANDLED;
 		}
@@ -416,19 +285,25 @@ static enum smf_state_result state_waiting_for_poll_request_run(void *obj)
 
 static void state_polling_for_update_entry(void *obj)
 {
-	struct fota_state_object *state_object = obj;
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 
-	/* Start the FOTA processing */
-	int err = nrf_cloud_fota_poll_process(&state_object->fota_ctx);
+	int err = memfault_zephyr_fota_start();
 
-	if (err == -EINVAL) {
-		LOG_DBG("nrf_cloud_fota_poll_process, error: %d", err);
-		SEND_FATAL_ERROR();
+	if (err < 0) {
+		LOG_ERR("memfault_zephyr_fota_start, error: %d", err);
+
+		struct fota_msg evt = { .type = FOTA_DOWNLOAD_FAILED };
+
+		err = zbus_chan_pub(&fota_chan, &evt, PUB_TIMEOUT);
+		if (err) {
+			LOG_ERR("zbus_chan_pub, error: %d", err);
+			SEND_FATAL_ERROR();
+		}
 
 		return;
-	} else if (err) {
+	} else if (err == 0) {
 		LOG_DBG("No FOTA job available");
 
 		struct fota_msg evt = { .type = FOTA_NO_AVAILABLE_UPDATE };
@@ -442,7 +317,7 @@ static void state_polling_for_update_entry(void *obj)
 		return;
 	}
 
-	LOG_DBG("Job available, FOTA processing started");
+	LOG_DBG("Job available, FOTA download started");
 }
 
 static enum smf_state_result state_polling_for_update_run(void *obj)
@@ -458,6 +333,11 @@ static enum smf_state_result state_polling_for_update_run(void *obj)
 
 			return SMF_EVENT_HANDLED;
 		case FOTA_NO_AVAILABLE_UPDATE:
+			smf_set_state(SMF_CTX(state_object),
+					      &states[STATE_WAITING_FOR_POLL_REQUEST]);
+
+			return SMF_EVENT_HANDLED;
+		case FOTA_DOWNLOAD_FAILED:
 			smf_set_state(SMF_CTX(state_object),
 					      &states[STATE_WAITING_FOR_POLL_REQUEST]);
 
@@ -532,8 +412,6 @@ static enum smf_state_result state_downloading_update_run(void *obj)
 			__fallthrough;
 		case FOTA_DOWNLOAD_REJECTED:
 			__fallthrough;
-		case FOTA_DOWNLOAD_TIMED_OUT:
-			__fallthrough;
 		case FOTA_DOWNLOAD_FAILED:
 			smf_set_state(SMF_CTX(state_object),
 					      &states[STATE_WAITING_FOR_POLL_REQUEST]);
@@ -574,17 +452,12 @@ static enum smf_state_result state_waiting_for_image_apply_run(void *obj)
 
 static void state_image_applying_entry(void *obj)
 {
-	struct fota_state_object *state_object = obj;
+	ARG_UNUSED(obj);
 
-	LOG_DBG("Applying downloaded firmware image");
+	LOG_DBG("%s", __func__);
 
-	/* Apply the downloaded firmware image */
-	int err = nrf_cloud_fota_poll_update_apply(&state_object->fota_ctx);
-
-	if (err) {
-		LOG_ERR("nrf_cloud_fota_poll_update_apply, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
+	/* Modem FOTA image apply is not yet implemented for the Memfault backend. */
+	LOG_WRN("Modem FOTA apply not yet implemented");
 }
 
 static enum smf_state_result state_image_applying_run(void *obj)
@@ -653,10 +526,7 @@ static void fota_module_thread(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	static struct fota_state_object fota_state = {
-		.fota_ctx.reboot_fn = fota_reboot,
-		.fota_ctx.status_fn = fota_status,
-	};
+	static struct fota_state_object fota_state;
 
 	LOG_DBG("FOTA module task started");
 
