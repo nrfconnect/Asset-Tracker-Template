@@ -14,15 +14,14 @@ The module supports three firmware image types:
 * **Delta Modem**: Incremental modem firmware updates for minor version changes.
 * **Full Modem**: Complete modem firmware replacements.
 
-Application and delta modem images are marked ready for their respective bootloaders after download is completed and applied automatically on the next device reboot. When these downloads complete successfully, the module publishes a `FOTA_SUCCESS_REBOOT_NEEDED` message to indicate that a reboot is required to apply the update.
+Once a download has started, the module publishes `FOTA_STARTING` so the application can move into its FOTA state. Application and delta modem images are marked ready after the download completes; full modem images require an additional apply step that can only run while the modem is offline.
 
-Full modem updates require that the device disconnects from the network before applying the update. For these updates, the module first sends a `FOTA_IMAGE_APPLY_NEEDED` message. The main application must then:
+When the module needs the network to be disconnected (for example, to apply a full modem image or to release modem resources before reboot), it publishes `FOTA_NETWORK_DISCONNECT_NEEDED`. The application must then:
 
 1. Disconnect from the cellular network.
-1. Send a `FOTA_IMAGE_APPLY` message to the FOTA module.
-1. Wait for the `FOTA_SUCCESS_REBOOT_NEEDED` message that indicates successful application of the new modem firmware.
+2. Reply with `FOTA_NETWORK_DISCONNECTED` once the network is down.
 
-All update operations feature error handling with appropriate status messages, allowing the application to recover gracefully from download failures or interruptions.
+The FOTA module then continues the sequence and, when the device is ready to reboot with the new image staged, publishes `FOTA_SUCCESS`. If the update cannot complete (download failure, timeout, cancellation, rejection, or no update available), the module publishes `FOTA_ABORTED` and the application can resume normal operation.
 
 ## Architecture
 
@@ -32,10 +31,10 @@ The FOTA module implements a state machine with the following states and transit
 
 ![FOTA module state diagram](../images/fota_module_state_diagram.svg "FOTA module state diagram")
 
-## Storage clearing on reboot
+## Reboot and storage handling
 
 > [!IMPORTANT]
-> Before rebooting to apply firmware updates, the FOTA module automatically clears all stored data in the storage module by sending a `STORAGE_CLEAR` message. This ensures a clean state after the firmware update and prevents potential data corruption or compatibility issues between firmware versions.
+> The FOTA module does not reboot the device on its own. After publishing `FOTA_SUCCESS`, it is the application's responsibility to perform any cleanup and trigger the reboot. In this template, the main module reacts to `FOTA_SUCCESS` by publishing `STORAGE_CLEAR` on `storage_chan` to wipe staged sample data, and then transitions to `STATE_REBOOTING`, which performs the actual reboot. This ensures a clean state after the firmware update and prevents potential data corruption or compatibility issues between firmware versions.
 
 ## Messages
 
@@ -50,28 +49,25 @@ All input messages are requests from the application to the FOTA module. The out
 - **FOTA_DOWNLOAD_CANCEL:**
   Cancel any ongoing FOTA download.
 
-- **FOTA_IMAGE_APPLY:**
-  Apply the downloaded image (possibly requiring network disconnection).
+- **FOTA_NETWORK_DISCONNECTED:**
+  Reply to `FOTA_NETWORK_DISCONNECT_NEEDED` indicating that the application has disconnected the network and the FOTA module may continue.
 
 ### Output messages
 
-- **FOTA_DOWNLOADING_UPDATE:**
-  Indicates that a firmware image is being downloaded.
+- **FOTA_MODULE_READY:**
+  Indicates that the FOTA module has finished initialization and is ready to accept requests.
 
-- **FOTA_DOWNLOAD_CANCELED:**
-  Confirms a canceled download.
+- **FOTA_STARTING:**
+  A FOTA download has started. The application should move into its FOTA-handling state.
 
-- **FOTA_DOWNLOAD_FAILED:**
-  Reports an error during download.
+- **FOTA_NETWORK_DISCONNECT_NEEDED:**
+  The module needs the network to be disconnected before it can continue. The application is expected to disconnect the network and reply with `FOTA_NETWORK_DISCONNECTED`.
 
-- **FOTA_DOWNLOAD_TIMED_OUT:**
-  Signals a download that exceeded the allowed time window.
+- **FOTA_SUCCESS:**
+  The FOTA sequence completed successfully and the device is ready to reboot in order to apply the image. The application is responsible for triggering the reboot.
 
-- **FOTA_IMAGE_APPLY_NEEDED:**
-  Alerts that the downloaded image is ready to be applied (network disconnection may be required).
-
-- **FOTA_SUCCESS_REBOOT_NEEDED:**
-  Tells the system to reboot after a successful download and image application.
+- **FOTA_ABORTED:**
+  The FOTA sequence was aborted. This covers all non-success terminations: download failed, timed out, was canceled or rejected, or no update was available.
 
 ## Configuration
 

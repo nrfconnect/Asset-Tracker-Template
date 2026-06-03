@@ -20,48 +20,38 @@ ZBUS_CHAN_DECLARE(fota_chan);
 enum fota_msg_type {
 	/* Output message types */
 
-	/* Event notified when downloading the FOTA update failed. */
-	FOTA_DOWNLOAD_FAILED = 0x1,
+	/* FOTA module is ready to use. */
+	FOTA_MODULE_READY = 0x1,
 
-	/* Event notified when downloading the FOTA update timed out. */
-	FOTA_DOWNLOAD_TIMED_OUT,
+	/* A FOTA download has started. */
+	FOTA_STARTING,
 
-	/* Event notified when a FOTA update is being downloaded. */
-	FOTA_DOWNLOADING_UPDATE,
-
-	/* Event notified if there is no available update. */
-	FOTA_NO_AVAILABLE_UPDATE,
-
-	/* Event notified when a FOTA update has succeeded, reboot is needed to apply the image. */
-	FOTA_SUCCESS_REBOOT_NEEDED,
-
-	/* Event notified when the module needs the network to disconnect in order to apply
-	 * an update. When disconnected from the network, send the event FOTA_IMAGE_APPLY.
-	 * This is needed for Full Modem FOTA updates.
+	/* The module needs the network to be disconnected before it can
+	 * continue. The application is expected to disconnect the network and
+	 * reply with FOTA_NETWORK_DISCONNECTED when it is done.
 	 */
-	FOTA_IMAGE_APPLY_NEEDED,
+	FOTA_NETWORK_DISCONNECT_NEEDED,
 
-	/* Event notified when the FOTA download has been canceled. */
-	FOTA_DOWNLOAD_CANCELED,
-
-	/* Event notified when the FOTA update has been rejected by the device,
-	 * for example wrong image signature or incompatible image.
+	/* The FOTA sequence completed successfully and the device is
+	 * ready to reboot in order to apply the image.
 	 */
-	FOTA_DOWNLOAD_REJECTED,
+	FOTA_SUCCESS,
 
-	/* Event notified when FOTA module is ready to use */
-	FOTA_MODULE_READY,
-
-	/* Input message types */
+	/* The FOTA sequence was aborted (download failed, timed out,
+	 * canceled, rejected, or no update was available).
+	 */
+	FOTA_ABORTED,
 
 	/* Request to poll cloud for any available firmware updates. */
 	FOTA_POLL_REQUEST,
 
-	/* Request to apply the downloaded firmware image. */
-	FOTA_IMAGE_APPLY,
-
 	/* Cancel the FOTA download. */
 	FOTA_DOWNLOAD_CANCEL,
+
+	/* Reply to FOTA_NETWORK_DISCONNECT_NEEDED indicating that the
+	 * network has been disconnected and the FOTA module may continue.
+	 */
+	FOTA_NETWORK_DISCONNECTED,
 };
 
 struct fota_msg {

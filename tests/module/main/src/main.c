@@ -125,17 +125,6 @@ static void send_cloud_disconnected(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
-static void send_network_disconnected(void)
-{
-	struct network_msg network_msg = {
-		.type = NETWORK_DISCONNECTED,
-	};
-
-	int err = zbus_chan_pub(&network_chan, &network_msg, K_SECONDS(1));
-
-	TEST_ASSERT_EQUAL(0, err);
-}
-
 static void send_location_search_done(void)
 {
 	struct location_msg msg = {
@@ -266,6 +255,26 @@ static void config_change_all(uint32_t sample_interval, uint32_t storage_thresho
 					       sizeof(msg.response.buffer), &encoded_len);
 	if (err != 0) {
 		TEST_FAIL_MESSAGE("Failed to encode CBOR parameters");
+	}
+
+	msg.response.buffer_data_len = encoded_len;
+
+	err = zbus_chan_pub(&cloud_chan, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+/* Publish a shadow response with an empty CBOR payload. */
+static void send_shadow_response_empty_payload(enum cloud_msg_type type)
+{
+	int err;
+	struct cloud_msg msg = { .type = type };
+	struct config_params empty_config = {0};
+	size_t encoded_len = 0;
+
+	err = encode_shadow_parameters_to_cbor(&empty_config, 0, 0, msg.response.buffer,
+					       sizeof(msg.response.buffer), &encoded_len);
+	if (err != 0) {
+		TEST_FAIL_MESSAGE("Failed to encode empty CBOR parameters");
 	}
 
 	msg.response.buffer_data_len = encoded_len;
@@ -415,103 +424,46 @@ void test_threshold_reached_disconnected(void)
 	expect_storage_event(STORAGE_BATCH_CLOSE);
 }
 
-void test_fota_downloading(void)
+void test_fota_state_ignores_events_until_aborted(void)
 {
 	connect_to_cloud();
 
-	/* Transition to STATE_FOTA_DOWNLOADING */
-	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
-	expect_fota_event(FOTA_DOWNLOADING_UPDATE);
+	/* FOTA module signals download start -> main transitions to STATE_FOTA */
+	send_fota_msg(FOTA_STARTING);
+	expect_fota_event(FOTA_STARTING);
 
-	/* A cloud ready message and button trigger should now cause no action */
+	/* While in STATE_FOTA, cloud-ready and button events should be ignored */
 	send_cloud_connected();
 	expect_cloud_event(CLOUD_CONNECTED);
 	expect_no_events(7200);
 	send_button_press_short();
 	expect_no_events(7200);
 
-	/* Cleanup */
-	send_fota_msg(FOTA_DOWNLOAD_CANCELED);
-	expect_fota_event(FOTA_DOWNLOAD_CANCELED);
+	/* FOTA module requests a network disconnect, main translates the
+	 * request into NETWORK_DISCONNECT on network_chan.
+	 */
+	send_fota_msg(FOTA_NETWORK_DISCONNECT_NEEDED);
+	expect_fota_event(FOTA_NETWORK_DISCONNECT_NEEDED);
+	expect_network_event(NETWORK_DISCONNECT);
+
+	/* Network confirms disconnection, main translates the notification
+	 * into FOTA_NETWORK_DISCONNECTED on fota_chan.
+	 */
+	struct network_msg net_msg = { .type = NETWORK_DISCONNECTED };
+	int err = zbus_chan_pub(&network_chan, &net_msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+	expect_network_event(NETWORK_DISCONNECTED);
+	expect_fota_event(FOTA_NETWORK_DISCONNECTED);
+
+	/* Abort from the FOTA module returns main to running_history */
+	send_fota_msg(FOTA_ABORTED);
 
 	/* Then sampling resumes */
 	expect_location_event(LOCATION_SEARCH_TRIGGER);
 	send_location_search_done();
 	expect_location_event(LOCATION_SEARCH_DONE);
 	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
-}
-
-void test_fota_waiting_for_network_disconnect(void)
-{
-	connect_to_cloud();
-
-	/* Transition to STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT */
-	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
-	expect_fota_event(FOTA_DOWNLOADING_UPDATE);
-	send_fota_msg(FOTA_SUCCESS_REBOOT_NEEDED);
-	expect_fota_event(FOTA_SUCCESS_REBOOT_NEEDED);
-
-	/* Veriy that the module sends NETWORK_DISCONNECT */
-	expect_network_event(NETWORK_DISCONNECT);
-
-	expect_no_events(10);
-
-	/* Send a NETWORK_DISCONNECTED event to trigger transition to STATE_FOTA_REBOOTING */
-	send_network_disconnected();
-	expect_network_event(NETWORK_DISCONNECTED);
-	send_cloud_disconnected();
-	expect_cloud_event(CLOUD_DISCONNECTED);
-
-	/* Verify that the module sends STORAGE_CLEAR before fota reboot */
-	expect_storage_event(STORAGE_CLEAR);
-
-	/* Give the system time to reboot */
-	k_sleep(K_SECONDS(10));
-
-	TEST_ASSERT_EQUAL(1, sys_reboot_fake.call_count);
-
-	/* Cleanup */
-	send_fota_msg(FOTA_DOWNLOAD_CANCELED);
-	expect_fota_event(FOTA_DOWNLOAD_CANCELED);
-}
-
-void test_fota_waiting_for_network_disconnect_to_apply_image(void)
-{
-	connect_to_cloud();
-
-	/* Transition to STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE */
-	send_fota_msg(FOTA_DOWNLOADING_UPDATE);
-	expect_fota_event(FOTA_DOWNLOADING_UPDATE);
-	send_fota_msg(FOTA_IMAGE_APPLY_NEEDED);
-	expect_fota_event(FOTA_IMAGE_APPLY_NEEDED);
-
-	/* Veriy that the module sends NETWORK_DISCONNECT */
-	expect_network_event(NETWORK_DISCONNECT);
-
-	expect_no_events(10);
-
-	/* Send a NETWORK_DISCONNECTED event to trigger transition to STATE_FOTA_APPLYING_IMAGE */
-	send_network_disconnected();
-	expect_network_event(NETWORK_DISCONNECTED);
-
-	/* Verify that the module sends FOTA_IMAGE_APPLY */
-	expect_fota_event(FOTA_IMAGE_APPLY);
-
-	/* Trigger reboot */
-	send_fota_msg(FOTA_SUCCESS_REBOOT_NEEDED);
-	expect_fota_event(FOTA_SUCCESS_REBOOT_NEEDED);
-
-	/* Verify that the module sends STORAGE_CLEAR before fota reboot */
-	expect_storage_event(STORAGE_CLEAR);
-
-	/* Give the system time to reboot */
-	k_sleep(K_SECONDS(10));
-
-	TEST_ASSERT_EQUAL(1, sys_reboot_fake.call_count);
-
-	/* Cleanup */
-	send_fota_msg(FOTA_DOWNLOAD_CANCELED);
-	expect_fota_event(FOTA_DOWNLOAD_CANCELED);
 }
 
 void test_sensor_timer_multiple_expiries(void)
@@ -607,6 +559,49 @@ void test_config_change(void)
 	/* Close batch to signal send completion */
 	send_storage_batch_close();
 	expect_storage_event(STORAGE_BATCH_CLOSE);
+
+	send_shadow_response_empty_payload(CLOUD_SHADOW_RESPONSE_DESIRED);
+	expect_cloud_event(CLOUD_SHADOW_RESPONSE_DESIRED);
+	expect_cloud_event(CLOUD_SHADOW_SET_REPORTED_CONFIG);
+
+	send_shadow_response_empty_payload(CLOUD_SHADOW_RESPONSE_EMPTY_DELTA);
+	expect_cloud_event(CLOUD_SHADOW_RESPONSE_EMPTY_DELTA);
+	/* EMPTY_DELTA only logs */
+	expect_no_events(100);
+
+	send_shadow_response_empty_payload(CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED);
+	expect_cloud_event(CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED);
+	expect_cloud_event(CLOUD_SHADOW_SET_REPORTED_CONFIG);
+}
+
+
+/* NOTE: This test must remain LAST in the file.
+ *
+ * On FOTA_SUCCESS, the main module clears storage and transitions to
+ * STATE_REBOOTING, which is a terminal top-level state with no run handler.
+ * Once entered, the SMF cannot be driven back out via zbus events, so any
+ * test running after this one would observe a frozen state machine.
+ * `sys_reboot()` is faked, so the test process keeps running, but the SMF
+ * is intentionally stuck — leave this test at the end.
+ */
+void test_fota_success_triggers_reboot(void)
+{
+	connect_to_cloud();
+
+	/* Enter STATE_FOTA */
+	send_fota_msg(FOTA_STARTING);
+	expect_fota_event(FOTA_STARTING);
+
+	/* FOTA module signals completion -> main clears storage and reboots */
+	send_fota_msg(FOTA_SUCCESS);
+
+	/* Verify that the module sends STORAGE_CLEAR before reboot */
+	expect_storage_event(STORAGE_CLEAR);
+
+	/* Give the system time to reboot */
+	k_sleep(K_SECONDS(10));
+
+	TEST_ASSERT_EQUAL(1, sys_reboot_fake.call_count);
 }
 
 
