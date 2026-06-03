@@ -151,19 +151,7 @@ static enum smf_state_result connected_sending_run(void *o);
 static void fota_entry(void *o);
 static enum smf_state_result fota_run(void *o);
 
-static void fota_downloading_entry(void *o);
-static enum smf_state_result fota_downloading_run(void *o);
-
-static void fota_waiting_for_network_disconnect_entry(void *o);
-static enum smf_state_result fota_waiting_for_network_disconnect_run(void *o);
-
-static void fota_waiting_for_network_disconnect_to_apply_image_entry(void *o);
-static enum smf_state_result fota_waiting_for_network_disconnect_to_apply_image_run(void *o);
-
-static void fota_applying_image_entry(void *o);
-static enum smf_state_result fota_applying_image_run(void *o);
-
-static void fota_rebooting_entry(void *o);
+static void rebooting_entry(void *o);
 
 enum app_state {
 	/* Waiting for module initialization */
@@ -187,18 +175,8 @@ enum app_state {
 
 	/* Firmware Over-The-Air update is in progress */
 	STATE_FOTA,
-		/* FOTA image is being downloaded */
-		STATE_FOTA_DOWNLOADING,
-		/* Disconnecting from the network */
-		STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT,
-		/* Waiting for network disconnect to apply the image, state needed for
-		 * Full Modem FOTA. Extra step needed to apply the image before rebooting.
-		 */
-		STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE,
-		/* Applying the image */
-		STATE_FOTA_APPLYING_IMAGE,
-		/* Rebooting */
-		STATE_FOTA_REBOOTING,
+	/* Cleanup and reboot the device. Terminal state */
+	STATE_REBOOTING,
 };
 
 /* State object for the app module.
@@ -334,41 +312,13 @@ static const struct smf_state states[] = {
 		fota_run,
 		NULL,
 		NULL,
-		&states[STATE_FOTA_DOWNLOADING]
-	),
-	[STATE_FOTA_DOWNLOADING] = SMF_CREATE_STATE(
-		fota_downloading_entry,
-		fota_downloading_run,
-		NULL,
-		&states[STATE_FOTA],
 		NULL
 	),
-	[STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT] = SMF_CREATE_STATE(
-		fota_waiting_for_network_disconnect_entry,
-		fota_waiting_for_network_disconnect_run,
-		NULL,
-		&states[STATE_FOTA],
-		NULL
-	),
-	[STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE] = SMF_CREATE_STATE(
-		fota_waiting_for_network_disconnect_to_apply_image_entry,
-		fota_waiting_for_network_disconnect_to_apply_image_run,
-		NULL,
-		&states[STATE_FOTA],
-		NULL
-	),
-	[STATE_FOTA_APPLYING_IMAGE] = SMF_CREATE_STATE(
-		fota_applying_image_entry,
-		fota_applying_image_run,
-		NULL,
-		&states[STATE_FOTA],
-		NULL
-	),
-	[STATE_FOTA_REBOOTING] = SMF_CREATE_STATE(
-		fota_rebooting_entry,
+	[STATE_REBOOTING] = SMF_CREATE_STATE(
+		rebooting_entry,
 		NULL,
 		NULL,
-		&states[STATE_FOTA],
+		NULL,
 		NULL
 	),
 };
@@ -903,7 +853,7 @@ static enum smf_state_result running_run(void *o)
 	if (state_object->chan == &fota_chan) {
 		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
 
-		if (msg->type == FOTA_DOWNLOADING_UPDATE) {
+		if (msg->type == FOTA_STARTING) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA]);
 
 			return SMF_EVENT_HANDLED;
@@ -1372,25 +1322,72 @@ static void fota_entry(void *o)
 static enum smf_state_result fota_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
-	const enum app_state resume_state = state_object->running_history;
 
+	/* High-level outcomes and requests from the FOTA module. */
 	if (state_object->chan == &fota_chan) {
 		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
 
 		switch (msg->type) {
-		case FOTA_DOWNLOAD_CANCELED:
-			__fallthrough;
-		case FOTA_DOWNLOAD_REJECTED:
-			__fallthrough;
-		case FOTA_DOWNLOAD_TIMED_OUT:
-			__fallthrough;
-		case FOTA_DOWNLOAD_FAILED:
-			smf_set_state(SMF_CTX(state_object), &states[resume_state]);
+		case FOTA_NETWORK_DISCONNECT_NEEDED: {
+			/* The FOTA module needs the network to be disconnected before it can
+			 * continue. Forward the request to the network module; the matching
+			 * NETWORK_DISCONNECTED notification will be translated into
+			 * FOTA_NETWORK_DISCONNECTED below.
+			 */
+			struct network_msg net_msg = { .type = NETWORK_DISCONNECT };
+			int err = zbus_chan_pub(&network_chan, &net_msg, PUB_TIMEOUT);
+
+			if (err) {
+				LOG_ERR("Failed to publish network disconnect request, error: %d",
+					err);
+				SEND_FATAL_ERROR();
+			}
+
+			return SMF_EVENT_HANDLED;
+		}
+		case FOTA_SUCCESS: {
+			struct storage_msg storage_msg = {.type = STORAGE_CLEAR};
+			int err = zbus_chan_pub(&storage_chan, &storage_msg, PUB_TIMEOUT);
+
+			if (err) {
+				LOG_ERR("Failed to publish storage clear message, error: %d", err);
+				SEND_FATAL_ERROR();
+
+				return SMF_EVENT_HANDLED;
+			}
+
+			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOTING]);
+
+			return SMF_EVENT_HANDLED;
+		}
+		case FOTA_ABORTED:
+			smf_set_state(SMF_CTX(state_object),
+				      &states[state_object->running_history]);
 
 			return SMF_EVENT_HANDLED;
 		default:
-			/* Don't care */
+			/* FOTA_STARTING is informational; main is already in STATE_FOTA. */
 			break;
+		}
+	}
+
+	/* Translate network disconnect notifications into FOTA_NETWORK_DISCONNECTED so the
+	 * FOTA module knows it can proceed.
+	 */
+	if (state_object->chan == &network_chan) {
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
+
+		if (msg->type == NETWORK_DISCONNECTED) {
+			struct fota_msg fota_disconnected = {.type = FOTA_NETWORK_DISCONNECTED};
+			int err = zbus_chan_pub(&fota_chan, &fota_disconnected, PUB_TIMEOUT);
+
+			if (err) {
+				LOG_ERR("Failed to publish FOTA_NETWORK_DISCONNECTED, error: %d",
+					err);
+				SEND_FATAL_ERROR();
+			}
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
 
@@ -1401,33 +1398,10 @@ static enum smf_state_result fota_run(void *o)
 		const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
 
 		if (msg->type == CLOUD_DISCONNECTED) {
-			/* Figure out which state to return to in case FOTA is cancelled */
-			switch (resume_state) {
-			case STATE_CONNECTED:
-				state_object->running_history = STATE_DISCONNECTED;
-
-				break;
-			case STATE_DISCONNECTED:
-				/* No need to change state */
-				break;
-			default:
-				break;
-			}
-
+			state_object->running_history = STATE_DISCONNECTED;
 			return SMF_EVENT_HANDLED;
 		} else if (msg->type == CLOUD_CONNECTED) {
-			switch (resume_state) {
-			case STATE_DISCONNECTED:
-				state_object->running_history = STATE_CONNECTED;
-
-				break;
-			case STATE_CONNECTED:
-				/* No need to change state */
-				break;
-			default:
-				break;
-			}
-
+			state_object->running_history = STATE_CONNECTED;
 			return SMF_EVENT_HANDLED;
 		}
 	}
@@ -1435,179 +1409,13 @@ static enum smf_state_result fota_run(void *o)
 	return SMF_EVENT_PROPAGATE;
 }
 
-/* STATE_FOTA_DOWNLOADING */
+/* STATE_REBOOTING */
 
-static void fota_downloading_entry(void *o)
+static void rebooting_entry(void *o)
 {
 	ARG_UNUSED(o);
 
 	LOG_DBG("%s", __func__);
-}
-
-static enum smf_state_result fota_downloading_run(void *o)
-{
-	const struct main_state *state_object = (const struct main_state *)o;
-
-	if (state_object->chan == &fota_chan) {
-		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
-
-		switch (msg->type) {
-		case FOTA_SUCCESS_REBOOT_NEEDED:
-			smf_set_state(SMF_CTX(state_object),
-					      &states[STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT]);
-
-			return SMF_EVENT_HANDLED;
-		case FOTA_IMAGE_APPLY_NEEDED:
-			smf_set_state(SMF_CTX(state_object),
-				&states[STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE]);
-
-			return SMF_EVENT_HANDLED;
-		default:
-			/* Don't care */
-			break;
-		}
-	}
-
-	return SMF_EVENT_PROPAGATE;
-}
-
-/* STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT */
-
-static void fota_waiting_for_network_disconnect_entry(void *o)
-{
-	int err;
-	struct network_msg msg = {
-		.type = NETWORK_DISCONNECT
-	};
-
-	ARG_UNUSED(o);
-
-	LOG_DBG("%s", __func__);
-
-	err = zbus_chan_pub(&network_chan, &msg, PUB_TIMEOUT);
-	if (err) {
-		LOG_ERR("Failed to publish network disconnect request, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-}
-
-static enum smf_state_result fota_waiting_for_network_disconnect_run(void *o)
-{
-	const struct main_state *state_object = (const struct main_state *)o;
-
-	if (state_object->chan == &network_chan) {
-		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
-
-		if (msg->type == NETWORK_DISCONNECTED) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
-
-			return SMF_EVENT_HANDLED;
-		}
-	}
-
-	return SMF_EVENT_PROPAGATE;
-}
-
-/* STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE */
-
-static void fota_waiting_for_network_disconnect_to_apply_image_entry(void *o)
-{
-	ARG_UNUSED(o);
-
-	LOG_DBG("%s", __func__);
-
-	int err;
-	struct network_msg msg = {
-		.type = NETWORK_DISCONNECT
-	};
-
-	err = zbus_chan_pub(&network_chan, &msg, PUB_TIMEOUT);
-	if (err) {
-		LOG_ERR("Failed to publish network disconnect request, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-}
-
-static enum smf_state_result fota_waiting_for_network_disconnect_to_apply_image_run(void *o)
-{
-	const struct main_state *state_object = (const struct main_state *)o;
-
-	if (state_object->chan == &network_chan) {
-		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
-
-		if (msg->type == NETWORK_DISCONNECTED) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_APPLYING_IMAGE]);
-
-			return SMF_EVENT_HANDLED;
-		}
-	}
-
-	return SMF_EVENT_PROPAGATE;
-}
-
-/* STATE_FOTA_APPLYING_IMAGE, */
-
-static void fota_applying_image_entry(void *o)
-{
-	ARG_UNUSED(o);
-
-	LOG_DBG("%s", __func__);
-
-	int err;
-	struct fota_msg msg = { .type = FOTA_IMAGE_APPLY };
-
-	err = zbus_chan_pub(&fota_chan, &msg, PUB_TIMEOUT);
-	if (err) {
-		LOG_ERR("Failed to publish FOTA image apply request, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-}
-
-static enum smf_state_result fota_applying_image_run(void *o)
-{
-	const struct main_state *state_object = (const struct main_state *)o;
-
-	if (state_object->chan == &fota_chan) {
-		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
-
-		if (msg->type == FOTA_SUCCESS_REBOOT_NEEDED) {
-			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA_REBOOTING]);
-
-			return SMF_EVENT_HANDLED;
-		}
-	}
-
-	return SMF_EVENT_PROPAGATE;
-}
-
-/* STATE_FOTA_REBOOTING */
-
-static void fota_rebooting_entry(void *o)
-{
-	ARG_UNUSED(o);
-
-	struct storage_msg msg = { .type = STORAGE_CLEAR };
-	int err;
-
-	LOG_DBG("%s", __func__);
-
-	/* Tell storage module to clear any stored data */
-	err = zbus_chan_pub(&storage_chan, &msg, PUB_TIMEOUT);
-	if (err) {
-		LOG_ERR("Failed to publish storage clear message, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-
-	/* Reboot the device */
-	LOG_WRN("Rebooting the device to apply the FOTA update");
 
 	/* Flush log buffer */
 	LOG_PANIC();

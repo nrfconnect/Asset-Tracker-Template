@@ -46,6 +46,14 @@ ZBUS_CHAN_DEFINE(fota_chan,
 enum priv_fota_msg_type {
 	/* Modem has completed initialization. */
 	FOTA_PRIV_MODEM_INITIALIZED,
+	/* The firmware download has started. */
+	FOTA_PRIV_DOWNLOADING,
+	/* Reboot is required to apply the downloaded image. */
+	FOTA_PRIV_REBOOT_NEEDED,
+	/* Image apply is required */
+	FOTA_PRIV_IMAGE_APPLY_NEEDED,
+	/* FOTA sequence has been aborted */
+	FOTA_PRIV_ABORTED,
 };
 
 struct priv_fota_msg {
@@ -94,8 +102,14 @@ enum fota_module_state {
 		STATE_POLLING_FOR_UPDATE,
 		/* The module is downloading an update */
 		STATE_DOWNLOADING_UPDATE,
-		/* The module is waiting for the event FOTA_IMAGE_APPLY to apply the image */
-		STATE_WAITING_FOR_IMAGE_APPLY,
+		/* The module is waiting for the application to disconnect the network before
+		 * triggering a reboot.
+		 */
+		STATE_AWAITING_NETWORK_DOWN_BEFORE_REBOOT,
+		/* The module is waiting for the application to disconnect the network before
+		 * applying a full modem FOTA image.
+		 */
+		STATE_AWAITING_NETWORK_DOWN_BEFORE_APPLY,
 		/* The module is applying the image */
 		STATE_IMAGE_APPLYING,
 		/* The FOTA module is waiting for a reboot */
@@ -132,8 +146,10 @@ static void state_polling_for_update_entry(void *obj);
 static enum smf_state_result state_polling_for_update_run(void *obj);
 static void state_downloading_update_entry(void *obj);
 static enum smf_state_result state_downloading_update_run(void *obj);
-static void state_waiting_for_image_apply_entry(void *obj);
-static enum smf_state_result state_waiting_for_image_apply_run(void *obj);
+static void state_awaiting_network_down_before_reboot_entry(void *obj);
+static enum smf_state_result state_awaiting_network_down_before_reboot_run(void *obj);
+static void state_awaiting_network_down_before_apply_entry(void *obj);
+static enum smf_state_result state_awaiting_network_down_before_apply_run(void *obj);
 static void state_image_applying_entry(void *obj);
 static enum smf_state_result state_image_applying_run(void *obj);
 static void state_reboot_pending_entry(void *obj);
@@ -171,9 +187,15 @@ static const struct smf_state states[] = {
 				 NULL,
 				 &states[STATE_RUNNING],
 				 NULL),
-	[STATE_WAITING_FOR_IMAGE_APPLY] =
-		SMF_CREATE_STATE(state_waiting_for_image_apply_entry,
-				 state_waiting_for_image_apply_run,
+	[STATE_AWAITING_NETWORK_DOWN_BEFORE_REBOOT] =
+		SMF_CREATE_STATE(state_awaiting_network_down_before_reboot_entry,
+				 state_awaiting_network_down_before_reboot_run,
+				 NULL,
+				 &states[STATE_RUNNING],
+				 NULL),
+	[STATE_AWAITING_NETWORK_DOWN_BEFORE_APPLY] =
+		SMF_CREATE_STATE(state_awaiting_network_down_before_apply_entry,
+				 state_awaiting_network_down_before_apply_run,
 				 NULL,
 				 &states[STATE_RUNNING],
 				 NULL),
@@ -196,6 +218,32 @@ static const struct smf_state states[] = {
 				 &states[STATE_RUNNING],
 				 NULL),
 };
+
+/* Helpers */
+
+static void publish_fota_event(enum fota_msg_type type)
+{
+	int err;
+	struct fota_msg evt = { .type = type };
+
+	err = zbus_chan_pub(&fota_chan, &evt, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("zbus_chan_pub fota_chan, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+static void publish_priv_fota(enum priv_fota_msg_type type)
+{
+	int err;
+	struct priv_fota_msg msg = { .type = type };
+
+	err = zbus_chan_pub(&priv_fota_chan, &msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("zbus_chan_pub priv_fota_chan, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
 
 static void on_modem_init(int ret, void *ctx)
 {
@@ -225,73 +273,57 @@ NRF_MODEM_LIB_ON_INIT(fota_modem_init_hook, on_modem_init, NULL);
 
 static void fota_reboot(enum nrf_cloud_fota_reboot_status status)
 {
-	int err;
-	struct fota_msg evt = { .type = FOTA_SUCCESS_REBOOT_NEEDED };
-
 	LOG_DBG("Reboot requested with FOTA status %d", status);
 
-	err = zbus_chan_pub(&fota_chan, &evt, PUB_TIMEOUT);
-	if (err) {
-		LOG_DBG("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
+	publish_priv_fota(FOTA_PRIV_REBOOT_NEEDED);
 }
 
 static void fota_status(enum nrf_cloud_fota_status status, const char *const status_details)
 {
-	int err;
-	struct fota_msg evt = { 0 };
-
 	LOG_DBG("FOTA status: %d, details: %s", status, status_details ? status_details : "None");
 
 	switch (status) {
 	case NRF_CLOUD_FOTA_DOWNLOADING:
 		LOG_DBG("Downloading firmware update");
 
-		evt.type = FOTA_DOWNLOADING_UPDATE;
+		publish_priv_fota(FOTA_PRIV_DOWNLOADING);
 		break;
 	case NRF_CLOUD_FOTA_FAILED:
 		LOG_WRN("Firmware download failed");
 
-		evt.type = FOTA_DOWNLOAD_FAILED;
+		publish_priv_fota(FOTA_PRIV_ABORTED);
 		break;
 	case NRF_CLOUD_FOTA_CANCELED:
 		LOG_WRN("Firmware download canceled");
 
-		evt.type = FOTA_DOWNLOAD_CANCELED;
+		publish_priv_fota(FOTA_PRIV_ABORTED);
 		break;
 	case NRF_CLOUD_FOTA_REJECTED:
 		LOG_WRN("Firmware update rejected");
 
-		evt.type = FOTA_DOWNLOAD_REJECTED;
+		publish_priv_fota(FOTA_PRIV_ABORTED);
 		break;
 	case NRF_CLOUD_FOTA_TIMED_OUT:
 		LOG_WRN("Firmware download timed out");
 
-		evt.type = FOTA_DOWNLOAD_TIMED_OUT;
+		publish_priv_fota(FOTA_PRIV_ABORTED);
 		break;
 	case NRF_CLOUD_FOTA_SUCCEEDED:
 		LOG_DBG("Firmware update succeeded");
 		LOG_DBG("Waiting for reboot request from the nRF Cloud FOTA Poll library");
 
-		/* Don't send any event in case of success, the nRF Cloud FOTA poll library will
-		 * notify when a reboot is needed via the fota_reboot() callback.
+		/* Don't trigger any state change in case of success; the nRF Cloud FOTA poll
+		 * library will follow up via the fota_reboot() callback.
 		 */
-		return;
+		break;
 	case NRF_CLOUD_FOTA_FMFU_VALIDATION_NEEDED:
 		LOG_DBG("Full Modem FOTA Update validation needed, network disconnect required");
 
-		evt.type = FOTA_IMAGE_APPLY_NEEDED;
+		publish_priv_fota(FOTA_PRIV_IMAGE_APPLY_NEEDED);
 		break;
 	default:
 		LOG_DBG("Unknown FOTA status: %d", status);
-		return;
-	}
-
-	err = zbus_chan_pub(&fota_chan, &evt, PUB_TIMEOUT);
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		SEND_FATAL_ERROR();
+		break;
 	}
 }
 
@@ -366,17 +398,18 @@ static enum smf_state_result state_waiting_for_modem_init_run(void *obj)
 				SEND_FATAL_ERROR();
 			}
 
-			const struct fota_msg msg_out = { .type = FOTA_MODULE_READY };
-
-			err = zbus_chan_pub(&fota_chan, &msg_out, PUB_TIMEOUT);
-			if (err) {
-				LOG_ERR("zbus_chan_pub, error: %d", err);
-				SEND_FATAL_ERROR();
-			}
+			publish_fota_event(FOTA_MODULE_READY);
 
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_WAITING_FOR_POLL_REQUEST]);
 
+			return SMF_EVENT_HANDLED;
+		}
+	} else if (&fota_chan == state_object->chan) {
+		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
+
+		if (msg->type == FOTA_DOWNLOAD_CANCEL) {
+			LOG_DBG("No ongoing FOTA update, nothing to cancel");
 			return SMF_EVENT_HANDLED;
 		}
 	}
@@ -430,13 +463,7 @@ static void state_polling_for_update_entry(void *obj)
 	} else if (err) {
 		LOG_DBG("No FOTA job available");
 
-		struct fota_msg evt = { .type = FOTA_NO_AVAILABLE_UPDATE };
-
-		err = zbus_chan_pub(&fota_chan, &evt, PUB_TIMEOUT);
-		if (err) {
-			LOG_ERR("zbus_chan_pub, error: %d", err);
-			SEND_FATAL_ERROR();
-		}
+		publish_priv_fota(FOTA_PRIV_ABORTED);
 
 		return;
 	}
@@ -448,26 +475,31 @@ static enum smf_state_result state_polling_for_update_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
-	if (&fota_chan == state_object->chan) {
-		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
+	if (&priv_fota_chan == state_object->chan) {
+		const struct priv_fota_msg *msg =
+			(const struct priv_fota_msg *)state_object->msg_buf;
 
 		switch (msg->type) {
-		case FOTA_DOWNLOADING_UPDATE:
+		case FOTA_PRIV_DOWNLOADING:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DOWNLOADING_UPDATE]);
 
 			return SMF_EVENT_HANDLED;
-		case FOTA_NO_AVAILABLE_UPDATE:
+		case FOTA_PRIV_ABORTED:
+			publish_fota_event(FOTA_ABORTED);
 			smf_set_state(SMF_CTX(state_object),
-					      &states[STATE_WAITING_FOR_POLL_REQUEST]);
-
-			return SMF_EVENT_HANDLED;
-		case FOTA_DOWNLOAD_CANCEL:
-			LOG_DBG("No ongoing FOTA update, nothing to cancel");
+				      &states[STATE_WAITING_FOR_POLL_REQUEST]);
 
 			return SMF_EVENT_HANDLED;
 		default:
-			/* Don't care */
 			break;
+		}
+	} else if (&fota_chan == state_object->chan) {
+		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
+
+		if (msg->type == FOTA_DOWNLOAD_CANCEL) {
+			LOG_DBG("No ongoing FOTA update, nothing to cancel");
+
+			return SMF_EVENT_HANDLED;
 		}
 	}
 
@@ -479,38 +511,36 @@ static void state_downloading_update_entry(void *obj)
 	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
+
+	publish_fota_event(FOTA_STARTING);
 }
 
 static enum smf_state_result state_downloading_update_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
-	if (&fota_chan == state_object->chan) {
-		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
+	if (&priv_fota_chan == state_object->chan) {
+		const struct priv_fota_msg *msg =
+			(const struct priv_fota_msg *)state_object->msg_buf;
 
 		switch (msg->type) {
-		case FOTA_IMAGE_APPLY_NEEDED:
+		case FOTA_PRIV_REBOOT_NEEDED:
 			smf_set_state(SMF_CTX(state_object),
-					      &states[STATE_WAITING_FOR_IMAGE_APPLY]);
+				      &states[STATE_AWAITING_NETWORK_DOWN_BEFORE_REBOOT]);
 
 			return SMF_EVENT_HANDLED;
-		case FOTA_SUCCESS_REBOOT_NEEDED:
-			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_PENDING]);
+		case FOTA_PRIV_IMAGE_APPLY_NEEDED:
+			smf_set_state(SMF_CTX(state_object),
+				      &states[STATE_AWAITING_NETWORK_DOWN_BEFORE_APPLY]);
 
 			return SMF_EVENT_HANDLED;
-		case FOTA_DOWNLOAD_CANCELED:
-			__fallthrough;
-		case FOTA_DOWNLOAD_REJECTED:
-			__fallthrough;
-		case FOTA_DOWNLOAD_TIMED_OUT:
-			__fallthrough;
-		case FOTA_DOWNLOAD_FAILED:
+		case FOTA_PRIV_ABORTED:
+			publish_fota_event(FOTA_ABORTED);
 			smf_set_state(SMF_CTX(state_object),
-					      &states[STATE_WAITING_FOR_POLL_REQUEST]);
+				      &states[STATE_WAITING_FOR_POLL_REQUEST]);
 
 			return SMF_EVENT_HANDLED;
 		default:
-			/* Don't care */
 			break;
 		}
 	}
@@ -518,21 +548,49 @@ static enum smf_state_result state_downloading_update_run(void *obj)
 	return SMF_EVENT_PROPAGATE;
 }
 
-static void state_waiting_for_image_apply_entry(void *obj)
+static void state_awaiting_network_down_before_reboot_entry(void *obj)
 {
 	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
+
+	publish_fota_event(FOTA_NETWORK_DISCONNECT_NEEDED);
 }
 
-static enum smf_state_result state_waiting_for_image_apply_run(void *obj)
+static enum smf_state_result state_awaiting_network_down_before_reboot_run(void *obj)
 {
-	struct fota_state_object *state_object = obj;
+	struct fota_state_object const *state_object = obj;
 
 	if (&fota_chan == state_object->chan) {
 		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
 
-		if (msg->type == FOTA_IMAGE_APPLY) {
+		if (msg->type == FOTA_NETWORK_DISCONNECTED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_PENDING]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
+
+static void state_awaiting_network_down_before_apply_entry(void *obj)
+{
+	ARG_UNUSED(obj);
+
+	LOG_DBG("%s", __func__);
+
+	publish_fota_event(FOTA_NETWORK_DISCONNECT_NEEDED);
+}
+
+static enum smf_state_result state_awaiting_network_down_before_apply_run(void *obj)
+{
+	struct fota_state_object const *state_object = obj;
+
+	if (&fota_chan == state_object->chan) {
+		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
+
+		if (msg->type == FOTA_NETWORK_DISCONNECTED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_IMAGE_APPLYING]);
 
 			return SMF_EVENT_HANDLED;
@@ -561,10 +619,11 @@ static enum smf_state_result state_image_applying_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
-	if (&fota_chan == state_object->chan) {
-		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
+	if (&priv_fota_chan == state_object->chan) {
+		const struct priv_fota_msg *msg =
+			(const struct priv_fota_msg *)state_object->msg_buf;
 
-		if (msg->type == FOTA_SUCCESS_REBOOT_NEEDED) {
+		if (msg->type == FOTA_PRIV_REBOOT_NEEDED) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_PENDING]);
 
 			return SMF_EVENT_HANDLED;
@@ -578,7 +637,10 @@ static void state_reboot_pending_entry(void *obj)
 {
 	ARG_UNUSED(obj);
 
+	LOG_DBG("%s", __func__);
 	LOG_DBG("Waiting for the application to reboot in order to apply the update");
+
+	publish_fota_event(FOTA_SUCCESS);
 }
 
 static void state_canceling_entry(void *obj)
@@ -601,12 +663,14 @@ static enum smf_state_result state_canceling_run(void *obj)
 {
 	struct fota_state_object const *state_object = obj;
 
-	if (&fota_chan == state_object->chan) {
-		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
+	if (&priv_fota_chan == state_object->chan) {
+		const struct priv_fota_msg *msg =
+			(const struct priv_fota_msg *)state_object->msg_buf;
 
-		if (msg->type == FOTA_DOWNLOAD_CANCELED) {
+		if (msg->type == FOTA_PRIV_ABORTED) {
+			publish_fota_event(FOTA_ABORTED);
 			smf_set_state(SMF_CTX(state_object),
-					      &states[STATE_WAITING_FOR_POLL_REQUEST]);
+				      &states[STATE_WAITING_FOR_POLL_REQUEST]);
 
 			return SMF_EVENT_HANDLED;
 		}
