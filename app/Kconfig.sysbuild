@@ -5,6 +5,8 @@
 #
 
 choice BOOTLOADER
+	# nRF54LM20 Serial Modem host: single app image (no NSIB b0 / MCUboot merge).
+	default BOOTLOADER_NONE if BOARD_NRF54LM20DK
 	default BOOTLOADER_MCUBOOT if !BOARD_NATIVE_SIM
 endchoice
 

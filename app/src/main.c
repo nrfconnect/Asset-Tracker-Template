@@ -15,8 +15,12 @@
 #include "app_common.h"
 #include "network.h"
 #include "cloud.h"
+#if defined(CONFIG_APP_FOTA)
 #include "fota.h"
+#endif
+#if defined(CONFIG_APP_LOCATION)
 #include "location.h"
+#endif
 #include "storage.h"
 #include "cbor_helper.h"
 
@@ -92,9 +96,9 @@ ZBUS_CHAN_DEFINE(priv_main_chan,
  */
 #define CHANNEL_LIST(X)						\
 	X(cloud_chan,		struct cloud_msg)		\
-	X(fota_chan,		struct fota_msg)		\
+	IF_ENABLED(CONFIG_APP_FOTA, (X(fota_chan, struct fota_msg)))		\
 	X(network_chan,		struct network_msg)		\
-	X(location_chan,	struct location_msg)		\
+	IF_ENABLED(CONFIG_APP_LOCATION, (X(location_chan, struct location_msg))) \
 	X(storage_chan,		struct storage_msg)		\
 	X(timer_chan,		struct timer_msg)		\
 	X(priv_main_chan,	struct priv_main_msg)		\
@@ -122,6 +126,7 @@ static void timer_sample_stop(void);
 static K_WORK_DELAYABLE_DEFINE(timer_sample_data_work, timer_sample_data_work_fn);
 
 /* Forward declarations of state handlers */
+static void waiting_for_modules_init_entry(void *o);
 static enum smf_state_result waiting_for_modules_init_run(void *o);
 static enum smf_state_result running_run(void *o);
 static void running_exit(void *o);
@@ -148,22 +153,19 @@ static void connected_waiting_exit(void *o);
 static void connected_sending_entry(void *o);
 static enum smf_state_result connected_sending_run(void *o);
 
+#if defined(CONFIG_APP_FOTA)
 static void fota_entry(void *o);
 static enum smf_state_result fota_run(void *o);
-
 static void fota_downloading_entry(void *o);
 static enum smf_state_result fota_downloading_run(void *o);
-
 static void fota_waiting_for_network_disconnect_entry(void *o);
 static enum smf_state_result fota_waiting_for_network_disconnect_run(void *o);
-
 static void fota_waiting_for_network_disconnect_to_apply_image_entry(void *o);
 static enum smf_state_result fota_waiting_for_network_disconnect_to_apply_image_run(void *o);
-
 static void fota_applying_image_entry(void *o);
 static enum smf_state_result fota_applying_image_run(void *o);
-
 static void fota_rebooting_entry(void *o);
+#endif /* CONFIG_APP_FOTA */
 
 enum app_state {
 	/* Waiting for module initialization */
@@ -185,20 +187,15 @@ enum app_state {
 			/* Sending buffered data to the cloud */
 			STATE_CONNECTED_SENDING,
 
+#if defined(CONFIG_APP_FOTA)
 	/* Firmware Over-The-Air update is in progress */
 	STATE_FOTA,
-		/* FOTA image is being downloaded */
 		STATE_FOTA_DOWNLOADING,
-		/* Disconnecting from the network */
 		STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT,
-		/* Waiting for network disconnect to apply the image, state needed for
-		 * Full Modem FOTA. Extra step needed to apply the image before rebooting.
-		 */
 		STATE_FOTA_WAITING_FOR_NETWORK_DISCONNECT_TO_APPLY_IMAGE,
-		/* Applying the image */
 		STATE_FOTA_APPLYING_IMAGE,
-		/* Rebooting */
 		STATE_FOTA_REBOOTING,
+#endif /* CONFIG_APP_FOTA */
 };
 
 /* State object for the app module.
@@ -250,11 +247,15 @@ struct main_state {
 
 	/* Flags to track if each module is ready */
 	struct {
+#if defined(CONFIG_APP_FOTA)
 		bool fota_ready;
+#endif
 #if defined(CONFIG_APP_POWER)
 		bool power_ready;
 #endif /* CONFIG_APP_POWER */
+#if defined(CONFIG_APP_LOCATION)
 		bool location_ready;
+#endif
 	} modules_ready;
 };
 
@@ -262,7 +263,7 @@ struct main_state {
 static const struct smf_state states[] = {
 	/* Initial state, waiting for modules to initialize */
 	[STATE_WAITING_FOR_MODULES_INIT] = SMF_CREATE_STATE(
-		NULL,
+		waiting_for_modules_init_entry,
 		waiting_for_modules_init_run,
 		NULL,
 		NULL,
@@ -328,7 +329,7 @@ static const struct smf_state states[] = {
 		&states[STATE_CONNECTED],
 		NULL
 	),
-	/* FOTA states */
+#if defined(CONFIG_APP_FOTA)
 	[STATE_FOTA] = SMF_CREATE_STATE(
 		fota_entry,
 		fota_run,
@@ -371,6 +372,7 @@ static const struct smf_state states[] = {
 		&states[STATE_FOTA],
 		NULL
 	),
+#endif /* CONFIG_APP_FOTA */
 };
 
 /* Static helper function */
@@ -411,6 +413,7 @@ static void poll_shadow_send(enum cloud_msg_type type)
 
 static void poll_triggers_send(void)
 {
+#if defined(CONFIG_APP_FOTA)
 	int err;
 	struct fota_msg fota_msg = { .type = FOTA_POLL_REQUEST };
 
@@ -421,6 +424,7 @@ static void poll_triggers_send(void)
 
 		return;
 	}
+#endif /* CONFIG_APP_FOTA */
 
 	/* Get the latest device configuration by polling the desired section of the shadow */
 	poll_shadow_send(CLOUD_SHADOW_GET_DELTA);
@@ -430,12 +434,8 @@ static void poll_triggers_send(void)
 
 static void trigger_sampling(struct main_state *state_object)
 {
-	int err;
-	struct location_msg location_msg = {
-		.type = LOCATION_SEARCH_TRIGGER,
-	};
-
 #if defined(CONFIG_APP_LED)
+	int err;
 	/* Blue pattern to indicate sampling */
 	struct led_msg led_msg = {
 		.type = LED_RGB_SET,
@@ -460,6 +460,7 @@ static void trigger_sampling(struct main_state *state_object)
 	state_object->first_sample_pending = false;
 
 #if defined(CONFIG_APP_POWER)
+	int err;
 	struct power_msg power_msg = {
 		.type = POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST,
 	};
@@ -474,6 +475,7 @@ static void trigger_sampling(struct main_state *state_object)
 #endif /* CONFIG_APP_POWER */
 
 #if defined(CONFIG_APP_ENVIRONMENTAL)
+	int err;
 	struct environmental_msg environmental_msg = {
 		.type = ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST,
 	};
@@ -487,6 +489,12 @@ static void trigger_sampling(struct main_state *state_object)
 	}
 #endif /* CONFIG_APP_ENVIRONMENTAL */
 
+#if defined(CONFIG_APP_LOCATION)
+	int err;
+	struct location_msg location_msg = {
+		.type = LOCATION_SEARCH_TRIGGER,
+	};
+
 	err = zbus_chan_pub(&location_chan, &location_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("Failed to publish location search trigger, error: %d", err);
@@ -494,6 +502,7 @@ static void trigger_sampling(struct main_state *state_object)
 
 		return;
 	}
+#endif /* CONFIG_APP_LOCATION */
 }
 
 static void waiting_entry_common(const struct main_state *state_object)
@@ -824,6 +833,7 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 	}
 }
 
+#if defined(CONFIG_APP_FOTA) || defined(CONFIG_APP_POWER) || defined(CONFIG_APP_LOCATION)
 /* Check whether all modules that need time to initialize have reported ready.
  * If so, publish MAIN_MODULES_READY message to transition out of the waiting for modules state.
  */
@@ -831,12 +841,25 @@ static void check_modules_ready(const struct main_state *state_object)
 {
 	const struct priv_main_msg msg = { .type = MAIN_MODULES_READY };
 	int err;
+	bool ready = true;
 
-	if (state_object->modules_ready.fota_ready &&
+#if defined(CONFIG_APP_FOTA)
+	if (!state_object->modules_ready.fota_ready) {
+		ready = false;
+	}
+#endif
 #if defined(CONFIG_APP_POWER)
-	    state_object->modules_ready.power_ready &&
-#endif /* CONFIG_APP_POWER */
-	    state_object->modules_ready.location_ready) {
+	if (!state_object->modules_ready.power_ready) {
+		ready = false;
+	}
+#endif
+#if defined(CONFIG_APP_LOCATION)
+	if (!state_object->modules_ready.location_ready) {
+		ready = false;
+	}
+#endif
+
+	if (ready) {
 		err = zbus_chan_pub(&priv_main_chan, &msg, PUB_TIMEOUT);
 		if (err) {
 			LOG_ERR("Failed to publish MAIN_MODULES_READY message, error: %d", err);
@@ -845,15 +868,41 @@ static void check_modules_ready(const struct main_state *state_object)
 		}
 	}
 }
+#endif /* CONFIG_APP_FOTA || CONFIG_APP_POWER || CONFIG_APP_LOCATION */
+
+static void publish_modules_ready(void)
+{
+	const struct priv_main_msg msg = { .type = MAIN_MODULES_READY };
+	int err;
+
+	err = zbus_chan_pub(&priv_main_chan, &msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("Failed to publish MAIN_MODULES_READY message, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
 
 /* Zephyr State Machine framework handlers */
 
 /* STATE_WAITING_FOR_MODULES_INIT */
+static void waiting_for_modules_init_entry(void *o)
+{
+#if defined(CONFIG_APP_FOTA) || defined(CONFIG_APP_POWER) || defined(CONFIG_APP_LOCATION)
+	struct main_state *state_object = (struct main_state *)o;
+
+	check_modules_ready(state_object);
+#else
+	ARG_UNUSED(o);
+	publish_modules_ready();
+#endif
+}
+
 static enum smf_state_result waiting_for_modules_init_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
 	/* Update the extended state per module, and check if all modules are ready. */
+#if defined(CONFIG_APP_FOTA)
 	if (state_object->chan == &fota_chan) {
 		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
 
@@ -862,8 +911,10 @@ static enum smf_state_result waiting_for_modules_init_run(void *o)
 			check_modules_ready(state_object);
 			return SMF_EVENT_HANDLED;
 		}
+	} else
+#endif /* CONFIG_APP_FOTA */
 #if defined(CONFIG_APP_POWER)
-	} else if (state_object->chan == &power_chan) {
+	if (state_object->chan == &power_chan) {
 		const struct power_msg *msg = (const struct power_msg *)state_object->msg_buf;
 
 		if (msg->type == POWER_MODULE_READY) {
@@ -872,7 +923,8 @@ static enum smf_state_result waiting_for_modules_init_run(void *o)
 			return SMF_EVENT_HANDLED;
 		}
 #endif /* CONFIG_APP_POWER */
-	} else if (state_object->chan == &location_chan) {
+#if defined(CONFIG_APP_LOCATION)
+	else if (state_object->chan == &location_chan) {
 		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
 		if (msg->type == LOCATION_MODULE_READY) {
@@ -880,9 +932,9 @@ static enum smf_state_result waiting_for_modules_init_run(void *o)
 			check_modules_ready(state_object);
 			return SMF_EVENT_HANDLED;
 		}
-
-	/* If all modules are ready, we can transition to the running state. */
-	} else if (state_object->chan == &priv_main_chan) {
+	} else
+#endif /* CONFIG_APP_LOCATION */
+	if (state_object->chan == &priv_main_chan) {
 		const struct priv_main_msg *msg =
 			(const struct priv_main_msg *)state_object->msg_buf;
 
@@ -899,6 +951,7 @@ static enum smf_state_result running_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
+#if defined(CONFIG_APP_FOTA)
 	/* Handle FOTA download initiation at top level */
 	if (state_object->chan == &fota_chan) {
 		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
@@ -909,6 +962,7 @@ static enum smf_state_result running_run(void *o)
 			return SMF_EVENT_HANDLED;
 		}
 	}
+#endif /* CONFIG_APP_FOTA */
 
 	/* Handle cloud provisioning completion */
 	if (state_object->chan == &cloud_chan) {
@@ -1005,9 +1059,7 @@ static void connected_entry(void *o)
 	 * status. Ensures synced states between device and cloud.
 	 */
 	if (!state_object->cloud_synced_on_connect) {
-
 		int err;
-		struct fota_msg fota_msg = { .type = FOTA_POLL_REQUEST };
 		struct cloud_msg cloud_msg = {
 			.type = CLOUD_SHADOW_UPDATE_REPORTED_DEVICE
 		};
@@ -1020,10 +1072,14 @@ static void connected_entry(void *o)
 			return;
 		}
 
+#if defined(CONFIG_APP_FOTA)
+		struct fota_msg fota_msg = { .type = FOTA_POLL_REQUEST };
+
 		err = zbus_chan_pub(&fota_chan, &fota_msg, PUB_TIMEOUT);
 		if (err) {
 			LOG_ERR("Failed to trigger FOTA polling on cloud connection: %d", err);
 		}
+#endif /* CONFIG_APP_FOTA */
 
 		poll_shadow_send(CLOUD_SHADOW_GET_DESIRED);
 		state_object->cloud_synced_on_connect = true;
@@ -1093,12 +1149,16 @@ static void disconnected_sampling_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 	trigger_sampling(state_object);
+#if !defined(CONFIG_APP_LOCATION)
+	smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_WAITING]);
+#endif
 }
 
 static enum smf_state_result disconnected_sampling_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
+#if defined(CONFIG_APP_LOCATION)
 	if (state_object->chan == &location_chan) {
 		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
@@ -1108,6 +1168,7 @@ static enum smf_state_result disconnected_sampling_run(void *o)
 			return SMF_EVENT_HANDLED;
 		}
 	}
+#endif /* CONFIG_APP_LOCATION */
 
 #if defined(CONFIG_APP_BUTTON)
 	/* Ignore other triggers while sampling */
@@ -1210,12 +1271,16 @@ static void connected_sampling_entry(void *o)
 
 	LOG_DBG("%s", __func__);
 	trigger_sampling(state_object);
+#if !defined(CONFIG_APP_LOCATION)
+	smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_WAITING]);
+#endif
 }
 
 static enum smf_state_result connected_sampling_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
+#if defined(CONFIG_APP_LOCATION)
 	if (state_object->chan == &location_chan) {
 		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
@@ -1224,6 +1289,7 @@ static enum smf_state_result connected_sampling_run(void *o)
 			return SMF_EVENT_HANDLED;
 		}
 	}
+#endif /* CONFIG_APP_LOCATION */
 
 #if defined(CONFIG_APP_BUTTON)
 	/* Ignore other sample triggers while sampling */
@@ -1338,6 +1404,7 @@ static enum smf_state_result connected_sending_run(void *o)
 	return SMF_EVENT_PROPAGATE;
 }
 
+#if defined(CONFIG_APP_FOTA)
 /* STATE_FOTA */
 
 static void fota_entry(void *o)
@@ -1616,6 +1683,7 @@ static void fota_rebooting_entry(void *o)
 
 	sys_reboot(SYS_REBOOT_COLD);
 }
+#endif /* CONFIG_APP_FOTA */
 
 int main(void)
 {

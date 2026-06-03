@@ -1,0 +1,41 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ *
+ * nRF54LM20 application core hosting an external nRF91 Serial Modem (ncs-serial-modem).
+ * Flash/partition layout comes from Zephyr nrf54lm20_a_b_cpuapp_partition.dtsi (RRAM).
+ * MCUboot + merged.hex are disabled for this board (Kconfig.sysbuild BOOTLOADER_NONE).
+ */
+
+/ {
+	aliases {
+		modem = &modem;
+	};
+};
+
+&uart30 {
+	compatible = "nordic,nrf-uarte";
+	current-speed = <115200>;
+	hw-flow-control;
+	status = "okay";
+
+	modem: modem {
+		compatible = "nordic,nrf91-slm";
+		status = "okay";
+		/* Reset GPIO controls nRF91 RESET pin.
+		 * Active low: assert (drive low) to reset, deassert (release/high) to run.
+		 * Using P1.04 which is exposed on expansion header pin 4.
+		 * Wire this pin to the nRF9151 DK's RESET pin (IF RESET on P18 header).
+		 */
+		mdm-reset-gpios = <&gpio1 4 GPIO_ACTIVE_LOW>;
+
+		/* Toggle reset both on resume (cold start, MCU reboots while SM
+		 * may still be running) and on recovery (init script timeout).
+		 * Without toggle_on_resume the driver fires AT commands at the SM
+		 * immediately on PM RESUME and races with SM boot, causing a
+		 * 10s init_chat_script timeout on first attempt.
+		 */
+		zephyr,mdm-reset-behavior = "toggle_on_resume", "toggle_on_recovery";
+	};
+};

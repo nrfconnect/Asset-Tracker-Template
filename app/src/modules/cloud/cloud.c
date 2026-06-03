@@ -27,7 +27,9 @@
 #include "cloud_internal.h"
 #include "cloud_configuration.h"
 #include "cloud_provisioning.h"
+#if defined(CONFIG_APP_LOCATION)
 #include "cloud_location.h"
+#endif
 #ifdef CONFIG_APP_ENVIRONMENTAL
 #include "cloud_environmental.h"
 #endif /* CONFIG_APP_ENVIRONMENTAL */
@@ -61,7 +63,7 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(cloud_subscriber);
 	X(network_chan,		struct network_msg)		\
 	X(cloud_chan,		struct cloud_msg)		\
 	X(storage_chan,		struct storage_msg)		\
-	X(location_chan,	struct location_msg)		\
+	IF_ENABLED(CONFIG_APP_LOCATION, (X(location_chan, struct location_msg))) \
 	X(storage_data_chan,	struct storage_msg)
 
 /* Calculate the maximum message size from the list of channels */
@@ -948,11 +950,13 @@ static void state_connecting_provisioning_entry(void *obj)
 {
 	int err;
 	struct cloud_state_object *state_object = obj;
+
+	LOG_DBG("%s", __func__);
+
+#if defined(CONFIG_APP_LOCATION)
 	struct location_msg location_msg = {
 		.type = LOCATION_SEARCH_CANCEL,
 	};
-
-	LOG_DBG("%s", __func__);
 
 	/* Cancel any ongoing location search during provisioning to allow writing credentials,
 	 * which requires offline LTE functional mode.
@@ -964,6 +968,7 @@ static void state_connecting_provisioning_entry(void *obj)
 
 		return;
 	}
+#endif /* CONFIG_APP_LOCATION */
 
 	state_object->provisioning_ongoing = true;
 

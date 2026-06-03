@@ -8,14 +8,15 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/logging/log_ctrl.h>
 #include <zephyr/zbus/zbus.h>
+#include <zephyr/sys/reboot.h>
+#include <zephyr/task_wdt/task_wdt.h>
+#include <zephyr/smf.h>
+
 #include <net/nrf_cloud_coap.h>
 #include <net/nrf_cloud_fota_poll.h>
-#include <zephyr/sys/reboot.h>
 #include <zephyr/dfu/mcuboot.h>
 #include <zephyr/storage/flash_map.h>
-#include <zephyr/task_wdt/task_wdt.h>
 #include <nrf_cloud_fota.h>
-#include <zephyr/smf.h>
 #include <net/fota_download.h>
 #include <modem/nrf_modem_lib.h>
 
@@ -24,10 +25,6 @@
 
 /* Register log module */
 LOG_MODULE_REGISTER(fota, CONFIG_APP_FOTA_LOG_LEVEL);
-
-BUILD_ASSERT(CONFIG_APP_FOTA_WATCHDOG_TIMEOUT_SECONDS >
-	     CONFIG_APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS,
-	     "Watchdog timeout must be greater than maximum message processing time");
 
 /* Register message subscriber - will be called everytime a channel that the module listens on
  * receives a new message.
@@ -42,6 +39,10 @@ ZBUS_CHAN_DEFINE(fota_chan,
 		 ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0)
 );
+
+BUILD_ASSERT(CONFIG_APP_FOTA_WATCHDOG_TIMEOUT_SECONDS >
+	     CONFIG_APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS,
+	     "Watchdog timeout must be greater than maximum message processing time");
 
 /* Private channel message types for internal state management. */
 enum priv_fota_msg_type {

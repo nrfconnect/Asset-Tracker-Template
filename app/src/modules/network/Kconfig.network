@@ -5,7 +5,31 @@
 #
 
 menu "Network"
+
+choice APP_NETWORK_BACKEND
+	prompt "Network module backend"
+	default APP_NETWORK_BACKEND_LTE_LC if LTE_LINK_CONTROL
+	default APP_NETWORK_BACKEND_CONN_MGR
+
+config APP_NETWORK_BACKEND_LTE_LC
+	bool "lte_lc (nRF Modem Library / nRF91)"
 	depends on LTE_LINK_CONTROL
+	help
+	  Use the nRF Modem Library link controller (lte_lc) directly.
+	  This backend talks AT commands to the modem via the nRF Modem Library
+	  and is the only supported backend on nRF91-based targets.
+
+config APP_NETWORK_BACKEND_CONN_MGR
+	bool "Zephyr conn_mgr (PPP / modem_cellular)"
+	depends on NET_CONNECTION_MANAGER
+	help
+	  Use the Zephyr connection manager to bring the network interface up
+	  and down. Used together with the upstream Zephyr modem subsystem
+	  (modem_cellular driver, PPP) when the host MCU does not run the
+	  nRF Modem Library directly (e.g. nRF54LM20 communicating with an
+	  nRF91 running ncs-serial-modem over UART).
+
+endchoice
 
 config APP_NETWORK_SHELL
 	bool "Network module shell commands"

@@ -9,6 +9,8 @@ manifest:
   remotes:
     - name: ncs
       url-base: https://github.com/nrfconnect
+    - name: memfault
+      url-base: https://github.com/memfault
 
   projects:
     - name: nrf
@@ -16,3 +18,10 @@ manifest:
       repo-path: sdk-nrf
       revision: 1c36e480279018abc54c42f60df729f9363be95a
       import: true
+
+    # Override NCS-pinned Memfault SDK for fuel gauge v2 testing.
+    - name: memfault-firmware-sdk
+      remote: memfault
+      repo-path: memfault-firmware-sdk
+      revision: noahp/1.40.0-rc2-fuelgaugev2
+      path: modules/lib/memfault-firmware-sdk

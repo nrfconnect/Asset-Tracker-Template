@@ -9,7 +9,9 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
+#if defined(CONFIG_LTE_LINK_CONTROL)
 #include <modem/lte_lc.h>
+#endif /* CONFIG_LTE_LINK_CONTROL */
 
 #ifdef __cplusplus
 extern "C" {
@@ -116,6 +118,7 @@ enum network_msg_type {
 
 struct network_msg {
 	enum network_msg_type type;
+#if defined(CONFIG_LTE_LINK_CONTROL)
 	union {
 		/** Contains the currently configured system mode.
 		 *  system_mode is set for NETWORK_SYSTEM_MODE_RESPONSE events
@@ -132,6 +135,7 @@ struct network_msg {
 		 */
 		IF_ENABLED(CONFIG_LTE_LC_EDRX_MODULE, (struct lte_lc_edrx_cfg edrx_cfg));
 	};
+#endif /* CONFIG_LTE_LINK_CONTROL */
 };
 
 

@@ -5,8 +5,13 @@
 
 menuconfig APP_LOCATION
 	bool "Location"
-	default y if LOCATION
+	depends on LOCATION
+	default y
 	select LOCATION_DATA_DETAILS
+	help
+	  Asset Tracker Template location module (GNSS, cellular, Wi-Fi via the
+	  NCS Location library). Disable on hosts without CONFIG_LOCATION, such as
+	  the nRF54LM20 Serial Modem application.
 
 if APP_LOCATION
 

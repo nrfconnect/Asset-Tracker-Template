@@ -4,8 +4,10 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-# Generate the full programmable image at build/merged.hex (b0 + signed
-# mcuboot s0/s1 + signed TF-M+app + app_provision).
+# nRF91 sysbuild (MCUboot + NSIB b0): single merged.hex for full internal-flash programming.
+# nRF54LM20 Serial Modem host uses BOOTLOADER_NONE (see Kconfig.sysbuild) — only the app
+# image is built; do not require b0/mcuboot artifacts here.
+if(SB_CONFIG_BOOTLOADER_MCUBOOT)
 set(att_merged_hex ${CMAKE_BINARY_DIR}/merged.hex)
 set(att_merged_inputs
     ${CMAKE_BINARY_DIR}/b0/zephyr/zephyr.hex
@@ -29,3 +31,4 @@ add_custom_command(
 )
 
 add_custom_target(att_merged_hex ALL DEPENDS ${att_merged_hex})
+endif()
