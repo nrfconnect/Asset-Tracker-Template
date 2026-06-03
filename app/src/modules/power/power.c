@@ -20,9 +20,6 @@
 #include "app_common.h"
 #include "power.h"
 #include "fuel_gauge_state.h"
-#if defined(CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX)
-#include "memfault/metrics/platform/battery.h"
-#endif /* CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
 
 LOG_MODULE_REGISTER(power, CONFIG_APP_POWER_LOG_LEVEL);
 
@@ -386,9 +383,6 @@ static int sample_and_process(struct power_state_object *state_object)
 	int32_t chg_status;
 	bool vbus_connected;
 	float delta;
-#if defined(CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX)
-	sMfltPlatformBatterySoc soc;
-#endif /* CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
 
 	err = charger_read_sensors(state_object->charger, &state_object->voltage,
 				   &state_object->current, &state_object->temperature, &chg_status,
@@ -409,19 +403,6 @@ static int sample_and_process(struct power_state_object *state_object)
 	/* Inform fuel gauge of charge state changes */
 	power_update_charge_state_if_changed(chg_status, &prev_chg_status);
 
-#if defined(CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX)
-	err = memfault_platform_get_stateofcharge(&soc);
-	if (err) {
-		LOG_ERR("memfault_platform_get_stateofcharge, error: %d", err);
-		return err;
-	}
-
-	state_object->percentage =
-		(float)soc.soc / (float)CONFIG_MEMFAULT_METRICS_BATTERY_SOC_PCT_SCALE_VALUE;
-
-	(void)delta;
-#else
-
 	delta = (float)k_uptime_delta(&state_object->fuel_gauge_ref_time) / 1000.0f;
 
 	err = nrf_fuel_gauge_process(state_object->voltage,
@@ -432,8 +413,6 @@ static int sample_and_process(struct power_state_object *state_object)
 		LOG_ERR("nrf_fuel_gauge_process, error: %d", err);
 		return err;
 	}
-
-#endif /* CONFIG_MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX */
 
 	err = fuel_gauge_state_save();
 	if (err) {
@@ -654,9 +633,9 @@ static void power_module_thread(void)
 	}
 
 	parameters.state = fuel_gauge_state_get();
-	if (parameters.state) {
-		LOG_DBG("Restoring fuel gauge from saved state (%zu bytes)",
-			fuel_gauge_state_size_get());
+	if (parameters.state != NULL) {
+		parameters.state_size = fuel_gauge_state_size_get();
+		LOG_DBG("Restoring fuel gauge from saved state (%zu bytes)", parameters.state_size);
 	} else {
 		LOG_DBG("No saved fuel gauge state found, initializing from scratch");
 	}
