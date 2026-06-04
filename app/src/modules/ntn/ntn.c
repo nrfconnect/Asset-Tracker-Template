@@ -2423,8 +2423,6 @@ static enum smf_state_result state_ntn_run(void *obj)
 		case NTN_RRC_IDLE:
 			LOG_DBG("Setting NTN RRC state to idle");
 
-			k_timer_stop(&state->rrc_connected_timer);
-
 			state->rrc_is_connected = false;
 
 			return SMF_EVENT_HANDLED;
