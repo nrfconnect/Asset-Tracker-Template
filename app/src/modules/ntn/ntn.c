@@ -631,7 +631,7 @@ static void update_cached_pvt(struct ntn_state_object *state,
 		0 : k_uptime_get() + CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS * MSEC_PER_SEC;
 }
 
-static void clear_cached_tles(struct ntn_state_object *state)
+static __maybe_unused void clear_cached_tles(struct ntn_state_object *state)
 {
 	memset(state->tle_entries, 0, sizeof(state->tle_entries));
 	state->tle_count = 0;
