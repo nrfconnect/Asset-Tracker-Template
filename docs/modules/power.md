@@ -18,9 +18,6 @@ states and transitions:
 
 ![Power module state diagram](../images/power_module_state_diagram.svg "Power module state diagram")
 
-**Note:** The diagram requires updating to reflect the current state
-hierarchy.
-
 ### States
 
 - **STATE_WAITING_FOR_MODEM_INIT:** Initial state. Waits for the modem
@@ -43,12 +40,24 @@ The Power module defines and communicates on the `power_chan` channel.
 ### Input messages
 
 - **POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST:**
-  Requests a battery percentage sample.
+  Requests a battery percentage sample. The module replies with the most
+  recently sampled values in a `POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE`
+  message.
+
+- **POWER_BATTERY_SAMPLE_LOG:**
+  Available only when `CONFIG_APP_POWER_SHELL` is enabled. Requests the
+  module to log the latest sampled battery data (voltage, current,
+  temperature, percentage, charging status) to the console.
 
 ### Output messages
 
+- **POWER_MODULE_READY:**
+  Published when the module has completed initialization and entered
+  `STATE_RUNNING`.
+
 - **POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE:**
-  Contains the calculated battery percentage.
+  Contains the latest battery percentage, voltage, charging status and a
+  timestamp.
 
 The power message structure is defined in `power.h`:
 
@@ -56,8 +65,20 @@ The power message structure is defined in `power.h`:
 struct power_msg {
 	enum power_msg_type type;
 
-	/** Contains the current charge of the battery in percentage. */
+	/** Current charge of the battery in percentage. */
 	double percentage;
+
+	/** True if the battery is charging, false otherwise. */
+	bool charging;
+
+	/** Voltage in volts. */
+	double voltage;
+
+	/** Timestamp when the sample was taken in milliseconds.
+	 *  Either Unix time (if the system clock was synchronized) or uptime.
+	 *  Only valid for POWER_BATTERY_PERCENTAGE_SAMPLE_RESPONSE messages.
+	 */
+	int64_t timestamp;
 };
 ```
 
@@ -82,6 +103,11 @@ The following Kconfig options control this module’s behavior:
 
 - **CONFIG_APP_POWER_THREAD_STACK_SIZE:**
   Size of the Power module’s thread stack.
+
+- **CONFIG_APP_POWER_VBUS_THREAD_STACK_SIZE:**
+  Stack size for the VBUS initialization thread that waits for modem
+  library initialization before subscribing to VBUS events and syncing
+  the UART state.
 
 - **CONFIG_APP_POWER_WATCHDOG_TIMEOUT_SECONDS:**
   Defines the watchdog timeout for the module. Must be larger than the
