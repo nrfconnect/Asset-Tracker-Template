@@ -67,6 +67,15 @@ jobs:
       build_type: ${{ steps.setup.outputs.build_type }}
       push_memory_badges: ${{ steps.setup.outputs.push_memory_badges == 'true' }}
       run_nightly_tests: ${{ steps.setup.outputs.run_nightly_tests == 'true' }}
+      build_thingy91x_base: ${{ steps.setup.outputs.build_thingy91x_base == 'true' }}
+      build_nrf9151dk_base: ${{ steps.setup.outputs.build_nrf9151dk_base == 'true' }}
+      build_thingy91x_debug: ${{ steps.setup.outputs.build_thingy91x_debug == 'true' }}
+      build_thingy91x_mqtt: ${{ steps.setup.outputs.build_thingy91x_mqtt == 'true' }}
+      build_thingy91x_buffer_flash: ${{ steps.setup.outputs.build_thingy91x_buffer_flash == 'true' }}
+      build_thingy91x_buffer_ram: ${{ steps.setup.outputs.build_thingy91x_buffer_ram == 'true' }}
+      build_thingy91x_mtrace: ${{ steps.setup.outputs.build_thingy91x_mtrace == 'true' }}
+      build_nrf9151dk_mtrace: ${{ steps.setup.outputs.build_nrf9151dk_mtrace == 'true' }}
+      build_nrf9151dk_ext_gnss: ${{ steps.setup.outputs.build_nrf9151dk_ext_gnss == 'true' }}
     steps:
       - name: Setup
         id: setup
@@ -74,12 +83,19 @@ jobs:
           SCHEDULED=${{ github.event_name == 'schedule' }}
           PUSH=${{ github.event_name == 'push' }}
           push_memory_badges=false
+          build_type=""
           if [[ $SCHEDULED == true ]]; then
             devices="thingy91x nrf9151dk ppk_thingy91x gnss_nrf9151dk prov_thingy91x"
             push_memory_badges=true
             run_nightly_tests=true
+            # Nightly historically builds every variant (including the mtrace
+            # firmwares which have no test consumer). Keep the legacy
+            # ``build_type=all`` so the existing artifact set is preserved.
+            build_type=all
           elif [[ $PUSH == true ]]; then
             devices="thingy91x"
+            # Keep the legacy push behaviour: build the full thingy91x set so
+            # main always exercises every variant on commit.
             build_type=all
           else
             # Build devices list from selected checkboxes
@@ -108,38 +124,75 @@ jobs:
             run_nightly_tests=${{ inputs.run_nightly_tests }}
           fi
 
-          # Derive build_type unless explicitly overridden via workflow_call input.
-          # minimal: thingy91x base firmware only (sufficient when only thingy91x-family devices selected)
-          # release: only set explicitly via workflow_call (e.g. release workflow)
-          # all:     builds everything
-          only_thingy91x_family=false
+          # Respect an explicit ``build_type`` override (e.g. the release
+          # workflow calls this pipeline with ``build_type=release``). Otherwise
+          # leave it empty and let the per-variant flags below drive the build.
+          if [[ -z "${build_type}" && -n "${{ inputs.build_type }}" ]]; then
+            build_type=${{ inputs.build_type }}
+          fi
+
+          # Per-variant build flags derived from the selected devices and the
+          # ``run_nightly_tests`` flag. The build job ORs these with the
+          # legacy ``build_type`` fallback in ``build.yml``.
+          build_thingy91x_base=false
+          build_nrf9151dk_base=false
+          build_thingy91x_debug=false
+          build_thingy91x_mqtt=false
+          build_thingy91x_buffer_flash=false
+          build_thingy91x_buffer_ram=false
+          build_thingy91x_mtrace=false
+          build_nrf9151dk_mtrace=false
+          build_nrf9151dk_ext_gnss=false
+
           for d in $devices; do
-            if [[ "$d" == "thingy91x" || "$d" == "ppk_thingy91x" || "$d" == "prov_thingy91x" ]]; then
-              only_thingy91x_family=true
-            else
-              only_thingy91x_family=false
-              break
-            fi
+            case "$d" in
+              thingy91x|ppk_thingy91x|prov_thingy91x)
+                build_thingy91x_base=true
+                ;;
+              nrf9151dk)
+                build_nrf9151dk_base=true
+                ;;
+              gnss_nrf9151dk)
+                build_nrf9151dk_base=true
+                build_nrf9151dk_ext_gnss=true
+                ;;
+            esac
           done
 
-          if [[ -n "${build_type:-}" ]]; then
-            : # build_type already set (e.g. push or schedule)
-          elif [[ -n "${{ inputs.build_type }}" ]]; then
-            build_type=${{ inputs.build_type }}
-          elif [[ "$only_thingy91x_family" == "true" && "${run_nightly_tests:-false}" != "true" ]]; then
-            build_type=minimal
-          else
-            build_type=all
+          # Nightly slow tests for the thingy91x family exercise the variant
+          # firmwares (memfault/mqtt/buffer-*). They are ``@pytest.mark.slow``
+          # so they only run when ``run_nightly_tests`` is true.
+          if [[ "${run_nightly_tests:-false}" == "true" && "$build_thingy91x_base" == "true" ]]; then
+            build_thingy91x_debug=true
+            build_thingy91x_mqtt=true
+            build_thingy91x_buffer_flash=true
+            build_thingy91x_buffer_ram=true
           fi
+
+          # mtrace variants have no test consumer. They are release
+          # deliverables and ride along with ``build_type=release|all`` via
+          # the legacy fallback in ``build.yml`` (e.g. scheduled nightly runs
+          # which historically built them).
 
           echo "devices=$devices"
           echo "build_type=$build_type"
           echo "push_memory_badges=$push_memory_badges"
           echo "run_nightly_tests=${run_nightly_tests:-false}"
-          echo "devices=$devices" >> $GITHUB_OUTPUT
-          echo "build_type=$build_type" >> $GITHUB_OUTPUT
-          echo "push_memory_badges=$push_memory_badges" >> $GITHUB_OUTPUT
-          echo "run_nightly_tests=${run_nightly_tests:-false}" >> $GITHUB_OUTPUT
+          {
+            echo "devices=$devices"
+            echo "build_type=$build_type"
+            echo "push_memory_badges=$push_memory_badges"
+            echo "run_nightly_tests=${run_nightly_tests:-false}"
+            echo "build_thingy91x_base=$build_thingy91x_base"
+            echo "build_nrf9151dk_base=$build_nrf9151dk_base"
+            echo "build_thingy91x_debug=$build_thingy91x_debug"
+            echo "build_thingy91x_mqtt=$build_thingy91x_mqtt"
+            echo "build_thingy91x_buffer_flash=$build_thingy91x_buffer_flash"
+            echo "build_thingy91x_buffer_ram=$build_thingy91x_buffer_ram"
+            echo "build_thingy91x_mtrace=$build_thingy91x_mtrace"
+            echo "build_nrf9151dk_mtrace=$build_nrf9151dk_mtrace"
+            echo "build_nrf9151dk_ext_gnss=$build_nrf9151dk_ext_gnss"
+          } >> "$GITHUB_OUTPUT"
   build:
     needs: setup
     permissions:
@@ -150,6 +203,15 @@ jobs:
     with:
       build_type: ${{ needs.setup.outputs.build_type }}
       push_memory_badges: ${{ needs.setup.outputs.push_memory_badges == 'true' }}
+      build_thingy91x_base: ${{ needs.setup.outputs.build_thingy91x_base == 'true' }}
+      build_nrf9151dk_base: ${{ needs.setup.outputs.build_nrf9151dk_base == 'true' }}
+      build_thingy91x_debug: ${{ needs.setup.outputs.build_thingy91x_debug == 'true' }}
+      build_thingy91x_mqtt: ${{ needs.setup.outputs.build_thingy91x_mqtt == 'true' }}
+      build_thingy91x_buffer_flash: ${{ needs.setup.outputs.build_thingy91x_buffer_flash == 'true' }}
+      build_thingy91x_buffer_ram: ${{ needs.setup.outputs.build_thingy91x_buffer_ram == 'true' }}
+      build_thingy91x_mtrace: ${{ needs.setup.outputs.build_thingy91x_mtrace == 'true' }}
+      build_nrf9151dk_mtrace: ${{ needs.setup.outputs.build_nrf9151dk_mtrace == 'true' }}
+      build_nrf9151dk_ext_gnss: ${{ needs.setup.outputs.build_nrf9151dk_ext_gnss == 'true' }}
   test:
     permissions:
       actions: read
