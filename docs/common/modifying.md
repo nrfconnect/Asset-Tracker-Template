@@ -32,7 +32,16 @@ To add a new zbus event, complete the following procedure:
     };
     ```
 
-1. Implement publishing of the VBUS connected and disconnected events by modifying the existing `event_callback()` function in `power.c`:
+1. Publish the new events from the `event_callback()` function. The VBUS callback lives in a dedicated source file next to the power module, `app/src/modules/power/vbus_events.c`, which does not yet depend on zbus or the power channel. First, add the required includes near the top of that file:
+
+    ```c
+    #include <zephyr/zbus/zbus.h>
+
+    #include "app_common.h"
+    #include "power.h"
+    ```
+
+    Then extend the two existing branches in `event_callback()` to publish on `power_chan`:
 
     ```c
     if (pins & BIT(NPM13XX_EVENT_VBUS_DETECTED)) {
