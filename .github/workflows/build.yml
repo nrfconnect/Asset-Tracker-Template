@@ -24,10 +24,60 @@ on:
         required: false
         default: false
       build_type:
+        description: |
+          Legacy build scope: minimal | release | all. Used as a fallback for
+          variants that have no explicit ``build_*`` input. Set to an empty
+          string when driving the build purely via per-variant inputs (e.g.
+          from ``build-and-target-test.yml``).
         type: string
         required: false
         default: minimal
       push_memory_badges:
+        type: boolean
+        required: false
+        default: false
+      build_thingy91x_base:
+        description: Build the base thingy91x firmware
+        type: boolean
+        required: false
+        default: false
+      build_nrf9151dk_base:
+        description: Build the base nrf9151dk firmware
+        type: boolean
+        required: false
+        default: false
+      build_thingy91x_debug:
+        description: Build the thingy91x debug (memfault) firmware
+        type: boolean
+        required: false
+        default: false
+      build_thingy91x_mqtt:
+        description: Build the thingy91x firmware with the MQTT cloud module
+        type: boolean
+        required: false
+        default: false
+      build_thingy91x_buffer_flash:
+        description: Build the thingy91x firmware with the flash buffer backend
+        type: boolean
+        required: false
+        default: false
+      build_thingy91x_buffer_ram:
+        description: Build the thingy91x firmware with the RAM buffer backend
+        type: boolean
+        required: false
+        default: false
+      build_thingy91x_mtrace:
+        description: Build the thingy91x firmware with modem trace on UART
+        type: boolean
+        required: false
+        default: false
+      build_nrf9151dk_mtrace:
+        description: Build the nrf9151dk firmware with modem trace on UART
+        type: boolean
+        required: false
+        default: false
+      build_nrf9151dk_ext_gnss:
+        description: Build the nrf9151dk firmware with external GNSS antenna
         type: boolean
         required: false
         default: false
@@ -141,11 +191,25 @@ jobs:
           cat app/VERSION
 
       - name: Set build type
-        run: echo "build_type=${{ inputs.build_type || 'minimal' }}" >> $GITHUB_ENV
+        # Fall back to ``minimal`` for the ``pull_request`` trigger which
+        # does not pass any inputs. When the workflow is invoked via
+        # ``workflow_call`` with an empty ``build_type`` (e.g. by
+        # ``build-and-target-test.yml`` driving the build via the
+        # per-variant ``build_*`` inputs) the resolved value is the empty
+        # string which disables the legacy fallback on every step.
+        shell: bash
+        run: |
+          if [[ -n "${{ inputs.build_type }}" ]]; then
+            echo "build_type=${{ inputs.build_type }}" >> "$GITHUB_ENV"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "build_type=minimal" >> "$GITHUB_ENV"
+          else
+            echo "build_type=" >> "$GITHUB_ENV"
+          fi
 
       # Asset Tracker Template firmware build
       - name: Build thingy91x firmware
-        if: ${{ env.build_type == 'minimal' || env.build_type == 'release' || env.build_type == 'all' }}
+        if: ${{ inputs.build_thingy91x_base || env.build_type == 'minimal' || env.build_type == 'release' || env.build_type == 'all' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: thingy91x/nrf9151/ns
@@ -175,7 +239,7 @@ jobs:
               ../artifacts/ram_report_thingy91x.html
 
       - name: Build nrf9151dk firmware
-        if: ${{ env.build_type == 'minimal' || env.build_type == 'release' || env.build_type == 'all' }}
+        if: ${{ inputs.build_nrf9151dk_base || env.build_type == 'minimal' || env.build_type == 'release' || env.build_type == 'all' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: nrf9151dk/nrf9151/ns
@@ -185,7 +249,7 @@ jobs:
 
       # Asset Tracker Template debug firmware build
       - name: Build thingy91x debug firmware
-        if: ${{ env.build_type == 'release' || env.build_type == 'all' }}
+        if: ${{ inputs.build_thingy91x_debug || env.build_type == 'release' || env.build_type == 'all' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           memfault_release: ${{ env.build_type == 'release' }}
@@ -197,7 +261,7 @@ jobs:
 
       # Asset Tracker Template firmware build with MQTT cloud module for Thingy91x
       - name: Build thingy91x firmware with MQTT cloud module
-        if: ${{ env.build_type == 'all' }}
+        if: ${{ inputs.build_thingy91x_mqtt || env.build_type == 'all' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: thingy91x/nrf9151/ns
@@ -207,7 +271,7 @@ jobs:
           mqtt: true
 
       - name: Build thingy91x firmware with buffered mode flash backend
-        if: ${{ env.build_type == 'all' }}
+        if: ${{ inputs.build_thingy91x_buffer_flash || env.build_type == 'all' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: thingy91x/nrf9151/ns
@@ -217,7 +281,7 @@ jobs:
           buffer_flash: true
 
       - name: Build thingy91x firmware with buffered mode RAM backend
-        if: ${{ env.build_type == 'all' }}
+        if: ${{ inputs.build_thingy91x_buffer_ram || env.build_type == 'all' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: thingy91x/nrf9151/ns
@@ -227,7 +291,7 @@ jobs:
           buffer_ram: true
 
       - name: Build thingy91x with modem trace on uart
-        if: ${{ env.build_type == 'release' || env.build_type == 'all' }}
+        if: ${{ inputs.build_thingy91x_mtrace || env.build_type == 'release' || env.build_type == 'all' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: thingy91x/nrf9151/ns
@@ -237,7 +301,7 @@ jobs:
           path: asset-tracker-template/app
 
       - name: Build nrf9151dk with modem trace on uart
-        if: ${{ env.build_type == 'release' || env.build_type == 'all' }}
+        if: ${{ inputs.build_nrf9151dk_mtrace || env.build_type == 'release' || env.build_type == 'all' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: nrf9151dk/nrf9151/ns
@@ -247,7 +311,7 @@ jobs:
           path: asset-tracker-template/app
 
       - name: Build nrf9151dk with external GNSS antenna
-        if: ${{ env.build_type == 'release' || env.build_type == 'all' }}
+        if: ${{ inputs.build_nrf9151dk_ext_gnss || env.build_type == 'release' || env.build_type == 'all' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: nrf9151dk/nrf9151/ns
