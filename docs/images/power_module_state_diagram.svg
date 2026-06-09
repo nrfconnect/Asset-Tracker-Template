@@ -1,267 +1,344 @@
-<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg width="1279.71px" height="1662.97px"
-		style="transform-origin: 0px 0px 0px;" version="1.1"
-		xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><style xmlns="http://www.w3.org/2000/svg" type="text/css"><![CDATA[
-		* {
-			text-rendering: geometricprecision !important;
-		}
-		]]><![CDATA[@font-face {
-  font-family: 'Noto Sans';
-  font-style: normal;
-  font-weight: 400;
-  src: local('Noto Sans'), local('NotoSans'), url("https://mirostatic.com/app/static/a73798e3d459e1bc.woff2") format('woff2');
-}
-@font-face {
-  font-family: 'Noto Sans';
-  font-style: italic;
-  font-weight: 400;
-  src: local('Noto Sans Italic'), local('NotoSans-Italic'), url("https://mirostatic.com/app/static/a8edd710f88715d4.woff2") format('woff2');
-}
-@font-face {
-  font-family: 'Noto Sans';
-  font-style: normal;
-  font-weight: 500;
-  src: local('Noto Sans Medium'), local('NotoSans-Medium'), url("https://mirostatic.com/app/static/006d7e33e60b9e12.woff2") format('woff2');
-}
-@font-face {
-  font-family: 'Noto Sans';
-  font-style: italic;
-  font-weight: 500;
-  src: local('Noto Sans Medium Italic'), local('NotoSans-MediumItalic'), url("https://mirostatic.com/app/static/31387059566a3171.woff2") format('woff2');
-}
-@font-face {
-  font-family: 'Noto Sans';
-  font-style: normal;
-  font-weight: 600;
-  src: local('Noto Sans SemiBold'), local('NotoSans-SemiBold'), url("https://mirostatic.com/app/static/526dd53b40975c37.woff2") format('woff2');
-}
-@font-face {
-  font-family: 'Noto Sans';
-  font-style: italic;
-  font-weight: 600;
-  src: local('Noto Sans SemiBold Italic'), local('NotoSans-SemiBoldItalic'), url("https://mirostatic.com/app/static/e73d4fdd87d7e319.woff2") format('woff2');
-}
-@font-face {
-  font-family: 'Noto Sans';
-  font-style: normal;
-  font-weight: 700;
-  src: local('Noto Sans Bold'), local('NotoSans-Bold'), url("https://mirostatic.com/app/static/9f11d6779c14d2bc.woff2") format('woff2');
-}
-@font-face {
-  font-family: 'Noto Sans';
-  font-style: italic;
-  font-weight: 700;
-  src: local('Noto Sans Bold Italic'), local('NotoSans-BoldItalic'), url("https://mirostatic.com/app/static/888e13e017cedc15.woff2") format('woff2');
-}
-]]><![CDATA[@font-face {
-  font-family: 'OpenSans';
-  font-style: normal;
-  font-weight: 300;
-  font-display: swap;
-  src: url("https://mirostatic.com/app/static/800985e1502d12bf.woff2") format('woff2');
-}
-@font-face {
-  font-family: 'OpenSans';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("https://mirostatic.com/app/static/d8a7ca42a20caea5.woff2") format('woff2');
-}
-@font-face {
-  font-family: 'OpenSans';
-  font-style: italic;
-  font-weight: 400;
-  font-display: swap;
-  src: url("https://mirostatic.com/app/static/3cc74c1d3919bd5c.woff2") format('woff2');
-}
-@font-face {
-  font-family: 'OpenSans';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("https://mirostatic.com/app/static/f0481285dc248cf0.woff2") format('woff2');
-}
-@font-face {
-  font-family: 'OpenSans';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("https://mirostatic.com/app/static/2f5e8dcf6e47bf00.woff2") format('woff2');
-}
-@font-face {
-  font-family: 'OpenSans';
-  font-style: italic;
-  font-weight: 700;
-  font-display: swap;
-  src: url("https://mirostatic.com/app/static/0e625f45b71a26f1.woff2") format('woff2');
-}
-@font-face {
-  font-family: 'OpenSans';
-  font-style: normal;
-  font-weight: 800;
-  font-display: swap;
-  src: url("https://mirostatic.com/app/static/645c27eb7d93eca8.woff2") format('woff2');
-}
-]]><![CDATA[@font-face {
-  font-family: 'Noto Sans Hebrew';
-  font-style: normal;
-  font-weight: 400;
-  src: local('Noto Sans Hebrew Regular'), local('Noto Sans Hebrew-Regular'), url("https://mirostatic.com/app/static/7ebe1dcf0343326c.woff2") format('woff2'), url("https://mirostatic.com/app/static/6c11f037d6968262.woff") format('woff');
-}
-@font-face {
-  font-family: 'Noto Sans Hebrew';
-  font-style: normal;
-  font-weight: 700;
-  src: local('Noto Sans Hebrew Bold'), local('Noto Sans Hebrew-Bold'), url("https://mirostatic.com/app/static/d2883e2f177d0dad.woff2") format('woff2'), url("https://mirostatic.com/app/static/8546991909eadbc9.woff") format('woff');
-}
-]]><![CDATA[@font-face {
-  font-family: 'Noto Sans JP';
-  font-style: normal;
-  font-weight: 400;
-  src: local('Noto Sans Japanese Regular'), local('Noto Sans Japanese-Regular'), url("https://mirostatic.com/app/static/9320b3c07ab79383.woff2") format('woff2'), url("https://mirostatic.com/app/static/a43be2cbcfc0b250.woff") format('woff');
-}
-@font-face {
-  font-family: 'Noto Sans JP';
-  font-style: normal;
-  font-weight: 700;
-  src: local('Noto Sans Japanese Bold'), local('Noto Sans Japanese-Bold'), url("https://mirostatic.com/app/static/7ab032c73212439f.woff2") format('woff2'), url("https://mirostatic.com/app/static/29f177f4466bd7a1.woff") format('woff');
-}
-]]><![CDATA[@font-face {
-  font-family: 'Noto Sans KR';
-  font-style: normal;
-  font-weight: 400;
-  src: local(''), url("https://mirostatic.com/app/static/7a5b625774730d22.woff2") format('woff2'), url("https://mirostatic.com/app/static/2d84dc606f1fb88e.woff") format('woff');
-}
-@font-face {
-  font-family: 'Noto Sans KR';
-  font-style: normal;
-  font-weight: 700;
-  src: local(''), url("https://mirostatic.com/app/static/fa5a3d9073cdd58f.woff2") format('woff2'), url("https://mirostatic.com/app/static/7ded243557c83342.woff") format('woff');
-}
-]]><![CDATA[@font-face {
-  font-family: 'Roboto Mono';
-  font-style: normal;
-  font-weight: 400;
-  src: local('Roboto Mono'), local('RobotoMono-Regular'), url("https://mirostatic.com/app/static/17632d99ee175311.woff2") format('woff2');
-}
-@font-face {
-  font-family: 'Roboto Mono';
-  font-style: normal;
-  font-weight: 700;
-  src: local('Roboto Mono Bold'), local('RobotoMono-Bold'), url("https://mirostatic.com/app/static/6879189d32491181.woff2") format('woff2');
-}
-]]></style><path id="LineHeadArrow2" d="M-12.727272727272727,-7.545454545454545 L0,0 L-12.727272727272727,7.545454545454545 Z"></path></defs><rect id="svg-board-background-color" width="100%" height="100%" fill="#f2f2f2"></rect><g width="1279.71px" height="1662.97px"  transform="translate(-0.28, -0.55) scale(1) rotate(0, 639.855, 831.485)"><svg
-	width="1279.7142857142862"
-	height="1662.9664255145926"
-	style="width:1279.7142857142862px; height: 1662.9664255145926px;"
-	class="diagram-widget"
-	preserveAspectRatio="none"
-	version="1.1"
-	xmlns="http://www.w3.org/2000/svg"
->
-	<clipPath id="249249003770">
-		<rect x="0" y="0" width="1279.7142857142862" height="1662.9664255145926" rx="0" ry="0"></rect>
-	</clipPath>
-	<g id="Page-1" stroke="none" stroke-width="0" fill="none" fill-rule="evenodd">
-		<rect
-			class="shape-element shape-element-rect"
-			fill="#ffffff"
-			fill-opacity="1"
-			x="0"
-			y="0"
-			width="1279.7142857142862"
-			height="1662.9664255145926"
-			rx="0"
-			ry="0"
-			clip-path="url(#249249003770)"
-		></rect>
-	</g>
-	<g transform="translate(0, 0)">
-		<text x="0" y="14" font-size="14"></text>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by Microsoft Visio, SVG Export power_module_state_diagram.svg Page-1 -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ev="http://www.w3.org/2001/xml-events"
+		xmlns:v="http://schemas.microsoft.com/visio/2003/SVGExtensions/" width="7.62537in" height="9.15926in"
+		viewBox="0 0 549.027 659.467" xml:space="preserve" color-interpolation-filters="sRGB" class="st16">
+	<v:documentProperties v:langID="1035" v:viewMarkup="false"/>
+
+	<style type="text/css">
+	<![CDATA[
+		.st1 {fill:#ffffff;stroke:#1a1a1a;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.5}
+		.st2 {fill:#000000;fill-opacity:0}
+		.st3 {stroke:#1a1a1a;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.5}
+		.st4 {fill:none;stroke:none;stroke-linecap:butt;stroke-width:0.75}
+		.st5 {fill:#1a1a1a;font-family:Arial;font-size:0.833336em}
+		.st6 {fill:#333333;font-family:Arial;font-size:0.666664em}
+		.st7 {fill:#000000;stroke:none;stroke-linecap:butt;stroke-width:0.75}
+		.st8 {marker-end:url(#mrkr4-95);stroke:#000000;stroke-linecap:butt;stroke-width:1}
+		.st9 {fill:#000000;fill-opacity:1;stroke:#000000;stroke-opacity:1;stroke-width:0.28409090909091}
+		.st10 {fill:#000000;font-family:Arial;font-size:0.666664em}
+		.st11 {fill:none;stroke:none;stroke-width:1}
+		.st12 {fill:#000000;font-family:Arial;font-size:0.833336em}
+		.st13 {font-size:1em}
+		.st14 {marker-start:url(#mrkr4-144);stroke:#000000;stroke-linecap:butt;stroke-width:1}
+		.st15 {fill:#000000;fill-opacity:1;stroke:#000000;stroke-opacity:1;stroke-width:0.35714285714286}
+		.st16 {fill:none;fill-rule:evenodd;font-size:12px;overflow:visible;stroke-linecap:square;stroke-miterlimit:3}
+	]]>
+	</style>
+
+	<defs id="Markers">
+		<g id="lend4">
+			<path d="M 2 1 L 0 0 L 2 -1 L 2 1 " style="stroke:none"/>
+		</g>
+		<marker id="mrkr4-95" class="st9" v:arrowType="4" v:arrowSize="2" v:setback="7.04" refX="-7.04" orient="auto"
+				markerUnits="strokeWidth" overflow="visible">
+			<use xlink:href="#lend4" transform="scale(-3.52,-3.52) "/>
+		</marker>
+		<marker id="mrkr4-144" class="st15" v:arrowType="4" v:arrowSize="1" v:setback="5.24" refX="5.24" orient="auto"
+				markerUnits="strokeWidth" overflow="visible">
+			<use xlink:href="#lend4" transform="scale(2.8) "/>
+		</marker>
+	</defs>
+	<g v:mID="0" v:index="1" v:groupContext="foregroundPage">
+		<title>Page-1</title>
+		<v:pageProperties v:drawingScale="0.0393701" v:pageScale="0.0393701" v:drawingUnits="24" v:shadowOffsetX="8.50394"
+				v:shadowOffsetY="-8.50394"/>
+		<v:layer v:name="Connector" v:index="0"/>
+		<g id="group5-1" transform="translate(0.75,-131.273)" v:mID="5" v:groupContext="group">
+			<title>Sheet.5</title>
+			<g id="shape6-2" v:mID="6" v:groupContext="shape">
+				<title>Sheet.6</title>
+				<path d="M0 655.96 A3.77614 3.50643 -180 0 0 3.78 659.47 L543.75 659.47 A3.77614 3.50643 -180 0 0 547.53 655.96 L547.53
+							 288.38 A3.77614 3.50643 -180 0 0 543.75 284.87 L3.78 284.87 A3.77614 3.50643 -180 0 0 -0 288.38 L0 655.96
+							 Z" class="st1"/>
+			</g>
+			<g id="group7-4" transform="translate(-2.81375E-12,-356.886)" v:mID="7" v:groupContext="group">
+				<title>Sheet.7</title>
+				<g id="shape8-5" v:mID="8" v:groupContext="shape">
+					<title>Sheet.8</title>
+					<path d="M0 659.47 L547.53 659.47 L0 659.47 Z" class="st2"/>
+					<path d="M0 659.47 L547.53 659.47" class="st3"/>
+				</g>
+			</g>
+			<g id="shape9-8" v:mID="9" v:groupContext="shape" transform="translate(7.05252,-359.852)">
+				<title>Sheet.9</title>
+				<desc>STATE_RUNNING</desc>
+				<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+				<v:textRect cx="49.4788" cy="654.733" width="98.96" height="9.46714"/>
+				<rect x="0" y="649.999" width="98.9575" height="9.46714" class="st4"/>
+				<text x="0" y="657.73" class="st5" v:langID="1035"><v:paragraph/><v:tabList/>STATE_RUNNING</text>			</g>
+			<g id="group10-11" transform="translate(6.34343,-302.099)" v:mID="10" v:groupContext="group">
+				<title>Sheet.10</title>
+				<g id="shape11-12" v:mID="11" v:groupContext="shape" transform="translate(0,-31.5571)">
+					<title>Sheet.11</title>
+					<desc>entry / init();</desc>
+					<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+					<v:textRect cx="41.6137" cy="654.733" width="83.23" height="9.46714"/>
+					<rect x="0" y="649.999" width="83.2273" height="9.46714" class="st4"/>
+					<text x="0" y="657.13" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>entry / init();</text>				</g>
+				<g id="shape12-15" v:mID="12" v:groupContext="shape" transform="translate(0,-10.519)">
+					<title>Sheet.12</title>
+					<desc>POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST / send_battery_percen...</desc>
+					<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+					<v:textRect cx="197.235" cy="654.733" width="394.47" height="9.46714"/>
+					<rect x="0" y="649.999" width="394.47" height="9.46714" class="st4"/>
+					<text x="0" y="657.13" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST / send_battery_percentage_sample_response();</text>				</g>
+				<g id="shape13-18" v:mID="13" v:groupContext="shape">
+					<title>Sheet.13</title>
+					<desc>POWER_BATTERY_SAMPLE_LOG / ;</desc>
+					<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+					<v:textRect cx="77.6788" cy="654.733" width="155.36" height="9.46714"/>
+					<rect x="0" y="649.999" width="155.358" height="9.46714" class="st4"/>
+					<text x="0" y="657.13" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>POWER_BATTERY_SAMPLE_LOG / ;</text>				</g>
+			</g>
+		</g>
+		<g id="group14-21" transform="translate(106.76,-166.901)" v:mID="14" v:groupContext="group">
+			<title>Sheet.14</title>
+			<g id="shape15-22" v:mID="15" v:groupContext="shape">
+				<title>Sheet.15</title>
+				<path d="M0 655.96 A3.06508 3.50643 -180 0 0 3.07 659.47 L333.62 659.47 A3.06508 3.50643 -180 0 0 336.68 655.96 L336.68
+							 550.9 A3.06508 3.50643 -180 0 0 333.62 547.4 L3.07 547.4 A3.06508 3.50643 -180 0 0 0 550.9 L0 655.96
+							 Z" class="st1"/>
+			</g>
+			<g id="group16-24" transform="translate(-1.72662E-12,-85.7987)" v:mID="16" v:groupContext="group">
+				<title>Sheet.16</title>
+				<g id="shape17-25" v:mID="17" v:groupContext="shape" transform="translate(0,-3.9282)">
+					<title>Sheet.17</title>
+					<path d="M0 659.47 L336.68 659.47 L0 659.47 Z" class="st2"/>
+					<path d="M0 659.47 L336.68 659.47" class="st3"/>
+				</g>
+			</g>
+			<g id="group18-28" transform="translate(5.74689,-9.7124)" v:mID="18" v:groupContext="group">
+				<title>Sheet.18</title>
+				<g id="shape19-29" v:mID="19" v:groupContext="shape" transform="translate(1.64668E-12,-63.1143)">
+					<title>Sheet.19</title>
+					<desc>entry / timer_sample_start()</desc>
+					<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+					<v:textRect cx="96.5477" cy="654.733" width="193.1" height="9.46714"/>
+					<rect x="0" y="649.999" width="193.095" height="9.46714" class="st4"/>
+					<text x="0" y="657.13" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>entry / timer_sample_start()</text>				</g>
+				<g id="shape20-32" v:mID="20" v:groupContext="shape" transform="translate(0,-42.0762)">
+					<title>Sheet.20</title>
+					<desc>POWER_PRIV_TIMER_EXPIRED / sample_and_process();</desc>
+					<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+					<v:textRect cx="165.51" cy="654.733" width="331.03" height="9.46714"/>
+					<rect x="0" y="649.999" width="331.021" height="9.46714" class="st4"/>
+					<text x="0" y="657.13" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>POWER_PRIV_TIMER_EXPIRED / sample_and_process();</text>				</g>
+				<g id="shape21-35" v:mID="21" v:groupContext="shape" transform="translate(-1.66267E-12,-31.5571)">
+					<title>Sheet.21</title>
+					<desc>POWER_PRIV_MODEM_SLEEP_ENTRY / ;</desc>
+					<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+					<v:textRect cx="110.34" cy="654.733" width="220.69" height="9.46714"/>
+					<rect x="0" y="649.999" width="220.68" height="9.46714" class="st4"/>
+					<text x="0" y="657.13" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>POWER_PRIV_MODEM_SLEEP_ENTRY / ;</text>				</g>
+				<g id="shape22-38" v:mID="22" v:groupContext="shape" transform="translate(0,-21.0381)">
+					<title>Sheet.22</title>
+					<desc>POWER_PRIV_MODEM_SLEEP_EXIT / ignored ;</desc>
+					<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+					<v:textRect cx="134.477" cy="654.733" width="268.96" height="9.46714"/>
+					<rect x="0" y="649.999" width="268.954" height="9.46714" class="st4"/>
+					<text x="0" y="657.13" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>POWER_PRIV_MODEM_SLEEP_EXIT / ignored ;</text>				</g>
+				<g id="shape23-41" v:mID="23" v:groupContext="shape">
+					<title>Sheet.23</title>
+					<desc>exit / timer_sample_stop()</desc>
+					<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+					<v:textRect cx="89.6514" cy="654.733" width="179.31" height="9.46714"/>
+					<rect x="0" y="649.999" width="179.303" height="9.46714" class="st4"/>
+					<text x="0" y="657.13" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>exit / timer_sample_stop()</text>				</g>
+			</g>
+		</g>
+		<g id="group24-44" transform="translate(106.76,-315.368)" v:mID="24" v:groupContext="group">
+			<title>Sheet.24</title>
+			<g id="shape25-45" v:mID="25" v:groupContext="shape">
+				<title>Sheet.25</title>
+				<path d="M0 655.96 A3.06508 3.50643 -180 0 0 3.07 659.47 L333.62 659.47 A3.06508 3.50643 -180 0 0 336.68 655.96 L336.68
+							 594.93 A3.06508 3.50643 -180 0 0 333.62 591.43 L3.07 591.43 A3.06508 3.50643 -180 0 0 0 594.93 L0 655.96
+							 Z" class="st1"/>
+			</g>
+			<g id="group26-47" transform="translate(-0.587468,-51.0331)" v:mID="26" v:groupContext="group">
+				<title>Sheet.26</title>
+				<g id="shape27-48" v:mID="27" v:groupContext="shape">
+					<title>Sheet.27</title>
+					<path d="M0 659.47 L336.68 659.47 L0 659.47 Z" class="st2"/>
+					<path d="M0 659.47 L336.68 659.47" class="st3"/>
+				</g>
+			</g>
+			<g id="group28-51" transform="translate(5.74689,-6.04516)" v:mID="28" v:groupContext="group">
+				<title>Sheet.28</title>
+				<g id="shape29-52" v:mID="29" v:groupContext="shape" transform="translate(0,-31.5571)">
+					<title>Sheet.29</title>
+					<desc>entry / nrf_fuel_gauge_idle_set();</desc>
+					<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+					<v:textRect cx="117.236" cy="654.733" width="234.48" height="9.46714"/>
+					<rect x="0" y="649.999" width="234.473" height="9.46714" class="st4"/>
+					<text x="0" y="657.13" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>entry / nrf_fuel_gauge_idle_set();</text>				</g>
+				<g id="shape30-55" v:mID="30" v:groupContext="shape" transform="translate(0,-10.519)">
+					<title>Sheet.30</title>
+					<desc>POWER_PRIV_MODEM_SLEEP_ENTRY / ignored ;</desc>
+					<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+					<v:textRect cx="137.925" cy="654.733" width="275.86" height="9.46714"/>
+					<rect x="0" y="649.999" width="275.851" height="9.46714" class="st4"/>
+					<text x="0" y="657.13" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>POWER_PRIV_MODEM_SLEEP_ENTRY / ignored ;</text>				</g>
+				<g id="shape31-58" v:mID="31" v:groupContext="shape">
+					<title>Sheet.31</title>
+					<desc>POWER_PRIV_MODEM_SLEEP_EXIT / ;</desc>
+					<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+					<v:textRect cx="106.892" cy="654.733" width="213.79" height="9.46714"/>
+					<rect x="0" y="649.999" width="213.784" height="9.46714" class="st4"/>
+					<text x="0" y="657.13" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>POWER_PRIV_MODEM_SLEEP_EXIT / ;</text>				</g>
+			</g>
+		</g>
+		<g id="group32-61" transform="translate(109.035,-0.75)" v:mID="32" v:groupContext="group">
+			<title>Sheet.32</title>
+			<g id="shape33-62" v:mID="33" v:groupContext="shape">
+				<title>Sheet.33</title>
+				<path d="M0 655.53 A3.49949 3.93176 -180 0 0 3.5 659.47 L328.94 659.47 A3.49949 3.93176 -180 0 0 332.44 655.53 L332.44
+							 554.52 A3.49949 3.93176 -180 0 0 328.94 550.59 L3.5 550.59 A3.49949 3.93176 -180 0 0 -0 554.52 L0 655.53
+							 Z" class="st1"/>
+			</g>
+			<g id="group34-64" transform="translate(-2.01439E-12,-87.1013)" v:mID="34" v:groupContext="group">
+				<title>Sheet.34</title>
+				<g id="shape35-65" v:mID="35" v:groupContext="shape">
+					<title>Sheet.35</title>
+					<path d="M0 659.47 L332.44 659.47 L0 659.47 Z" class="st2"/>
+					<path d="M0 659.47 L332.44 659.47" class="st3"/>
+				</g>
+			</g>
+			<g id="shape36-68" v:mID="36" v:groupContext="shape" transform="translate(3.39477,-91.6492)">
+				<title>Sheet.36</title>
+				<desc>UART_CONTROLL</desc>
+				<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+				<v:textRect cx="49.4788" cy="654.159" width="98.96" height="10.6155"/>
+				<rect x="0" y="648.851" width="98.9575" height="10.6155" class="st4"/>
+				<text x="0" y="657.16" class="st5" v:langID="1035"><v:paragraph/><v:tabList/>UART_CONTROLL</text>			</g>
+			<g id="group37-71" transform="translate(6.5614,-56.4343)" v:mID="37" v:groupContext="group">
+				<title>Sheet.37</title>
+				<g id="shape38-72" v:mID="38" v:groupContext="shape" transform="translate(0,-11.795)">
+					<title>Sheet.38</title>
+					<desc>entry / init(); &#38;&#38; sync_uart_to_vbus_status(); &#38;&#38; </desc>
+					<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+					<v:textRect cx="196.842" cy="654.159" width="393.69" height="10.6155"/>
+					<rect x="0" y="648.851" width="393.684" height="10.6155" class="st4"/>
+					<text x="0" y="656.56" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>entry / init(); &#38;&#38; sync_uart_to_vbus_status(); &#38;&#38; </text>				</g>
+				<g id="shape39-75" v:mID="39" v:groupContext="shape">
+					<title>Sheet.39</title>
+					<desc>subscribe_to_vbus_events();</desc>
+					<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+					<v:textRect cx="106.295" cy="654.159" width="212.59" height="10.6155"/>
+					<rect x="0" y="648.851" width="212.589" height="10.6155" class="st4"/>
+					<text x="0" y="656.56" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>subscribe_to_vbus_events();</text>				</g>
+			</g>
+		</g>
+		<g id="group40-78" transform="translate(53.161,-541.855)" v:mID="40" v:groupContext="group">
+			<title>Sheet.40</title>
+			<g id="shape41-79" v:mID="41" v:groupContext="shape">
+				<title>Sheet.41</title>
+				<path d="M0 655.42 A4.04918 4.04918 -180 0 0 4.05 659.47 L440.73 659.47 A4.04918 4.04918 -180 0 0 444.78 655.42 L444.78
+							 584.94 A4.04918 4.04918 -180 0 0 440.73 580.89 L4.05 580.89 A4.04918 4.04918 -180 0 0 -0 584.94 L0 655.42
+							 Z" class="st1"/>
+			</g>
+			<g id="group42-81" transform="translate(0,-59.5176)" v:mID="42" v:groupContext="group">
+				<title>Sheet.42</title>
+				<g id="shape43-82" v:mID="43" v:groupContext="shape">
+					<title>Sheet.43</title>
+					<path d="M0 659.47 L444.78 659.47 L0 659.47 Z" class="st2"/>
+					<path d="M0 659.47 L444.78 659.47" class="st3"/>
+				</g>
+			</g>
+			<g id="shape44-85" v:mID="44" v:groupContext="shape" transform="translate(7.59204,-31.2754)">
+				<title>Sheet.44</title>
+				<desc>POWER_PRIV_MODEM_INITIALIZED / ;</desc>
+				<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+				<v:textRect cx="83.9484" cy="654" width="167.9" height="10.9325"/>
+				<rect x="0" y="648.534" width="167.897" height="10.9325" class="st4"/>
+				<text x="0" y="656.4" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>POWER_PRIV_MODEM_INITIALIZED / ;</text>			</g>
+		</g>
+		<g id="shape45-88" v:mID="45" v:groupContext="shape" transform="translate(239.4,-641.709)">
+			<title>Sheet.45</title>
+			<ellipse cx="4.11481" cy="654.564" rx="4.11481" ry="4.90229" class="st7"/>
+		</g>
+		<g id="shape46-90" v:mID="46" v:groupContext="shape" v:layerMember="0" transform="translate(244.887,-646.009)">
+			<title>Dynamic connector</title>
+			<path d="M0 659.47 L29.63 659.47 L29.63 677.42" class="st8"/>
+		</g>
+		<g id="shape47-96" v:mID="47" v:groupContext="shape" transform="translate(233.81,-650.481)">
+			<title>Sheet.47</title>
+			<desc>Start</desc>
+			<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+			<v:textRect cx="11.9394" cy="655.349" width="23.88" height="8.23585"/>
+			<rect x="0" y="651.231" width="23.8787" height="8.23585" class="st4"/>
+			<text x="0" y="657.75" class="st10" v:langID="1033"><v:paragraph/><v:tabList/>Start</text>		</g>
+		<g id="shape48-99" v:mID="48" v:groupContext="shape" transform="translate(54.7379,-601.373)">
+			<title>Sheet.48</title>
+			<desc>STATE_WAITING_FOR_MODEM_INIT</desc>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="94.831" cy="649.967" width="189.67" height="19"/>
+			<rect x="0" y="640.467" width="189.662" height="19" class="st11"/>
+			<text x="7.04" y="653.27" class="st12" v:langID="1044"><v:paragraph v:horizAlign="1"/><v:tabList/>STATE_<tspan
+						class="st13" v:langID="1033">WAITING_FOR_MODEM_INIT</tspan></text>		</g>
+		<g id="shape49-103" v:mID="49" v:groupContext="shape" transform="translate(276.839,-521.213)">
+			<title>Sheet.49</title>
+			<desc>POWER_PRIV_MODEM_INITIALIZED</desc>
+			<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+			<v:textRect cx="70.2695" cy="655.538" width="140.54" height="7.85641"/>
+			<rect x="0" y="651.61" width="140.539" height="7.85641" class="st4"/>
+			<text x="0" y="657.94" class="st10" v:langID="1033"><v:paragraph/><v:tabList/>POWER<tspan class="st13" v:langID="1044">_</tspan>PRIV_MODEM_INITIALIZED</text>		</g>
+		<g id="shape50-107" v:mID="50" v:groupContext="shape" v:layerMember="0" transform="translate(267.427,-542.149)">
+			<title>Dynamic connector.57</title>
+			<path d="M7.09 659.47 L7.09 688.71" class="st8"/>
+		</g>
+		<g id="shape51-112" v:mID="51" v:groupContext="shape" transform="translate(110.77,-370.213)">
+			<title>Sheet.51</title>
+			<desc>STATE_IDLE</desc>
+			<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+			<v:textRect cx="49.4788" cy="654.733" width="98.96" height="9.46714"/>
+			<rect x="0" y="649.999" width="98.9575" height="9.46714" class="st4"/>
+			<text x="0" y="657.73" class="st5" v:langID="1035"><v:paragraph/><v:tabList/>STATE_<tspan class="st13" v:langID="1033">IDLE</tspan></text>		</g>
+		<g id="shape52-116" v:mID="52" v:groupContext="shape" transform="translate(239.4,-404.101)">
+			<title>Sheet.52</title>
+			<ellipse cx="4.11481" cy="654.564" rx="4.11481" ry="4.90229" class="st7"/>
+		</g>
+		<g id="shape53-118" v:mID="53" v:groupContext="shape" v:layerMember="0" transform="translate(244.887,-408.401)">
+			<title>Dynamic connector.99</title>
+			<path d="M0 659.47 L29.63 659.47 L29.63 677.42" class="st8"/>
+		</g>
+		<g id="shape54-123" v:mID="54" v:groupContext="shape" transform="translate(233.81,-412.873)">
+			<title>Sheet.54</title>
+			<desc>Start</desc>
+			<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+			<v:textRect cx="11.9394" cy="655.349" width="23.88" height="8.23585"/>
+			<rect x="0" y="651.231" width="23.8787" height="8.23585" class="st4"/>
+			<text x="0" y="657.75" class="st10" v:langID="1033"><v:paragraph/><v:tabList/>Start</text>		</g>
+		<g id="shape55-126" v:mID="55" v:groupContext="shape" transform="translate(112.972,-260.556)">
+			<title>Sheet.55</title>
+			<desc>STATE_ACTIVE</desc>
+			<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+			<v:textRect cx="49.4788" cy="654.733" width="98.96" height="9.46714"/>
+			<rect x="0" y="649.999" width="98.9575" height="9.46714" class="st4"/>
+			<text x="0" y="657.73" class="st5" v:langID="1035"><v:paragraph/><v:tabList/>STATE_<tspan class="st13" v:langID="1033">ACTIVE</tspan></text>		</g>
+		<g id="shape56-130" v:mID="56" v:groupContext="shape" v:layerMember="0" transform="translate(190.382,-315.255)">
+			<title>Dynamic connector.103</title>
+			<path d="M7.09 659.47 L7.09 688.71" class="st8"/>
+		</g>
+		<g id="shape57-135" v:mID="57" v:groupContext="shape" transform="translate(327.662,-293.226)">
+			<title>Sheet.57</title>
+			<desc>POWER_PRIV_MODEM_SLEEP_ENTRY</desc>
+			<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+			<v:textRect cx="76.6355" cy="655.538" width="153.28" height="7.85641"/>
+			<rect x="0" y="651.61" width="153.271" height="7.85641" class="st4"/>
+			<text x="0" y="657.94" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>POWER_PRIV_MODEM_SLEEP_E<tspan
+						class="st13" v:langID="1033">NTRY</tspan></text>		</g>
+		<g id="shape58-139" v:mID="58" v:groupContext="shape" v:layerMember="0" transform="translate(318.005,-315.255)">
+			<title>Dynamic connector.105</title>
+			<path d="M7.09 664.71 L7.09 665.07 L7.09 695.75" class="st14"/>
+		</g>
+		<g id="shape59-145" v:mID="59" v:groupContext="shape" transform="translate(55.3994,-293.226)">
+			<title>Sheet.59</title>
+			<desc>POWER_PRIV_MODEM_SLEEP_EXIT</desc>
+			<v:textBlock v:margins="rect(0,0,0,0)" v:tabSpace="42.5197"/>
+			<v:textRect cx="71.0346" cy="654.733" width="142.07" height="9.46714"/>
+			<rect x="0" y="649.999" width="142.069" height="9.46714" class="st4"/>
+			<text x="0" y="657.13" class="st6" v:langID="1035"><v:paragraph/><v:tabList/>POWER_PRIV_MODEM_SLEEP_EXIT</text>		</g>
 	</g>
 </svg>
-</g><g width="1160px" height="854.66px"  transform="translate(79.43, 420.88) scale(1) rotate(0, 580, 427.33)"><g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: #ffffff;fill-opacity: 1"><rect x="0" y="0" width="1159.9999999999945" height="854.6614571555409" rx="8" /></g></g><g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"><path d="M 0 55 L 1159.9999999999945 55"/></g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"></g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"></g></g><g transform="translate(15, 4)"><text xml:space="preserve" x="0" y="31" width="149.044921875" textLength="149.044921875" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"OpenSans", Arial, sans-serif, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#1a1a1a" direction="ltr" font-weight="bold">STATE_RUNNING</text></g><g transform="translate(15, 70)"><text xml:space="preserve" x="0" y="18" width="162.0263671875" textLength="162.0263671875" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Roboto Mono", "Lucida Console", "Andale Mono", AndaleMono, monospace, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#333333" direction="ltr" >entry / init();</text><text xml:space="preserve" x="0" y="66" width="907.34765625" textLength="907.34765625" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Roboto Mono", "Lucida Console", "Andale Mono", AndaleMono, monospace, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#333333" direction="ltr" >POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST / send_battery_percentage_sample_response();</text><text xml:space="preserve" x="0" y="90" width="302.44921875" textLength="302.44921875" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Roboto Mono", "Lucida Console", "Andale Mono", AndaleMono, monospace, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#333333" direction="ltr" >POWER_BATTERY_SAMPLE_LOG / ;</text></g></g><g width="878.78px" height="255.7px"  transform="translate(213.15, 1005.46) scale(1) rotate(0, 439.39, 127.85)"><g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: #ffffff;fill-opacity: 1"><rect x="0" y="0" width="878.7761513715067" height="255.6994593110928" rx="8" /></g></g><g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"><path d="M 0 51.13989186221856 L 878.7761513715067 51.13989186221856"/></g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"></g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"></g></g><g transform="translate(15, 4)"><text xml:space="preserve" x="0" y="29.06994593110928" width="122.712890625" textLength="122.712890625" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"OpenSans", Arial, sans-serif, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#1a1a1a" direction="ltr" font-weight="bold">STATE_ACTIVE</text></g><g transform="translate(15, 66.13989186221856)"><text xml:space="preserve" x="0" y="18" width="302.44921875" textLength="302.44921875" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Roboto Mono", "Lucida Console", "Andale Mono", AndaleMono, monospace, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#333333" direction="ltr" >entry / timer_sample_start()</text><text xml:space="preserve" x="0" y="66" width="518.484375" textLength="518.484375" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Roboto Mono", "Lucida Console", "Andale Mono", AndaleMono, monospace, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#333333" direction="ltr" >POWER_PRIV_TIMER_EXPIRED / sample_and_process();</text><text xml:space="preserve" x="0" y="90" width="345.65625" textLength="345.65625" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Roboto Mono", "Lucida Console", "Andale Mono", AndaleMono, monospace, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#333333" direction="ltr" >POWER_PRIV_MODEM_SLEEP_ENTRY / ;</text><text xml:space="preserve" x="0" y="114" width="421.2685546875" textLength="421.2685546875" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Roboto Mono", "Lucida Console", "Andale Mono", AndaleMono, monospace, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#333333" direction="ltr" >POWER_PRIV_MODEM_SLEEP_EXIT / ignored ;</text><text xml:space="preserve" x="0" y="162" width="280.845703125" textLength="280.845703125" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Roboto Mono", "Lucida Console", "Andale Mono", AndaleMono, monospace, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#333333" direction="ltr" >exit / timer_sample_stop()</text></g></g><g width="878.78px" height="155.24px"  transform="translate(213.15, 767.18) scale(1) rotate(0, 439.39, 77.62)"><g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: #ffffff;fill-opacity: 1"><rect x="0" y="0" width="878.776151371507" height="155.24060311965903" rx="8" /></g></g><g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"><path d="M 0 31.04812062393181 L 878.776151371507 31.04812062393181"/></g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"></g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"></g></g><g transform="translate(15, 4)"><rect transform="translate(0, 1.0240603119659042)" width="100.1953125" height="25" fill="transparent" ></rect><text xml:space="preserve" x="0" y="19.024060311965904" width="100.1953125" textLength="100.1953125" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"OpenSans", Arial, sans-serif, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#1a1a1a" direction="ltr" font-weight="bold">STATE_IDLE</text></g><g transform="translate(15, 46.04812062393181)"><text xml:space="preserve" x="0" y="18" width="367.27734375" textLength="367.27734375" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Roboto Mono", "Lucida Console", "Andale Mono", AndaleMono, monospace, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#333333" direction="ltr" >entry / nrf_fuel_gauge_idle_set();</text><text xml:space="preserve" x="0" y="66" width="432.0703125" textLength="432.0703125" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Roboto Mono", "Lucida Console", "Andale Mono", AndaleMono, monospace, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#333333" direction="ltr" >POWER_PRIV_MODEM_SLEEP_ENTRY / ignored ;</text><text xml:space="preserve" x="0" y="90" width="334.8544921875" textLength="334.8544921875" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Roboto Mono", "Lucida Console", "Andale Mono", AndaleMono, monospace, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#333333" direction="ltr" >POWER_PRIV_MODEM_SLEEP_EXIT / ;</text></g></g><g width="0.8px" height="83.05px"  transform="translate(421.12, 922.42) scale(1) rotate(0, 0.4, 41.525)"><path stroke-linecap="butt"
-			stroke="#333333" stroke-width="2" fill="transparent"
-			d="M 0.7997287934267661 0 L 0.7997287934267661 41.12375855926257 Q 0.7997287934267661 41.52362295597595 0.39986439671338303 41.52362295597595 L 0.39986439671338303 41.52362295597595 Q 0 41.52362295597595 0 41.923487352689335 L 0 83.0472459119519" clip-path="url(#LineHeadMaskHFIbBU)"/> <use xlink:href="#LineHeadArrow2" fill="#333333"
-			 transform="translate(0, 83.0472459119519)  rotate(90) "  /> <clipPath id="LineHeadMaskHFIbBU">
-				<path d="M -2 -2 M -2 26.666480098833095 L 146.32843582528483 26.666480098833095 L 146.32843582528483 54.38076581311881 L -2 54.38076581311881 M -2 -2 L 1279.71 -2 L 1279.71 1662.97 L -2 1662.97" fill-rule="evenodd" clip-rule="evenodd" />
-			</clipPath><g width="227" height="20" transform="translate(-145.52870703185806, 28.666480098833095) scale(1.2857142857142858) rotate(0)"><text xml:space="preserve" x="0.5621109008789062" y="14" width="225.8757781982422" textLength="225.8757781982422" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Noto Sans", Helvetica, OpenSans, Arial, sans-serif, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="14"
-				fill="#333333" direction="ltr" >POWER_PRIV_MODEM_SLEEP_EXIT</text></g></g><g width="0.86px" height="83.05px"  transform="translate(770.45, 922.42) scale(1) rotate(0, 0.43, 41.525)"><path stroke-linecap="butt"
-			stroke="#333333" stroke-width="2" fill="transparent"
-			d="M 0 83.0472459119519 L 0 41.9555932531548 Q 0 41.52362295597595 0.43197029717885016 41.52362295597595 L 0.43197029717885016 41.52362295597595 Q 0.8639405943577003 41.52362295597595 0.8639405943577003 41.0916526587971 L 0.8639405943577003 0" clip-path="url(#LineHeadMask7EMTOp)"/> <use xlink:href="#LineHeadArrow2" fill="#333333"
-			 transform="translate(0.8639405943540623, 0)  rotate(-90) "  /> <clipPath id="LineHeadMask7EMTOp">
-				<path d="M -2 -2 M -2 28.590701853756098 L 154.92857142857144 28.590701853756098 L 154.92857142857144 56.30498756804181 L -2 56.30498756804181 M -2 -2 L 1279.71 -2 L 1279.71 1662.97 L -2 1662.97" fill-rule="evenodd" clip-rule="evenodd" />
-			</clipPath><g width="241" height="20" transform="translate(-154.92857142857144, 30.590701853756098) scale(1.2857142857142858) rotate(0)"><text xml:space="preserve" x="0.4011077880859375" y="14" width="240.19778442382812" textLength="240.19778442382812" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Noto Sans", Helvetica, OpenSans, Arial, sans-serif, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="14"
-				fill="#333333" direction="ltr" >POWER_PRIV_MODEM_SLEEP_ENTRY</text></g></g><g width="760px" height="221.54px"  transform="translate(279.43, 1400.88) scale(1) rotate(0, 380, 110.77)"><g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: #ffffff;fill-opacity: 1"><rect x="0" y="0" width="759.9999999999936" height="221.53785408602135" rx="8" /></g></g><g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"><path d="M 0 44.30757081720427 L 759.9999999999936 44.30757081720427"/></g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"></g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"></g></g><g transform="translate(15, 4)"><text xml:space="preserve" x="0" y="25.653785408602136" width="153.1318359375" textLength="153.1318359375" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"OpenSans", Arial, sans-serif, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#1a1a1a" direction="ltr" font-weight="bold">UART_CONTROLL</text></g><g transform="translate(15, 59.30757081720427)"><text xml:space="preserve" x="0" y="18" width="540.087890625" textLength="540.087890625" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Roboto Mono", "Lucida Console", "Andale Mono", AndaleMono, monospace, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#333333" direction="ltr" >entry / init(); &amp;&amp; sync_uart_to_vbus_status(); &amp;&amp; </text><text xml:space="preserve" x="0" y="42" width="291.6474609375" textLength="291.6474609375" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Roboto Mono", "Lucida Console", "Andale Mono", AndaleMono, monospace, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#333333" direction="ltr" >subscribe_to_vbus_events();</text></g></g><g width="101px" height="20px"  transform="translate(39.72, 39.45) scale(2.5714285714285716) rotate(0, 50.5, 10)"><svg
-	width="101"
-	height="20"
-	shape-border-width="shape-background"
-	style="width:101px; height: 20px;"
-	class="shape-background"
-	preserveAspectRatio="none"
-	version="1.1"
-	xmlns="http://www.w3.org/2000/svg"
->
-	<clipPath id="229592811267">
-		<rect
-			x="0"
-			y="0"
-			width="101"
-			height="20"
-			rx="0"
-			ry="0"
-		></rect>
-	</clipPath>
-	<g id="Page-1" stroke="none" stroke-width="0" fill="none" fill-rule="evenodd">
-		<rect
-			class="shape-element shape-element-rect"
-			stroke="transparent"
-			stroke-width="0"
-			stroke-dasharray=""
-			stroke-opacity="0"
-			fill="transparent"
-			fill-opacity="0"
-			x="0"
-			y="0"
-			width="101"
-			height="20"
-			rx="0"
-			ry="0"
-			clip-path="url(#229592811267)"
-		></rect>
-	</g>
-</svg>
-</g><g width="259.7142857142857px" height="51.42857142857143px"  transform="translate(39.72, 39.45) rotate(0, 129.85714285714286, 25.714285714285715)"><g transform="translate(0, 0)"><text xml:space="preserve" x="0" y="36" width="257.86783708844865" textLength="257.86783708844865" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Noto Sans", Helvetica, OpenSans, Arial, sans-serif, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="36"
-				fill="#1a1a1a" direction="ltr" font-weight="bold">Power module</text></g></g><g width="878.78px" height="155.24px"  transform="translate(220.05, 160.88) scale(1) rotate(0, 439.39, 77.62)"><g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: #ffffff;fill-opacity: 1"><rect x="0" y="0" width="878.776151371507" height="155.24060311965903" rx="8" /></g></g><g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"><path d="M 0 31.04812062393181 L 878.776151371507 31.04812062393181"/></g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"></g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"></g></g><g transform="translate(15, 4)"><rect transform="translate(0, 1.0240603119659042)" width="307.4326171875" height="25" fill="transparent" ></rect><text xml:space="preserve" x="0" y="19.024060311965904" width="307.4326171875" textLength="307.4326171875" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"OpenSans", Arial, sans-serif, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#1a1a1a" direction="ltr" font-weight="bold">STATE_WAITING_FOR_MODEM_INIT</text></g><g transform="translate(15, 46.04812062393181)"><text xml:space="preserve" x="0" y="42" width="345.65625" textLength="345.65625" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Roboto Mono", "Lucida Console", "Andale Mono", AndaleMono, monospace, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#333333" direction="ltr" >POWER_PRIV_MODEM_INITIALIZED / ;</text></g></g><g width="40px" height="40px"  transform="translate(489.43, 50.88) scale(1) rotate(0, 20, 20)"><g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: #1a1a1a;fill-opacity: 1"><ellipse cx="20" cy="20" rx="20" ry="20" /></g></g><g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"></g></g><g transform="translate(-30, 48)"><rect transform="translate(30.02685546875, 0)" width="39.9462890625" height="25" fill="transparent" ></rect><text xml:space="preserve" x="30.02685546875" y="18" width="39.9462890625" textLength="39.9462890625" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"OpenSans", Arial, sans-serif, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#1a1a1a" direction="ltr" >Start</text></g></g><g width="130px" height="90px"  transform="translate(529.43, 70.88) scale(1) rotate(0, 65, 45)"><path stroke-linecap="butt"
-			stroke="#333333" stroke-width="2" fill="transparent"
-			d="M 0 0 L 122 0 Q 130 0 130 8 L 130 90" /> <use xlink:href="#LineHeadArrow2" fill="#333333"
-			 transform="translate(130, 90)  rotate(90) "  /> </g><g width="40px" height="40px"  transform="translate(299.43, 664.18) scale(1) rotate(0, 20, 20)"><g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: #1a1a1a;fill-opacity: 1"><ellipse cx="20" cy="20" rx="20" ry="20" /></g></g><g><g style="stroke: #1a1a1a;stroke-width: 2;stroke-opacity: 1;stroke-dasharray: none;stroke-linecap: round;stroke-linejoin: round;fill: transparent;fill-opacity: 0"></g></g><g transform="translate(-30, 48)"><rect transform="translate(30.02685546875, 0)" width="39.9462890625" height="25" fill="transparent" ></rect><text xml:space="preserve" x="30.02685546875" y="18" width="39.9462890625" textLength="39.9462890625" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"OpenSans", Arial, sans-serif, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="18"
-				fill="#1a1a1a" direction="ltr" >Start</text></g></g><g width="313.1px" height="83px"  transform="translate(339.43, 684.18) scale(1) rotate(0, 156.55, 41.5)"><path stroke-linecap="butt"
-			stroke="#333333" stroke-width="2" fill="transparent"
-			d="M 0 0 L 305.1047533417004 0 Q 313.1047533417004 0 313.1047533417004 8 L 313.1047533417004 83" /> <use xlink:href="#LineHeadArrow2" fill="#333333"
-			 transform="translate(313.1047533417004, 83)  rotate(90) "  /> </g><g width="0px" height="104.76px"  transform="translate(659.43, 316.12) scale(1) rotate(0, 0, 52.38)"><path stroke-linecap="butt"
-			stroke="#333333" stroke-width="2" fill="transparent"
-			d="M 0 0 L 0 104.75939688034123" clip-path="url(#LineHeadMaskUDL1Qg)"/> <use xlink:href="#LineHeadArrow2" fill="#333333"
-			 transform="translate(0, 104.75939688034123)  rotate(90) "  /> <clipPath id="LineHeadMaskUDL1Qg">
-				<path d="M -2 -2 M -2 37.52255558302775 L 149.7857142857143 37.52255558302775 L 149.7857142857143 65.23684129731348 L -2 65.23684129731348 M -2 -2 L 1279.71 -2 L 1279.71 1662.97 L -2 1662.97" fill-rule="evenodd" clip-rule="evenodd" />
-			</clipPath><g width="233" height="20" transform="translate(-149.7857142857143, 39.52255558302775) scale(1.2857142857142858) rotate(0)"><text xml:space="preserve" x="0.6081161499023438" y="14" width="231.7837677001953" textLength="231.7837677001953" lengthAdjust="spacingAndGlyphs" letter-spacing="0" font-family='"Noto Sans", Helvetica, OpenSans, Arial, sans-serif, Noto Sans Hebrew, Noto Sans, Noto Sans JP, Noto Sans KR' font-size="14"
-				fill="#333333" direction="ltr" >POWER_PRIV_MODEM_INITIALIZED</text></g></g></svg>

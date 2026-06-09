@@ -9,7 +9,7 @@ This guide explains how to modify the Asset Tracker Template to fit your use cas
 
 ## Add a new zbus event
 
-This section demonstrates how to add a new event to a module and consume it from another module. In this example, you add events to the power module to notify the system when VBUS is connected or disconnected on the Thingy:91 X. The main module subscribes to these events and requests specific LED patterns from the LED module in response:
+This section demonstrates how to add a new event to a module and handle it in another. In this example, you add events to the power module to notify the system when VBUS is connected or disconnected on the Thingy:91 X. The main module subscribes to these events and requests specific LED patterns from the LED module in response:
 
 - When VBUS is connected, the LED blinks white rapidly.
 - When VBUS is disconnected, the LED blinks purple slowly.
@@ -79,7 +79,7 @@ To add a new zbus event, complete the following procedure:
     }
     ```
 
-1. Make sure the channel is observed by the subscriber module. In `app/src/main.c`, `power_chan` is already part of the `CHANNEL_LIST` when `CONFIG_APP_POWER` is enabled (which is the default on Thingy:91 X), so no change is needed there:
+1. Make sure the channel is observed by the subscriber module. In `app/src/main.c`, `power_chan` is already part of the `CHANNEL_LIST` when `CONFIG_APP_POWER` is enabled (which is the default on Thingy:91 X), so no changes are required:
 
     ```c
     #define CHANNEL_LIST(X)                                         \
@@ -265,7 +265,7 @@ Before adding a new sensor, make sure the sensor's driver is available in Zephyr
     };
     ```
 
-1. Add cloud integration in the `cloud_environmental_send()` function in `app/src/modules/cloud/cloud_environmental.c` to send magnetometer data to nRF Cloud. There is no predefined application ID for magnetometer data, so the code below uses a custom `"MAGNETIC_FIELD"` ID. Update the function as follows:
+1. Add cloud integration in the `cloud_environmental_send()` function in `app/src/modules/cloud/cloud_environmental.c` to send magnetometer data to nRF Cloud. There is no predefined application ID for magnetometer data, so the following code uses a custom `"MAGNETIC_FIELD"` ID. Update the function as follows:
 
     ```c
     int cloud_environmental_send(const struct environmental_msg *env,
@@ -609,7 +609,7 @@ For an interactive way to drive the module during development, add a shell comma
 
 ### Add shell support
 
-A shell command gives you an easy way to publish requests and inspect responses without rebuilding or reflashing. The template uses this pattern in several modules (for example `power_shell.c`, `network_shell.c`, `cloud_shell.c`) and you can reuse it for your own modules.
+A shell command provides an easy way to publish requests and inspect responses without rebuilding or reflashing. The template uses this pattern in several modules (for example `power_shell.c`, `network_shell.c`, `cloud_shell.c`) and you can reuse it for your own modules.
 
 The recipe has three parts:
 
@@ -708,7 +708,7 @@ Apply the recipe to the dummy module as follows:
 
 To apply the same pattern to your own module, replace `dummy` with your module name in the file, Kconfig symbol, CMake option, channel, and message type. The root command (`att_dummy` here) is conventionally `att_<module>` so all template commands share a common prefix.
 
-### Test the module via the shell
+### Test the module using the shell
 
 Build and flash the application, then open a serial terminal at `115200` baud and request a sample:
 

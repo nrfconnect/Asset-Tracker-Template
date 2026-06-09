@@ -39,7 +39,7 @@ Each firmware variant includes the following set of artifacts:
 
 | **Artifact name** | **Hardware platform** | **Description** | **Use case** |
 |-------------------|----------------------|----------------|--------------|
-| `asset-tracker-template-{VERSION}-debug-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | Debug build with enhanced logging and diagnostic features. Includes Memfault integration for crash reporting and device monitoring. Diagnostic data is routed via CoAP to the Memfault project linked to your nRF Cloud account. | Development debugging and issue investigation |
+| `asset-tracker-template-{VERSION}-debug-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | Debug build with enhanced logging and diagnostic features. Includes Memfault integration for crash reporting and device monitoring. Diagnostic data is routed through CoAP to the Memfault project linked to your nRF Cloud account. | Development debugging and issue investigation |
 
 #### Specialized configuration variants
 
@@ -70,5 +70,5 @@ The firmware variants are built using different configuration overlays that modi
 #### nRF9151 DK
 
 - **SoC**: nRF9151
-- **Features**: On-board debugger (J-Link), external antenna connectors, Arduino-compatible headers
+- **Features**: On-board debugger (J-Link), external antenna connectors, and Arduino-compatible headers
 - **Target Use**: Development, testing, and prototyping

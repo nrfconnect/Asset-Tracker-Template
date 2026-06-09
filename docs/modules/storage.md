@@ -48,21 +48,20 @@ from the backend after the consumer has confirmed it was processed (for example,
 successfully sent to the cloud). A typical session looks like this:
 
 1. Consumer publishes `STORAGE_BATCH_REQUEST` with a non-zero `session_id`.
-2. Storage replies with `STORAGE_BATCH_AVAILABLE` (with `data_len` set to the
+1. The storage module responds with `STORAGE_BATCH_AVAILABLE` (with `data_len` set to the
    number of items available) and primes the pipe with the head item.
-   If there is no data, `STORAGE_BATCH_EMPTY` is sent instead, and the session must still be closed.
-3. Consumer calls `storage_batch_read()` to read the head item. The item is
-   **not** removed from the backend by this call.
-4. After the item has been processed, the consumer publishes
+   If there is no data, it sends `STORAGE_BATCH_EMPTY`, and you must still close the session.
+1. Consumer calls `storage_batch_read()` to read the head item. This call does **not** remove the item from the backend.
+1. After the item has been processed, the consumer publishes
    `STORAGE_BATCH_CONSUME` with the matching `session_id` and the `data_type`
-   of the item. Storage removes the head item and primes the next one in the
+   of the item. The storage module removes the head item and primes the next one in the
    pipe.
-5. Steps 3 and 4 are repeated until `storage_batch_read()` returns `-EAGAIN`,
+1. Steps 3 and 4 repeat until `storage_batch_read()` returns `-EAGAIN`,
    or until the consumer decides to stop.
-6. Consumer publishes `STORAGE_BATCH_CLOSE` to end the session.
+1. Consumer publishes `STORAGE_BATCH_CLOSE` to end the session.
 
-If the consumer reads without consuming, `storage_batch_read()` will repeatedly
-return the same head item. If a `STORAGE_BATCH_CONSUME` arrives with an
+If the consumer reads without consuming, `storage_batch_read()` repeatedly
+returns the same head item. If a `STORAGE_BATCH_CONSUME` arrives with an
 unknown or mismatched `data_type`, the storage module aborts the session with
 `STORAGE_BATCH_ERROR` to avoid silent stalls.
 
@@ -144,22 +143,23 @@ How to calculate the needed size:
 
 - Per-type block need:
 
-<p align="center"> blocks per type = ⌈(data size × records per type) / block size⌉</p>
+```math
+\text{blocks per type} = \left\lceil \frac{\text{data size} \times \text{records per type}}{\text{block size}} \right\rceil
+```
 
 - Total required blocks:
 
-<p align="center"> required blocks =
-  Σ blocks per type
-  + 3
-</p>
+```math
+\text{required blocks} = \sum \text{blocks per type} + 3
+```
 
 where the `+3` accounts for LittleFS metadata and the CoW block.
 
 - Minimum partition size:
 
-<p align="center"> flash size =
-  required blocks × block size
-</p>
+```math
+\text{flash size} = \text{required blocks} \times \text{block size}
+```
 
 Choose a partition size that meets or exceeds `flash_size`. The LittleFS partition size is set by `CONFIG_PM_PARTITION_SIZE_LITTLEFS` (or the corresponding DTS partition definition).
 
@@ -363,8 +363,7 @@ The following includes the key configuration categories:
 
 - **CONFIG_APP_STORAGE_INITIAL_THRESHOLD** (default: `1`): Initial threshold for triggering `STORAGE_THRESHOLD_REACHED` events.
   A value of 1 means every sample triggers an event, while higher values enable buffering until the threshold is reached.
-  Threshold can be changed at runtime through `STORAGE_SET_THRESHOLD`
-  messages.
+  You can change the threshold at runtime through `STORAGE_SET_THRESHOLD` messages.
 
 ### Thread configuration
 
