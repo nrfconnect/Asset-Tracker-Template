@@ -2,9 +2,9 @@
 
 Connecting a device to [nRF Cloud](https://nrfcloud.com) involves three steps:
 
-- **Claiming** — Registering the device with your nRF Cloud account using the device's unique **attestation token**. This is an action performed in the nRF Cloud portal (or over the REST API).
-- **Provisioning** — Securely installing cloud access credentials onto the device. After claiming, the nRF Provisioning Service delivers these credentials to the device over a DTLS-protected CoAP channel, and the firmware writes them into the modem's secure storage.
-- **Cloud connection** — Establishing a secure CoAP connection from the device to nRF Cloud using the provisioned credentials.
+- **Claiming** - Registering the device with your nRF Cloud account using the device's unique **attestation token**. This is an action performed in the nRF Cloud portal (or over the REST API).
+- **Provisioning** - Securely installing cloud access credentials onto the device. After claiming, the nRF Provisioning Service delivers these credentials to the device over a DTLS-protected CoAP channel, and the firmware writes them into the modem's secure storage.
+- **Cloud connection** - Establishing a secure CoAP connection from the device to nRF Cloud using the provisioned credentials.
 
 The Asset Tracker Template firmware performs provisioning and cloud connection automatically once the device has been claimed. This page describes how to perform the required user actions (claiming) and how to trigger and reset the flow during development.
 
@@ -30,7 +30,7 @@ The Asset Tracker Template uses the <a href="https://docs.nordicsemi.com/bundle/
 <p>The modem must be offline during credential writing because it cannot be connected to the network while data is being written to its secure storage.
 Therefore, it is normal for LTE to disconnect and reconnect multiple times during provisioning.</p>
 
-<p>The attestation token is different from the JWT — it is used during the initial device claiming process to prove device authenticity to nRF Cloud, not during the provisioning protocol itself.</p>
+<p>The attestation token is different from the JWT - it is used during the initial device claiming process to prove device authenticity to nRF Cloud, not during the provisioning protocol itself.</p>
 
 <p>For more details on the provisioning library, see the <a href="https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/networking/nrf_provisioning.html">nRF Cloud device provisioning documentation</a>.</p>
 
@@ -69,7 +69,7 @@ The **attestation token** uniquely identifies your device and proves its authent
 1. Copy and paste the attestation token into the **Claim token** text box.
 1. Set **Provisioning rule** to **nRF Cloud Onboarding** and click **Claim Device**.
 
-    > **Important:** The **nRF Cloud Onboarding** rule is a named set of provisioning commands stored in your nRF Cloud account. It tells the provisioning service which credentials and configuration to deliver to the device after it is claimed. Selecting the correct rule is required — without it, the device will be claimed but will never receive the credentials needed to connect to nRF Cloud.
+    > **Important:** The **nRF Cloud Onboarding** rule is a named set of provisioning commands stored in your nRF Cloud account. It tells the provisioning service which credentials and configuration to deliver to the device after it is claimed. Selecting the correct rule is required — without it, the device will be claimed but will not receive the credentials required to connect to nRF Cloud.
 
     <details>
     <summary><strong>If "nRF Cloud Onboarding" rule is not showing:</strong></summary>

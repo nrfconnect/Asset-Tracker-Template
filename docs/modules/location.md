@@ -89,7 +89,7 @@ For more details on these configurations, refer to `Kconfig.location`.
 
 ### Default method order
 
-The board configurations (`thingy91x_nrf9151_ns.conf`,`nrf9151dk_nrf9151.conf`) set
+In the board configurations (`thingy91x_nrf9151_ns.conf`,`nrf9151dk_nrf9151.conf`), set
 the following default method priority order:
 
 **Thingy91x** :
@@ -130,7 +130,7 @@ the board configuration file or `prj.conf`:
 ## nRF Cloud location service usage
 
 Wi-Fi and cellular location requests, including combined
-`LOCATION_METHOD_WIFI_CELLULAR` requests, are resolved by nRF Cloud and
+`LOCATION_METHOD_WIFI_CELLULAR` requests are resolved by nRF Cloud and
 count toward the monthly location request quota. GNSS resolves position
 on-device and does not consume cloud requests.
 

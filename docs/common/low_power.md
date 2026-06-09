@@ -41,7 +41,7 @@ CONFIG_LTE_PSM_REQ_RAT_SECONDS=60      # Active Time: 1 minute
 It is recommended to configure a periodic TAU timer longer than the update cycle (`sampling interval` * `storage threshold`) of the application to avoid synchronization with the
 network between uploads.
 
-See the [Configuration guide — PSM](configuration.md#power-saving-mode-psm) for additional options. The actual values are negotiated with the network.
+See the [Configuration guide - PSM](configuration.md#power-saving-mode-psm) for additional options. The actual values are negotiated with the network.
 
 ### Extended Discontinuous Reception (eDRX)
 

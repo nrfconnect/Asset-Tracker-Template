@@ -103,7 +103,8 @@ This is the recommended method for manual updates and testing.
 
 1. Verify the update:
 
-    1. Navigate to your device page: click **Devices** under **Device Management** in the navigation pane on the left, then click the device UUID in the list to open the device page.
+    1. Navigate to your device page.
+    1. Click **Devices** under **Device Management** in the navigation pane on the left, then click the device UUID in the list to open the device page.
     1. Click **Device info** under the **Device Information** card.
     1. Check the **App Version** (for app updates) or **Modem Firmware** (for modem updates) field.
     1. Confirm that the version matches your new firmware.

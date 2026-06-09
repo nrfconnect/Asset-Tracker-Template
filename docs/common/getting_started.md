@@ -26,16 +26,16 @@ For pre-built binaries that do not require a build environment, refer to the lat
 
     ![Asset Tracker Template add-on](../images/addon_att.png)
 
-1. Once the project is created, it appears under **Applications** in the extension panel. Click **Add build configuration** under the **app** entry (or use the **Add build configuration** button under **Build**) to open the build configuration dialog.
+1. After the project is created, it is listed under **Applications** in the extension panel. Click **Add build configuration** under the **app** entry (or use the **Add build configuration** button under **Build**) to open the build configuration dialog.
 
-1. In the **Add build configuration (app)** dialog, set **Board target**. With the **Compatible** filter selected (the default), only the supported build targets are listed:
+1. In the **Add build configuration (app)** dialog, set the **Board target**. With the **Compatible** filter selected (the default), only the supported build targets are listed:
 
     | Board        | Board target            |
     | ------------ | ----------------------- |
     | Thingy:91 X  | `thingy91x/nrf9151/ns`  |
     | nRF9151 DK   | `nrf9151dk/nrf9151/ns`  |
 
-    Leave the other fields at their defaults and click **Generate and build** to build the application.
+    Keep the other fields at their defaults and click **Generate and build** to build the application.
 
 1. Flash the device
 
@@ -48,7 +48,7 @@ For pre-built binaries that do not require a build environment, refer to the lat
 
     Do not use the simple **Flash** action. It will fail with a UICR-related error.
 
-    If prompted for which device to flash, select the ID of the debugger or nRF9151 DK. Do not select the `THINGY91X_(serial number)` device, as is not used with an external debugger.
+    If prompted for which device to flash, select the ID of the debugger or nRF9151 DK. Do not select the `THINGY91X_(serial number)` device, as it is not used with an external debugger.
     </details>
 
     <details markdown="1">

@@ -20,18 +20,15 @@ states and transitions:
 
 ### States
 
-- **STATE_WAITING_FOR_MODEM_INIT:** Initial state. Waits for the modem
-  library to complete initialization before proceeding.
+- **STATE_WAITING_FOR_MODEM_INIT:** The initial state, where the system waits for the modem
+library to complete initialization before proceeding.
 - **STATE_RUNNING:** Parent state entered after modem initialization.
-  Handles battery sample requests at this level regardless of sub-state.
-  - **STATE_ACTIVE:** Default sub-state of `STATE_RUNNING`. Periodically
-    samples the fuel gauge on a timer controlled by
-    `CONFIG_APP_POWER_SAMPLE_INTERVAL_MS`. Entered when the modem
-    wakes from sleep.
-  - **STATE_IDLE:** Sub-state entered when the modem enters sleep. Calls
-    `nrf_fuel_gauge_idle_set()` with the configured idle current
-    (`CONFIG_APP_POWER_IDLE_CURRENT_NA`) so the fuel gauge can estimate
-    consumption while sampling is paused.
+At this level, battery sampling requests are handled regardless of the sub-state.
+
+    - **STATE_ACTIVE:** Default sub-state of `STATE_RUNNING`. In this state, the fuel gauge is sampled periodically based on the timer controlled by
+    `CONFIG_APP_POWER_SAMPLE_INTERVAL_MS`. It is entered when the modem wakes up from sleep.
+    - **STATE_IDLE:** Sub-state entered when the modem enters sleep. Calls `nrf_fuel_gauge_idle_set()` with the configured idle current
+    (`CONFIG_APP_POWER_IDLE_CURRENT_NA`) so the fuel gauge can estimate consumption while sampling is paused.
 
 ## Messages
 
@@ -47,7 +44,7 @@ The Power module defines and communicates on the `power_chan` channel.
 - **POWER_BATTERY_SAMPLE_LOG:**
   Available only when `CONFIG_APP_POWER_SHELL` is enabled. Requests the
   module to log the latest sampled battery data (voltage, current,
-  temperature, percentage, charging status) to the console.
+  temperature, percentage, and charging status) to the console.
 
 ### Output messages
 
