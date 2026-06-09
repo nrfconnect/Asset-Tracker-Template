@@ -156,6 +156,7 @@ struct ntn_state_object {
 	int64_t  pdn_resumed_time;
 	bool rrc_is_connected;
 	bool is_registered;
+	bool ntn_dwell_armed;
 	struct sat_data sgp4_sat_data;
 };
 
@@ -2301,6 +2302,7 @@ static void state_ntn_entry(void *obj)
 	state->modem_cell_found_time = 0;
 	state->modem_connectivity_time = 0;
 	state->is_registered = false;
+	state->ntn_dwell_armed = false;
 
 	k_sleep(K_SECONDS(1));
 
@@ -2379,8 +2381,6 @@ static enum smf_state_result state_ntn_run(void *obj)
 			return SMF_EVENT_HANDLED;
 
 		case NTN_RRC_CONNECTED:
-			k_timer_stop(&state->network_connection_timeout_timer);
-
 			state->rrc_is_connected = true;
 			state->modem_connectivity_time = k_uptime_get();
 
@@ -2414,9 +2414,16 @@ static enum smf_state_result state_ntn_run(void *obj)
 				LOG_DBG("No valid GNSS data to send");
 			}
 
-			k_timer_start(&state->rrc_connected_timer,
-				      K_SECONDS(CONFIG_APP_NTN_RRC_CONNECTED_DWELL_SECONDS),
-				      K_NO_WAIT);
+			if (!state->ntn_dwell_armed) {
+				state->ntn_dwell_armed = true;
+
+				k_timer_start(&state->network_connection_timeout_timer,
+					K_SECONDS(CONFIG_APP_NTN_RRC_CONNECTED_DWELL_SECONDS),
+					K_NO_WAIT);
+				k_timer_start(&state->rrc_connected_timer,
+					K_SECONDS(CONFIG_APP_NTN_RRC_CONNECTED_DWELL_SECONDS),
+					K_NO_WAIT);
+			}
 
 			return SMF_EVENT_HANDLED;
 
@@ -2461,7 +2468,7 @@ static enum smf_state_result state_ntn_run(void *obj)
 			 * Implements the gating rule "do not issue CFUN=45 while
 			 * registered until data transfer completes or fails".
 			 */
-			if (state->is_registered) {
+			if (state->is_registered || state->ntn_dwell_armed) {
 				return SMF_EVENT_HANDLED;
 			}
 
