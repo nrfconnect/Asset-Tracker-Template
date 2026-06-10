@@ -161,6 +161,7 @@ static nrf_provisioning_event_cb_t handler;
 #define TEST_BATTERY_UPTIME_MS 5000LL
 #define TEST_ENVIRONMENTAL_UPTIME_MS 10000LL
 #define TEST_LOCATION_UPTIME_MS 20000LL
+#define TEST_LOCATION_UNIX_MS (TEST_LOCATION_UPTIME_MS + TEST_UPTIME_TO_UNIX_OFFSET_MS)
 
 static int date_time_uptime_to_unix_time_ms_custom_fake(int64_t *unix_time_ms)
 {
@@ -736,7 +737,7 @@ void test_gnss_location_data_handling(void)
 	struct location_msg location_msg = {
 		.type = LOCATION_GNSS_DATA,
 		.gnss_data = mock_location,
-		.timestamp = TEST_LOCATION_UPTIME_MS
+		.timestamp = TEST_LOCATION_UNIX_MS
 	};
 	struct storage_msg storage_data_msg = {
 		.type = STORAGE_DATA,
@@ -763,8 +764,7 @@ void test_gnss_location_data_handling(void)
 
 	/* Verify the function was called with valid arguments and correct timestamp */
 	if (nrf_cloud_coap_location_send_fake.call_count > 0) {
-		TEST_ASSERT_EQUAL(TEST_LOCATION_UPTIME_MS + TEST_UPTIME_TO_UNIX_OFFSET_MS,
-				  last_gnss_data.ts_ms);
+		TEST_ASSERT_EQUAL(TEST_LOCATION_UNIX_MS, last_gnss_data.ts_ms);
 	}
 }
 

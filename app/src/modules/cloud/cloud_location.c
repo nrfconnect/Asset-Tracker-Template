@@ -10,7 +10,6 @@
 #include <net/nrf_cloud_coap.h>
 #include <net/nrf_cloud_rest.h>
 #include <zephyr/net/coap.h>
-#include <date_time.h>
 
 #include "cloud_location.h"
 #include "cloud_internal.h"
@@ -261,20 +260,12 @@ static void handle_agnss_request(const struct nrf_modem_gnss_agnss_data_frame *r
 static int handle_gnss_location_data(const struct location_msg *location_msg)
 {
 	int err;
-	int64_t timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
 	bool confirmable = IS_ENABLED(CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES);
 	const struct location_data *location_data = &location_msg->gnss_data;
 
-	/* Convert uptime to unix time */
-	timestamp_ms = location_msg->timestamp;
-	err = date_time_uptime_to_unix_time_ms(&timestamp_ms);
-	if (err) {
-		LOG_ERR("date_time_uptime_to_unix_time_ms, error: %d", err);
-	}
-
 	struct nrf_cloud_gnss_data gnss_data = {
 		.type = NRF_CLOUD_GNSS_TYPE_PVT,
-		.ts_ms = timestamp_ms,
+		.ts_ms = location_msg->timestamp,
 		.pvt = {
 			.lat = location_data->latitude,
 			.lon = location_data->longitude,
