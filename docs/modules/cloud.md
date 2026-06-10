@@ -132,3 +132,13 @@ Several Kconfig options in `Kconfig.cloud` control this module’s behavior. The
   Maximum time allowed for processing a single incoming message.
 
 For more details on these and other configurations, refer to `Kconfig.cloud`.
+
+### Shell commands
+
+When `CONFIG_APP_CLOUD_SHELL` is enabled:
+
+```bash
+att_cloud publish <appid> <data>   # Publish custom data to nRF Cloud
+att_cloud provision                # Connect to the nRF Cloud provisioning service
+att_cloud poll_shadow_delta        # Poll the device shadow delta for configuration updates
+```

@@ -77,5 +77,17 @@ The following Kconfig options can be used to customize the FOTA module's behavio
   Size of the stack for the FOTA module's thread.
 - **CONFIG_APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS:**
   Maximum time allowed for processing individual FOTA messages.
+- **CONFIG_APP_FOTA_SHELL:**
+  Enables shell support for FOTA operations.
 - **CONFIG_APP_FOTA_WATCHDOG_TIMEOUT_SECONDS:**
   Watchdog timeout for the FOTA operation to ensure timely completion.
+
+### Shell commands
+
+When `CONFIG_APP_FOTA_SHELL` is enabled:
+
+```bash
+att_fota poll    # Poll nRF Cloud for pending firmware updates
+```
+
+The `poll` command publishes a `FOTA_POLL_REQUEST` on `fota_chan`, instructing the FOTA module to check nRF Cloud for available firmware updates. If an update is available, the FOTA module starts the download automatically. See the [Firmware updates (FOTA)](../common/fota.md) guide for more details.
