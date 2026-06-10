@@ -10,6 +10,12 @@ menuconfig APP_FOTA
 
 if APP_FOTA
 
+config APP_FOTA_SHELL
+	bool "FOTA module shell commands"
+	default y if SHELL
+	help
+	  Enable shell commands for the FOTA module.
+
 config APP_FOTA_THREAD_STACK_SIZE
 	int "Thread stack size"
 	default 2048

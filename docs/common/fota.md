@@ -62,6 +62,14 @@ To verify a successful update:
 
 You can perform FOTA updates using the nRF Cloud Web UI or the REST API.
 
+After creating and applying a FOTA job in nRF Cloud, the device checks for updates automatically on a configured interval and when triggered by user input (for example, a button press). To trigger a check manually during development, connect to the device shell and run:
+
+```bash
+att_fota poll
+```
+
+The device must be connected to the network and cloud. If a pending update is found, the FOTA module starts the download automatically.
+
 ### Option 1: nRF Cloud Web UI
 
 This is the recommended method for manual updates and testing.

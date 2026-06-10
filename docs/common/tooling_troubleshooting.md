@@ -26,6 +26,7 @@ Available commands:
   at                           : Execute an AT command
   att_button                   : Asset Tracker Template Button module commands
   att_cloud                    : Asset Tracker Template Cloud module commands
+  att_fota                     : Asset Tracker Template FOTA module commands
   att_network                  : Asset Tracker Template Network module commands
   att_power                    : Asset Tracker Template Power module commands
   att_storage                  : Asset Tracker Template Storage module commands
@@ -80,6 +81,18 @@ uart:~$ att_cloud provision
 ```
 
 When the provisioning command is called, the device connects to the provisioning endpoint, checks for any pending commands for the device, and executes them if present. Use this command to reprovision the device during development, or when you want to swap out the credentials used in the CoAP connection.
+
+#### Poll for FOTA updates
+
+Use this command to manually trigger a firmware update check against nRF Cloud. The device must be connected to the network and cloud.
+
+```bash
+uart:~$ att_fota poll
+[00:00:42.258,361] <inf> nrf_cloud_fota_poll: Checking for FOTA job...
+[00:00:43.289,245] <inf> nrf_cloud_fota_poll: No pending FOTA job
+```
+
+If a FOTA job is available, the FOTA module starts downloading the update automatically. See the [Firmware updates (FOTA)](fota.md) guide for details on creating and applying update jobs.
 
 #### Network disconnect
 
