@@ -468,9 +468,9 @@ Memfault is a device observability platform that complements traditional debuggi
            --org <YOUR_ORG_SLUG> \
            --project <YOUR_PROJECT_SLUG> \
            upload-mcu-symbols build/app/zephyr/zephyr.elf
-        ```
+       ```
 
-      Memfault needs the build's `zephyr.elf` to decode crash addresses into function names, line numbers, and variable names.
+       Memfault needs the build's `zephyr.elf` to decode crash addresses into function names, line numbers, and variable names.
 
 1. **List your devices:**
 
