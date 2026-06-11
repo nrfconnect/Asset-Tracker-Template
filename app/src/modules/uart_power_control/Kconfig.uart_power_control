@@ -1,0 +1,23 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menuconfig APP_UART_POWER_CONTROL
+	bool "UART power control on VBUS events"
+	help
+	  Disable UART when VBUS is removed to save power.
+	  The UART is re-enabled when VBUS is connected again.
+
+if APP_UART_POWER_CONTROL
+
+config APP_UART_POWER_CONTROL_THREAD_STACK_SIZE
+	int "UART power control thread stack size"
+	default 512
+
+module = APP_UART_POWER_CONTROL
+module-str = UART Power Control
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # APP_UART_POWER_CONTROL
