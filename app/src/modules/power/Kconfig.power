@@ -30,22 +30,10 @@ config APP_POWER_SAMPLE_INTERVAL_MS
 	help
 	  Interval in milliseconds for periodic fuel gauge sampling.
 
-config APP_POWER_DISABLE_UART_ON_VBUS_REMOVED
-	bool "Disable UART when VBUS is removed"
-	default y
-	help
-	  Disable UART when VBUS is removed to save power.
-	  The UART is re-enabled when VBUS is connected again.
-	  This option is disabled by default due to UART hanging when being re-enabled.
-
 config APP_POWER_THREAD_STACK_SIZE
 	int "Thread stack size"
 	default 2048 if MEMFAULT_NRF_PLATFORM_BATTERY_NPM13XX
 	default 1536
-
-config APP_POWER_VBUS_THREAD_STACK_SIZE
-	int "VBUS initialization thread stack size"
-	default 512
 
 config APP_POWER_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout"

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Nordic Semiconductor ASA
+ * Copyright (c) 2026 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
@@ -17,7 +17,7 @@
 #include <modem/nrf_modem_lib_trace.h>
 #endif
 
-LOG_MODULE_REGISTER(vbus_events, CONFIG_APP_POWER_LOG_LEVEL);
+LOG_MODULE_REGISTER(vbus_events, CONFIG_APP_UART_POWER_CONTROL_LOG_LEVEL);
 
 /* VBUS event source (npm13xx charger device) */
 static const struct device *const charger_dev = DEVICE_DT_GET(DT_NODELABEL(npm1300_charger));
@@ -27,9 +27,6 @@ static const struct device *const uart1_dev = DEVICE_DT_GET(DT_NODELABEL(uart1))
 
 /* Modem initialization synchronization */
 K_SEM_DEFINE(modem_init_sem, 0, 1);
-
-/* VBUS state tracking */
-static bool vbus_present;
 
 static int uart_disable(void)
 {
@@ -122,16 +119,10 @@ static int sync_uart_to_vbus_status(void)
 {
 	int present;
 
-	if (!IS_ENABLED(CONFIG_APP_POWER_DISABLE_UART_ON_VBUS_REMOVED)) {
-		return 0;
-	}
-
 	present = vbus_is_present();
 	if (present < 0) {
 		return present;
 	}
-
-	vbus_present = present;
 
 	return present ? uart_enable() : uart_disable();
 }
@@ -145,25 +136,19 @@ static void event_callback(const struct device *dev, struct gpio_callback *cb, u
 
 	if (pins & BIT(NPM13XX_EVENT_VBUS_DETECTED)) {
 		LOG_DBG("VBUS detected");
-		vbus_present = true;
 
-		if (IS_ENABLED(CONFIG_APP_POWER_DISABLE_UART_ON_VBUS_REMOVED)) {
-			err = uart_enable();
-			if (err) {
-				LOG_ERR("uart_enable, error: %d", err);
-			}
+		err = uart_enable();
+		if (err) {
+			LOG_ERR("uart_enable, error: %d", err);
 		}
 	}
 
 	if (pins & BIT(NPM13XX_EVENT_VBUS_REMOVED)) {
 		LOG_DBG("VBUS removed");
-		vbus_present = false;
 
-		if (IS_ENABLED(CONFIG_APP_POWER_DISABLE_UART_ON_VBUS_REMOVED)) {
-			err = uart_disable();
-			if (err) {
-				LOG_ERR("uart_disable, error: %d", err);
-			}
+		err = uart_disable();
+		if (err) {
+			LOG_ERR("uart_disable, error: %d", err);
 		}
 	}
 }
@@ -224,7 +209,7 @@ static int subscribe_to_vbus_events(const struct device *device, struct gpio_cal
  * @param p2 Unused.
  * @param p3 Unused.
  */
-static void vbus_init_thread(void *p1, void *p2, void *p3)
+static void uart_power_control_thread(void *p1, void *p2, void *p3)
 {
 	int ret;
 	static struct gpio_callback event_cb;
@@ -256,5 +241,6 @@ static void vbus_init_thread(void *p1, void *p2, void *p3)
 	}
 }
 
-K_THREAD_DEFINE(vbus_init_thread_id, CONFIG_APP_POWER_VBUS_THREAD_STACK_SIZE, vbus_init_thread,
-		NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+K_THREAD_DEFINE(uart_power_control_thread_id, CONFIG_APP_UART_POWER_CONTROL_THREAD_STACK_SIZE,
+		uart_power_control_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0,
+		0);
