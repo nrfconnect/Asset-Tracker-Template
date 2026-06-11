@@ -9,7 +9,7 @@ This guide explains how to modify the Asset Tracker Template to fit your use cas
 
 ## Add a new zbus event
 
-This section demonstrates how to add a new event to a module and handle it in another. In this example, you add events to the power module to notify the system when VBUS is connected or disconnected on the Thingy:91 X. The main module subscribes to these events and requests specific LED patterns from the LED module in response:
+This section demonstrates how to add a new event to a module and handle it in another. In this example, you add events to the UART Power Control module to notify the system when VBUS is connected or disconnected on the Thingy:91 X. The main module subscribes to these events and requests specific LED patterns from the LED module in response:
 
 - When VBUS is connected, the LED blinks white rapidly.
 - When VBUS is disconnected, the LED blinks purple slowly.
@@ -18,44 +18,58 @@ This section demonstrates how to add a new event to a module and handle it in an
 
 To add a new zbus event, complete the following procedure:
 
-1. Define the new events in your module's header file (for example, `power.h`):
+1. Create a header for the new channel and message type at `app/src/modules/uart_power_control/uart_power_control.h`.
 
     ```c
-    enum power_msg_type {
-       /* ... existing message types ... */
+    #ifndef UART_POWER_CONTROL_H_
+    #define UART_POWER_CONTROL_H_
 
-       /* VBUS power supply is connected. */
-       POWER_VBUS_CONNECTED,
-
-       /* VBUS power supply is disconnected. */
-       POWER_VBUS_DISCONNECTED,
-    };
-    ```
-
-1. Publish the new events from the `event_callback()` function. The VBUS callback lives in a dedicated source file next to the power module, `app/src/modules/power/vbus_events.c`, which does not yet depend on zbus or the power channel. First, add the required includes near the top of that file:
-
-    ```c
     #include <zephyr/zbus/zbus.h>
 
-    #include "app_common.h"
-    #include "power.h"
+    enum vbus_msg_type {
+        /* VBUS power supply is connected. */
+        VBUS_CONNECTED,
+
+        /* VBUS power supply is disconnected. */
+        VBUS_DISCONNECTED,
+    };
+
+    struct vbus_msg {
+        enum vbus_msg_type type;
+    };
+
+    ZBUS_CHAN_DECLARE(vbus_chan);
+
+    #endif /* UART_POWER_CONTROL_H_ */
     ```
 
-    Then extend the two existing branches in `event_callback()` to publish on `power_chan`:
+2. Define the channel and publish events from the existing `event_callback()` function in `app/src/modules/uart_power_control/uart_power_control.c`. Add the include and channel definition near the top of the file:
+
+    ```c
+    #include "uart_power_control.h"
+    #include "app_common.h"
+
+    ZBUS_CHAN_DEFINE(vbus_chan,
+                     struct vbus_msg,
+                     NULL,
+                     NULL,
+                     ZBUS_OBSERVERS_EMPTY,
+                     ZBUS_MSG_INIT(0));
+    ```
+
+    Then publish the events from inside `event_callback()`:
 
     ```c
     if (pins & BIT(NPM13XX_EVENT_VBUS_DETECTED)) {
         LOG_DBG("VBUS detected");
+        vbus_present = true;
 
-        struct power_msg msg = {
-            .type = POWER_VBUS_CONNECTED
-        };
+        struct vbus_msg msg = { .type = VBUS_CONNECTED };
+        int pub_err = zbus_chan_pub(&vbus_chan, &msg, PUB_TIMEOUT);
 
-        err = zbus_chan_pub(&power_chan, &msg, PUB_TIMEOUT);
-        if (err) {
-            LOG_ERR("zbus_chan_pub, error: %d", err);
+        if (pub_err) {
+            LOG_ERR("zbus_chan_pub, error: %d", pub_err);
             SEND_FATAL_ERROR();
-            return;
         }
 
         // ... existing code ...
@@ -63,47 +77,48 @@ To add a new zbus event, complete the following procedure:
 
     if (pins & BIT(NPM13XX_EVENT_VBUS_REMOVED)) {
         LOG_DBG("VBUS removed");
+        vbus_present = false;
 
-        struct power_msg msg = {
-            .type = POWER_VBUS_DISCONNECTED
-        };
+        struct vbus_msg msg = { .type = VBUS_DISCONNECTED };
+        int pub_err = zbus_chan_pub(&vbus_chan, &msg, PUB_TIMEOUT);
 
-        err = zbus_chan_pub(&power_chan, &msg, PUB_TIMEOUT);
-        if (err) {
-            LOG_ERR("zbus_chan_pub, error: %d", err);
+        if (pub_err) {
+            LOG_ERR("zbus_chan_pub, error: %d", pub_err);
             SEND_FATAL_ERROR();
-            return;
         }
 
         // ... existing code ...
     }
     ```
 
-1. Make sure the channel is observed by the subscriber module. In `app/src/main.c`, `power_chan` is already part of the `CHANNEL_LIST` when `CONFIG_APP_POWER` is enabled (which is the default on Thingy:91 X), so no changes are required:
+3. Make sure the channel is observed by the subscriber module. In `app/src/main.c`, add `vbus_chan` to the `CHANNEL_LIST` so it is gated by `CONFIG_APP_UART_POWER_CONTROL`:
 
     ```c
+    #include "uart_power_control.h"
+
     #define CHANNEL_LIST(X)                                         \
         X(cloud_chan,       struct cloud_msg)                       \
-        X(button_chan,      struct button_msg)                      \
         X(fota_chan,        struct fota_msg)                        \
         X(network_chan,     struct network_msg)                     \
         X(location_chan,    struct location_msg)                    \
         X(storage_chan,     struct storage_msg)                     \
         X(timer_chan,       struct timer_msg)                       \
         X(priv_main_chan,   struct priv_main_msg)                   \
-        IF_ENABLED(CONFIG_APP_POWER, (X(power_chan, struct power_msg)))
+        IF_ENABLED(CONFIG_APP_BUTTON, (X(button_chan, struct button_msg)))  \
+        IF_ENABLED(CONFIG_APP_POWER,  (X(power_chan,  struct power_msg)))   \
+        IF_ENABLED(CONFIG_APP_UART_POWER_CONTROL, (X(vbus_chan, struct vbus_msg)))
     ```
 
-    If you are subscribing from a different module, add the channel to that module's `CHANNEL_LIST`.
+    If you are subscribing from a different module, add the channel to that module's `CHANNEL_LIST` instead.
 
-1. Implement a handler for the new events in the subscriber module. For example, add the following block to the `running_run()` state handler in `app/src/main.c`:
+4. Implement a handler for the new events in the subscriber module. For example, add the following block to the `running_run()` state handler in `app/src/main.c`:
 
     ```c
-    if (state_object->chan == &power_chan) {
-        const struct power_msg *msg =
-            (const struct power_msg *)state_object->msg_buf;
+    if (state_object->chan == &vbus_chan) {
+        const struct vbus_msg *msg =
+            (const struct vbus_msg *)state_object->msg_buf;
 
-        if (msg->type == POWER_VBUS_CONNECTED) {
+        if (msg->type == VBUS_CONNECTED) {
             LOG_DBG("VBUS connected, request white LED blinking rapidly for 10 seconds");
 
             struct led_msg led_msg = {
@@ -124,7 +139,7 @@ To add a new zbus event, complete the following procedure:
             }
 
             return SMF_EVENT_HANDLED;
-        } else if (msg->type == POWER_VBUS_DISCONNECTED) {
+        } else if (msg->type == VBUS_DISCONNECTED) {
             LOG_DBG("VBUS disconnected, request purple LED blinking slowly for 10 seconds");
 
             struct led_msg led_msg = {
@@ -149,7 +164,7 @@ To add a new zbus event, complete the following procedure:
     }
     ```
 
-1. Test the implementation by connecting and disconnecting VBUS to verify the LED patterns change as expected.
+5. Test the implementation by connecting and disconnecting VBUS to verify the LED patterns change as expected.
 
 ## Add a new environmental sensor
 
