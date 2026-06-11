@@ -4,9 +4,9 @@ The power module manages power-related functionality for devices with nPM1300,
 like the Thingy:91 X, including the following:
 
 - Monitoring battery voltage and calculating remaining battery percentage.
-- Handling VBUS (USB) connect and disconnect events to enable or disable
-  UART peripherals.
 - Tracking modem sleep and wake events to adjust fuel gauge behaviour.
+- Reading VBUS (USB) status to inform the fuel gauge of the current
+  charging state.
 - Publishing battery percentage updates via zbus messages.
 
 ## Architecture
@@ -95,16 +95,8 @@ The following Kconfig options control this module’s behavior:
   Interval in milliseconds between periodic fuel gauge samples while in
   `STATE_ACTIVE`.
 
-- **CONFIG_APP_POWER_DISABLE_UART_ON_VBUS_REMOVED:**
-  If enabled, suspends UART devices when VBUS is removed.
-
 - **CONFIG_APP_POWER_THREAD_STACK_SIZE:**
   Size of the Power module’s thread stack.
-
-- **CONFIG_APP_POWER_VBUS_THREAD_STACK_SIZE:**
-  Stack size for the VBUS initialization thread that waits for modem
-  library initialization before subscribing to VBUS events and syncing
-  the UART state.
 
 - **CONFIG_APP_POWER_WATCHDOG_TIMEOUT_SECONDS:**
   Defines the watchdog timeout for the module. Must be larger than the
@@ -118,4 +110,3 @@ See the `Kconfig.power` file in the module's directory for more details on the a
 ## Kconfig and device tree
 
 - The Power module uses `npm1300_charger` as specified by device tree.
-- The two UART devices `uart0_dev` and `uart1_dev` defined in device tree will be enabled or disabled based on VBUS events.

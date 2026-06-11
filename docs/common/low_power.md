@@ -88,10 +88,10 @@ UART interfaces consume power even when idle. The application provides options t
 The Thingy:91 X can automatically disable UART when the USB cable is disconnected. Enable in `prj.conf`:
 
 ```config
-CONFIG_APP_POWER_DISABLE_UART_ON_VBUS_REMOVED=y
+CONFIG_APP_UART_POWER_CONTROL=y
 ```
 
-When enabled, the device monitors VBUS and automatically suspends UART interfaces when USB power is removed. This is useful for development where you need UART logging during USB connection but want to minimize power consumption when running on battery.
+When enabled, the device monitors VBUS and automatically suspends UART interfaces when USB power is removed. This is useful for development where you need UART logging during USB connection but want to minimize power consumption when running on battery. See the [UART Power Control module](../modules/uart_power_control.md) for details.
 
 #### Manual UART control using shell
 
