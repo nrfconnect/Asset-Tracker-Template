@@ -31,10 +31,6 @@ The FOTA module implements a state machine with the following states and transit
 
 ![FOTA module state diagram](../images/fota_module_state_diagram.svg "FOTA module state diagram")
 
-## Reboot and storage handling
-
-The FOTA module does not reboot the device on its own. After publishing `FOTA_SUCCESS`, it is the application's responsibility to perform any cleanup and trigger the reboot. In this template, the main module reacts to `FOTA_SUCCESS` by publishing `STORAGE_CLEAR` on `storage_chan` to wipe staged sample data, and then transitions to `STATE_REBOOTING`, which performs the actual reboot. This ensures a clean state after the firmware update and prevents potential data corruption or compatibility issues between firmware versions.
-
 ## Messages
 
 The FOTA module communicates through the zbus channel `fota_chan`, using input and output messages defined in `fota.h`.
@@ -63,7 +59,7 @@ All input messages are requests from the application to the FOTA module. The out
   The module needs the network to be disconnected before it can continue. The application is expected to disconnect the network and reply with `FOTA_NETWORK_DISCONNECTED`.
 
 - **FOTA_SUCCESS:**
-  The FOTA sequence completed successfully and the device is ready to reboot in order to apply the image. The application is responsible for triggering the reboot.
+  The FOTA sequence completed successfully, and the update is staged and ready to be applied on on reboot. It is the application's responsibility to trigger the reboot.
 
 - **FOTA_ABORTED:**
   The FOTA sequence was aborted. This covers all non-success terminations: download failed, timed out, was canceled or rejected, or no update was available.
