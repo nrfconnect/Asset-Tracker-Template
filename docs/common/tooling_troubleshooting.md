@@ -491,25 +491,13 @@ Memfault is a device observability platform that complements traditional debuggi
     1. Select a device to explore its coredumps, metrics, and modem traces (CDRs).
 
     The template enables basic support for Memfault, forwarding captured LTE and location metrics as well as coredumps on crashes to Memfault via nRF Cloud CoAP.
-    If you also want to send modem traces to Memfault on application crashes, include the `overlay-upload-modem-traces-to-memfault.conf` overlay in your west build command:
+    If you also want to send modem traces to Memfault on application crashes, include the `overlay-upload-modem-traces-to-memfault.conf` Kconfig overlay **and** the devicetree overlay `overlay-upload-modem-traces-to-memfault.overlay` in your west build command:
 
     ```bash
-    west build -p -b <board> -- -DEXTRA_CONF_FILE="overlay-upload-modem-traces-to-memfault.conf"
+    west build -p -b <board> -- \
+        -DEXTRA_CONF_FILE="overlay-upload-modem-traces-to-memfault.conf" \
+        -DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay"
     ```
-
-1. **List your devices:**
-
-    1. In the Memfault UI, click **Devices** in the left toolbar to see all devices that have reported data.
-    1. Select a device to explore its coredumps, metrics, and modem traces (CDRs).
-
-The template enables basic support for Memfault, forwarding captured LTE and location metrics as well as coredumps on crashes to Memfault via nRF Cloud CoAP.
-If you also want to send modem traces to Memfault on application crashes, include the `overlay-upload-modem-traces-to-memfault.conf` Kconfig overlay **and** the devicetree overlay `overlay-upload-modem-traces-to-memfault.overlay` in your west build command:
-
-```bash
-west build -p -b <board> -- \
-    -DEXTRA_CONF_FILE="overlay-upload-modem-traces-to-memfault.conf" \
-    -DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay"
-```
 
 > [!IMPORTANT]
 > The modem trace upload feature can send upwards of 1 MB of modem trace data in case of application crashes.
