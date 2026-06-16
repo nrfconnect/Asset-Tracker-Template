@@ -110,7 +110,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  cleanup:
+    runs-on: build_self_hosted
+    steps:
+      - name: Prune old Docker resources
+        run: docker system prune --force --filter "until=48h"
+
+      - name: Remove stale runner temp entries
+        run: |
+          # GitHub Actions stores per-job temp files under _work/_temp.
+          runner_temp_root="$(dirname "${RUNNER_TEMP}")"
+          find "$runner_temp_root" -mindepth 1 -maxdepth 1 -mmin +2880 \
+            ! -path "$RUNNER_TEMP" \
+            -exec rm -rf {} + 2>/dev/null || true
+
   build:
+    needs: cleanup
     runs-on: build_self_hosted
     container: ghcr.io/zephyrproject-rtos/ci:v0.28.7
     env:
@@ -124,7 +139,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: asset-tracker-template
 
@@ -345,7 +360,7 @@ jobs:
           path: ${{ github.workspace }}/size-comment.md
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: firmware-artifacts-att
           path: artifacts/*

@@ -27,14 +27,14 @@ jobs:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory # Directory where build-wrapper output will be placed
       CMAKE_PREFIX_PATH: /opt/toolchains
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: github.event_name == 'pull_request'
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
           path: asset-tracker-template
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: github.event_name != 'pull_request'
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
@@ -86,7 +86,7 @@ jobs:
 
       - name: Upload Twister Test Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: twister-results
           path: |
