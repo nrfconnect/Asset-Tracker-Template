@@ -8,18 +8,22 @@ This document provides an overview of the architecture, with a focus on the zbus
 
 ## System overview
 
-The template consists of the following modules:
+The template consists of the following core modules:
 
 - **[Main module](../modules/main.md)**: Implements the business logic and controls the overall application behavior. Uniquely, it is not in the `modules` folder.
 - **[Storage module](../modules/storage.md)**: Stores data from enabled modules.
 - **[Network module](../modules/network.md)**: Manages LTE connectivity and tracks network status.
 - **[Cloud module](../modules/cloud.md)**: Handles communication with nRF Cloud using CoAP.
 - **[Location module](../modules/location.md)**: Provides location services using GNSS, Wi-Fi, and cellular positioning.
-- **[LED module](../modules/led.md)**: Controls an RGB LED for visual indication.
 - **[Button module](../modules/button.md)**: Reports button press events for user input.
 - **[FOTA module](../modules/fota_module.md)**: Manages firmware over-the-air updates.
+
+Thingy:91 X specific modules:
+
 - **[Environmental module](../modules/environmental.md)**: Collects environmental sensor data (temperature, humidity, pressure).
+- **[LED module](../modules/led.md)**: Controls an RGB LED for visual indication.
 - **[Power module](../modules/power.md)**: Monitors battery status and provides power management.
+- **[UART Power Control module](../modules/uart_power_control.md)**: UART suspend/resume on VBUS changes.
 
 The following diagram shows the system architecture and how the modules interact with each other. The modules communicate through zbus channels.
 
@@ -28,8 +32,8 @@ The following diagram shows the system architecture and how the modules interact
 The following steps show the simplified flow of a typical operation:
 
 1. The Main module schedules periodic triggers or responds to a short button press reported on the `button_chan` channel.
-1. When triggered either by timeout or button press, it requests location data from the Location module on the `location_chan` channel.
-1. After the location search is completed and reported on the `location_chan` channel, the Main module requests sensor data from the Environmental module on the `environmental_chan` channel.
+1. When triggered by timeout or button press, it requests sampling from the Power, Environmental, and Location modules in parallel by publishing on `power_chan`, `environmental_chan`, and `location_chan`.
+1. Sampled data is stored by the Storage module and sent to the cloud when the number of buffered records reaches `storage_threshold` (configured at build time via `CONFIG_APP_STORAGE_INITIAL_THRESHOLD`, or at runtime through the device shadow). See [Configuration](configuration.md#runtime-configurations).
 1. Throughout the operation, the Main module controls the LED module over the `led_chan` channel to provide visual feedback about the system state.
 
 ## Module design
@@ -199,14 +203,11 @@ struct network_msg {
                  */
                 IF_ENABLED(CONFIG_LTE_LC_PSM_MODULE, (struct lte_lc_psm_cfg psm_cfg));
 
-                /* ... */
+                /** Contains the current eDRX configuration.
+                 *  edrx_cfg is valid for NETWORK_EDRX_PARAMS events.
+                 */
+                IF_ENABLED(CONFIG_LTE_LC_EDRX_MODULE, (struct lte_lc_edrx_cfg edrx_cfg));
         };
-        /** Timestamp when the sample was taken in milliseconds.
-         *  This is either:
-         * - Unix time in milliseconds if the system clock was synchronized at sampling time, or
-         * - Uptime in milliseconds if the system clock was not synchronized at sampling time.
-         */
-        int64_t timestamp;
 };
 ```
 

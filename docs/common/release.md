@@ -48,6 +48,9 @@ Each firmware variant includes the following set of artifacts:
 | `asset-tracker-template-{VERSION}-mtrace-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | Firmware with modem trace output enabled through UART 1 | Cellular connectivity debugging and analysis |
 | `asset-tracker-template-{VERSION}-mtrace-nrf9151dk-nrf91.*` | nRF9151 DK | Firmware with modem trace output enabled through UART 1  | Cellular connectivity debugging and analysis |
 | `asset-tracker-template-{VERSION}-ext-gnss-nrf9151dk-nrf91.*` | nRF9151 DK | Firmware configured for external GNSS antenna | Testing with external GNSS antenna setup |
+| `asset-tracker-template-{VERSION}-mqtt-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | MQTT cloud example module instead of nRF Cloud CoAP | Connecting to a generic MQTT broker |
+| `asset-tracker-template-{VERSION}-buffer-flash-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | LittleFS storage backend with buffered sampling | Testing persistent flash buffering |
+| `asset-tracker-template-{VERSION}-buffer-ram-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | RAM storage backend with buffered sampling | Testing in-memory buffering behavior |
 
 ### Configuration overlays
 

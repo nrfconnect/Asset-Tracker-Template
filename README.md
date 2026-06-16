@@ -77,16 +77,20 @@ To set up your development environment, build the application, flash it to your 
 
 Core modules include:
 
-* **[Main](docs/modules/main.md)**: Central coordinator implementing business logic
-* **[Storage](docs/modules/storage.md)**: Data collection and buffering management
-* **[Network](docs/modules/network.md)**: LTE connectivity management
-* **[Cloud](docs/modules/cloud.md)**: nRF Cloud CoAP communication
-* **[Location](docs/modules/location.md)**: GNSS, Wi-Fi, and cellular positioning
-* **[LED](docs/modules/led.md)**: RGB LED control for Thingy:91 X
-* **[Button](docs/modules/button.md)**: User input handling
-* **[FOTA](docs/modules/fota_module.md)**: Firmware over-the-air updates
-* **[Environmental](docs/modules/environmental.md)**: Sensor data collection
-* **[Power](docs/modules/power.md)**: Battery monitoring and power management
+* **[Main](docs/modules/main.md)**: Implements the business logic and controls the overall application behavior.
+* **[Storage](docs/modules/storage.md)**: Stores data from enabled modules.
+* **[Network](docs/modules/network.md)**: Manages LTE connectivity and tracks network status.
+* **[Cloud](docs/modules/cloud.md)**: Handles communication with nRF Cloud using CoAP.
+* **[Location](docs/modules/location.md)**: Provides location services using GNSS, Wi-Fi, and cellular positioning.
+* **[Button](docs/modules/button.md)**: Reports button press events for user input.
+* **[FOTA](docs/modules/fota_module.md)**: Manages firmware over-the-air updates.
+
+Thingy:91 X specific modules:
+
+* **[Environmental](docs/modules/environmental.md)**: Collects environmental sensor data (temperature, humidity, pressure).
+* **[LED](docs/modules/led.md)**: Controls an RGB LED for visual indication.
+* **[Power](docs/modules/power.md)**: Monitors battery status and provides power management.
+* **[UART Power Control](docs/modules/uart_power_control.md)**: UART suspend/resume on VBUS changes.
 
 ### Key Features
 

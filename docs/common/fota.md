@@ -36,15 +36,15 @@ Complete the following steps when preparing **application** or **bootloader** fi
     Using the command line:
 
     ```bash
-    west build -p -b thingy91x/nrf9151/ns # Make sure you build for the appropriate board
+    west build -p -b thingy91x/nrf9151/ns # Build for the appropriate board
     ```
 
     Or use the nRF Connect for VS Code. See the [Getting Started](getting_started.md) guide for details on building with the extension.
 
-1. Locate update bundles:
+1. Locate update bundles in the output directory (`app/build/`):
 
-    - `build/app/zephyr/dfu_application.zip` - Application firmware update
-    - `build/app/zephyr/dfu_mcuboot.zip` - Bootloader update
+    - `build/dfu_application.zip` - Application firmware update
+    - `build/dfu_mcuboot.zip` - Bootloader update
 
 ### Version verification
 

@@ -1,4 +1,4 @@
-# Assert Tracker Template Unit Tests on native sim
+# Asset Tracker Template Unit Tests on native sim
 
 ## Run tests locally
 
@@ -14,7 +14,7 @@ docker run --rm -it \
   /bin/bash
 ```
 
-### Setup Commmands
+### Setup Commands
 ```shell
 cd work/asset-tracker-template/
 west init -l .

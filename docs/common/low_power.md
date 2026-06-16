@@ -34,8 +34,8 @@ For general configuration of the LTE link, refer to the [LTE Link Control docume
 PSM is **enabled by default**. Configure TAU and RAT parameters in `prj.conf`:
 
 ```config
-CONFIG_LTE_PSM_REQ_RPTAU_SECONDS=1800  # Periodic TAU: 30 minutes
-CONFIG_LTE_PSM_REQ_RAT_SECONDS=60      # Active Time: 1 minute
+CONFIG_LTE_PSM_REQ_RPTAU_SECONDS=7200  # Periodic TAU: 2 hours
+CONFIG_LTE_PSM_REQ_RAT_SECONDS=6       # Active Time: 6 seconds
 ```
 
 It is recommended to configure a periodic TAU timer longer than the update cycle (`sampling interval` * `storage threshold`) of the application to avoid synchronization with the
@@ -52,7 +52,7 @@ CONFIG_LTE_EDRX_REQ_VALUE_LTE_M="0000"  # eDRX interval 5.12 s for LTE-M
 CONFIG_LTE_EDRX_REQ_VALUE_NBIOT="0000"  # eDRX interval 5.12 s for NB-IoT
 ```
 
-eDRX is used to periodically sleep during the PSM active timer. With the default settings, the device monitors for downlink data every 5.12 seconds for the duration of the active timer (60 seconds by default) in case the cloud sends data to the device.
+eDRX is used to periodically sleep during the PSM active timer. With the default settings, the device monitors for downlink data every 5.12 seconds for the duration of the active timer (6 seconds by default) in case the cloud sends data to the device.
 
 ### Sampling and send behavior
 

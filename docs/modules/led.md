@@ -1,6 +1,6 @@
 # LED module
 
-The LED module controls the LEDs on the device using PWM (Pulse Width Modulation) and timers to created blinking patterns. For devices with RGB LEDs, the module can set specific colors. For devices without RGB LEDs, the colors will map to regular LEDs instead.
+The LED module controls the LEDs on the device using PWM (Pulse Width Modulation) and timers to create blinking patterns. For devices with RGB LEDs, the module can set specific colors. For devices without RGB LEDs, the colors will map to regular LEDs instead.
 
 ## Messages
 
@@ -20,7 +20,7 @@ The module accepts messages with the following parameters:
     - `duration_off_msec`: How long the LED stays off in milliseconds.
     - `repetitions`: Number of blink cycles (-1 for infinite blinking).
 
-The message structure is defined in `led_module.h`:
+The message structure is defined in `led.h`:
 
 ```c
 struct led_msg {

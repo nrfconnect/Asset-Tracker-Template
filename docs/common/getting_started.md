@@ -82,10 +82,10 @@ For more details on how to use nRF Connect for VS Code, refer to the [nRF Connec
     nrfutil install sdk-manager
     ```
 
-1. Install the nRF Connect SDK toolchain (v3.1.0 or later):
+1. Install the nRF Connect SDK toolchain (v3.4.0 or later):
 
     ```bash
-    nrfutil sdk-manager install v3.1.0
+    nrfutil sdk-manager install v3.4.0
     ```
 
 ### Initialize the workspace
@@ -93,13 +93,13 @@ For more details on how to use nRF Connect for VS Code, refer to the [nRF Connec
 Before initializing, start the toolchain environment:
 
 ```shell
-nrfutil sdk-manager toolchain launch --ncs-version v3.1.0 --shell
+nrfutil sdk-manager toolchain launch --ncs-version v3.4.0 --shell
 ```
 
 You can also run a single command within a specific nRF Connect SDK toolchain. For example:
 
 ```shell
-nrfutil sdk-manager toolchain launch --ncs-version v3.1.0 -- <your command>
+nrfutil sdk-manager toolchain launch --ncs-version v3.4.0 -- <your command>
 ```
 
 This form is useful for running, for instance, a single `west` command with a specific toolchain. You can create an alias or shell function for this command to avoid typing it in full every time.
