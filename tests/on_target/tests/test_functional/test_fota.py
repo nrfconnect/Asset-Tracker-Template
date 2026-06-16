@@ -95,7 +95,7 @@ def trigger_fota_poll(dut_fota, max_attempts=3):
     for i in range(max_attempts):
         try:
             time.sleep(10)
-            dut_fota.uart.write("att_button press 1\r\n")
+            dut_fota.uart.write("att_fota poll\r\n")
             dut_fota.uart.wait_for_str("nrf_cloud_fota_poll: Starting FOTA download", timeout=30)
             return
         except AssertionError:
@@ -185,7 +185,7 @@ def run_fota_reschedule(dut_fota, fota_type):
     for i in range(3):
         try:
             time.sleep(30)
-            dut_fota.uart.write("att_button press 1\r\n")
+            dut_fota.uart.write("att_fota poll\r\n")
             dut_fota.uart.wait_for_str("nrf_cloud_fota_poll: Starting FOTA download")
             break
         except AssertionError:
@@ -269,7 +269,7 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
             for i in range(3):
                 try:
                     time.sleep(10)
-                    dut_fota.uart.write("att_button press 1\r\n")
+                    dut_fota.uart.write("att_fota poll\r\n")
                     dut_fota.uart.wait_for_str("nrf_cloud_fota_poll: Starting FOTA download", timeout=30)
                     break
                 except AssertionError:

@@ -29,7 +29,7 @@
 / {
 	chosen {
 		zephyr,settings-partition = &settings_storage;
-		fmfu_storage = &fmfu_storage_partition;
+		nordic,fmfu-storage-partition = &fmfu_storage_partition;
 		nordic,memfault-coredump-partition = &memfault_coredump_partition;
 	};
 
