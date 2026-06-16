@@ -356,7 +356,7 @@ The following includes the key configuration categories:
 - **CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE** (default: `8` for the RAM backend, `256` for the LittleFS backend): Maximum records stored per data type.
   Total RAM usage = `MAX_TYPES` × `MAX_RECORDS_PER_TYPE` × `RECORD_SIZE`.
 
-- **CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE** (default: `1024`): Size of the internal buffer for batch data access.
+- **CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE** (default: `512`): Size of the internal buffer for batch data access.
 
 ### Flash configuration (LittleFS backend)
 
@@ -446,6 +446,7 @@ Storage backends implement the interface defined in the `app/src/modules/storage
 struct storage_backend {
     int (*init)(void);
     int (*store)(const struct storage_data *type, void *data, size_t size);
+    int (*peek)(const struct storage_data *type, void *data, size_t size);
     int (*retrieve)(const struct storage_data *type, void *data, size_t size);
     int (*count)(const struct storage_data *type);
     int (*clear)(void);

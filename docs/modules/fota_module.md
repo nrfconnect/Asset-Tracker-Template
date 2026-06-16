@@ -59,7 +59,7 @@ All input messages are requests from the application to the FOTA module. The out
   The module needs the network to be disconnected before it can continue. The application is expected to disconnect the network and reply with `FOTA_NETWORK_DISCONNECTED`.
 
 - **FOTA_SUCCESS:**
-  The FOTA sequence completed successfully, and the update is staged and ready to be applied on on reboot. It is the application's responsibility to trigger the reboot.
+  The FOTA sequence completed successfully, and the update is staged and ready to be applied on reboot. It is the application's responsibility to trigger the reboot.
 
 - **FOTA_ABORTED:**
   The FOTA sequence was aborted. This covers all non-success terminations: download failed, timed out, was canceled or rejected, or no update was available.

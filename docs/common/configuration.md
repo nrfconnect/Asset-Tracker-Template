@@ -68,7 +68,7 @@ The Asset Tracker can be configured remotely through nRF Cloud's device shadow m
 
     > **Important:** To remove a configuration entry, you must explicitly set the parameter to `null`.
 
-2. Click **Commit** to apply the changes.
+1. Click **Commit** to apply the changes.
 
 The device receives the new configuration through its shadow and adjusts its
 sampling interval and storage mode accordingly.
@@ -169,10 +169,10 @@ The following are the available location methods:
 - **Thingy91x configuration** (Wi-Fi available):
 
     ```kconfig
-    CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_FIRST_WIFI=y
-    CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_SECOND_GNSS=y
+    CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_FIRST_GNSS=y
+    CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_SECOND_WIFI=y
     CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_THIRD_CELLULAR=y
-    CONFIG_LOCATION_REQUEST_DEFAULT_WIFI_TIMEOUT=10000
+    CONFIG_LOCATION_REQUEST_DEFAULT_WIFI_TIMEOUT=5000
     ```
 
 - **nRF9151 DK configuration** (Wi-Fi unavailable):
@@ -276,7 +276,7 @@ PSM allows the device to enter deep sleep while maintaining network registration
 
     ```kconfig
     # Configure TAU in seconds
-    CONFIG_LTE_PSM_REQ_RPTAU_SECONDS=1800  # 30 minutes
+    CONFIG_LTE_PSM_REQ_RPTAU_SECONDS=7200  # 2 hours (default in prj.conf)
     ```
 
 - **Active Time (RAT)**
@@ -286,7 +286,7 @@ PSM allows the device to enter deep sleep while maintaining network registration
 
     ```kconfig
     # Configure RAT in seconds
-    CONFIG_LTE_PSM_REQ_RAT_SECONDS=60  # 1 minute
+    CONFIG_LTE_PSM_REQ_RAT_SECONDS=6  # 6 seconds (default in prj.conf)
     ```
 
 Key aspects:

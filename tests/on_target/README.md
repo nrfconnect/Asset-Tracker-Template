@@ -1,4 +1,4 @@
-# Assert Tracker Template on target test
+# Asset Tracker Template on target test
 
 ## Run test locally
 
@@ -16,7 +16,7 @@ docker run --rm -it \
   -v /opt/setup-jlink:/opt/setup-jlink \
   ghcr.io/nrfconnect/asset-tracker-template:test-docker-v1.0.1 \
   /bin/bash
-cd asset-tracker-template/tests/on_target
+cd /work/asset-tracker-template/tests/on_target
 ```
 
 ### Verify nrfutil/jlink works

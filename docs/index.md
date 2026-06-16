@@ -27,16 +27,20 @@ To set up your development environment, build the application, flash it to your 
 
 Core modules include:
 
-* **[Main](modules/main.md)**: Central coordinator implementing business logic
-* **[Storage](modules/storage.md)**: Data collection and buffering management
-* **[Network](modules/network.md)**: LTE connectivity management
-* **[Cloud](modules/cloud.md)**: nRF Cloud CoAP communication
-* **[Location](modules/location.md)**: GNSS, Wi-Fi, and cellular positioning
-* **[LED](modules/led.md)**: RGB LED control for Thingy:91 X
-* **[Button](modules/button.md)**: User input handling
-* **[FOTA](modules/fota_module.md)**: Firmware over-the-air updates
-* **[Environmental](modules/environmental.md)**: Sensor data collection
-* **[Power](modules/power.md)**: Battery monitoring and power management
+* **[Main](modules/main.md)**: Implements the business logic and controls the overall application behavior.
+* **[Storage](modules/storage.md)**: Stores data from enabled modules.
+* **[Network](modules/network.md)**: Manages LTE connectivity and tracks network status.
+* **[Cloud](modules/cloud.md)**: Handles communication with nRF Cloud using CoAP.
+* **[Location](modules/location.md)**: Provides location services using GNSS, Wi-Fi, and cellular positioning.
+* **[Button](modules/button.md)**: Reports button press events for user input.
+* **[FOTA](modules/fota_module.md)**: Manages firmware over-the-air updates.
+
+Thingy:91 X specific modules:
+
+* **[Environmental](modules/environmental.md)**: Collects environmental sensor data (temperature, humidity, pressure).
+* **[LED](modules/led.md)**: Controls an RGB LED for visual indication.
+* **[Power](modules/power.md)**: Monitors battery status and provides power management.
+* **[UART Power Control](modules/uart_power_control.md)**: UART suspend/resume on VBUS changes.
 
 ### Key Features
 

@@ -33,13 +33,25 @@ The location module publishes and receives messages over the zbus channel `locat
 - **LOCATION_SEARCH_TRIGGER:**
   Triggers a location search request. The module will attempt to get the current location using configured methods.
 
+- **LOCATION_GNSS_SEARCH_TRIGGER:**
+  Requests a GNSS-only fix, bypassing Wi-Fi and cellular methods.
+
+- **LOCATION_SEARCH_CANCEL:**
+  Cancels an ongoing location search. See `location.h` for known limitations with Wi-Fi scanning.
+
 ### Output messages
+
+- **LOCATION_MODULE_READY:**
+  Indicates that the location module has finished initialization.
 
 - **LOCATION_SEARCH_STARTED:**
   Indicates that a location search has been initiated.
 
 - **LOCATION_SEARCH_DONE:**
   Indicates that a location search has completed (successfully or with error/timeout).
+
+- **LOCATION_GNSS_DATA:**
+  Contains a successful GNSS fix.
 
 - **LOCATION_CLOUD_REQUEST:**
   Contains cellular neighbor cell and/or Wi-Fi access point information that should be sent to cloud services for location resolution.
@@ -53,9 +65,13 @@ The message types used by the location module are defined in `location.h`:
 enum location_msg_type {
     LOCATION_SEARCH_STARTED = 0x1,
     LOCATION_SEARCH_DONE,
-    LOCATION_SEARCH_TRIGGER,
     LOCATION_CLOUD_REQUEST,
     LOCATION_AGNSS_REQUEST,
+    LOCATION_GNSS_DATA,
+    LOCATION_MODULE_READY,
+    LOCATION_SEARCH_TRIGGER,
+    LOCATION_GNSS_SEARCH_TRIGGER,
+    LOCATION_SEARCH_CANCEL,
 };
 ```
 
@@ -89,7 +105,7 @@ For more details on these configurations, refer to `Kconfig.location`.
 
 ### Default method order
 
-In the board configurations (`thingy91x_nrf9151_ns.conf`,`nrf9151dk_nrf9151.conf`), set
+In the board configurations (`thingy91x_nrf9151_ns.conf`, `nrf9151dk_nrf9151_ns.conf`), set
 the following default method priority order:
 
 **Thingy91x** :

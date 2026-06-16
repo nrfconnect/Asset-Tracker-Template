@@ -6,8 +6,8 @@ The module performs the following tasks:
 
 - Establishing and maintaining a connection to nRF Cloud, using CoAP with DTLS connection ID for secure and low-power communication.
 - Managing backoff and retries when connecting to the cloud. See the [Configurations](#configurations) section for more details on how to configure backoff behavior.
-- Publishing sensor data (temperature, pressure, connection quality, and so on) to nRF Cloud. The data is received on the `environmental_chan` channel when the environmental module publishes it.
-- Requesting and handling shadow updates. Polling the device shadow is triggered by the main module by sending a `CLOUD_POLL_SHADOW` message.
+- Publishing sensor data (temperature, pressure, battery, location, and so on) to nRF Cloud. Data reaches the cloud module through the [Storage module](storage.md) batch interface on `storage_chan` and `storage_data_chan`.
+- Requesting and handling shadow updates. Polling the device shadow is triggered by the main module by sending `CLOUD_SHADOW_GET_DESIRED` or `CLOUD_SHADOW_GET_DELTA` messages.
 - Handling network events and transitioning between connection states as described in the [State diagram](#state-diagram) section.
 
 nRF Cloud over CoAP utilizes DTLS connection ID, which allows the device to quickly re-establish a secure connection with the cloud after a network disconnection without the need for a full DTLS handshake. The module uses the nRF Cloud CoAP library to handle the CoAP communication and DTLS connection management.
@@ -44,11 +44,20 @@ The cloud module publishes and receives messages over the zbus channel `cloud_ch
 
 ### Input messages
 
-- **CLOUD_POLL_SHADOW:**
-  Instructs the module to poll the device shadow on nRF Cloud. The device shadow may contain configuration updates for the device.
+- **CLOUD_SHADOW_GET_DESIRED:**
+  Requests the desired section of the device shadow from nRF Cloud.
+
+- **CLOUD_SHADOW_GET_DELTA:**
+  Requests the delta section of the device shadow (difference between reported and desired state).
+
+- **CLOUD_SHADOW_SET_REPORTED_CONFIG** / **CLOUD_SHADOW_UPDATE_REPORTED_CONFIG** / **CLOUD_SHADOW_UPDATE_REPORTED_DEVICE:**
+  Report configuration, configuration changes, or device info to the shadow's reported section.
 
 - **CLOUD_PAYLOAD_JSON:**
   Sends raw JSON data to nRF Cloud.
+
+- **CLOUD_PROVISIONING_REQUEST:**
+  Initiates or re-runs device provisioning through the nRF Cloud provisioning service.
 
 ### Output messages
 
@@ -58,8 +67,14 @@ The cloud module publishes and receives messages over the zbus channel `cloud_ch
 - **CLOUD_CONNECTED:**
   Indicates that the module is connected to nRF Cloud and ready to send data.
 
-- **CLOUD_SHADOW_RESPONSE:**
-  Returns shadow data or a shadow delta received from nRF Cloud.
+- **CLOUD_SHADOW_RESPONSE_DESIRED** / **CLOUD_SHADOW_RESPONSE_DELTA:**
+  Return CBOR-encoded shadow data from the desired or delta section.
+
+- **CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED** / **CLOUD_SHADOW_RESPONSE_EMPTY_DELTA:**
+  Indicate that the requested shadow section has no data.
+
+- **CLOUD_PROVISIONED:**
+  Indicates that provisioning completed and the device is ready to connect.
 
 The message structure used by the cloud module is defined in `cloud.h`:
 
