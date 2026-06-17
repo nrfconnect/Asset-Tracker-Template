@@ -43,6 +43,9 @@ pip install -r requirements.txt
 
 ### Set env
 
+To run tests locally, a number of environment variables are required. To persist these settings,
+you can place them in a `.envrc` file at your West workspace root.
+
 Get the probe/device serial:
 
 ```shell
@@ -54,11 +57,44 @@ export SEGGER=<your_jlink_serial>
 export DUT_DEVICE_TYPE=thingy91x
 ```
 
-Additional fota and memfault envs
-```shell
-export UUID=<your_imei>
-export NRFCLOUD_API_KEY=<your_nrfcloud_api_key>
+Devices register with nRF Cloud using the modem's device UUID, so you can get the modem UUID via the AT interface:
+
+```plaintext
+uart~$ at AT%DEVICEUUID
 ```
+
+```shell
+export UUID=<your_device_uuid>
+```
+
+Then, get your nRF Cloud credentials:
+
+- [API Key](https://docs.nrfcloud.com/docs/legacy-nrfcloud/tokens-and-keys#api-key)
+- [Organization Token](https://app.memfault.com/organizations/-/settings/auth-tokens)
+- [Organization Slug and Project Slug](https://app.memfault.com/organizations/-/projects/-/settings)
+- (Optional) Create a [Modem Project](https://docs.nrfcloud.com/docs/mcu/nrf-modem-fota#step-1-create-a-modem-firmware-project)
+
+```shell
+export NRFCLOUD_API_KEY=<your_nrfcloud_api_key>
+export MEMFAULT_ORGANIZATION_TOKEN=<your_org_token>
+export MEMFAULT_ORGANIZATION_SLUG=<your_org_slug>
+export MEMFAULT_PROJECT_SLUG=<your_app_project_slug>
+
+# Optional: defaults to "default" cohort
+export MEMFAULT_OTA_COHORT=<cohort>
+# Optional: defaults to DUT_DEVICE_TYPE
+export MEMFAULT_HW_VERSION=<hardware_version>
+# Optional: delta modem FOTA uses a separate OTA project (test skips if unset).
+export MEMFAULT_MODEM_PROJECT_SLUG=<your_modem_project_slug>
+export MEMFAULT_MODEM_ORGANIZATION_TOKEN=<your_modem_org_token>
+export MEMFAULT_MODEM_ORGANIZATION_SLUG=<your_modem_org_slug>
+```
+
+If testing modem firmware, `test_delta_mfw_fota` updates the device to a `-FOTA-TEST` suffixed
+version, which Memfault treats as a SemVer pre-release with *lower* precedence than the plain
+version (looks like a downgrade). In the Memfault dashboard, enable **"bypass version checks"**
+on the modem cohort under test, or the release will be deployed successfully but never offered
+to the device.
 
 On macOS also set `UART_ID`: port names (`/dev/tty.usbmodem*`) don't contain the SEGGER
 serial that `UART_ID` defaults to, so set it to a substring shared by your DUT's two ports
@@ -88,7 +124,9 @@ pytest -s -v -m "not slow" tests
 pytest -s -v -m "not slow" tests/test_functional/test_network_reconnect.py
 pytest -s -v -m "not slow" tests/test_functional/test_sampling.py
 # Use -m "slow" to run only the long-running tests
-pytest -s -v -m "slow" tests/test_functional/test_fota.py::test_full_mfw_fota
+pytest -s -v -m "slow" tests/test_functional/test_fota.py::test_app_fota
+# Delta modem FOTA is not marked slow
+pytest -s -v tests/test_functional/test_fota.py::test_delta_mfw_fota
 ```
 
 ## Test docker image version control

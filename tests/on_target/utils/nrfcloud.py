@@ -3,18 +3,15 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 ##########################################################################################
 
-import zipfile
-import io
-import re
 import json
 import time
 import random
+import subprocess
 import requests
-from enum import Enum
-from typing import Union, Callable
+from typing import Callable
 from datetime import datetime, timedelta, timezone
 from utils.logger import get_logger
-from requests.exceptions import HTTPError, ConnectionError, Timeout
+from requests.exceptions import ConnectionError, Timeout
 
 logger = get_logger()
 
@@ -22,16 +19,14 @@ DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_DELAY_SECONDS = 2
 RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
 
-class FWType(Enum):
-    app = 'application'
-    bootloader = 'mcuboot'
-    mfw = 'modem'
-
 class NRFCloudFOTAError(Exception):
     pass
 
 class NRFCloud():
-    def __init__(self, api_key: str, url: str="https://api.nrfcloud.com/v1", timeout: int=10) -> None:
+    def __init__(
+        self, api_key: str="", url: str="https://api.nrfcloud.com/v1", timeout: int=10,
+        nrfcloud_org_token: str=None, nrfcloud_org: str=None, nrfcloud_project: str=None,
+    ) -> None:
         """ Initalizes the class """
         self.url = url
         # Time format used by nrfcloud.com (API may omit fractional seconds)
@@ -45,6 +40,67 @@ class NRFCloud():
         self.session = requests.Session()
         self.session.headers.update(self.default_headers)
         self.timeout = timeout
+
+        self.nrfcloud_org_token = nrfcloud_org_token
+        self.nrfcloud_org = nrfcloud_org
+        self.nrfcloud_project = nrfcloud_project
+
+    def _ota_cli_base(self) -> list:
+        return [
+            "memfault",
+            "--org-token", self.nrfcloud_org_token,
+            "--org", self.nrfcloud_org,
+            "--project", self.nrfcloud_project,
+        ]
+
+    def _run_ota_cli(self, args: list, check: bool = True) -> subprocess.CompletedProcess:
+        """Run the OTA CLI, logging its output so CI shows what happened."""
+        result = subprocess.run([*self._ota_cli_base(), *args], capture_output=True, text=True)
+        output = "\n".join(part.strip() for part in (result.stdout, result.stderr) if part.strip())
+        if output:
+            logger.info(f"OTA CLI output:\n{output}")
+        if check and result.returncode != 0:
+            raise NRFCloudFOTAError(
+                f"OTA CLI command {args} failed (rc={result.returncode}): {output}"
+            )
+        return result
+
+    def upload_ota_payload(
+        self, bin_path: str, hardware_version: str, software_type: str, software_version: str,
+    ) -> None:
+        """Upload a firmware binary as an OTA payload."""
+        self._run_ota_cli([
+            "upload-ota-payload",
+            "--hardware-version", hardware_version,
+            "--software-type", software_type,
+            "--software-version", software_version,
+            bin_path,
+        ])
+
+    def deploy_release(self, cohort: str, software_version: str) -> None:
+        """Deploy a release to a cohort, tolerating one already active."""
+        result = self._run_ota_cli([
+            "deploy-release",
+            "--release-version", software_version,
+            "--cohort", cohort,
+        ], check=False)
+        if result.returncode == 0:
+            return
+        if "already active" in f"{result.stdout}\n{result.stderr}":
+            return
+        raise NRFCloudFOTAError(
+            f"Failed to deploy release {software_version} to cohort {cohort}: "
+            f"{result.stdout}\n{result.stderr}"
+        )
+
+    def deactivate_release(self, cohort: str, software_version: str) -> None:
+        """Deactivate a release from a cohort, if active."""
+        self._run_ota_cli([
+            "deploy-release",
+            "--release-version", software_version,
+            "--cohort", cohort,
+            "--deactivate",
+        ])
 
     def _request_with_retry(self, method: Callable, path: str, return_json: bool = False, **kwargs):
         """
@@ -274,301 +330,3 @@ class NRFCloud():
         })
         return self._patch(f"/devices/{device_id}/state", data=data)
 
-class NRFCloudFOTA(NRFCloud):
-    def upload_firmware(
-        self, name: str, bin_file: str, version: str, description: str, fw_type: FWType, bin_file_2=None
-    ) -> str:
-        """
-        Upload firmware for FOTA
-
-        :param name: Name as shown in nrfCloud UI
-        :param bin_file: Path to binary firmware image
-        :param bin_file_2: Path to the second binary firmware image
-        :param version: Firmware version as shown in nrfCloud UI
-        :param description: Description as shown in nrfCloud UI
-        :param fw_type: Update type, bootloader|modem|application
-        :return: NRFCloud bundleId parameter"
-        """
-        with open(bin_file, "rb") as f:
-            data = f.read()
-        manifest = {
-            "name": name,
-            "description": description,
-            "fwversion": version,
-            "format-version": 1,
-            "files": [
-                {
-                    "file": bin_file.split("/")[-1],
-                    "type": fw_type.value,
-                    "size": len(data),
-                }
-            ],
-        }
-        fd = io.BytesIO()
-        z = zipfile.ZipFile(fd, "w")
-        z.writestr(bin_file.split("/")[-1], data)
-        if bin_file_2:
-            with open(bin_file_2, "rb") as f2:
-                data2 = f2.read()
-            file2 = {
-                "file": bin_file_2.split("/")[-1],
-                "type": fw_type.value,
-                "size": len(data2),
-            }
-            manifest["files"].append(file2)
-            z.writestr(bin_file_2.split("/")[-1], data2)
-        z.writestr("manifest.json", json.dumps(manifest))
-        z.close()
-        fd.seek(0)
-        headers = {
-            "Content-Type": "application/zip"
-        }
-        r = self._post("/firmwares", headers=headers, data=fd.read())
-        uris = r.json()["uris"]
-        if fw_type == FWType.app:
-            m = re.match(r"https://(firmware|bundles)(?:\.dev|\.beta)?\.nrfcloud\.com/([a-f0-9-]+)/(APP[^/]*)?", uris[0])
-        elif fw_type == FWType.mfw:
-            m = re.match(r"https://(firmware|bundles)(?:\.dev|\.beta)?\.nrfcloud\.com/([a-f0-9-]+)/(MODEM[^/]*)?", uris[0])
-        else:
-            m = re.match(r"https://(firmware|bundles)(?:\.dev|\.beta)?\.nrfcloud\.com/([a-f0-9-]+)/(BOOT[^/]*)?", uris[0])
-        if not m:
-            raise NRFCloudFOTAError(f"Unable to parse bundleId from uris: {uris}")
-        if m.group(1) == "firmware":
-            return m.group(3)
-        return m.group(2)
-
-    def upload_zephyr_zip(self, zip_path: str, version: str, name: str=""):
-        """
-        Upload zip image built by zephyr
-
-        This adds the required 'fwversion' field to the manifest file
-
-        :param zip_path: Path to zephyr-built zip file
-        :param version: Firmware version as shown in nrfCloud UI
-        :param name: Name as shown in nrfcloud UI
-        :return: NRFCloud bundleId parameter"
-        """
-        fd = io.BytesIO()
-        newz = zipfile.ZipFile(fd, "w")
-        with zipfile.ZipFile(zip_path) as z:
-            for i in z.namelist():
-                if i == "manifest.json":
-                    data = json.loads(z.read(i))
-                    data["fwversion"] = version
-                    if name:
-                        data["name"] = name
-                    newz.writestr("manifest.json", json.dumps(data))
-                else:
-                    newz.writestr(i, z.read(i))
-        newz.close()
-        fd.seek(0)
-        headers = {
-            "Content-Type": "application/zip"
-        }
-        r = self._post("/firmwares", headers=headers, data=fd.read())
-        uris = r.json()["uris"]
-        m = re.match(
-            r"https://(firmware|bundles)(?:\.dev|\.beta)?\.nrfcloud\.com/([a-f0-9-]+)/((?:APP|MODEM|BOOT)[^/]*)?",
-            uris[0]
-        )
-        if not m:
-            raise NRFCloudFOTAError(f"Unable to parse bundleId from uris: {uris}")
-        if m.group(1) == "firmware":
-            return m.group(3)
-        return m.group(2)
-
-    def list_fota_jobs(self, pageLimit=10, pageNextToken=None) -> dict:
-        params = {"pageLimit": pageLimit}
-        if pageNextToken:
-            params["pageNextToken"] = pageNextToken
-        return self._get("/fota-jobs", params=params)
-
-    def delete_fota_job(self, job_id: str):
-        return self._delete(f"/fota-jobs/{job_id}")
-
-    def cancel_fota_job(self, job_id: str):
-        """
-        Cancels the FOTA job specified by 'job_id'
-        """
-        return self._put(f"/fota-jobs/{job_id}/cancel")
-
-    def delete_bundle(self, bundle_id: str):
-        try:
-            self._delete(f"/firmwares/{bundle_id}")
-        except HTTPError:
-            logger.warning(f"Failed to delete bundle: {bundle_id}")
-            return False
-        logger.info(f"Deleled bundle ID: {bundle_id}")
-        return True
-
-    def create_fota_job(self, device_id: str, bundle_id: str) -> str:
-        """
-        Start a FOTA update process
-
-        :param device_id: Name as shown in nrfCloud UI
-        :param bundle_id: Path to binary firmware image
-        :return: nRFCloud jobId parameter"
-        """
-        data = json.dumps({"deviceIds": [device_id], "bundleId": bundle_id})
-        return self._post("/fota-jobs", data=data).json()["jobId"]
-
-    def get_fota_status(self, job_id: str) -> str:
-        """Get status of a FOTA job
-
-        :param job_id: Nrfcloud FOTA jobID
-        :return: FOTA status string
-        """
-        return self._get(f"/fota-jobs/{job_id}")["status"]
-
-    def get_fota_completed_executions(self, job_id: str) -> int:
-        """Returns the number of completed executions for a FOTA job"""
-        return self._get(f"/fota-jobs/{job_id}")["executionStats"]["completedExecutions"]
-
-    def get_fota_execution(self, device_id: str, job_id: str) -> dict:
-        """Get FOTA execution for a specific device and job"""
-        return self._get(f"/fota-job-executions/{device_id}/{job_id}")
-
-    def get_fota_execution_status(self, device_id: str, job_id: str) -> str:
-        """Get FOTA execution status for a specific device and job"""
-        return self.get_fota_execution(device_id, job_id)["status"]
-
-    def get_fota_execution_status_detail(self, device_id: str, job_id: str) -> str:
-        """Get FOTA execution status detail for a specific device and job"""
-        return self.get_fota_execution(device_id, job_id)["statusDetail"]
-
-    def post_fota_job(self, uuid: str, fw_id: str) -> Union[str, None]:
-        """
-        Posts a new FOTA job for the devices specified in the list 'uuids'
-
-        If the job is successfully posted, i.e., a 200 status code is returned,
-        then the validity of the job is checked by probing nRF Cloud a number of
-        times in sleep intervals. Repeat 3 times until the job is IN_PROGRESS.
-
-        Returns the FOTA job id if the job was successfully posted, otherwise
-        'None'.
-        """
-        for _ in range(3):
-            job_id = self.create_fota_job(uuid, fw_id)
-            logger.info(f"Successfully posted FOTA job {job_id}")
-            try:
-                # Apply job if not automatic (with FOTA v3)
-                self._post(f"/fota-jobs/{job_id}/apply")
-            except HTTPError:
-                pass # Do nothing if the above API call failed
-            finally:
-                logger.info(f"Job {job_id} is applied")
-            status = "NONE"
-            for _ in range(10):
-                time.sleep(5)
-                try:
-                    status = self.get_fota_status(job_id)
-                except HTTPError:
-                    continue
-                logger.info(f"FOTA job status: {status}")
-                if status == "IN_PROGRESS":
-                    return job_id
-            logger.warning("Timed out while waiting for job status 'IN_PROGRESS'")
-            logger.info("Cancel job, delete and retry")
-            if status != "CANCELLED":
-                self.cancel_fota_job(job_id)
-            self.delete_fota_job(job_id)
-        return None
-
-    TERMINAL_JOB_STATUSES = frozenset({"COMPLETED", "CANCELLED", "DELETION_IN_PROGRESS"})
-    PENDING_EXECUTION_STATUSES = frozenset({"QUEUED", "DOWNLOADING", "IN_PROGRESS"})
-
-    def get_current_pending_fota_execution(self, device_id: str) -> Union[dict, None]:
-        """Return the current pending FOTA execution for a device, or None if none exists."""
-        try:
-            return self._get(f"/fota-job-executions/{device_id}/current")
-        except HTTPError as e:
-            if e.response.status_code == 404:
-                return None
-            raise
-
-    def _list_incomplete_jobs_for_device(self, device_id: str) -> list:
-        items = []
-        fota_jobs = self.list_fota_jobs(pageLimit=100)
-        items.extend(fota_jobs["items"])
-        while "pageNextToken" in fota_jobs:
-            fota_jobs = self.list_fota_jobs(
-                pageLimit=100, pageNextToken=fota_jobs["pageNextToken"])
-            items.extend(fota_jobs["items"])
-
-        incomplete = []
-        for job in items:
-            if job["status"] in self.TERMINAL_JOB_STATUSES:
-                continue
-            device_ids = job.get("target", {}).get("deviceIds", [])
-            if device_id not in device_ids:
-                continue
-            incomplete.append(job)
-        return incomplete
-
-    def _collect_pending_fota_job_ids(self, device_id: str) -> set:
-        pending_job_ids = set()
-
-        current = self.get_current_pending_fota_execution(device_id)
-        if current:
-            pending_job_ids.add(current["jobId"])
-
-        for job in self._list_incomplete_jobs_for_device(device_id):
-            pending_job_ids.add(job["jobId"])
-
-        for job_id in list(pending_job_ids):
-            try:
-                status = self.get_fota_execution_status(device_id, job_id)
-            except HTTPError:
-                continue
-            if status not in self.PENDING_EXECUTION_STATUSES:
-                pending_job_ids.discard(job_id)
-
-        return pending_job_ids
-
-    def _cancel_job_for_device(self, device_id: str, job_id: str) -> None:
-        try:
-            self.cancel_fota_job(job_id)
-        except HTTPError as e:
-            logger.warning(f"cancel_fota_job failed for {job_id}: {e}")
-        try:
-            self.patch_execution_state(device_id, job_id, "CANCELLED")
-        except Exception as e:
-            logger.warning(f"patch_execution_state failed for {job_id}: {e}")
-
-    def ensure_no_pending_fota_jobs(self, device_id: str, max_attempts: int = 5) -> None:
-        """Cancel and verify that no FOTA jobs are pending for the given device."""
-        for attempt in range(max_attempts):
-            pending_job_ids = self._collect_pending_fota_job_ids(device_id)
-            if not pending_job_ids:
-                logger.info(f"No pending FOTA jobs for device {device_id}")
-                return
-
-            logger.info(
-                f"Found {len(pending_job_ids)} pending FOTA job(s) for {device_id}, "
-                f"cancelling (attempt {attempt + 1}/{max_attempts})"
-            )
-            for job_id in pending_job_ids:
-                self._cancel_job_for_device(device_id, job_id)
-            time.sleep(5)
-
-        pending_job_ids = self._collect_pending_fota_job_ids(device_id)
-        if pending_job_ids:
-            raise NRFCloudFOTAError(
-                f"Pending FOTA jobs remain for {device_id}: {sorted(pending_job_ids)}"
-            )
-
-    def cancel_incomplete_jobs(self, device_id: str) -> None:
-        """Cancel incomplete FOTA jobs for a device. Prefer ensure_no_pending_fota_jobs()."""
-        self.ensure_no_pending_fota_jobs(device_id)
-
-    def patch_execution_state(self, uuid: str, job_id: str, status):
-        """
-        Updates the execution state for the device for a given job
-        """
-        valid_states = [ "QUEUED", "IN_PROGRESS", "FAILED", "SUCCEEDED", "TIMED_OUT", "CANCELLED", "REJECTED", "DOWNLOADING" ]
-        if status not in valid_states:
-            raise NRFCloudFOTAError(f"Invalid patch value '{status}'")
-        data = json.dumps({
-            "status": status
-        })
-        return self._patch(f"/fota-job-executions/{uuid}/{job_id}", data=data)

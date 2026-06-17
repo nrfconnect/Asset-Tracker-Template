@@ -187,8 +187,15 @@ jobs:
           MEMFAULT_ORGANIZATION_TOKEN: ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }}
           MEMFAULT_ORGANIZATION_SLUG: ${{ vars.MEMFAULT_ORGANIZATION_SLUG }}
           MEMFAULT_PROJECT_SLUG: ${{ vars.MEMFAULT_PROJECT_SLUG }}
-          APP_BUNDLEID: ${{ vars.APP_BUNDLEID }}
-          MCUBOOT_BUNDLEID: ${{ vars.MCUBOOT_BUNDLEID }}
+          MEMFAULT_OTA_COHORT: ${{ vars.MEMFAULT_OTA_COHORT }}
+          MEMFAULT_HW_VERSION: ${{ vars.MEMFAULT_HW_VERSION }}
+          # Modem firmware lives in a separate OTA project; delta modem
+          # FOTA tests skip themselves when these are unset.
+          MEMFAULT_MODEM_PROJECT_SLUG: ${{ vars.MEMFAULT_MODEM_PROJECT_SLUG }}
+          MEMFAULT_MODEM_ORGANIZATION_TOKEN: ${{ secrets.MEMFAULT_MODEM_ORGANIZATION_TOKEN }}
+          MEMFAULT_MODEM_ORGANIZATION_SLUG: ${{ vars.MEMFAULT_MODEM_ORGANIZATION_SLUG }}
+          MEMFAULT_MODEM_OTA_COHORT: ${{ vars.MEMFAULT_MODEM_OTA_COHORT }}
+          MEMFAULT_MODEM_HW_VERSION: ${{ vars.MEMFAULT_MODEM_HW_VERSION }}
 
       - name: Generate and Push Power Badge
         if: ${{ always() && matrix.device == 'ppk_thingy91x' }}

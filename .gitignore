@@ -19,4 +19,8 @@ venv
 .vscode
 sanity-out*
 twister-out*
-tests/on_target/artifacts/*.hex
+
+# Files generated during on-target tests
+tests/on_target/artifacts/asset-tracker-template-dev*.hex
+tests/on_target/artifacts/asset-tracker-template-dev*.bin
+tests/on_target/outcomes/*

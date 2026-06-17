@@ -12,7 +12,7 @@ from utils.uart import Uart, UartBinary
 import sys
 sys.path.append(os.getcwd())
 from utils.logger import get_logger
-from utils.nrfcloud import NRFCloud, NRFCloudFOTA
+from utils.nrfcloud import NRFCloud
 
 logger = get_logger()
 
@@ -23,6 +23,19 @@ UART_ID = os.getenv('UART_ID', SEGGER)
 DEVICE_UUID = os.getenv('UUID')
 NRFCLOUD_API_KEY = os.getenv('NRFCLOUD_API_KEY')
 DUT_DEVICE_TYPE = os.getenv('DUT_DEVICE_TYPE')
+
+NRFCLOUD_ORG_TOKEN = os.getenv('MEMFAULT_ORGANIZATION_TOKEN')
+NRFCLOUD_ORG = os.getenv('MEMFAULT_ORGANIZATION_SLUG')
+NRFCLOUD_PROJECT = os.getenv('MEMFAULT_PROJECT_SLUG')
+NRFCLOUD_COHORT = os.getenv('MEMFAULT_OTA_COHORT') or 'default'
+NRFCLOUD_HW_VERSION = os.getenv('MEMFAULT_HW_VERSION') or DUT_DEVICE_TYPE
+NRFCLOUD_APP_SOFTWARE_TYPE = os.getenv('MEMFAULT_APP_SOFTWARE_TYPE') or 'app'
+
+NRFCLOUD_MODEM_PROJECT = os.getenv('MEMFAULT_MODEM_PROJECT_SLUG')
+NRFCLOUD_MODEM_ORG_TOKEN = os.getenv('MEMFAULT_MODEM_ORGANIZATION_TOKEN') or NRFCLOUD_ORG_TOKEN
+NRFCLOUD_MODEM_ORG = os.getenv('MEMFAULT_MODEM_ORGANIZATION_SLUG') or NRFCLOUD_ORG
+NRFCLOUD_MODEM_COHORT = os.getenv('MEMFAULT_MODEM_OTA_COHORT') or NRFCLOUD_COHORT
+NRFCLOUD_MODEM_HW_VERSION = os.getenv('MEMFAULT_MODEM_HW_VERSION') or DUT_DEVICE_TYPE
 
 def get_uarts():
     # Handle platform-specific serial device paths
@@ -61,16 +74,6 @@ def pytest_runtest_logstart(nodeid, location):
 def pytest_runtest_logfinish(nodeid, location):
     logger.info(f"Finished test: {nodeid}")
 
-@pytest.fixture(scope="session", autouse=True)
-def _purge_pending_fota_jobs():
-    """Cancel leftover FOTA jobs queued for the test device before any test runs. """
-    if NRFCLOUD_API_KEY and DEVICE_UUID:
-        try:
-            NRFCloudFOTA(api_key=NRFCLOUD_API_KEY).ensure_no_pending_fota_jobs(DEVICE_UUID)
-        except Exception as e:
-            logger.warning(f"Failed to purge pending FOTA jobs at session start: {e}")
-    yield
-
 @pytest.fixture(scope="function")
 def dut_board():
     all_uarts = get_uarts()
@@ -78,12 +81,6 @@ def dut_board():
         pytest.fail("No UARTs found")
     log_uart_string = all_uarts[0]
     uart = Uart(log_uart_string, timeout=UART_TIMEOUT)
-
-    if NRFCLOUD_API_KEY and DEVICE_UUID:
-        try:
-            NRFCloudFOTA(api_key=NRFCLOUD_API_KEY).ensure_no_pending_fota_jobs(DEVICE_UUID)
-        except Exception as e:
-            logger.warning(f"Failed to purge pending FOTA jobs at test start: {e}")
 
     yield types.SimpleNamespace(
         uart=uart,
@@ -97,12 +94,6 @@ def dut_board():
         )
     uart.stop()
     recover_device()
-
-    if NRFCLOUD_API_KEY and DEVICE_UUID:
-        try:
-            NRFCloudFOTA(api_key=NRFCLOUD_API_KEY).ensure_no_pending_fota_jobs(DEVICE_UUID)
-        except Exception as e:
-            logger.warning(f"Failed to purge pending FOTA jobs at test end: {e}")
 
     scan_log_for_assertions(uart_log)
 
@@ -128,21 +119,36 @@ def dut_fota(dut_board):
         pytest.skip("NRFCLOUD_API_KEY environment variable not set")
     if not DEVICE_UUID:
         pytest.skip("UUID environment variable not set")
+    if not (NRFCLOUD_ORG_TOKEN and NRFCLOUD_ORG and NRFCLOUD_PROJECT):
+        pytest.skip("OTA organization/project environment variables not set")
 
-    fota = NRFCloudFOTA(api_key=NRFCLOUD_API_KEY)
-    device_id = DEVICE_UUID
-    data = {
-        'job_id': '',
-    }
+    fota = NRFCloud(
+        api_key=NRFCLOUD_API_KEY,
+        nrfcloud_org_token=NRFCLOUD_ORG_TOKEN,
+        nrfcloud_org=NRFCLOUD_ORG,
+        nrfcloud_project=NRFCLOUD_PROJECT)
+
+    # Modem firmware uses a separate OTA project; only wire it up when
+    # configured, otherwise skip tests
+    modem_ota = None
+    if NRFCLOUD_MODEM_PROJECT and NRFCLOUD_MODEM_ORG_TOKEN and NRFCLOUD_MODEM_ORG:
+        modem_ota = NRFCloud(
+            api_key=NRFCLOUD_API_KEY,
+            nrfcloud_org_token=NRFCLOUD_MODEM_ORG_TOKEN,
+            nrfcloud_org=NRFCLOUD_MODEM_ORG,
+            nrfcloud_project=NRFCLOUD_MODEM_PROJECT)
 
     yield types.SimpleNamespace(
         **dut_board.__dict__,
         fota=fota,
-        device_id=device_id,
-        data=data
+        modem_ota=modem_ota,
+        device_id=DEVICE_UUID,
+        cohort=NRFCLOUD_COHORT,
+        modem_cohort=NRFCLOUD_MODEM_COHORT,
+        hw_version=NRFCLOUD_HW_VERSION,
+        modem_hw_version=NRFCLOUD_MODEM_HW_VERSION,
+        app_software_type=NRFCLOUD_APP_SOFTWARE_TYPE,
     )
-    fota.ensure_no_pending_fota_jobs(device_id)
-
 
 @pytest.fixture(scope="module")
 def dut_traces(dut_board):
@@ -184,18 +190,6 @@ def debug_hex_file():
             return os.path.join(artifacts_dir, file)
 
     pytest.fail("No matching debug firmware .hex file found in the artifacts directory")
-
-@pytest.fixture(scope="session")
-def bin_file():
-    # Search for the firmware bin file in the artifacts folder
-    artifacts_dir = "artifacts"
-    hex_pattern = f"asset-tracker-template-{r"[0-9a-z\.]+"}-{DUT_DEVICE_TYPE}-nrf91-update-signed.hex"
-
-    for file in os.listdir(artifacts_dir):
-        if re.match(hex_pattern, file):
-            return os.path.join(artifacts_dir, file)
-
-    pytest.fail("No matching firmware .bin file found in the artifacts directory")
 
 @pytest.fixture(scope="session")
 def hex_file_patched():

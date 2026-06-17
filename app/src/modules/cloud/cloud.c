@@ -13,7 +13,7 @@
 #include <net/nrf_cloud_coap.h>
 #include <nrf_cloud_coap_transport.h>
 #include <zephyr/net/coap.h>
-#include <app_version.h>
+#include <zephyr/app_version.h>
 #include <date_time.h>
 
 #include "app_common.h"
