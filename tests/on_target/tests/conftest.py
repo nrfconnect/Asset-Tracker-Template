@@ -23,6 +23,7 @@ UART_ID = os.getenv('UART_ID', SEGGER)
 DEVICE_UUID = os.getenv('UUID')
 NRFCLOUD_API_KEY = os.getenv('NRFCLOUD_API_KEY')
 DUT_DEVICE_TYPE = os.getenv('DUT_DEVICE_TYPE')
+_GITHUB_ACTIONS = os.getenv('GITHUB_ACTIONS') == 'true'
 
 def get_uarts():
     # Handle platform-specific serial device paths
@@ -57,11 +58,16 @@ def scan_log_for_assertions(log):
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_logstart(nodeid, location):
+    if _GITHUB_ACTIONS:
+        # Workflow commands must be bare stdout lines (not via the logger).
+        print(f"::group::{nodeid}", flush=True)
     logger.info(f"Starting test: {nodeid}")
 
 @pytest.hookimpl(trylast=True)
 def pytest_runtest_logfinish(nodeid, location):
     logger.info(f"Finished test: {nodeid}")
+    if _GITHUB_ACTIONS:
+        print("::endgroup::", flush=True)
 
 @pytest.fixture(scope="session", autouse=True)
 def _purge_pending_fota_jobs():

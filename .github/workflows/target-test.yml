@@ -91,6 +91,7 @@ jobs:
     name: Target Test - ${{ matrix.device }}
     permissions:
       actions: read
+      checks: write
       contents: write
       packages: read
     container:
@@ -108,12 +109,12 @@ jobs:
           echo "Inside Container - Runner Serial Number: ${{ env.RUNNER_SERIAL_NUMBER }}"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: asset-tracker-template
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: firmware-artifacts-att
           path: asset-tracker-template/tests/on_target/artifacts
@@ -200,16 +201,19 @@ jobs:
 
       - name: Results
         if: always()
-        uses: pmeier/pytest-results-action@v0.7.1
+        uses: dorny/test-reporter@v3
         with:
-          path: asset-tracker-template/tests/on_target/results/*.xml
-          summary: true
+          name: ATT FW Test Results - ${{ matrix.device }}
+          working-directory: asset-tracker-template
+          path: tests/on_target/results/*.xml
+          reporter: java-junit
           fail-on-empty: true
-          title: ATT FW Test Results - ${{ matrix.device }}
+          use-actions-summary: true
+          report-title: ATT FW Test Results - ${{ matrix.device }}
 
       - name: Create Report Artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         id: artifact-report
         with:
           name: test-report-${{ matrix.device }}
@@ -218,7 +222,7 @@ jobs:
 
       - name: Push log files to artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         id: artifact-upload-test-logs
         with:
           name: test-logs-${{ matrix.device }}

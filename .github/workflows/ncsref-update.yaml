@@ -21,6 +21,7 @@ jobs:
   test:
     permissions:
       actions: read
+      checks: write
       contents: write
       packages: read
     uses: ./.github/workflows/target-test.yml
