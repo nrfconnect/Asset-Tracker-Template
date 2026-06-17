@@ -47,6 +47,10 @@ inputs:
     type: boolean
     required: false
     default: false
+  memfault_fota_modem_project_key:
+    type: string
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -102,6 +106,9 @@ runs:
         fi
         if [[ "${{ inputs.buffer_ram }}" == "true" ]]; then
           params+=("-DCONFIG_APP_STORAGE_LOG_LEVEL_DBG=y")
+        fi
+        if [[ -n "${{ inputs.memfault_fota_modem_project_key }}" ]]; then
+          params+=("-Dapp_CONFIG_MEMFAULT_FOTA_MODEM_PROJECT_KEY=\"${{ inputs.memfault_fota_modem_project_key }}\"")
         fi
         west build -b ${{ inputs.board }} \
             -d build \

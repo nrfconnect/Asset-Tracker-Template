@@ -47,11 +47,6 @@ on:
         type: boolean
         required: false
         default: false
-      build_thingy91x_mqtt:
-        description: Build the thingy91x firmware with the MQTT cloud module
-        type: boolean
-        required: false
-        default: false
       build_thingy91x_buffer_flash:
         description: Build the thingy91x firmware with the flash buffer backend
         type: boolean
@@ -77,17 +72,23 @@ on:
         type: boolean
         required: false
         default: false
-      build_thingy91x_fota_target:
-        description: |
-          Build thingy91x app firmware with PATCHLEVEL+1 for nightly-to-nightly
-          application FOTA tests.
+      build_thingy91x_app_fota_update:
+        description: Build thingy91x app firmware with PATCHLEVEL+1 for the app FOTA test
         type: boolean
         required: false
         default: false
-      build_nrf9151dk_fota_target:
-        description: |
-          Build nrf9151dk app firmware with PATCHLEVEL+1 for nightly-to-nightly
-          application FOTA tests.
+      build_nrf9151dk_app_fota_update:
+        description: Build nrf9151dk app firmware with PATCHLEVEL+1 for the app FOTA test
+        type: boolean
+        required: false
+        default: false
+      build_thingy91x_modem_fota_baseline:
+        description: Build thingy91x firmware with the modem FOTA project key compiled in
+        type: boolean
+        required: false
+        default: false
+      build_nrf9151dk_modem_fota_baseline:
+        description: Build nrf9151dk firmware with the modem FOTA project key compiled in
         type: boolean
         required: false
         default: false
@@ -179,6 +180,7 @@ jobs:
             pip install -e $MATTER_IDL_PATH
           fi
           pip install -r nrf/scripts/requirements-build.txt
+          pip install "cbor2==5.9.0"
           rm -rf artifacts
           mkdir -p artifacts
 
@@ -241,30 +243,39 @@ jobs:
           path: asset-tracker-template/app
           push_memory_badges: ${{ inputs.push_memory_badges }}
 
-      - name: Build thingy91x fota-target firmware
-        if: ${{ inputs.build_thingy91x_fota_target }}
+      - name: Build thingy91x app-fota-update firmware
+        if: ${{ inputs.build_thingy91x_app_fota_update }}
         working-directory: asset-tracker-template
         shell: bash
         run: |
           cp app/VERSION app/VERSION.bak
           patchlevel=$(awk '/^PATCHLEVEL/ {print $3}' app/VERSION)
           sed -i "s/^PATCHLEVEL = .*/PATCHLEVEL = $((patchlevel + 1))/" app/VERSION
-          cat app/VERSION
 
-      - name: Build thingy91x fota-target firmware (west)
-        if: ${{ inputs.build_thingy91x_fota_target }}
+      - name: Build thingy91x app-fota-update firmware (west)
+        if: ${{ inputs.build_thingy91x_app_fota_update }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: thingy91x/nrf9151/ns
           short_board: thingy91x
-          version: ${{ env.VERSION }}-fota-target
+          version: ${{ env.VERSION }}-app-fota-update
           path: asset-tracker-template/app
 
-      - name: Restore app/VERSION after thingy91x fota-target build
-        if: ${{ inputs.build_thingy91x_fota_target }}
+      - name: Restore app/VERSION after thingy91x app-fota-update build
+        if: ${{ inputs.build_thingy91x_app_fota_update }}
         working-directory: asset-tracker-template
         shell: bash
         run: mv app/VERSION.bak app/VERSION
+
+      - name: Build thingy91x modem-fota-baseline firmware
+        if: ${{ inputs.build_thingy91x_modem_fota_baseline }}
+        uses: ./asset-tracker-template/.github/actions/build-step
+        with:
+          board: thingy91x/nrf9151/ns
+          short_board: thingy91x
+          version: ${{ env.VERSION }}-modem-fota-baseline
+          path: asset-tracker-template/app
+          memfault_fota_modem_project_key: ${{ secrets.MEMFAULT_FOTA_MODEM_PROJECT_KEY }}
 
       - name: Generate Memory Reports and Visualizations
         if: ${{ inputs.push_memory_badges }}
@@ -294,34 +305,43 @@ jobs:
           version: ${{ env.VERSION }}
           path: asset-tracker-template/app
 
-      - name: Build nrf9151dk fota-target firmware
-        if: ${{ inputs.build_nrf9151dk_fota_target }}
+      - name: Build nrf9151dk app-fota-update firmware
+        if: ${{ inputs.build_nrf9151dk_app_fota_update }}
         working-directory: asset-tracker-template
         shell: bash
         run: |
           cp app/VERSION app/VERSION.bak
           patchlevel=$(awk '/^PATCHLEVEL/ {print $3}' app/VERSION)
           sed -i "s/^PATCHLEVEL = .*/PATCHLEVEL = $((patchlevel + 1))/" app/VERSION
-          cat app/VERSION
 
-      - name: Build nrf9151dk fota-target firmware (west)
-        if: ${{ inputs.build_nrf9151dk_fota_target }}
+      - name: Build nrf9151dk app-fota-update firmware (west)
+        if: ${{ inputs.build_nrf9151dk_app_fota_update }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: nrf9151dk/nrf9151/ns
           short_board: nrf9151dk
-          version: ${{ env.VERSION }}-fota-target
+          version: ${{ env.VERSION }}-app-fota-update
           path: asset-tracker-template/app
 
-      - name: Restore app/VERSION after nrf9151dk fota-target build
-        if: ${{ inputs.build_nrf9151dk_fota_target }}
+      - name: Restore app/VERSION after nrf9151dk app-fota-update build
+        if: ${{ inputs.build_nrf9151dk_app_fota_update }}
         working-directory: asset-tracker-template
         shell: bash
         run: mv app/VERSION.bak app/VERSION
 
+      - name: Build nrf9151dk modem-fota-baseline firmware
+        if: ${{ inputs.build_nrf9151dk_modem_fota_baseline }}
+        uses: ./asset-tracker-template/.github/actions/build-step
+        with:
+          board: nrf9151dk/nrf9151/ns
+          short_board: nrf9151dk
+          version: ${{ env.VERSION }}-modem-fota-baseline
+          path: asset-tracker-template/app
+          memfault_fota_modem_project_key: ${{ secrets.MEMFAULT_FOTA_MODEM_PROJECT_KEY }}
+
       # Asset Tracker Template debug firmware build
       - name: Build thingy91x debug firmware
-        if: ${{ inputs.build_thingy91x_debug || env.build_type == 'release' || env.build_type == 'all' }}
+        if: ${{ inputs.build_thingy91x_debug || env.build_type == 'minimal' || env.build_type == 'release' || env.build_type == 'all' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           memfault_release: ${{ env.build_type == 'release' }}
@@ -330,17 +350,6 @@ jobs:
           version: ${{ env.VERSION }}-debug
           path: asset-tracker-template/app
           debug: true
-
-      # Asset Tracker Template firmware build with MQTT cloud module for Thingy91x
-      - name: Build thingy91x firmware with MQTT cloud module
-        if: ${{ inputs.build_thingy91x_mqtt || env.build_type == 'all' }}
-        uses: ./asset-tracker-template/.github/actions/build-step
-        with:
-          board: thingy91x/nrf9151/ns
-          short_board: thingy91x
-          version: ${{ env.VERSION }}-mqtt
-          path: asset-tracker-template/app
-          mqtt: true
 
       - name: Build thingy91x firmware with buffered mode flash backend
         if: ${{ inputs.build_thingy91x_buffer_flash || env.build_type == 'release' || env.build_type == 'all' }}

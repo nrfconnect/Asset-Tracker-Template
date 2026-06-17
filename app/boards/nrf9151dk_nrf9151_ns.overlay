@@ -26,4 +26,5 @@ flash_ext: &gd25wb256 {
 /delete-node/ &tfm_its_partition;
 /delete-node/ &tfm_otp_partition;
 #include "att_flash_partitions.dtsi"
+#include "att_nrf9151dk_tz_partitions.dtsi"
 #include "att_sram_partitions.dtsi"

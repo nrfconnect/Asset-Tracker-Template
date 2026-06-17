@@ -14,6 +14,7 @@ flash_ext: &gd25wb256 {
 /delete-node/ &tfm_its_partition;
 /delete-node/ &tfm_otp_partition;
 #include "../../../boards/att_flash_partitions.dtsi"
+#include "../../../boards/att_nrf9151dk_tz_partitions.dtsi"
 
 &uart0 {
 	status = "okay";
