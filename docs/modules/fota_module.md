@@ -8,11 +8,12 @@ The FOTA (Firmware Over-The-Air) module manages remote firmware updates for both
 
 The update process begins when the module receives a `FOTA_POLL_REQUEST` message, typically triggered by the main application module. When an update is available, the module automatically initiates the download without requiring additional commands.
 
-The module supports three firmware image types:
+The module supports two firmware image types:
 
 * **Application**: Updates the main application firmware.
 * **Delta Modem**: Incremental modem firmware updates for minor version changes.
-* **Full Modem**: Complete modem firmware replacements.
+
+To perform a delta modem update, use `overlay-modem-delta-fw-update.conf` and set `CONFIG_MEMFAULT_FOTA_MODEM_PROJECT_KEY` to your modem project key. For more information on setup, see https://docs.nrfcloud.com/docs/mcu/nrf-modem-fota.
 
 Once a download has started, the module publishes `FOTA_STARTING` so the application can move into its FOTA state. Application and delta modem images are marked ready after the download completes; full modem images require an additional apply step that can only run while the modem is offline.
 
