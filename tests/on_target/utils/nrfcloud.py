@@ -460,24 +460,92 @@ class NRFCloudFOTA(NRFCloud):
             self.delete_fota_job(job_id)
         return None
 
-    def cancel_incomplete_jobs(self, uuid):
+    TERMINAL_JOB_STATUSES = frozenset({"COMPLETED", "CANCELLED", "DELETION_IN_PROGRESS"})
+    PENDING_EXECUTION_STATUSES = frozenset({"QUEUED", "DOWNLOADING", "IN_PROGRESS"})
+
+    def get_current_pending_fota_execution(self, device_id: str) -> Union[dict, None]:
+        """Return the current pending FOTA execution for a device, or None if none exists."""
+        try:
+            return self._get(f"/fota-job-executions/{device_id}/current")
+        except HTTPError as e:
+            if e.response.status_code == 404:
+                return None
+            raise
+
+    def _list_incomplete_jobs_for_device(self, device_id: str) -> list:
+        items = []
         fota_jobs = self.list_fota_jobs(pageLimit=100)
-        items = fota_jobs['items']
+        items.extend(fota_jobs["items"])
         while "pageNextToken" in fota_jobs:
-            fota_jobs = self.list_fota_jobs(pageLimit=100, pageNextToken=fota_jobs["pageNextToken"])
-            items = items + fota_jobs["items"]
-        logger.debug("Listing jobs:")
+            fota_jobs = self.list_fota_jobs(
+                pageLimit=100, pageNextToken=fota_jobs["pageNextToken"])
+            items.extend(fota_jobs["items"])
+
+        incomplete = []
         for job in items:
-            if 'COMPLETE' in job['status']:
+            if job["status"] in self.TERMINAL_JOB_STATUSES:
                 continue
-            if job['status'] in ["IN_PROGRESS", "QUEUED"]  and uuid in job['target']['deviceIds'][0]:
-                logger.debug(f"Job {job['jobId']} not completed for device {uuid}")
-                logger.info(f"Cancelling in progress job {job['jobId']}")
-                try:
-                    self.patch_execution_state(uuid=uuid, job_id=job['jobId'], status="CANCELLED")
-                except Exception as e:
-                    logger.warning(f"Failed to cancel fota job due to exception: {e}, skipping.")
-                    continue
+            device_ids = job.get("target", {}).get("deviceIds", [])
+            if device_id not in device_ids:
+                continue
+            incomplete.append(job)
+        return incomplete
+
+    def _collect_pending_fota_job_ids(self, device_id: str) -> set:
+        pending_job_ids = set()
+
+        current = self.get_current_pending_fota_execution(device_id)
+        if current:
+            pending_job_ids.add(current["jobId"])
+
+        for job in self._list_incomplete_jobs_for_device(device_id):
+            pending_job_ids.add(job["jobId"])
+
+        for job_id in list(pending_job_ids):
+            try:
+                status = self.get_fota_execution_status(device_id, job_id)
+            except HTTPError:
+                continue
+            if status not in self.PENDING_EXECUTION_STATUSES:
+                pending_job_ids.discard(job_id)
+
+        return pending_job_ids
+
+    def _cancel_job_for_device(self, device_id: str, job_id: str) -> None:
+        try:
+            self.cancel_fota_job(job_id)
+        except HTTPError as e:
+            logger.warning(f"cancel_fota_job failed for {job_id}: {e}")
+        try:
+            self.patch_execution_state(device_id, job_id, "CANCELLED")
+        except Exception as e:
+            logger.warning(f"patch_execution_state failed for {job_id}: {e}")
+
+    def ensure_no_pending_fota_jobs(self, device_id: str, max_attempts: int = 5) -> None:
+        """Cancel and verify that no FOTA jobs are pending for the given device."""
+        for attempt in range(max_attempts):
+            pending_job_ids = self._collect_pending_fota_job_ids(device_id)
+            if not pending_job_ids:
+                logger.info(f"No pending FOTA jobs for device {device_id}")
+                return
+
+            logger.info(
+                f"Found {len(pending_job_ids)} pending FOTA job(s) for {device_id}, "
+                f"cancelling (attempt {attempt + 1}/{max_attempts})"
+            )
+            for job_id in pending_job_ids:
+                self._cancel_job_for_device(device_id, job_id)
+            time.sleep(5)
+
+        pending_job_ids = self._collect_pending_fota_job_ids(device_id)
+        if pending_job_ids:
+            raise NRFCloudFOTAError(
+                f"Pending FOTA jobs remain for {device_id}: {sorted(pending_job_ids)}"
+            )
+
+    def cancel_incomplete_jobs(self, device_id: str) -> None:
+        """Cancel incomplete FOTA jobs for a device. Prefer ensure_no_pending_fota_jobs()."""
+        self.ensure_no_pending_fota_jobs(device_id)
 
     def patch_execution_state(self, uuid: str, job_id: str, status):
         """
