@@ -860,7 +860,7 @@ static enum smf_state_result running_run(void *o)
 	}
 
 	/* Handle cloud provisioning completion */
-	if (state_object->chan == &cloud_chan) {
+	else if (state_object->chan == &cloud_chan) {
 		const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
 
 		if (msg->type == CLOUD_PROVISIONED) {
@@ -911,7 +911,7 @@ static enum smf_state_result disconnected_run(void *o)
 
 #if defined(CONFIG_APP_BUTTON)
 	/* Ignore send trigers when disconnected */
-	if (state_object->chan == &button_chan) {
+	else if (state_object->chan == &button_chan) {
 		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
 		if (msg->type == BUTTON_PRESS_LONG) {
@@ -920,7 +920,7 @@ static enum smf_state_result disconnected_run(void *o)
 	}
 #endif /* CONFIG_APP_BUTTON */
 
-	if (state_object->chan == &storage_chan) {
+	else if (state_object->chan == &storage_chan) {
 		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 		if (msg->type == STORAGE_THRESHOLD_REACHED) {
@@ -1001,7 +1001,7 @@ static enum smf_state_result connected_run(void *o)
 
 #if defined(CONFIG_APP_BUTTON)
 	/* Handle long button press to send immediately */
-	if (state_object->chan == &button_chan) {
+	else if (state_object->chan == &button_chan) {
 		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
 		if (msg->type == BUTTON_PRESS_LONG) {
@@ -1013,7 +1013,7 @@ static enum smf_state_result connected_run(void *o)
 #endif /* CONFIG_APP_BUTTON */
 
 	/* Handle buffer limit reached to send immediately */
-	if (state_object->chan == &storage_chan) {
+	else if (state_object->chan == &storage_chan) {
 		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 		if (msg->type == STORAGE_THRESHOLD_REACHED) {
@@ -1052,7 +1052,7 @@ static enum smf_state_result disconnected_sampling_run(void *o)
 
 #if defined(CONFIG_APP_BUTTON)
 	/* Ignore other triggers while sampling */
-	if (state_object->chan == &button_chan) {
+	else if (state_object->chan == &button_chan) {
 		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
 		if (msg->type == BUTTON_PRESS_SHORT) {
@@ -1120,7 +1120,7 @@ static enum smf_state_result disconnected_waiting_run(void *o)
 	}
 
 #if defined(CONFIG_APP_BUTTON)
-	if (state_object->chan == &button_chan) {
+	else if (state_object->chan == &button_chan) {
 		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
 		if (msg->type == BUTTON_PRESS_SHORT) {
@@ -1168,7 +1168,7 @@ static enum smf_state_result connected_sampling_run(void *o)
 
 #if defined(CONFIG_APP_BUTTON)
 	/* Ignore other sample triggers while sampling */
-	if (state_object->chan == &button_chan) {
+	else if (state_object->chan == &button_chan) {
 		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
 		if (msg->type == BUTTON_PRESS_SHORT) {
@@ -1177,7 +1177,7 @@ static enum smf_state_result connected_sampling_run(void *o)
 	}
 #endif /* CONFIG_APP_BUTTON */
 
-	if (state_object->chan == &storage_chan) {
+	else if (state_object->chan == &storage_chan) {
 		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
 		if (msg->type == STORAGE_THRESHOLD_REACHED) {
@@ -1222,7 +1222,7 @@ static enum smf_state_result connected_waiting_run(void *o)
 	}
 
 #if defined(CONFIG_APP_BUTTON)
-	if (state_object->chan == &button_chan) {
+	else if (state_object->chan == &button_chan) {
 		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
 		if (msg->type == BUTTON_PRESS_SHORT) {
@@ -1365,7 +1365,7 @@ static enum smf_state_result fota_run(void *o)
 	/* Translate network disconnect notifications into FOTA_NETWORK_DISCONNECTED so the
 	 * FOTA module knows it can proceed.
 	 */
-	if (state_object->chan == &network_chan) {
+	else if (state_object->chan == &network_chan) {
 		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
 		if (msg->type == NETWORK_DISCONNECTED) {
@@ -1385,7 +1385,7 @@ static enum smf_state_result fota_run(void *o)
 	/* Update cloud connection status to be able to return to the correct state in case
 	 * cloud connection is lost during FOTA.
 	 */
-	if (state_object->chan == &cloud_chan) {
+	else if (state_object->chan == &cloud_chan) {
 		const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
 
 		if (msg->type == CLOUD_DISCONNECTED) {
