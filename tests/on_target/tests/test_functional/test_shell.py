@@ -5,6 +5,7 @@
 
 import os
 import time
+import pytest
 from utils.flash_tools import flash_device, reset_device
 import sys
 sys.path.append(os.getcwd())
@@ -18,6 +19,9 @@ def test_shell(dut_cloud, hex_file):
     '''
     Test that the device is operating normally using shell commands
     '''
+    if os.getenv("DUT_DEVICE_TYPE") != "thingy91x":
+        pytest.skip("Shell test runs on thingy91x only")
+
     flash_device(os.path.abspath(hex_file))
     dut_cloud.uart.xfactoryreset()
 
