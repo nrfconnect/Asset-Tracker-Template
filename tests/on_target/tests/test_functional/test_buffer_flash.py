@@ -69,9 +69,8 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
         reset_device()
         start_pos = dut_cloud.uart.get_size()
 
-        # Wait for storage mount (Zephyr fstab automount logs via littlefs or lfs_backend)
         dut_cloud.uart.wait_for_str(
-            ["/att_storage mounted", "/att_storage already mounted"],
+            ["/att_storage already mounted"],
             timeout=60,
             start_pos=start_pos,
         )
