@@ -114,7 +114,7 @@ def await_bootloader_version(dut_fota, expected, timeout=DEVICE_MSG_TIMEOUT):
             return
 
 def trigger_fota_poll(dut_fota, max_attempts=3):
-    for i in range(max_attempts):
+    for _ in range(max_attempts):
         try:
             time.sleep(10)
             dut_fota.uart.write("att_fota poll\r\n")
@@ -173,13 +173,13 @@ def run_fota_resumption(dut_fota, fota_type):
         # First disconnect at 20%
         timeout_20_percent = FULL_MFW_FOTA_TIMEOUT * 0.2
         dut_fota.uart.wait_for_str("20%", timeout=timeout_20_percent)
-        logger.info("Performing first disconnect/reconnect at 20%")
+        logger.info(f"Performing first disconnect/reconnect at 20%")
         perform_disconnect_reconnect(dut_fota, 20)
 
         # Second disconnect at 80%
         timeout_80_percent = FULL_MFW_FOTA_TIMEOUT * 0.6  # Additional 60% of total timeout
         dut_fota.uart.wait_for_str("80%", timeout=timeout_80_percent)
-        logger.info("Performing second disconnect/reconnect at 80%")
+        logger.info(f"Performing second disconnect/reconnect at 80%")
         perform_disconnect_reconnect(dut_fota, 80)
 
 def run_fota_reschedule(dut_fota, fota_type):

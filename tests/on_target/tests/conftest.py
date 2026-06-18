@@ -30,10 +30,8 @@ def get_uarts():
 
     if platform.system() == "Darwin":  # macOS
         base_path = "/dev"
-        pattern = "tty.*"
     else:  # Linux
         base_path = "/dev/serial/by-id"
-        pattern = None
 
     try:
         if platform.system() == "Darwin":
