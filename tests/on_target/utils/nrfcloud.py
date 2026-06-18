@@ -51,7 +51,6 @@ class NRFCloud():
 
         Retries on 5xx server errors and connection/timeout issues with exponential backoff.
         """
-        last_exception = None
         for attempt in range(DEFAULT_MAX_RETRIES):
             try:
                 r = method(url=self.url + path, **kwargs, timeout=self.timeout)
@@ -64,7 +63,6 @@ class NRFCloud():
                 r.raise_for_status()
                 return r.json() if return_json else r
             except (ConnectionError, Timeout) as e:
-                last_exception = e
                 logger.warning(f"Connection error on attempt {attempt + 1}/{DEFAULT_MAX_RETRIES} for {path}: {e}")
                 if attempt < DEFAULT_MAX_RETRIES - 1:
                     delay = DEFAULT_RETRY_DELAY_SECONDS * (2 ** attempt) + random.uniform(0, 1)
