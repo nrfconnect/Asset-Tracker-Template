@@ -68,7 +68,7 @@ def _purge_pending_fota_jobs():
     """Cancel leftover FOTA jobs queued for the test device before any test runs. """
     if NRFCLOUD_API_KEY and DEVICE_UUID:
         try:
-            NRFCloudFOTA(api_key=NRFCLOUD_API_KEY).cancel_incomplete_jobs(DEVICE_UUID)
+            NRFCloudFOTA(api_key=NRFCLOUD_API_KEY).ensure_no_pending_fota_jobs(DEVICE_UUID)
         except Exception as e:
             logger.warning(f"Failed to purge pending FOTA jobs at session start: {e}")
     yield
@@ -120,7 +120,6 @@ def dut_fota(dut_board):
     data = {
         'job_id': '',
     }
-    fota.cancel_incomplete_jobs(device_id)
 
     yield types.SimpleNamespace(
         **dut_board.__dict__,
@@ -128,7 +127,7 @@ def dut_fota(dut_board):
         device_id=device_id,
         data=data
     )
-    fota.cancel_incomplete_jobs(device_id)
+    fota.ensure_no_pending_fota_jobs(device_id)
 
 
 @pytest.fixture(scope="module")

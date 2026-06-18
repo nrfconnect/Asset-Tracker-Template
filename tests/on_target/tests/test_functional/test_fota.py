@@ -215,6 +215,11 @@ def run_fota_reschedule(dut_fota, fota_type):
     else:
         raise AssertionError(f"Fota update not available after {i} attempts")
 
+@pytest.fixture(autouse=True)
+def ensure_no_pending_fota_jobs_before_test(dut_fota):
+    """Ensure the DUT has no pending FOTA jobs before each test."""
+    dut_fota.fota.ensure_no_pending_fota_jobs(dut_fota.device_id)
+
 @pytest.fixture
 def run_fota_fixture(dut_fota, hex_file, reschedule=False):
     def _run_fota(bundle_id="", fota_type="app", fotatimeout=APP_FOTA_TIMEOUT, new_version=TEST_APP_VERSION, reschedule=False):
@@ -225,6 +230,7 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
 
         dut_fota.uart.wait_for_str_with_retries("Connected to Cloud", max_retries=3, timeout=240, reset_func=reset_device)
 
+        dut_fota.fota.ensure_no_pending_fota_jobs(dut_fota.device_id)
 
         try:
             dut_fota.data['job_id'] = dut_fota.fota.create_fota_job(dut_fota.device_id, bundle_id)
@@ -331,6 +337,8 @@ def test_bootloader_fota(dut_fota, hex_file):
             "Connected to Cloud", max_retries=3, timeout=240, reset_func=reset_device)
 
         await_bootloader_version(dut_fota, BOOTLOADER_VERSION_BASELINE)
+
+        dut_fota.fota.ensure_no_pending_fota_jobs(dut_fota.device_id)
 
         try:
             dut_fota.data["job_id"] = dut_fota.fota.create_fota_job(
