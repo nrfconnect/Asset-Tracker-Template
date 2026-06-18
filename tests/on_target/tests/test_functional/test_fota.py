@@ -33,6 +33,8 @@ BOOTLOADER_VERSION_BASELINE = "2"
 BOOTLOADER_VERSION_UPDATED = "3"
 BOOTLOADER_FIRMWARE_VERSION_LOG = "Firmware version 3"
 
+FOTA_STATUS_DETAIL_SUCCESS = "FOTA update completed successfully"
+
 TEST_APP_BIN = {
     "thingy91x": "artifacts/stable_version_jan_2025-update-signed.bin",
     "nrf9151dk": "artifacts/nrf9151dk_mar_2025_update_signed.bin"
@@ -80,6 +82,33 @@ def await_fota_job_succeeded(dut_fota, job_id, timeout):
         "FOTA execution status",
         timeout
     )
+
+    start = time.time()
+    logger.info(
+        f"Awaiting FOTA statusDetail == '{FOTA_STATUS_DETAIL_SUCCESS}' in nrfcloud job execution..."
+    )
+    while True:
+        time.sleep(5)
+        if time.time() - start > timeout:
+            try:
+                status_detail = dut_fota.fota.get_fota_execution_status_detail(
+                    dut_fota.device_id, job_id)
+            except Exception as e:
+                status_detail = f"<failed to fetch statusDetail: {e}>"
+            raise RuntimeError(
+                f"Timeout awaiting FOTA statusDetail == '{FOTA_STATUS_DETAIL_SUCCESS}'. "
+                f"Got: {status_detail!r}")
+        try:
+            status_detail = dut_fota.fota.get_fota_execution_status_detail(
+                dut_fota.device_id, job_id)
+        except Exception as e:
+            logger.warning(f"Exception {e} during waiting for FOTA statusDetail")
+            continue
+        logger.debug(f"Reported FOTA statusDetail: {status_detail!r}")
+        if status_detail == FOTA_STATUS_DETAIL_SUCCESS:
+            break
+        logger.warning(
+            f"Unexpected FOTA statusDetail while waiting for success: {status_detail!r}")
 
 def get_appversion(dut_fota):
     shadow = dut_fota.fota.get_device(dut_fota.device_id)
