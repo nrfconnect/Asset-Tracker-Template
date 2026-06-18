@@ -124,7 +124,6 @@ static K_WORK_DELAYABLE_DEFINE(timer_sample_data_work, timer_sample_data_work_fn
 /* Forward declarations of state handlers */
 static enum smf_state_result waiting_for_modules_init_run(void *o);
 static enum smf_state_result running_run(void *o);
-static void running_exit(void *o);
 
 /* Connectivity handlers */
 static void disconnected_entry(void *o);
@@ -250,7 +249,7 @@ static const struct smf_state states[] = {
 	[STATE_RUNNING] = SMF_CREATE_STATE(
 		NULL,
 		running_run,
-		running_exit,
+		NULL,
 		NULL,
 		&states[STATE_DISCONNECTED]
 	),
@@ -876,14 +875,6 @@ static enum smf_state_result running_run(void *o)
 	}
 
 	return SMF_EVENT_PROPAGATE;
-}
-
-static void running_exit(void *o)
-{
-	ARG_UNUSED(o);
-	LOG_DBG("%s", __func__);
-
-	timer_sample_stop();
 }
 
 /* STATE_DISCONNECTED */
