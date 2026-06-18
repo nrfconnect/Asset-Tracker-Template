@@ -108,12 +108,12 @@ jobs:
           echo "Inside Container - Runner Serial Number: ${{ env.RUNNER_SERIAL_NUMBER }}"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: asset-tracker-template
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: firmware-artifacts-att
           path: asset-tracker-template/tests/on_target/artifacts
@@ -200,7 +200,7 @@ jobs:
 
       - name: Results
         if: always()
-        uses: pmeier/pytest-results-action@v0.7.1
+        uses: pmeier/pytest-results-action@v0.9.0
         with:
           path: asset-tracker-template/tests/on_target/results/*.xml
           summary: true
@@ -209,7 +209,7 @@ jobs:
 
       - name: Create Report Artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         id: artifact-report
         with:
           name: test-report-${{ matrix.device }}
@@ -218,7 +218,7 @@ jobs:
 
       - name: Push log files to artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         id: artifact-upload-test-logs
         with:
           name: test-logs-${{ matrix.device }}
