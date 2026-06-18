@@ -32,14 +32,16 @@ Each firmware variant includes the following set of artifacts:
 
 | **Artifact name** | **Hardware platform** | **Description** | **Use case** |
 |-------------------|----------------------|----------------|--------------|
-| `asset-tracker-template-{VERSION}-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | Standard production firmware with all core features enabled | Production deployment on Thingy:91 X devices |
-| `asset-tracker-template-{VERSION}-nrf9151dk-nrf91.*` | nRF9151 DK | Development kit firmware with full feature set | Development and testing on nRF9151 DK |
+| `asset-tracker-template-{VERSION}-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | Standard production firmware with all core features enabled, including Memfault coredump capture and fleet metrics via nRF Cloud CoAP | Production deployment on Thingy:91 X devices |
+| `asset-tracker-template-{VERSION}-nrf9151dk-nrf91.*` | nRF9151 DK | Development kit firmware with the same feature set as the Thingy:91 X standard build | Development and testing on nRF9151 DK |
 
-#### Debug and development variants
+#### Debug variant
+
+The debug artifact is the standard Thingy:91 X firmware with the modem-trace-to-Memfault overlay applied at build time. Memfault is already enabled in the standard build; the debug variant adds continuous modem trace capture to external flash and uploads those traces together with the coredump when the application crashes. This is not the same as the `-mtrace-` variants, which stream modem trace live over UART 1 for bench-side analysis.
 
 | **Artifact name** | **Hardware platform** | **Description** | **Use case** |
 |-------------------|----------------------|----------------|--------------|
-| `asset-tracker-template-{VERSION}-debug-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | Debug build with enhanced logging and diagnostic features. Includes Memfault integration for crash reporting and device monitoring. Diagnostic data is routed through CoAP to the Memfault project linked to your nRF Cloud account. | Development debugging and issue investigation |
+| `asset-tracker-template-{VERSION}-debug-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | Standard firmware plus modem trace capture to external flash (~1 MB) and upload to Memfault on crash | Investigating crashes in deployed devices where cellular context around the failure is needed |
 
 #### Specialized configuration variants
 
@@ -48,9 +50,7 @@ Each firmware variant includes the following set of artifacts:
 | `asset-tracker-template-{VERSION}-mtrace-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | Firmware with modem trace output enabled through UART 1 | Cellular connectivity debugging and analysis |
 | `asset-tracker-template-{VERSION}-mtrace-nrf9151dk-nrf91.*` | nRF9151 DK | Firmware with modem trace output enabled through UART 1  | Cellular connectivity debugging and analysis |
 | `asset-tracker-template-{VERSION}-ext-gnss-nrf9151dk-nrf91.*` | nRF9151 DK | Firmware configured for external GNSS antenna | Testing with external GNSS antenna setup |
-| `asset-tracker-template-{VERSION}-mqtt-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | MQTT cloud example module instead of nRF Cloud CoAP | Connecting to a generic MQTT broker |
 | `asset-tracker-template-{VERSION}-buffer-flash-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | LittleFS storage backend with buffered sampling | Testing persistent flash buffering |
-| `asset-tracker-template-{VERSION}-buffer-ram-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | RAM storage backend with buffered sampling | Testing in-memory buffering behavior |
 
 ### Configuration overlays
 

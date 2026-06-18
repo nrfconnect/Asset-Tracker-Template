@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       build_type:
-        description: "Build scope: minimal (thingy91x only), release (all boards, no test builds), all (everything)"
+        description: "Build scope: minimal (thingy91x only), release (all documented release artifacts), all (everything)"
         type: choice
         options:
           - minimal
@@ -286,7 +286,7 @@ jobs:
           mqtt: true
 
       - name: Build thingy91x firmware with buffered mode flash backend
-        if: ${{ inputs.build_thingy91x_buffer_flash || env.build_type == 'all' }}
+        if: ${{ inputs.build_thingy91x_buffer_flash || env.build_type == 'release' || env.build_type == 'all' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: thingy91x/nrf9151/ns
