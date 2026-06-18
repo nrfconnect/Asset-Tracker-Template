@@ -78,13 +78,9 @@ runs:
         if [[ "${{ inputs.buffer_flash }}" == "true" ]]; then
           params+=("-DCONFIG_APP_STORAGE_BACKEND_LITTLEFS=y")
           params+=("-DCONFIG_APP_STORAGE_LOG_LEVEL_DBG=y")
-          params+=("-DCONFIG_APP_SAMPLING_INTERVAL_SECONDS=15")
-          params+=("-DCONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=10")
         fi
         if [[ "${{ inputs.buffer_ram }}" == "true" ]]; then
           params+=("-DCONFIG_APP_STORAGE_LOG_LEVEL_DBG=y")
-          params+=("-DCONFIG_APP_SAMPLING_INTERVAL_SECONDS=15")
-          params+=("-DCONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=10")
         fi
         west build -b ${{ inputs.board }} \
             -d build \
