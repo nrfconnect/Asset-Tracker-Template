@@ -418,6 +418,10 @@ class NRFCloudFOTA(NRFCloud):
         """Returns the number of completed executions for a FOTA job"""
         return self._get(f"/fota-jobs/{job_id}")["executionStats"]["completedExecutions"]
 
+    def get_fota_execution_status(self, device_id: str, job_id: str) -> str:
+        """Get FOTA execution status for a specific device and job"""
+        return self._get(f"/fota-job-executions/{device_id}/{job_id}")["status"]
+
     def post_fota_job(self, uuid: str, fw_id: str) -> Union[str, None]:
         """
         Posts a new FOTA job for the devices specified in the list 'uuids'
