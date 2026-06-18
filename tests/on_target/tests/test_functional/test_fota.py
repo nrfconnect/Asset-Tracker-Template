@@ -59,6 +59,28 @@ def await_nrfcloud(func, expected, field, timeout):
         if expected in data:
             break
 
+def await_fota_job_succeeded(dut_fota, job_id, timeout):
+    """Wait for FOTA job to complete and the device execution to succeed."""
+    await_nrfcloud(
+        functools.partial(dut_fota.fota.get_fota_status, job_id),
+        "IN_PROGRESS",
+        "FOTA status",
+        timeout
+    )
+    await_nrfcloud(
+        functools.partial(dut_fota.fota.get_fota_status, job_id),
+        "COMPLETED",
+        "FOTA status",
+        timeout
+    )
+    await_nrfcloud(
+        functools.partial(
+            dut_fota.fota.get_fota_execution_status, dut_fota.device_id, job_id),
+        "SUCCEEDED",
+        "FOTA execution status",
+        timeout
+    )
+
 def get_appversion(dut_fota):
     shadow = dut_fota.fota.get_device(dut_fota.device_id)
     return shadow["state"]["reported"]["device"]["deviceInfo"]["appVersion"]
@@ -220,20 +242,7 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
             run_fota_resumption(dut_fota, "app")
         elif fota_type == "full":
             run_fota_resumption(dut_fota, "full")
-        await_nrfcloud(
-            functools.partial(dut_fota.fota.get_fota_status, dut_fota.data['job_id']),
-            "IN_PROGRESS",
-            "FOTA status",
-            fotatimeout
-        )
-        await_nrfcloud(
-            functools.partial(dut_fota.fota.get_fota_status, dut_fota.data['job_id']),
-            "COMPLETED",
-            "FOTA status",
-            fotatimeout
-        )
-        if not dut_fota.fota.get_fota_completed_executions(dut_fota.data['job_id']) > 0:
-            raise AssertionError("FOTA job completed but no devices succeeded")
+        await_fota_job_succeeded(dut_fota, dut_fota.data['job_id'], fotatimeout)
 
         try:
             if fota_type == "app":
@@ -277,20 +286,7 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
             else:
                 raise AssertionError(f"Fota update not available after {i} attempts")
 
-            await_nrfcloud(
-                functools.partial(dut_fota.fota.get_fota_status, dut_fota.data['job_id']),
-                "IN_PROGRESS",
-                "FOTA status",
-                fotatimeout
-            )
-            await_nrfcloud(
-                functools.partial(dut_fota.fota.get_fota_status, dut_fota.data['job_id']),
-                "COMPLETED",
-                "FOTA status",
-                fotatimeout
-            )
-            if not dut_fota.fota.get_fota_completed_executions(dut_fota.data['job_id']) > 0:
-                raise AssertionError("FOTA job completed but no devices succeeded")
+            await_fota_job_succeeded(dut_fota, dut_fota.data['job_id'], fotatimeout)
 
             try:
                 await_nrfcloud(
@@ -357,20 +353,7 @@ def test_bootloader_fota(dut_fota, hex_file):
             error_msg="Expected B0 fw_info v3 after download",
         )
 
-        await_nrfcloud(
-            functools.partial(dut_fota.fota.get_fota_status, dut_fota.data["job_id"]),
-            "IN_PROGRESS",
-            "FOTA status",
-            BOOTLOADER_FOTA_TIMEOUT,
-        )
-        await_nrfcloud(
-            functools.partial(dut_fota.fota.get_fota_status, dut_fota.data["job_id"]),
-            "COMPLETED",
-            "FOTA status",
-            BOOTLOADER_FOTA_TIMEOUT,
-        )
-        if not dut_fota.fota.get_fota_completed_executions(dut_fota.data["job_id"]) > 0:
-            raise AssertionError("Bootloader FOTA job completed but no devices succeeded")
+        await_fota_job_succeeded(dut_fota, dut_fota.data["job_id"], BOOTLOADER_FOTA_TIMEOUT)
 
         dut_fota.uart.wait_for_str_with_retries(
             "Connected to Cloud", max_retries=5, timeout=300, reset_func=reset_device)
