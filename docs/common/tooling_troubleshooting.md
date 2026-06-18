@@ -445,7 +445,10 @@ backoff_time        : 60 (0x3C)
 
 ## Memfault Remote Debugging
 
-The template supports remote debugging using [Memfault](https://memfault.com/).
+Memfault is enabled by default in all standard firmware builds. Once a device is provisioned to nRF Cloud, it automatically forwards coredumps, LTE and location metrics, and other diagnostic data to the Memfault project linked to your account via nRF Cloud CoAP.
+
+For deeper post-mortem analysis, you can also capture modem traces around application crashes and upload them to Memfault. Use the pre-built `-debug-thingy91x` [release artifact](release.md#debug-variant), or apply the modem-trace overlay when building locally (see below).
+
 Remote debugging enables the device to send metrics such as LTE, location, and memory statistics, as well as coredump captures on crashes, to analyse problems across single devices or a fleet of devices once they occur.
 
 ### When to Use Memfault
@@ -464,7 +467,7 @@ Memfault is a device observability platform that complements traditional debuggi
 
     1. Follow the [Getting Started](getting_started.md) guide to connect the device to your nRF Cloud instance.
 
-       Once provisioned, the device automatically forwards coredumps, metrics, and (if the modem-trace overlay is enabled) modem traces to the Memfault project linked to your nRF Cloud account.
+       Once provisioned, the device automatically forwards coredumps and metrics to the Memfault project linked to your nRF Cloud account. Modem traces are also uploaded on crash when using the `-debug-thingy91x` release artifact or the modem-trace overlay described below.
 
 1. **Open the Memfault dashboard from nRF Cloud:**
 
@@ -490,8 +493,8 @@ Memfault is a device observability platform that complements traditional debuggi
     1. In the Memfault UI, click **Devices** in the left toolbar to see all devices that have reported data.
     1. Select a device to explore its coredumps, metrics, and modem traces (CDRs).
 
-    The template enables basic support for Memfault, forwarding captured LTE and location metrics as well as coredumps on crashes to Memfault via nRF Cloud CoAP.
-    If you also want to send modem traces to Memfault on application crashes, include the `overlay-upload-modem-traces-to-memfault.conf` Kconfig overlay **and** the devicetree overlay `overlay-upload-modem-traces-to-memfault.overlay` in your west build command:
+    All standard builds include Memfault coredump capture and fleet metrics via nRF Cloud CoAP.
+    To also upload modem traces on application crashes, either flash the pre-built `-debug-thingy91x` firmware from the [release page](release.md#debug-variant), or include the `overlay-upload-modem-traces-to-memfault.conf` Kconfig overlay **and** the devicetree overlay `overlay-upload-modem-traces-to-memfault.overlay` in your west build command:
 
     ```bash
     west build -p -b <board> -- \
