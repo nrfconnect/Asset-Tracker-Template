@@ -88,12 +88,12 @@ def await_nrfcloud(func, expected, field, timeout, expected_detail=None):
             status_detail = data.get("statusDetail")
             logger.debug(
                 f"Reported {field}: status={status!r}, statusDetail={status_detail!r}")
-            if status is not None and expected in status and status_detail == expected_detail:
-                break
             if status is not None and expected in status:
-                logger.warning(
+                if status_detail == expected_detail:
+                    break
+                raise RuntimeError(
                     f"{field} matched {expected!r} but unexpected statusDetail: "
-                    f"{status_detail!r}")
+                    f"{status_detail!r} (expected {expected_detail!r})")
         else:
             logger.debug(f"Reported {field}: {data}")
             if expected in data:
