@@ -45,21 +45,59 @@ APP_FOTA_TIMEOUT = 60 * 15
 BOOTLOADER_FOTA_TIMEOUT = 60 * 20
 FULL_MFW_FOTA_TIMEOUT = 60 * 30
 
-def await_nrfcloud(func, expected, field, timeout):
+def await_nrfcloud(func, expected, field, timeout, expected_detail=None):
     start = time.time()
-    logger.info(f"Awaiting {field} == {expected} in nrfcloud shadow...")
+    if expected_detail is not None:
+        logger.info(
+            f"Awaiting {field} == {expected} and "
+            f"statusDetail == '{expected_detail}' in nrfcloud..."
+        )
+    else:
+        logger.info(f"Awaiting {field} == {expected} in nrfcloud shadow...")
     while True:
         time.sleep(5)
         if time.time() - start > timeout:
+            if expected_detail is not None:
+                try:
+                    data = func()
+                    if isinstance(data, dict):
+                        status = data.get("status", "<missing>")
+                        status_detail = data.get("statusDetail", "<missing>")
+                    else:
+                        status = data
+                        status_detail = "<unexpected response type>"
+                except Exception as e:
+                    status = f"<failed to fetch: {e}>"
+                    status_detail = status
+                raise RuntimeError(
+                    f"Timeout awaiting {field} == {expected} with "
+                    f"statusDetail == '{expected_detail}'. "
+                    f"Got status: {status!r}, statusDetail: {status_detail!r}")
             raise RuntimeError(f"Timeout awaiting {field} update")
         try:
             data = func()
         except Exception as e:
             logger.warning(f"Exception {e} during waiting for {field}")
             continue
-        logger.debug(f"Reported {field}: {data}")
-        if expected in data:
-            break
+        if expected_detail is not None:
+            if not isinstance(data, dict):
+                logger.warning(
+                    f"Expected dict response when checking statusDetail, got {type(data)}")
+                continue
+            status = data.get("status")
+            status_detail = data.get("statusDetail")
+            logger.debug(
+                f"Reported {field}: status={status!r}, statusDetail={status_detail!r}")
+            if status is not None and expected in status and status_detail == expected_detail:
+                break
+            if status is not None and expected in status:
+                logger.warning(
+                    f"{field} matched {expected!r} but unexpected statusDetail: "
+                    f"{status_detail!r}")
+        else:
+            logger.debug(f"Reported {field}: {data}")
+            if expected in data:
+                break
 
 def await_fota_job_succeeded(dut_fota, job_id, timeout):
     """Wait for FOTA job to complete and the device execution to succeed."""
@@ -76,39 +114,12 @@ def await_fota_job_succeeded(dut_fota, job_id, timeout):
         timeout
     )
     await_nrfcloud(
-        functools.partial(
-            dut_fota.fota.get_fota_execution_status, dut_fota.device_id, job_id),
+        functools.partial(dut_fota.fota.get_fota_execution, dut_fota.device_id, job_id),
         "SUCCEEDED",
         "FOTA execution status",
-        timeout
+        timeout,
+        expected_detail=FOTA_STATUS_DETAIL_SUCCESS,
     )
-
-    start = time.time()
-    logger.info(
-        f"Awaiting FOTA statusDetail == '{FOTA_STATUS_DETAIL_SUCCESS}' in nrfcloud job execution..."
-    )
-    while True:
-        time.sleep(5)
-        if time.time() - start > timeout:
-            try:
-                status_detail = dut_fota.fota.get_fota_execution_status_detail(
-                    dut_fota.device_id, job_id)
-            except Exception as e:
-                status_detail = f"<failed to fetch statusDetail: {e}>"
-            raise RuntimeError(
-                f"Timeout awaiting FOTA statusDetail == '{FOTA_STATUS_DETAIL_SUCCESS}'. "
-                f"Got: {status_detail!r}")
-        try:
-            status_detail = dut_fota.fota.get_fota_execution_status_detail(
-                dut_fota.device_id, job_id)
-        except Exception as e:
-            logger.warning(f"Exception {e} during waiting for FOTA statusDetail")
-            continue
-        logger.debug(f"Reported FOTA statusDetail: {status_detail!r}")
-        if status_detail == FOTA_STATUS_DETAIL_SUCCESS:
-            break
-        logger.warning(
-            f"Unexpected FOTA statusDetail while waiting for success: {status_detail!r}")
 
 def get_appversion(dut_fota):
     shadow = dut_fota.fota.get_device(dut_fota.device_id)
