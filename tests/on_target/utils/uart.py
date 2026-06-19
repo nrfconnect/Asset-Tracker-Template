@@ -116,17 +116,23 @@ class Uart:
                     pass
 
             try:
-                read_byte = s.read(1)
-                data = read_byte.decode("utf-8")
-            except UnicodeDecodeError:
-                logger.debug(f"{self.name}: Got unexpected UART value")
-                logger.debug(f"{self.name}: Not decodeable data: {hex(ord(read_byte))}")
-                continue
+                # Drain the OS serial buffer in one read to keep up with bursty
+                # log output (e.g. FOTA download progress). Reading 1 byte at a
+                # time was slow enough that the kernel buffer would overflow
+                # under load and raise SerialException, dropping log lines.
+                to_read = s.in_waiting or 1
+                read_bytes = s.read(to_read)
+                # Use errors="replace" so a single undecodable byte (e.g. ANSI
+                # escape garbage during a reset) does not discard the rest of
+                # the chunk we just read.
+                data = read_bytes.decode("utf-8", errors="replace")
             except serial.serialutil.SerialException:
                 logger.error(f"{self.name}: Caught SerialException, restarting")
                 s.close()
                 while True:
-                    time.sleep(2)
+                    # Short sleep: minimize the window during which device output
+                    # is lost while we reopen the port.
+                    time.sleep(0.2)
                     if self._evt.is_set():
                         return
                     try:
@@ -135,8 +141,8 @@ class Uart:
                             baudrate=self.baudrate,
                             timeout=self.serial_timeout,
                         )
-                    except FileNotFoundError:
-                        logger.warning(f"{self.uart} not available, retrying")
+                    except (FileNotFoundError, serial.serialutil.SerialException) as e:
+                        logger.warning(f"{self.uart} not available ({e}), retrying")
                         continue
                     break
                 continue
@@ -144,15 +150,15 @@ class Uart:
             if not data:
                 continue
 
-            line = line + data
-            if data != "\n":
-                continue
-            # Full line received
-            line = line.strip()
-            logger.debug(f"{self.name}: {line}")
-            self.log = self.log + "\n" + line
-            self.whole_log = self.whole_log + "\n" + line
-            line = ""
+            for ch in data:
+                line = line + ch
+                if ch != "\n":
+                    continue
+                line = line.strip()
+                logger.debug(f"{self.name}: {line}")
+                self.log = self.log + "\n" + line
+                self.whole_log = self.whole_log + "\n" + line
+                line = ""
         s.close()
 
     def flush(self) -> None:
