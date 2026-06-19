@@ -6,8 +6,9 @@
 
 if MEMFAULT
 
-# Set Memfault software_version prefix from the VERSION file in the application
-config MEMFAULT_NCS_FW_VERSION_PREFIX
-	default "$(APPVERSION)+" if "$(APPVERSION)" != ""
+# Synchronize the Memfault software version with the application version
+# reported in the device shadow (device.deviceInfo.appVersion) for consistency
+config MEMFAULT_NCS_FW_VERSION
+        default "$(APPVERSION)"
 
 endif # MEMFAULT
