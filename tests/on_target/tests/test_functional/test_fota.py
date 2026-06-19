@@ -153,6 +153,38 @@ def await_bootloader_version(dut_fota, expected, timeout=DEVICE_MSG_TIMEOUT):
         if version == expected:
             return
 
+def restore_device_after_modem_fota(dut_fota, hex_file):
+    """Return the DUT to a known-good state after modem FOTA tests."""
+    logger.info("Restoring device after modem FOTA test")
+
+    job_id = dut_fota.data.get("job_id")
+    if job_id:
+        try:
+            dut_fota.fota.cancel_fota_job(job_id)
+        except Exception as e:
+            logger.warning(f"Failed to cancel active FOTA job {job_id}: {e}")
+
+    try:
+        dut_fota.fota.ensure_no_pending_fota_jobs(dut_fota.device_id)
+    except Exception as e:
+        logger.warning(f"Failed to cancel pending FOTA jobs during restore: {e}")
+
+    flash_device(os.path.abspath(MFW_FILEPATH))
+    flash_device(os.path.abspath(hex_file))
+
+    try:
+        dut_fota.uart.xfactoryreset()
+        dut_fota.uart.flush()
+    except Exception as e:
+        logger.warning(f"Factory reset during restore failed: {e}")
+
+    reset_device()
+
+    try:
+        dut_fota.fota.ensure_no_pending_fota_jobs(dut_fota.device_id)
+    except Exception as e:
+        logger.warning(f"Failed to cancel pending FOTA jobs after restore: {e}")
+
 def trigger_fota_poll(dut_fota, max_attempts=3):
     for _ in range(max_attempts):
         try:
@@ -411,7 +443,7 @@ def test_bootloader_fota(dut_fota, hex_file):
     finally:
         flash_device(os.path.abspath(hex_file))
 
-def test_delta_mfw_fota(run_fota_fixture):
+def test_delta_mfw_fota(dut_fota, run_fota_fixture, hex_file):
     '''
     Test delta modem FOTA on nrf9151
     '''
@@ -422,11 +454,10 @@ def test_delta_mfw_fota(run_fota_fixture):
             new_version=MFW_DELTA_VERSION_FOTA_TEST
         )
     finally:
-        # Restore mfw, no matter if test pass/fails
-        flash_device(os.path.abspath(MFW_FILEPATH))
+        restore_device_after_modem_fota(dut_fota, hex_file)
 
 @pytest.mark.slow
-def test_full_mfw_fota(run_fota_fixture):
+def test_full_mfw_fota(dut_fota, run_fota_fixture, hex_file):
     '''
     Test full modem FOTA on nrf9151
     '''
@@ -440,5 +471,4 @@ def test_full_mfw_fota(run_fota_fixture):
             reschedule=True
         )
     finally:
-        # Restore mfw, no matter if test pass/fails
-        flash_device(os.path.abspath(MFW_FILEPATH))
+        restore_device_after_modem_fota(dut_fota, hex_file)

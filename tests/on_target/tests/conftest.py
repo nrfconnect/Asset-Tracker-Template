@@ -79,6 +79,12 @@ def dut_board():
     log_uart_string = all_uarts[0]
     uart = Uart(log_uart_string, timeout=UART_TIMEOUT)
 
+    if NRFCLOUD_API_KEY and DEVICE_UUID:
+        try:
+            NRFCloudFOTA(api_key=NRFCLOUD_API_KEY).ensure_no_pending_fota_jobs(DEVICE_UUID)
+        except Exception as e:
+            logger.warning(f"Failed to purge pending FOTA jobs at test start: {e}")
+
     yield types.SimpleNamespace(
         uart=uart,
         device_type=DUT_DEVICE_TYPE
@@ -87,6 +93,12 @@ def dut_board():
     uart_log = uart.whole_log
     uart.stop()
     recover_device()
+
+    if NRFCLOUD_API_KEY and DEVICE_UUID:
+        try:
+            NRFCloudFOTA(api_key=NRFCLOUD_API_KEY).ensure_no_pending_fota_jobs(DEVICE_UUID)
+        except Exception as e:
+            logger.warning(f"Failed to purge pending FOTA jobs at test end: {e}")
 
     scan_log_for_assertions(uart_log)
 
