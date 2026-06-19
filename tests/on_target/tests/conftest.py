@@ -166,6 +166,14 @@ def hex_file():
     pytest.fail("No matching firmware .hex file found in the artifacts directory")
 
 @pytest.fixture(scope="session")
+def fota_bin_file(hex_file):
+    """Signed application binary from the CI-built firmware artifact set."""
+    bin_file = hex_file.replace("-nrf91.hex", "-nrf91-update-signed.bin")
+    if not os.path.exists(bin_file):
+        pytest.fail(f"No matching firmware .bin file found at {bin_file}")
+    return bin_file
+
+@pytest.fixture(scope="session")
 def debug_hex_file():
     # Skip if not thingy91x since debug build is only available for thingy91x
     if DUT_DEVICE_TYPE != 'thingy91x':
