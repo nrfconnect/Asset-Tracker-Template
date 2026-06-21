@@ -18,8 +18,7 @@
  *   0x000d0000  fmfu_storage_partition        (  4 MiB)
  *   0x004d0000  settings_storage              (  8 KiB)
  *   0x004d2000  littlefs_storage              (  1 MiB)
- *   0x005d2000  memfault_coredump_partition   ( 32 KiB)
- *   0x005da000  external_flash_partition      (~26.15 MiB) free space
+ *   0x005d2000  external_flash_partition      (~26.2 MiB) free space
  *
  * NOTE: slot0/slot1 are sized 0xD0000 (832 KiB) to match the v1.0.2 PM
  * layout. This is required so that MCUboot in older app images can locate
@@ -29,6 +28,13 @@
  * validation when downgrading/upgrading to/from such legacy images and
  * cause nRF Cloud to report jobs as
  * "FOTA update completed without validation".
+ *
+ * Because slot0 fills the entire 1 MiB of internal flash, there is no room
+ * for a Memfault coredump partition in internal flash. Coredumps are
+ * therefore RAM-backed (non-persistent across reboots) - see prj.conf:
+ * CONFIG_MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP=n. The external
+ * SPI-NOR cannot host the coredump partition because the NCS Memfault
+ * storage driver assumes memory-mapped (internal) flash.
  */
 
 /delete-node/ &slot0_partition;
@@ -39,7 +45,6 @@
 	chosen {
 		zephyr,settings-partition = &settings_storage;
 		nordic,fmfu-storage-partition = &fmfu_storage_partition;
-		nordic,memfault-coredump-partition = &memfault_coredump_partition;
 	};
 
 	fstab {
@@ -125,14 +130,9 @@
 			reg = <0x004d2000 0x00100000>;
 		};
 
-		storage_partition: memfault_coredump_partition: partition@5d2000 {
-			label = "memfault_coredump_partition";
-			reg = <0x005d2000 0x00008000>;
-		};
-
-		external_flash_partition: partition@5da000 {
+		external_flash_partition: partition@5d2000 {
 			label = "external_flash";
-			reg = <0x005da000 0x01a26000>;
+			reg = <0x005d2000 0x01a2e000>;
 		};
 	};
 };
