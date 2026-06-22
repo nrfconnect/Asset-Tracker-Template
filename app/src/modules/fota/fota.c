@@ -444,6 +444,17 @@ static enum smf_state_result state_waiting_for_poll_request_run(void *obj)
 		}
 	}
 
+	if (&priv_fota_chan == state_object->chan) {
+		const struct priv_fota_msg *msg =
+			(const struct priv_fota_msg *)state_object->msg_buf;
+
+		if (msg->type == FOTA_PRIV_REBOOT_NEEDED) {
+			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOT_PENDING]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
 	return SMF_EVENT_PROPAGATE;
 }
 
@@ -669,7 +680,7 @@ static void state_reboot_pending_entry(void *obj)
 	LOG_DBG("%s", __func__);
 	LOG_DBG("Waiting for the application to reboot in order to apply the update");
 
-	publish_fota_event(FOTA_SUCCESS);
+	publish_fota_event(FOTA_REQUEST_REBOOT);
 }
 
 static void state_canceling_entry(void *obj)

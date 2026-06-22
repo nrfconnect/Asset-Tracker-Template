@@ -577,14 +577,14 @@ void test_config_change(void)
 
 /* NOTE: This test must remain LAST in the file.
  *
- * On FOTA_SUCCESS, the main module clears storage and transitions to
+ * On FOTA_REQUEST_REBOOT, the main module clears storage and transitions to
  * STATE_REBOOTING, which is a terminal top-level state with no run handler.
  * Once entered, the SMF cannot be driven back out via zbus events, so any
  * test running after this one would observe a frozen state machine.
  * `sys_reboot()` is faked, so the test process keeps running, but the SMF
  * is intentionally stuck — leave this test at the end.
  */
-void test_fota_success_triggers_reboot(void)
+void test_fota_request_reboot(void)
 {
 	connect_to_cloud();
 
@@ -593,7 +593,7 @@ void test_fota_success_triggers_reboot(void)
 	expect_fota_event(FOTA_STARTING);
 
 	/* FOTA module signals completion -> main clears storage and reboots */
-	send_fota_msg(FOTA_SUCCESS);
+	send_fota_msg(FOTA_REQUEST_REBOOT);
 
 	/* Verify that the module sends STORAGE_CLEAR before reboot */
 	expect_storage_event(STORAGE_CLEAR);

@@ -394,8 +394,6 @@ def test_bootloader_fota(dut_fota, hex_file):
     '''
     Test MCUboot bootloader (B1) FOTA
     '''
-    if os.getenv("DUT_DEVICE_TYPE") != "thingy91x":
-        pytest.skip("Bootloader FOTA test runs on thingy91x only")
     if not MCUBOOT_BUNDLEID:
         pytest.skip("MCUBOOT_BUNDLEID environment variable not set")
 

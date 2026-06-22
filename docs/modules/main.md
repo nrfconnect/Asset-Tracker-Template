@@ -39,7 +39,7 @@ When the FOTA module begins a download, it publishes `FOTA_STARTING`. Main respo
 
 Before the device can reboot or apply a full modem image, the FOTA module may need LTE offline. It then publishes `FOTA_NETWORK_DISCONNECT_NEEDED`. Main disconnects via `network_chan` and, once the network is down, replies with `FOTA_NETWORK_DISCONNECTED` so the FOTA module can continue.
 
-When the update is ready to take effect, the FOTA module publishes `FOTA_SUCCESS`. Main clears buffered sample data by publishing `STORAGE_CLEAR` on `storage_chan`, then transitions to `STATE_REBOOTING`. Wiping storage before reboot avoids carrying stale or incompatible data into the new firmware.
+When the update is ready to take effect, the FOTA module publishes `FOTA_REQUEST_REBOOT`. Main clears buffered sample data by publishing `STORAGE_CLEAR` on `storage_chan`, then transitions to `STATE_REBOOTING`. Wiping storage before reboot avoids carrying stale or incompatible data into the new firmware.
 
 If the update fails or is cancelled, the FOTA module publishes `FOTA_ABORTED` and Main returns to the state it was in before the download started.
 
