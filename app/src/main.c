@@ -377,6 +377,20 @@ static void poll_triggers_send(void)
 
 /* Common helpers for substates */
 
+static void handle_fota_reboot_request(struct main_state *state_object)
+{
+	struct storage_msg storage_msg = { .type = STORAGE_CLEAR };
+	int err = zbus_chan_pub(&storage_chan, &storage_msg, PUB_TIMEOUT);
+
+	if (err) {
+		LOG_ERR("Failed to publish storage clear message, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
+	smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOTING]);
+}
+
 static void trigger_sampling(struct main_state *state_object)
 {
 	int err;
@@ -810,6 +824,9 @@ static enum smf_state_result waiting_for_modules_init_run(void *o)
 			state_object->modules_ready.fota_ready = true;
 			check_modules_ready(state_object);
 			return SMF_EVENT_HANDLED;
+		} else if (msg->type == FOTA_REQUEST_REBOOT) {
+			handle_fota_reboot_request(state_object);
+			return SMF_EVENT_HANDLED;
 		}
 #if defined(CONFIG_APP_POWER)
 	} else if (state_object->chan == &power_chan) {
@@ -848,9 +865,15 @@ static enum smf_state_result running_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
-	/* Handle FOTA download initiation at top level */
+	/* Handle top-level FOTA requests across all running substates. */
 	if (state_object->chan == &fota_chan) {
 		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
+
+		if (msg->type == FOTA_REQUEST_REBOOT) {
+			handle_fota_reboot_request(state_object);
+
+			return SMF_EVENT_HANDLED;
+		}
 
 		if (msg->type == FOTA_STARTING) {
 			smf_set_state(SMF_CTX(state_object), &states[STATE_FOTA]);
@@ -1303,18 +1326,8 @@ static enum smf_state_result fota_run(void *o)
 
 			return SMF_EVENT_HANDLED;
 		}
-		case FOTA_SUCCESS: {
-			struct storage_msg storage_msg = {.type = STORAGE_CLEAR};
-			int err = zbus_chan_pub(&storage_chan, &storage_msg, PUB_TIMEOUT);
-
-			if (err) {
-				LOG_ERR("Failed to publish storage clear message, error: %d", err);
-				SEND_FATAL_ERROR();
-
-				return SMF_EVENT_HANDLED;
-			}
-
-			smf_set_state(SMF_CTX(state_object), &states[STATE_REBOOTING]);
+		case FOTA_REQUEST_REBOOT: {
+			handle_fota_reboot_request(state_object);
 
 			return SMF_EVENT_HANDLED;
 		}

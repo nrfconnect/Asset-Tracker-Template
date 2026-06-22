@@ -21,7 +21,7 @@ When the module needs the network to be disconnected (for example, to apply a fu
 1. Disconnect from the cellular network.
 2. Reply with `FOTA_NETWORK_DISCONNECTED` once the network is down.
 
-The FOTA module then continues the sequence and, when the device is ready to reboot with the new image staged, publishes `FOTA_SUCCESS`. If the update cannot complete (download failure, timeout, cancellation, rejection, or no update available), the module publishes `FOTA_ABORTED` and the application can resume normal operation.
+The FOTA module then continues the sequence and, when the device is ready to reboot with the new image staged, publishes `FOTA_REQUEST_REBOOT`. If the update cannot complete (download failure, timeout, cancellation, rejection, or no update available), the module publishes `FOTA_ABORTED` and the application can resume normal operation.
 
 ## Architecture
 
@@ -58,7 +58,7 @@ All input messages are requests from the application to the FOTA module. The out
 - **FOTA_NETWORK_DISCONNECT_NEEDED:**
   The module needs the network to be disconnected before it can continue. The application is expected to disconnect the network and reply with `FOTA_NETWORK_DISCONNECTED`.
 
-- **FOTA_SUCCESS:**
+- **FOTA_REQUEST_REBOOT:**
   The FOTA sequence completed successfully, and the update is staged and ready to be applied on reboot. It is the application's responsibility to trigger the reboot.
 
 - **FOTA_ABORTED:**

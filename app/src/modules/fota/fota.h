@@ -32,10 +32,10 @@ enum fota_msg_type {
 	 */
 	FOTA_NETWORK_DISCONNECT_NEEDED,
 
-	/* The FOTA sequence completed successfully and the device is
-	 * ready to reboot in order to apply the image.
+	/* The FOTA module requires the application to reboot the device to
+	 * continue or finalize the update.
 	 */
-	FOTA_SUCCESS,
+	FOTA_REQUEST_REBOOT,
 
 	/* The FOTA sequence was aborted (download failed, timed out,
 	 * canceled, rejected, or no update was available).

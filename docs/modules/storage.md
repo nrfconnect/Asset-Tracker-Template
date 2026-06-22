@@ -161,7 +161,7 @@ where the `+3` accounts for LittleFS metadata and the CoW block.
 \text{flash size} = \text{required blocks} \times \text{block size}
 ```
 
-Choose a partition size that meets or exceeds `flash_size`. The LittleFS partition size is set by the `littlefs_storage` node in [`app/dts/att_flash_partitions.dtsi`](../../app/dts/att_flash_partitions.dtsi), which both board overlays include:
+Choose a partition size that meets or exceeds `flash_size`. The LittleFS partition size is set by the `littlefs_storage` node in [`app/boards/att_flash_partitions.dtsi`](../../app/boards/att_flash_partitions.dtsi), which both board overlays include:
 
 ```devicetree
 littlefs_storage: partition@4d2000 {
@@ -360,7 +360,7 @@ The following includes the key configuration categories:
 
 ### Flash configuration (LittleFS backend)
 
-The `littlefs_storage` partition (size and host flash chip) is defined in devicetree. [`app/dts/att_flash_partitions.dtsi`](../../app/dts/att_flash_partitions.dtsi) declares the partition on external SPI-NOR and the `lfs1` `zephyr,fstab,littlefs` entry (mount point `/att_storage`, automount). Board overlays [`thingy91x_nrf9151_ns.overlay`](../../app/boards/thingy91x_nrf9151_ns.overlay) and [`nrf9151dk_nrf9151_ns.overlay`](../../app/boards/nrf9151dk_nrf9151_ns.overlay) include that file.
+The `littlefs_storage` partition (size and host flash chip) is defined in devicetree. [`app/boards/att_flash_partitions.dtsi`](../../app/boards/att_flash_partitions.dtsi) declares the partition on external SPI-NOR and the `lfs1` `zephyr,fstab,littlefs` entry (mount point `/att_storage`, automount). Board overlays [`thingy91x_nrf9151_ns.overlay`](../../app/boards/thingy91x_nrf9151_ns.overlay) and [`nrf9151dk_nrf9151_ns.overlay`](../../app/boards/nrf9151dk_nrf9151_ns.overlay) include that file.
 
 To resize the partition, edit the second `reg` cell of `littlefs_storage` in `att_flash_partitions.dtsi` (and shrink `external_flash_partition` by the same amount). To move it to internal flash, declare a `littlefs_storage` node under `&flash0`'s `partitions` instead, note that the nRF9151's 1 MiB internal flash is already heavily utilized by `slot0_partition`, so external flash is strongly recommended for any non-trivial storage size.
 

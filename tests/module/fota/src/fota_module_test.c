@@ -219,6 +219,14 @@ static void publish_priv_fota_unhandled(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
+static void publish_priv_fota_reboot_needed(void)
+{
+	struct test_priv_fota_msg msg = { .type = TEST_FOTA_PRIV_REBOOT_NEEDED };
+	int err = zbus_chan_pub(&priv_fota_chan, &msg, K_SECONDS(1));
+
+	TEST_ASSERT_EQUAL(0, err);
+}
+
 void test_fota_module_should_publish_ready(void)
 {
 	event_expect(FOTA_MODULE_READY);
@@ -274,7 +282,7 @@ void test_fota_module_should_succeed(void)
 
 	/* 5. Reboot needed */
 	invoke_nrf_cloud_fota_callback_stub_reboot(FOTA_REBOOT_SUCCESS);
-	event_expect(FOTA_SUCCESS);
+	event_expect(FOTA_REQUEST_REBOOT);
 }
 
 void test_fota_module_should_fail_on_timeout(void)
@@ -378,7 +386,7 @@ void test_fota_module_should_restart_after_cancellation(void)
 
 	/* 8. Reboot needed */
 	invoke_nrf_cloud_fota_callback_stub_reboot(FOTA_REBOOT_SUCCESS);
-	event_expect(FOTA_SUCCESS);
+	event_expect(FOTA_REQUEST_REBOOT);
 }
 
 void test_fota_module_should_restart_after_rejection(void)
@@ -414,7 +422,18 @@ void test_fota_module_should_restart_after_rejection(void)
 
 	/* 8. Reboot needed */
 	invoke_nrf_cloud_fota_callback_stub_reboot(FOTA_REBOOT_SUCCESS);
-	event_expect(FOTA_SUCCESS);
+	event_expect(FOTA_REQUEST_REBOOT);
+}
+
+void test_fota_module_should_handle_reboot_needed_while_waiting_for_poll_request(void)
+{
+	/* 1. On transition from STATE_WAITING_FOR_MODEM_INIT to STATE_WAITING_FOR_POLL_REQUEST,
+	 * the fota library can request a reboot. This request should be handled by the fota module
+	 * and result in a FOTA_REQUEST_REBOOT event.
+	 */
+	publish_priv_fota_reboot_needed();
+
+	event_expect(FOTA_REQUEST_REBOOT);
 }
 
 /* This is required to be added to each test. That is because unity's
