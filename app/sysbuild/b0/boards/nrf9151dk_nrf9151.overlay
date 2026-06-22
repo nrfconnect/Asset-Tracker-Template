@@ -4,8 +4,16 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#include "../../../dts/nrf9151dk_prelude.dtsi"
-#include "../../../dts/att_flash_partitions.dtsi"
+flash_ext: &gd25wb256 {
+	status = "okay";
+};
+
+/delete-node/ &boot_partition;
+/delete-node/ &slot1_partition;
+/delete-node/ &tfm_ps_partition;
+/delete-node/ &tfm_its_partition;
+/delete-node/ &tfm_otp_partition;
+#include "../../../boards/att_flash_partitions.dtsi"
 
 /* Give b0 full secure SRAM. */
 &sram0_s {

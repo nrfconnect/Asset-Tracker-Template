@@ -4,11 +4,6 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#include "../dts/nrf9151dk_prelude.dtsi"
-/* Flash partitions (littlefs_storage, MCUboot slots, etc.): app/dts/att_flash_partitions.dtsi */
-#include "../dts/att_flash_partitions.dtsi"
-#include "../dts/att_sram_partitions.dtsi"
-
 / {
 	chosen {
 		nordic,modem-trace-uart = &uart1;
@@ -19,3 +14,16 @@
 	status = "okay";
 	current-speed = <1000000>;
 };
+
+flash_ext: &gd25wb256 {
+	status = "okay";
+};
+
+/* Flash partitions (littlefs_storage, MCUboot slots, etc.) */
+/delete-node/ &boot_partition;
+/delete-node/ &slot1_partition;
+/delete-node/ &tfm_ps_partition;
+/delete-node/ &tfm_its_partition;
+/delete-node/ &tfm_otp_partition;
+#include "att_flash_partitions.dtsi"
+#include "att_sram_partitions.dtsi"

@@ -5,10 +5,6 @@
  */
 
 #include <thingy91x_wifi.dtsi>
-#include "../dts/thingy91x_prelude.dtsi"
-/* Flash partitions (littlefs_storage, MCUboot slots, etc.): app/dts/att_flash_partitions.dtsi */
-#include "../dts/att_flash_partitions.dtsi"
-#include "../dts/att_sram_partitions.dtsi"
 
 &bme680 {
 	status = "okay";
@@ -30,3 +26,12 @@
 &nrf70 {
 	compatible = "nordic,nrf7000-spi";
 };
+
+
+/* Flash partitions (littlefs_storage, MCUboot slots, etc.) */
+/delete-node/ &b0_partition;
+/delete-node/ &s0_partition;
+/delete-node/ &s1_partition;
+/delete-node/ &external_flash_partition;
+#include "att_flash_partitions.dtsi"
+#include "att_sram_partitions.dtsi"
