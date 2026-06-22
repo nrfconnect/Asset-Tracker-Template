@@ -909,17 +909,6 @@ static enum smf_state_result disconnected_run(void *o)
 		}
 	}
 
-#if defined(CONFIG_APP_BUTTON)
-	/* Ignore send trigers when disconnected */
-	else if (state_object->chan == &button_chan) {
-		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
-
-		if (msg->type == BUTTON_PRESS_LONG) {
-			return SMF_EVENT_HANDLED;
-		}
-	}
-#endif /* CONFIG_APP_BUTTON */
-
 	else if (state_object->chan == &storage_chan) {
 		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
 
@@ -1050,17 +1039,6 @@ static enum smf_state_result disconnected_sampling_run(void *o)
 		}
 	}
 
-#if defined(CONFIG_APP_BUTTON)
-	/* Ignore other triggers while sampling */
-	else if (state_object->chan == &button_chan) {
-		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
-
-		if (msg->type == BUTTON_PRESS_SHORT) {
-			return SMF_EVENT_HANDLED;
-		}
-	}
-#endif /* CONFIG_APP_BUTTON */
-
 	return SMF_EVENT_PROPAGATE;
 }
 
@@ -1165,17 +1143,6 @@ static enum smf_state_result connected_sampling_run(void *o)
 			return SMF_EVENT_HANDLED;
 		}
 	}
-
-#if defined(CONFIG_APP_BUTTON)
-	/* Ignore other sample triggers while sampling */
-	else if (state_object->chan == &button_chan) {
-		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
-
-		if (msg->type == BUTTON_PRESS_SHORT) {
-			return SMF_EVENT_HANDLED;
-		}
-	}
-#endif /* CONFIG_APP_BUTTON */
 
 	else if (state_object->chan == &storage_chan) {
 		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
