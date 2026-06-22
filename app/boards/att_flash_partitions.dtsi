@@ -1,0 +1,165 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ *
+ * Flash layout (flash0, 1 MiB internal):
+ * 0x0000_0000  b0_partition                  ( 32 KiB)  immutable bootloader
+ * 0x0000_8000  s0_partition                  ( 80 KiB)  primary MCUboot
+ * 0x0001_c000  s1_partition                  ( 80 KiB)  secondary MCUboot
+ * 0x0003_0000  slot0_partition (image-0)     (832 KiB)
+ *   0x0003_0000  slot0_s_partition           ( 32 KiB)  TF-M secure
+ *   0x0003_8000  slot0_ns_partition          (800 KiB)  Zephyr/app non-secure
+ *     0x000f_8000  memfault_coredump         ( 16 KiB)  coredump (sub-partition)
+ *     0x000f_c000  trailer (magic + swap)    ( 16 KiB)  MCUboot swap-status region (sub-partition)
+ *
+ * Flash layout (flash_ext, 32 MiB external):
+ * 0x0000_0000  slot1_partition (image-1)     (832 KiB)  matches slot0 for MCUboot swap-move
+ *   0x0000_0000  slot1_s_partition           ( 32 KiB) TF-M secure
+ *   0x0000_8000  slot1_ns_partition          (800 KiB) Zephyr/app non-secure
+ *   0x000c_8000  ( reserved, unused )        ( 32 KiB) no coredump on secondary
+ * 0x000d_0000  fmfu_storage_partition        (  4 MiB) FMFU storage
+ * 0x004d_0000  settings_storage              (  8 KiB) Zephyr settings
+ * 0x004d_2000  littlefs_storage              (  1 MiB) LittleFS storage
+ * 0x005d_2000  external_flash_partition      (~26.2 MiB) free space
+ */
+
+
+
+/ {
+	chosen {
+		zephyr,settings-partition = &settings_storage;
+		nordic,fmfu-storage-partition = &fmfu_storage_partition;
+		nordic,memfault-coredump-partition = &memfault_coredump_partition;
+	};
+
+	fstab {
+		compatible = "zephyr,fstab";
+		lfs1: lfs1 {
+			compatible = "zephyr,fstab,littlefs";
+			mount-point = "/att_storage";
+			partition = <&littlefs_storage>;
+			automount;
+			read-size = <16>;
+			prog-size = <16>;
+			cache-size = <64>;
+			lookahead-size = <32>;
+			block-cycles = <512>;
+		};
+	};
+};
+
+/delete-node/ &slot0_partition;
+
+/delete-node/ &storage_partition;
+
+&flash0 {
+	partitions {
+		ranges;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		b0_partition: partition@0 {
+			compatible = "zephyr,mapped-partition";
+			label = "mcuboot";
+			reg = <0x00000000 0x8000>;
+		};
+
+		s0_partition: partition@8000 {
+			compatible = "zephyr,mapped-partition";
+			label = "mcuboot-0";
+			reg = <0x00008000 0x14000>;
+		};
+
+		s1_partition: partition@1c000 {
+			compatible = "zephyr,mapped-partition";
+			label = "mcuboot-1";
+			reg = <0x0001c000 0x14000>;
+		};
+
+		slot0_partition: partition@30000 {
+			compatible = "zephyr,mapped-partition";
+			label = "image-0";
+			reg = <0x00030000 0xd0000>;
+			ranges = <0x0 0x00030000 0xd0000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			slot0_s_partition: partition@0 {
+				compatible = "zephyr,mapped-partition";
+				label = "image-0-secure";
+				reg = <0x00000000 0x8000>;
+			};
+
+			slot0_ns_partition: partition@8000 {
+				compatible = "zephyr,mapped-partition";
+				label = "image-0-nonsecure";
+				reg = <0x00008000 0xc8000>;
+				ranges = <0x0 0x00008000 0xc8000>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+
+				storage_partition: memfault_coredump_partition: partition@c0000 {
+					compatible = "zephyr,mapped-partition";
+					label = "memfault_coredump_partition";
+					reg = <0xc0000 0x4000>;
+				};
+
+				trailer_partition: partition@f8000 {
+					compatible = "zephyr,mapped-partition";
+					label = "trailer";
+					reg = <0xf8000 0x4000>;
+				};
+			};
+		};
+	};
+};
+
+&flash_ext {
+	status = "okay";
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		slot1_partition: partition@0 {
+			compatible = "fixed-subpartitions";
+			label = "image-1";
+			reg = <0x00000000 0xd0000>;
+			ranges = <0x0 0x00000 0xd0000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			slot1_s_partition: partition@0 {
+				label = "image-1-secure";
+				reg = <0x00000000 0x8000>;
+			};
+
+			slot1_ns_partition: partition@8000 {
+				label = "image-1-nonsecure";
+				reg = <0x00008000 0xc8000>;
+			};
+		};
+
+		fmfu_storage_partition: partition@d0000 {
+			label = "fmfu_storage";
+			reg = <0x000d0000 0x00400000>;
+		};
+
+		settings_storage: partition@4d0000 {
+			label = "settings_storage";
+			reg = <0x004d0000 0x00002000>;
+		};
+
+		littlefs_storage: partition@4d2000 {
+			label = "littlefs_storage";
+			reg = <0x004d2000 0x00100000>;
+		};
+
+		external_flash_partition: partition@5d2000 {
+			label = "external_flash";
+			reg = <0x005d2000 0x01a2e000>;
+		};
+	};
+};

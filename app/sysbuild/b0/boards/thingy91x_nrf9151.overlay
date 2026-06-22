@@ -4,8 +4,11 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#include "../../../dts/thingy91x_prelude.dtsi"
-#include "../../../dts/att_flash_partitions.dtsi"
+/delete-node/ &b0_partition;
+/delete-node/ &s0_partition;
+/delete-node/ &s1_partition;
+/delete-node/ &external_flash_partition;
+#include "../../../boards/att_flash_partitions.dtsi"
 
 /* Give b0 full secure SRAM. */
 &sram0_s {
