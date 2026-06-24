@@ -11,7 +11,7 @@ COPY requirements.txt /work/
 RUN <<EOT
     apt-get -y update
     apt-get -y upgrade
-    apt-get -y install wget libusb-1.0-0 git
+    apt-get -y install wget libusb-1.0-0 git lsof
     apt-get clean
     pip install --no-cache-dir -r requirements.txt
     rm -rf requirements.txt
