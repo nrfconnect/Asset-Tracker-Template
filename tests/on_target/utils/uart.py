@@ -17,6 +17,7 @@ from typing import Union
 
 DEFAULT_UART_TIMEOUT = 60 * 15
 DEFAULT_WAIT_FOR_STR_TIMEOUT = 60 * 10
+_READ_CHUNK_SIZE = 2048
 
 logger = get_logger()
 
@@ -40,6 +41,7 @@ class Uart:
         self.serial_timeout = serial_timeout
         self.log = ""
         self.whole_log = ""
+        self._serial_exception_count = 0
         self._evt = threading.Event()
         self._writeq = queue.Queue()
         self._t = threading.Thread(target=self._uart)
@@ -81,8 +83,29 @@ class Uart:
         except UartLogTimeout:
             logger.error("AT FACTORYRESET failed, continuing")
 
+    def _read_available(self, s: serial.Serial) -> bytes:
+        chunks = []
+        while s.in_waiting:
+            chunks.append(s.read(min(s.in_waiting, _READ_CHUNK_SIZE)))
+        if not chunks:
+            chunk = s.read(1)
+            if chunk:
+                chunks.append(chunk)
+        return b"".join(chunks)
+
+    def _append_lines(self, data: str, line: str) -> str:
+        for ch in data:
+            line += ch
+            if ch != "\n":
+                continue
+            line = line.strip()
+            logger.debug(f"{self.name}: {line}")
+            self.log = self.log + "\n" + line
+            self.whole_log = self.whole_log + "\n" + line
+            line = ""
+        return line
+
     def _uart(self) -> None:
-        data = None
         s = serial.Serial(
             self.uart, baudrate=self.baudrate, timeout=self.serial_timeout
         )
@@ -97,41 +120,20 @@ class Uart:
 
         line = ""
         while not self._evt.is_set():
-            if not self._writeq.empty():
-                try:
-                    write_data, chunked = self._writeq.get_nowait()
-                    if isinstance(write_data, str):
-                        write_data = write_data.encode('utf-8')
-                    if chunked:
-                        # Write in chunks to avoid buffer overflows
-                        chunk_size = 16
-                        chunks = [write_data[i:i + chunk_size] for i in range(0, len(write_data), chunk_size)]
-                        for chunk in chunks:
-                            s.write(chunk)
-                            time.sleep(0.1)
-                    else:
-                        s.write(write_data)
-                    logger.debug(f"UART write {self.name}: {write_data}")
-                except queue.Empty:
-                    pass
-
             try:
-                # Drain the OS serial buffer in one read to keep up with bursty
-                # log output (e.g. FOTA download progress). Reading 1 byte at a
-                # time was slow enough that the kernel buffer would overflow
-                # under load and raise SerialException, dropping log lines.
-                to_read = s.in_waiting or 1
-                read_bytes = s.read(to_read)
-                # Use errors="replace" so a single undecodable byte (e.g. ANSI
-                # escape garbage during a reset) does not discard the rest of
-                # the chunk we just read.
-                data = read_bytes.decode("utf-8", errors="replace")
-            except serial.serialutil.SerialException:
-                logger.error(f"{self.name}: Caught SerialException, restarting")
+                read_bytes = self._read_available(s)
+                if read_bytes:
+                    line = self._append_lines(
+                        read_bytes.decode("utf-8", errors="replace"), line
+                    )
+            except serial.serialutil.SerialException as e:
+                self._serial_exception_count += 1
+                logger.error(
+                    f"{self.name}: SerialException ({e!r}), "
+                    f"count={self._serial_exception_count}, restarting"
+                )
                 s.close()
                 while True:
-                    # Short sleep: minimize the window during which device output
-                    # is lost while we reopen the port.
                     time.sleep(0.2)
                     if self._evt.is_set():
                         return
@@ -147,18 +149,27 @@ class Uart:
                     break
                 continue
 
-            if not data:
+            if s.in_waiting:
                 continue
 
-            for ch in data:
-                line = line + ch
-                if ch != "\n":
-                    continue
-                line = line.strip()
-                logger.debug(f"{self.name}: {line}")
-                self.log = self.log + "\n" + line
-                self.whole_log = self.whole_log + "\n" + line
-                line = ""
+            if not self._writeq.empty():
+                try:
+                    write_data, chunked = self._writeq.get_nowait()
+                    if isinstance(write_data, str):
+                        write_data = write_data.encode('utf-8')
+                    if chunked:
+                        chunk_size = 16
+                        chunks = [write_data[i:i + chunk_size] for i in range(0, len(write_data), chunk_size)]
+                        for chunk in chunks:
+                            s.write(chunk)
+                            time.sleep(0.1)
+                    else:
+                        s.write(write_data)
+                    logger.debug(f"UART write {self.name}: {write_data}")
+                except queue.Empty:
+                    pass
+                except serial.serialutil.SerialException as e:
+                    logger.warning(f"{self.name}: SerialException on write ({e!r})")
         s.close()
 
     def flush(self) -> None:
@@ -297,7 +308,13 @@ class UartBinary(Uart):
 
         while not self._evt.is_set():
             try:
-                data = s.read(8192)
+                chunks = []
+                while s.in_waiting:
+                    chunks.append(s.read(min(s.in_waiting, 8192)))
+                if not chunks:
+                    data = s.read(8192)
+                else:
+                    data = b"".join(chunks)
             except serial.serialutil.SerialException:
                 logger.error("Caught SerialException, restarting")
                 s.close()
