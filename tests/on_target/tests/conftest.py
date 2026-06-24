@@ -91,6 +91,10 @@ def dut_board():
     )
 
     uart_log = uart.whole_log
+    if uart._serial_exception_count:
+        logger.warning(
+            f"UART SerialException count for test: {uart._serial_exception_count}"
+        )
     uart.stop()
     recover_device()
 
