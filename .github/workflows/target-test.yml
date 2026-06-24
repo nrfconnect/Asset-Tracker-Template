@@ -94,7 +94,7 @@ jobs:
       contents: write
       packages: read
     container:
-      image: ghcr.io/nrfconnect/asset-tracker-template:test-docker-v1.0.1
+      image: ghcr.io/nrfconnect/asset-tracker-template:test-docker-v1.0.2
       options: --privileged
       volumes:
         - /dev:/dev:rw
