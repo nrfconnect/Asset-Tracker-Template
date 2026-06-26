@@ -27,4 +27,10 @@ endchoice
 config PARTITION_MANAGER
 	default n
 
+config PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY
+	default n
+
+config PM_OVERRIDE_EXTERNAL_DRIVER_CHECK
+	default n
+
 source "${ZEPHYR_BASE}/share/sysbuild/Kconfig"
