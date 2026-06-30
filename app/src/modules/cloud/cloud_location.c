@@ -214,9 +214,10 @@ static void handle_agnss_request(const struct nrf_modem_gnss_agnss_data_frame *r
 {
 	int err;
 	static char agnss_buf[AGNSS_MAX_DATA_SIZE];
+	struct nrf_modem_gnss_agnss_data_frame agnss_frame = *request;
 	struct nrf_cloud_coap_agnss_request agnss_req = {
 		.type = NRF_CLOUD_COAP_AGNSS_REQ_CUSTOM,
-		.agnss_req = (struct nrf_modem_gnss_agnss_data_frame *)request,
+		.agnss_req = &agnss_frame,
 		.net_info = NULL,
 		.filtered = false,
 		.mask_angle = 0

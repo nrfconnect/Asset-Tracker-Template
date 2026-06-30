@@ -144,7 +144,7 @@ static void verify_partition_size(void)
 		size_t max_file_size = type->data_size * RECORDS_PER_TYPE;
 		size_t block_size = stat.f_frsize;
 
-		necessary_blocks += (int)ceil((double)max_file_size / block_size);
+		necessary_blocks += (int)ceil((double)max_file_size / (double)block_size);
 	}
 	/* 2 metadata blocks + CoW block */
 	necessary_blocks += 2 + 1;
@@ -700,7 +700,7 @@ static int read_data_entry(const struct storage_data *type, void *data, size_t s
 		return ret;
 	}
 
-	read_bytes = fs_read(&file, data != NULL ? data : temp_buffer, type->data_size);
+	read_bytes = (int)fs_read(&file, data != NULL ? data : temp_buffer, type->data_size);
 	if (read_bytes < 0) {
 		LOG_ERR("Failed to read data: %d", read_bytes);
 		fs_close(&file);
