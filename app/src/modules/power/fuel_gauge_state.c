@@ -60,7 +60,7 @@ int fuel_gauge_state_save(void)
 		return err;
 	}
 
-	fuel_gauge_noinit.size = state_size;
+	fuel_gauge_noinit.size = (uint32_t)state_size;
 	fuel_gauge_noinit.magic = FUEL_GAUGE_MAGIC;
 
 	return 0;

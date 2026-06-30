@@ -490,7 +490,7 @@ static void send_batch_available_response(uint32_t session_id, size_t item_count
  * @return -ENODATA if no items are available across all types
  * @return -EIO on peek or pipe write error
  */
-static int populate_pipe(struct storage_state *state_object)
+static int populate_pipe(const struct storage_state *state_object)
 {
 	const struct storage_backend *backend = storage_backend_get();
 
