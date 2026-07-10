@@ -199,6 +199,26 @@ static void gnss_location_work_handler(struct k_work *work)
 
 /* Helper functions */
 
+static void configure_periodic_search(void) {
+	struct lte_lc_periodic_search_cfg search_cfg = { 0 };
+
+	search_cfg.pattern_count = 1;
+	search_cfg.loop = true;
+	search_cfg.return_to_pattern = 0;
+	search_cfg.band_optimization = 0;
+
+	search_cfg.patterns[0].type = LTE_LC_PERIODIC_SEARCH_PATTERN_TABLE;
+	search_cfg.patterns[0].table.val_1 = 2;
+	search_cfg.patterns[0].table.val_2 = -1;
+	search_cfg.patterns[0].table.val_3 = -1;
+	search_cfg.patterns[0].table.val_4 = -1;
+	search_cfg.patterns[0].table.val_5 = -1;
+
+	lte_lc_periodic_search_set(&search_cfg);
+
+	return;
+}
+
 static int set_ntn_offline_mode(void)
 {
 	int err;
@@ -219,6 +239,14 @@ static int configure_ntn_channel_select(void)
 {
 	int err;
 
+#if defined(CONFIG_APP_NTN_IRIDIUM)
+	err = nrf_modem_at_printf("AT%%FREQRANGES=1,7,,1,\"%i\",\"\"",
+				  CONFIG_APP_NTN_CHANNEL_SELECT);
+	if (err) {
+		LOG_ERR("Failed to set NTN channel using AT%%FREQRANGES, error: %d", err);
+		return err;
+	}
+#else
 	err = nrf_modem_at_printf("AT%%CHSELECT=2,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
 	if (err == 0) {
 		return 0;
@@ -244,6 +272,7 @@ static int configure_ntn_channel_select(void)
 	}
 
 	LOG_INF("Configured NTN channel using AT%%FREQRANGES fallback");
+#endif
 
 	return 0;
 }
@@ -292,12 +321,21 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	}
 
 	/* Configure NTN system mode */
+#if defined(CONFIG_APP_NTN_IRIDIUM)
+	err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,0,0,0,1");
+	if (err) {
+		LOG_ERR("Failed to set XSYSTEMMODE=0,0,0,0,0,1, error: %d", err);
+
+	return err;
+	}
+#else
 	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
 	if (err) {
 		LOG_ERR("Failed to set NTN system mode, error: %d", err);
 
 		return err;
 	}
+#endif
 
 	err = ntn_location_set((double)state->last_pvt.latitude,
 				       (double)state->last_pvt.longitude,
@@ -310,22 +348,24 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	}
 
 #if defined(CONFIG_APP_NTN_BANDLOCK_ENABLE)
-		err = nrf_modem_at_printf("AT%%XBANDLOCK=2,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
-		if (err) {
-			LOG_ERR("Failed to set NTN band lock, error: %d", err);
+	err = nrf_modem_at_printf("AT%%XBANDLOCK=2,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
+	if (err) {
+		LOG_ERR("Failed to set NTN band lock, error: %d", err);
 
-			return err;
-		}
+		return err;
+	}
 #endif
 
 #if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
-		err = configure_ntn_channel_select();
-		if (err) {
-			LOG_ERR("Failed to set NTN channel, error: %d", err);
+	err = configure_ntn_channel_select();
+	if (err) {
+		LOG_ERR("Failed to set NTN channel, error: %d", err);
 
-			return err;
-		}
+		return err;
+	}
 #endif
+
+	configure_periodic_search();
 
 	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
 	if (err) {
@@ -633,12 +673,21 @@ static void state_running_entry(void *obj)
 		.uicc = LTE_LC_UICC_PHYSICAL,
 	};
 
+#if defined(CONFIG_APP_NTN_IRIDIUM)
+	err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,0,8,0");
+		if (err) {
+			LOG_ERR("Failed to set CELLULARPRFL=2,0,8,0, error: %d", err);
+
+			return;
+		}
+#else
 	err = lte_lc_cellular_profile_configure(&ntn_profile);
 	if (err) {
 		LOG_ERR("Failed to set NTN profile, error: %d", err);
 
 		return;
 	}
+#endif
 
 	err = lte_lc_cellular_profile_configure(&tn_profile);
 	if (err) {
@@ -832,7 +881,7 @@ static enum smf_state_result state_ntn_run(void *obj)
 		 * It may take 10s to send data in NTN.
 		 * k_sleep is added as intermediate solution
 		 */
-		k_sleep(K_MSEC(20000));
+		k_sleep(K_MSEC(60000));
 
 		smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
@@ -859,7 +908,7 @@ static void state_ntn_exit(void *obj)
 
 	err = set_ntn_offline_mode();
 	if (err) {
-		LOG_ERR("Failed to set NTN dormant mode, error: %d", err);
+		LOG_ERR("Failed to set NTN offline mode, error: %d", err);
 	}
 }
 

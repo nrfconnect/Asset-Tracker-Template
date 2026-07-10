@@ -93,6 +93,11 @@ config APP_NTN_THINGY_ROCKS_ENDPOINT
 	help
 	  Use world.thingy.rocks endpoint.
 
+config APP_NTN_IRIDIUM
+	bool "Iridium network"
+	help
+	  Iridium network.
+
 module = APP_NTN
 module-str = NTN
 source "subsys/logging/Kconfig.template.log_config"
