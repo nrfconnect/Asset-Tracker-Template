@@ -105,10 +105,17 @@
 					reg = <0xc0000 0x4000>;
 				};
 
-				trailer_partition: partition@f8000 {
+				/*
+				 * MCUboot computes its trailer offset from the end of
+				 * slot0_partition (flash_area size - boot_trailer_sz()); it
+				 * never reads this node. This partition exists purely to mark
+				 * that region as reserved in the layout. 16 KiB is reserved for
+				   the trailer, actual size may be smaller (typically ~ 6 KiB).
+				 */
+				trailer_partition: partition@c4000 {
 					compatible = "zephyr,mapped-partition";
 					label = "trailer";
-					reg = <0xf8000 0x4000>;
+					reg = <0xc4000 0x4000>;
 				};
 			};
 		};
