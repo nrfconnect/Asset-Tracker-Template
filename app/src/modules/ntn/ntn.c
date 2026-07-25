@@ -19,6 +19,9 @@
 #include <nrf_modem_gnss.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/net/socket.h>
+#include <sys/socket.h>   /* socket(), connect(), send() */
+#include <arpa/inet.h>    /* inet_pton() */
+#include <unistd.h>       /* close() */
 #include <zephyr/sys/timeutil.h>
 #include <errno.h>
 #include <time.h>
