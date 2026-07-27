@@ -5,6 +5,7 @@
  */
 #include <unity.h>
 #include <zephyr/fff.h>
+#include <zephyr/sys/__assert.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/logging/log.h>
@@ -16,6 +17,16 @@
 #include "network.h"
 
 LOG_MODULE_REGISTER(network_module_test, 4);
+
+static K_SEM_DEFINE(assert_triggered_sem, 0, 1);
+
+void assert_post_action(const char *file, unsigned int line)
+{
+	ARG_UNUSED(file);
+	ARG_UNUSED(line);
+
+	k_sem_give(&assert_triggered_sem);
+}
 
 DEFINE_FFF_GLOBALS;
 
@@ -33,6 +44,21 @@ FAKE_VALUE_FUNC(int, lte_lc_system_mode_set, enum lte_lc_system_mode,
 FAKE_VALUE_FUNC(int, lte_lc_offline);
 FAKE_VALUE_FUNC(int, lte_lc_connect_async, lte_lc_evt_handler_t);
 FAKE_VALUE_FUNC(int, lte_lc_pdn_default_ctx_events_enable);
+FAKE_VALUE_FUNC(int, __wrap_k_work_submit, struct k_work *);
+FAKE_VALUE_FUNC(int, nrf_modem_lib_trace_processing_done_wait, k_timeout_t);
+FAKE_VALUE_FUNC(const char *, nrf_modem_lib_fault_strerror, int);
+
+static int k_work_submit_to_sys_queue_fake(struct k_work *work)
+{
+	return k_work_submit_to_queue(&k_sys_work_q, work);
+}
+
+static int k_work_submit_noop_fake(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	return 0;
+}
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(test_subscriber);
 ZBUS_CHAN_ADD_OBS(network_chan, test_subscriber, 0);
@@ -265,7 +291,17 @@ void setUp(void)
 	RESET_FAKE(lte_lc_system_mode_set);
 	RESET_FAKE(lte_lc_register_handler);
 	RESET_FAKE(nrf_modem_lib_init);
+	RESET_FAKE(__wrap_k_work_submit);
+	RESET_FAKE(nrf_modem_lib_trace_processing_done_wait);
+	RESET_FAKE(nrf_modem_lib_fault_strerror);
+	nrf_modem_lib_trace_processing_done_wait_fake.return_val = 0;
+	nrf_modem_lib_fault_strerror_fake.return_val = "NRF_MODEM_FAULT_HARDFAULT";
 
+	__wrap_k_work_submit_fake.custom_fake = k_work_submit_to_sys_queue_fake;
+
+	/* Drain stale assert notifications from prior tests. */
+	while (k_sem_take(&assert_triggered_sem, K_NO_WAIT) == 0) {
+	}
 
 	date_time_now_fake.custom_fake = date_time_now_custom_fake;
 	lte_lc_register_handler_fake.custom_fake = lte_lc_register_handler_custom_fake;
@@ -553,6 +589,80 @@ void test_connect_from_idle(void)
 	/* Verify we eventually connect */
 	wait_for_and_check_msg(&msg_rx, NETWORK_CONNECTED);
 	TEST_ASSERT_EQUAL(NETWORK_CONNECTED, msg_rx.type);
+}
+
+void test_modem_fault_all_fault_reasons(void)
+{
+	static const uint32_t fault_reasons[] = {
+		NRF_MODEM_FAULT_UNDEFINED,
+		NRF_MODEM_FAULT_HW_WD_RESET,
+		NRF_MODEM_FAULT_HARDFAULT,
+		NRF_MODEM_FAULT_MEM_MANAGE,
+		NRF_MODEM_FAULT_BUS,
+		NRF_MODEM_FAULT_USAGE,
+		NRF_MODEM_FAULT_SECURE_RESET,
+		NRF_MODEM_FAULT_PANIC_DOUBLE,
+		NRF_MODEM_FAULT_PANIC_RESET_LOOP,
+		NRF_MODEM_FAULT_ASSERT,
+		NRF_MODEM_FAULT_PANIC,
+		NRF_MODEM_FAULT_FLASH_ERASE,
+		NRF_MODEM_FAULT_FLASH_WRITE,
+		NRF_MODEM_FAULT_POFWARN,
+		NRF_MODEM_FAULT_THWARN,
+		0xdeadbeef,
+	};
+	struct nrf_modem_fault_info fault = {
+		.program_counter = 0x12345678,
+	};
+
+	__wrap_k_work_submit_fake.custom_fake = k_work_submit_noop_fake;
+
+	for (size_t i = 0; i < ARRAY_SIZE(fault_reasons); i++) {
+		fault.reason = fault_reasons[i];
+		nrf_modem_fault_handler(&fault);
+	}
+
+	TEST_ASSERT_EQUAL(ARRAY_SIZE(fault_reasons), __wrap_k_work_submit_fake.call_count);
+}
+
+void test_modem_fault_work_submit_failure(void)
+{
+	int err;
+	struct nrf_modem_fault_info fault = {
+		.reason = NRF_MODEM_FAULT_HARDFAULT,
+		.program_counter = 0x12345678,
+	};
+
+	__wrap_k_work_submit_fake.custom_fake = NULL;
+	__wrap_k_work_submit_fake.return_val = -EINVAL;
+
+	nrf_modem_fault_handler(&fault);
+
+	/* SEND_FATAL_ERROR() is called directly when work submission fails. */
+	err = k_sem_take(&assert_triggered_sem, K_SECONDS(20));
+	TEST_ASSERT_EQUAL(0, err);
+}
+
+void test_modem_fault_handler(void)
+{
+	int err;
+	struct nrf_modem_fault_info fault = {
+		.reason = NRF_MODEM_FAULT_HARDFAULT,
+		.program_counter = 0x12345678,
+	};
+
+	__wrap_k_work_submit_fake.custom_fake = k_work_submit_to_sys_queue_fake;
+
+	nrf_modem_fault_handler(&fault);
+
+	/* Wait for the deferred work to run and SEND_FATAL_ERROR() to assert.
+	 * Worst case: 5s trace flush + 10s sleep in SEND_FATAL_ERROR().
+	 */
+	err = k_sem_take(&assert_triggered_sem, K_SECONDS(20));
+	TEST_ASSERT_EQUAL(0, err);
+#if defined(CONFIG_NRF_MODEM_LIB_TRACE)
+	TEST_ASSERT_EQUAL(1, nrf_modem_lib_trace_processing_done_wait_fake.call_count);
+#endif
 }
 
 /* This is required to be added to each test. That is because unity's
