@@ -1,9 +1,11 @@
 #!/bin/bash
 
+set -euo pipefail
+
 # Define paths
-BUILD_LOG=$1
-ROM_REPORT=$2
-RAM_REPORT=$3
+BUILD_LOG=${1:-}
+ROM_REPORT=${2:-}
+RAM_REPORT=${3:-}
 
 FLASH_BADGE_FILE_DEST=docs/flash_badge.json
 RAM_BADGE_FILE_DEST=docs/ram_badge.json
@@ -16,15 +18,15 @@ RAM_REPORT_DEST=docs/ram_report_thingy91x.html
 
 
 if [ -z "$BUILD_LOG" ] || [ -z "$ROM_REPORT" ] || [ -z "$RAM_REPORT" ]; then
-    echo "Error: Missing required arguments"
-    echo "Usage: $0 <build_log> <rom_report> <ram_report>"
-    exit 0
+    echo "Error: Missing required arguments" >&2
+    echo "Usage: $0 <build_log> <rom_report> <ram_report>" >&2
+    exit 1
 fi
 
 # Function to handle errors
 handle_error() {
-    echo "Error: $1"
-    exit 0
+    echo "Error: $1" >&2
+    exit 1
 }
 
 # Temporary worktree directory
