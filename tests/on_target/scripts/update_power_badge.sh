@@ -28,18 +28,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Check if files exist
-if [ ! -f "$BADGE_FILE" ]; then
-  echo "Error: Badge file not found: $BADGE_FILE" >&2
-  exit 1
-fi
-if [ ! -f "$HTML_FILE" ]; then
-  echo "Error: HTML file not found: $HTML_FILE" >&2
-  exit 1
-fi
-if [ ! -f "$CSV_FILE" ]; then
-  echo "Error: CSV file not found: $CSV_FILE" >&2
-  exit 1
+# Check if measurement artifacts exist (generated before pytest asserts on thresholds).
+# Missing files means the test failed early; skip publish without masking the test failure.
+if [ ! -f "$BADGE_FILE" ] || [ ! -f "$HTML_FILE" ] || [ ! -f "$CSV_FILE" ]; then
+  echo "Power measurement artifacts not found; skipping gh-pages publish" >&2
+  exit 0
 fi
 
 # Configure Git
