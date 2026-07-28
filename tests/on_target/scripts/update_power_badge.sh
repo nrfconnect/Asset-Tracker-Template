@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Exit on error
-set -e
+set -euo pipefail
 
 # Define paths to files to be committed
 BADGE_FILE=tests/on_target/power_badge.json
@@ -12,14 +11,14 @@ BADGE_FILE_DEST=docs/power_badge.json
 HTML_FILE_DEST=docs/power_measurements_plot.html
 CSV_FILE_DEST=docs/power_measurements.csv
 
-# Temporary worktree directory
-WORKTREE_DIR=$(mktemp -d)
-
 # Function to handle errors
 handle_error() {
-    echo "Error: $1"
-    exit 0
+    echo "Error: $1" >&2
+    exit 1
 }
+
+# Temporary worktree directory
+WORKTREE_DIR=$(mktemp -d)
 
 # Function to cleanup on exit
 cleanup() {
@@ -30,17 +29,17 @@ cleanup() {
 trap cleanup EXIT
 
 # Check if files exist
-if [ ! -f $BADGE_FILE ]; then
-  echo "Badge file not found: $BADGE_FILE"
-  exit 0
+if [ ! -f "$BADGE_FILE" ]; then
+  echo "Error: Badge file not found: $BADGE_FILE" >&2
+  exit 1
 fi
-if [ ! -f $HTML_FILE ]; then
-  echo "HTML file not found: $HTML_FILE"
-  exit 0
+if [ ! -f "$HTML_FILE" ]; then
+  echo "Error: HTML file not found: $HTML_FILE" >&2
+  exit 1
 fi
-if [ ! -f $CSV_FILE ]; then
-  echo "CSV file not found: $CSV_FILE"
-  exit 0
+if [ ! -f "$CSV_FILE" ]; then
+  echo "Error: CSV file not found: $CSV_FILE" >&2
+  exit 1
 fi
 
 # Configure Git
