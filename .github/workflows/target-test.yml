@@ -191,7 +191,7 @@ jobs:
           MCUBOOT_BUNDLEID: ${{ vars.MCUBOOT_BUNDLEID }}
 
       - name: Generate and Push Power Badge
-        if: ${{ always() && matrix.device == 'ppk_thingy91x' }}
+        if: ${{ success() && matrix.device == 'ppk_thingy91x' }}
         working-directory: asset-tracker-template
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
