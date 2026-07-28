@@ -29,13 +29,17 @@ handle_error() {
     exit 1
 }
 
-# Temporary worktree directory
+# Temporary directories
 WORKTREE_DIR=$(mktemp -d)
+TEMP_DIR=$(mktemp -d)
 
 # Function to cleanup on exit
 cleanup() {
     if [ -d "$WORKTREE_DIR" ]; then
         git worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
+    fi
+    if [ -d "$TEMP_DIR" ]; then
+        rm -rf "$TEMP_DIR"
     fi
 }
 trap cleanup EXIT
@@ -44,9 +48,6 @@ trap cleanup EXIT
 git config --global --add safe.directory "$(pwd)"
 git config --global user.email "github-actions@github.com"
 git config --global user.name "GitHub Actions"
-
-# Create a temporary directory for processing files
-TEMP_DIR=$(mktemp -d)
 
 # Fetch the latest gh-pages branch
 git fetch origin gh-pages
@@ -95,8 +96,5 @@ git add $FLASH_BADGE_FILE_DEST $RAM_BADGE_FILE_DEST \
     $ROM_REPORT_DEST $RAM_REPORT_DEST
 git commit -m "Update memory usage badges"
 git push origin gh-pages
-
-# Clean up temp directory
-rm -rf "$TEMP_DIR"
 
 echo "Successfully updated gh-pages branch"
