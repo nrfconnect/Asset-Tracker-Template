@@ -220,7 +220,6 @@ jobs:
 
       - name: Generate Memory Reports and Visualizations
         if: ${{ inputs.push_memory_badges }}
-        continue-on-error: true
         working-directory: asset-tracker-template
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

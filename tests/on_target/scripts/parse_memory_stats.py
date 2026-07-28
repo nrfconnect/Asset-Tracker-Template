@@ -31,12 +31,15 @@ def parse_memory_stats(log_file, output_dir=None):
     with open(log_file, 'r') as f:
         content = f.read()
 
-    # Find memory stats that are followed by the app build path
-    pattern = r'Memory region\s+Used Size\s+Region Size\s+%age Used\s+' \
-             r'FLASH:\s+(\d+)\s+B\s+(\d+)\s+KB\s+(\d+\.\d+)%\s+' \
-             r'RAM:\s+(\d+)\s+B\s+(\d+)\s+B\s+(\d+\.\d+)%\s+' \
-             r'IDT_LIST:.*?\s+' \
-             r'Generating files from .*?/app/build/app/zephyr/zephyr\.elf for board: thingy91x'
+    # Find memory stats for the main app image (not mcuboot/b0/etc.)
+    pattern = (
+        r'Memory region\s+Used Size\s+Region Size\s+%age Used\s+'
+        r'FLASH:\s+(\d+)\s+B\s+(\d+)\s+B\s+(\d+\.\d+)%\s+'
+        r'RAM:\s+(\d+)\s+B\s+(\d+)\s+B\s+(\d+\.\d+)%\s+'
+        r'IDT_LIST:.*?\s+'
+        r'Generating files from .*?/app/build/app/zephyr/zephyr\.elf '
+        r'for board: thingy91x/nrf9151/ns'
+    )
 
     match = re.search(pattern, content)
     if not match:
@@ -44,7 +47,7 @@ def parse_memory_stats(log_file, output_dir=None):
         sys.exit(1)
 
     flash_used = int(match.group(1))
-    flash_total = int(match.group(2)) * 1024  # Convert KB to B
+    flash_total = int(match.group(2))
     flash_percent = float(match.group(3))
 
     ram_used = int(match.group(4))
