@@ -37,7 +37,7 @@ def parse_memory_stats(log_file, output_dir=None):
         r'FLASH:\s+(\d+)\s+B\s+(\d+)\s+B\s+(\d+\.\d+)%\s+'
         r'RAM:\s+(\d+)\s+B\s+(\d+)\s+B\s+(\d+\.\d+)%\s+'
         r'IDT_LIST:.*?\s+'
-        r'Generating files from .*?/app/build/app/zephyr/zephyr\.elf '
+        r'Generating files from .*?/app/build/app/zephyr/zephyr\.elf\s+'
         r'for board: thingy91x/nrf9151/ns'
     )
 
