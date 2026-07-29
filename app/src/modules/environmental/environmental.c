@@ -178,6 +178,10 @@ static void env_module_thread(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_ENVIRONMENTAL_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
+	/* Place state object in .data section to ensure it is captured in coredumps
+	 * and can be inspected by external tools during state analysis.
+	 */
+	__attribute__((section(".data")))
 	static struct environmental_state_object environmental_state = {
 		.bme680 = DEVICE_DT_GET(DT_NODELABEL(bme680)),
 	};
