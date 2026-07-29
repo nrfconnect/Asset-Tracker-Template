@@ -981,9 +981,12 @@ static void storage_thread(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_STORAGE_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	static struct storage_state storage_state;
-
-	storage_state.buffer_threshold_limit = CONFIG_APP_STORAGE_INITIAL_THRESHOLD;
+	/* Place state object in .data section to ensure it is captured in coredumps
+	 * and can be inspected by external tools during state analysis.
+	 */
+	__attribute__((section(".data"))) static struct storage_state storage_state = {
+		.buffer_threshold_limit = CONFIG_APP_STORAGE_INITIAL_THRESHOLD,
+	};
 
 	LOG_DBG("Storage module task started");
 

@@ -603,7 +603,10 @@ static void power_module_thread(void)
 	const uint32_t execution_time_ms =
 		(CONFIG_APP_POWER_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
-	static struct power_state_object power_state = {
+	/* Place state object in .data section to ensure it is captured in coredumps
+	 * and can be inspected by external tools during state analysis.
+	 */
+	__attribute__((section(".data"))) static struct power_state_object power_state = {
 		.charger = DEVICE_DT_GET(DT_NODELABEL(npm1300_charger)),
 	};
 	int32_t chg_status;

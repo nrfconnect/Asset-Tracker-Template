@@ -443,6 +443,25 @@ backoff_time        : 60 (0x3C)
 ----------------------------------------
 ```
 
+#### Memory Section Placement for State Objects
+
+All module state objects (main, cloud, location, network, storage) are explicitly placed in the `.data` section of memory using the `__attribute__((section(".data")))` compiler attribute:
+
+```c
+/* Place state object in .data section to ensure it is captured in coredumps
+ * and can be inspected by external tools during state analysis. */
+__attribute__((section(".data"))) static struct main_state main_state = {
+    .sample_interval_sec = CONFIG_APP_SAMPLING_INTERVAL_SECONDS,
+    .storage_threshold = CONFIG_APP_STORAGE_INITIAL_THRESHOLD,
+    .first_sample_pending = true,
+};
+```
+
+By default, Memfault coredumps do not include the `.bss` section.
+Without explicit initialization or attribute placement in the `.data` section, state objects would be placed in `.bss` by the compiler and would not appear in coredumps.
+By placing these objects in `.data`, they are captured in Memfault coredumps and can be inspected by the `inspect_state.py` script when analyzing crashes after the fact.
+This ensures that even in post-mortem debugging scenarios where the device is not under a live debugger, you can still access the complete state of all module state machines at the time of the crash or event.
+
 ## Memfault Remote Debugging
 
 Memfault is enabled by default in all standard firmware builds. Once a device is provisioned to nRF Cloud, it automatically forwards coredumps, LTE and location metrics, and other diagnostic data to the Memfault project linked to your account via nRF Cloud CoAP.
