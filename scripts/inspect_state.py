@@ -190,6 +190,9 @@ MODULES = [
 SMF_STATE_SIZE_DEFAULT = 20
 DW_OP_ADDR = 0x03
 
+# Global mapping of channel addresses to channel names
+CHANNEL_MAP: Dict[int, str] = {}
+
 
 # --- DWARF Parsing Helpers ---
 
@@ -210,6 +213,22 @@ def _extract_address_from_location(die: DIE) -> Optional[int]:
     if loc and len(loc.value) > 0 and loc.value[0] == DW_OP_ADDR:
         return int.from_bytes(loc.value[1:], byteorder='little')
     return None
+
+
+def extract_channel_symbols(elffile: Any) -> Dict[int, str]:
+    """Extracts all zbus channel symbols and their addresses from the ELF symbol table."""
+    channel_map: Dict[int, str] = {}
+
+    try:
+        symtab = elffile.get_section_by_name('.symtab')
+        if symtab:
+            for sym in symtab.iter_symbols():
+                if sym.name.endswith('_chan') and sym['st_value'] != 0:
+                    channel_map[sym['st_value']] = sym.name
+    except Exception: # pylint: disable=broad-except
+        pass
+
+    return channel_map
 
 
 class TypeParser:
@@ -392,6 +411,8 @@ def get_symbol_info(dwarfinfo: Any, config: ModuleConfig) -> SymbolInfo:
 
 def analyze_elf(elf_path: Path) -> Dict[str, SymbolInfo]:
     """Parses the ELF file to extract symbol information."""
+    global CHANNEL_MAP  # pylint: disable=global-statement
+
     logger.info(f"Parsing ELF: {elf_path}")
     lookup: Dict[str, SymbolInfo] = {}
 
@@ -403,6 +424,9 @@ def analyze_elf(elf_path: Path) -> Dict[str, SymbolInfo]:
                 return {}
 
             dwarfinfo = elffile.get_dwarf_info()
+
+            # Extract all channel symbols for later resolution
+            CHANNEL_MAP = extract_channel_symbols(elffile)
 
             for module in MODULES:
                 # logger.debug(f"Looking up symbols for {module.name}...")
@@ -447,7 +471,7 @@ def read_smf_state_name(jlink, info: SymbolInfo, current_state_ptr: int) -> str:
     return f"0x{current_state_ptr:X}"
 
 
-def read_value(jlink, address: int, type_info: TypeInfo, indent: int = 0) -> str:
+def read_value(jlink, address: int, type_info: TypeInfo, member_name: Optional[str] = None, indent: int = 0) -> str:
     """Reads and formats a value from memory based on its type."""
     # prefix = " " * indent
     # Unused for now, but kept for future recursive printing if needed
@@ -481,6 +505,10 @@ def read_value(jlink, address: int, type_info: TypeInfo, indent: int = 0) -> str
 
             if val == 0:
                 return "NULL"
+
+            # Check if this is a channel pointer and resolve to name
+            if member_name == "chan" and val in CHANNEL_MAP:
+                return f"{CHANNEL_MAP[val]} (0x{val:08X})"
 
             return f"0x{val:08X}"
 
@@ -543,7 +571,7 @@ def print_struct(jlink, address: int, struct_type: StructType, info: SymbolInfo,
             except Exception: # pylint: disable=broad-except
                 pass
 
-        val_str = read_value(jlink, member_addr, member.type_info)
+        val_str = read_value(jlink, member_addr, member.type_info, member.name)
 
         # Optionally expand nested structs if they are small or interesting?
         # For now, let's keep it flat unless the user drills down, but since this IS the drill down...
