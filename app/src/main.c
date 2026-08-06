@@ -36,6 +36,10 @@
 #include "power.h"
 #endif /* CONFIG_APP_POWER */
 
+BUILD_ASSERT(CONFIG_APP_WATCHDOG_TIMEOUT_SECONDS >
+	     CONFIG_APP_MSG_PROCESSING_TIMEOUT_SECONDS,
+	     "Watchdog timeout must be greater than maximum message processing time");
+
 /* Register log module */
 LOG_MODULE_REGISTER(main, 4);
 
