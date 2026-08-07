@@ -18,6 +18,10 @@ MEMFAULT_PROJ = os.getenv('MEMFAULT_PROJECT_SLUG')
 UUID = os.getenv('UUID')
 MEMFAULT_TIMEOUT = 5 * 60
 
+# Thread name to suspend to trigger a wdt timeout and coredump.
+# "storage_thread_id" is the thread with the shortest watchdog timeout
+STALING_THREAD_NAME = "storage_thread_id"
+
 logger = get_logger()
 
 url = "https://api.memfault.com/api/v0"
@@ -109,8 +113,16 @@ def test_memfault(dut_board, debug_hex_file):
     # Wait for some time to ensure that the UUID has been stored to the modem trace
     time.sleep(60)
 
-    # Trigger usage fault to generate coredump
-    dut_board.uart.write("mflt test usagefault\r\n")
+    # Capture thread id to suspend
+    dut_board.uart.write("kernel thread list\r\n")
+    groups = dut_board.uart.wait_for_str_re(
+        r"(0x[0-9a-fA-F]+)\s"+STALING_THREAD_NAME+r"\s+.*",
+        timeout=60,
+    )
+    thread_id = groups[0]  # e.g. "0x200077e8"
+
+    # Suspend the thread to trigger a watchdog timeout and generate a coredump
+    dut_board.uart.write(f"kernel thread suspend {thread_id}\r\n")
 
     # Wait for upload to be reported to memfault api
     start = time.time()
