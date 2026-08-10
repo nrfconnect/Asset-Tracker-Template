@@ -276,7 +276,8 @@ static int read_storage_file_header(const struct storage_data *type,
  * @return int 0 on success, negative errno on failure
  */
 static int write_storage_file_header(const struct storage_data *type,
-				     const struct storage_file_header *header)
+				     const struct storage_file_header *header,
+				     bool do_sync)
 {
 	int idx;
 	int ret;
@@ -304,11 +305,13 @@ static int write_storage_file_header(const struct storage_data *type,
 		return ret;
 	}
 
-	ret = fs_sync(&type_state[idx].header_file);
-	if (ret < 0) {
-		LOG_ERR("Failed to sync header file for %s: %d", type->name, ret);
+	if (do_sync) {
+		ret = fs_sync(&type_state[idx].header_file);
+		if (ret < 0) {
+			LOG_ERR("Failed to sync header file for %s: %d", type->name, ret);
 
-		return ret;
+			return ret;
+		}
 	}
 
 	return 0;
@@ -594,14 +597,17 @@ static int lfs_storage_store(const struct storage_data *type, const void *data, 
 		return ret;
 	}
 
-	/* Update header */
+	/* Update header.
+	 * Must sync: write_offset must survive a crash so newly stored items
+	 * are not silently lost.
+	 */
 	header.write_offset += 1;
 	if (was_full) {
 		header.read_offset += 1;
 		LOG_WRN("Storage full for type %s, overwriting oldest data", type->name);
 	}
 
-	ret = write_storage_file_header(type, &header);
+	ret = write_storage_file_header(type, &header, true);
 	if (ret < 0) {
 		LOG_ERR("Failed to update storage file header: %d", ret);
 
@@ -715,11 +721,14 @@ static int read_data_entry(const struct storage_data *type, void *data, size_t s
 		return ret;
 	}
 
-	/* Update header if requested */
+	/* Update header if requested.
+	 * Skip fs_sync here, a lost read_offset update on crash is acceptable
+	 * (items are re-sent, not lost).
+	 */
 	if (update_offset) {
 		header.read_offset += 1;
 
-		ret = write_storage_file_header(type, &header);
+		ret = write_storage_file_header(type, &header, false);
 		if (ret < 0) {
 			LOG_ERR("Failed to update storage file header: %d", ret);
 
