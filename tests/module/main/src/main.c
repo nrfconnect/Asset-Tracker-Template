@@ -367,9 +367,13 @@ void test_long_button_press_connected(void)
 {
 	connect_to_cloud();
 
-	/* Long button press should trigger sending start and cloud poll */
+	/* Long button press should trigger sending start */
 	send_button_press_long();
 	expect_storage_event(STORAGE_BATCH_REQUEST);
+
+	/* Cloud/FOTA poll fires after the batch closes */
+	send_storage_batch_close();
+	expect_storage_event(STORAGE_BATCH_CLOSE);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
 }
@@ -378,10 +382,14 @@ void test_threshold_reached_connected(void)
 {
 	connect_to_cloud();
 
-	/* Threshold reached should trigger sending start and cloud poll */
+	/* Threshold reached should trigger sending start */
 	send_storage_threshold_reached();
 	expect_storage_event(STORAGE_THRESHOLD_REACHED);
 	expect_storage_event(STORAGE_BATCH_REQUEST);
+
+	/* Cloud/FOTA poll fires after the batch closes */
+	send_storage_batch_close();
+	expect_storage_event(STORAGE_BATCH_CLOSE);
 	expect_fota_event(FOTA_POLL_REQUEST);
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
 }
@@ -414,14 +422,13 @@ void test_threshold_reached_disconnected(void)
 
 	/* Connection after threshold reached should trigger immediate sending */
 	connect_to_cloud();
-	/* Expect events from connected_sending_entry -> cloud_send_now() */
 	expect_storage_event(STORAGE_BATCH_REQUEST);
-	expect_fota_event(FOTA_POLL_REQUEST);
-	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
 
-	/* Complete the send cycle to transition to STATE_CONNECTED_WAITING */
+	/* Cloud/FOTA poll fires after the batch closes */
 	send_storage_batch_close();
 	expect_storage_event(STORAGE_BATCH_CLOSE);
+	expect_fota_event(FOTA_POLL_REQUEST);
+	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
 }
 
 void test_fota_state_ignores_events_until_aborted(void)
@@ -501,18 +508,18 @@ void test_no_sampling_during_cloud_send(void)
 	/* Trigger cloud send */
 	send_button_press_long();
 	expect_storage_event(STORAGE_BATCH_REQUEST);
-	expect_fota_event(FOTA_POLL_REQUEST);
-	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
 
-	/* Try to trigger sampling */
+	/* Try to trigger sampling during an active send */
 	send_button_press_short();
 
 	/* Nothing should happen */
 	expect_no_events(500);
 
-	/* Close batch to signal send completion */
+	/* Close batch to signal send completion, polls fire after */
 	send_storage_batch_close();
 	expect_storage_event(STORAGE_BATCH_CLOSE);
+	expect_fota_event(FOTA_POLL_REQUEST);
+	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
 }
 
 void test_config_change(void)
