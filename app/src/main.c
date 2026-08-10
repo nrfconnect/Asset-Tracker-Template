@@ -515,11 +515,10 @@ static void storage_send_data(struct main_state *state_object)
 	}
 }
 
-/* Send stored data now, poll cloud/FOTA, and restart cloud send timer */
+/* Send stored data now */
 static void cloud_send_now(struct main_state *state_object)
 {
 	storage_send_data(state_object);
-	poll_triggers_send();
 
 #if defined(CONFIG_APP_LED)
 	int err;
@@ -1261,8 +1260,11 @@ static enum smf_state_result connected_sending_run(void *o)
 			return SMF_EVENT_HANDLED;
 		}
 
-		/* Storage batch closed indicates sending is done, go back to waiting */
+		/* Storage batch closed: all data sent. Poll FOTA and shadow now so
+		 * any FOTA download doesn't have race conditions with storage or sending.
+		 */
 		if (msg->type == STORAGE_BATCH_CLOSE) {
+			poll_triggers_send();
 			smf_set_state(SMF_CTX(state_object),
 				      &states[STATE_CONNECTED_WAITING]);
 
