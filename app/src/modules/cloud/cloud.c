@@ -16,12 +16,6 @@
 #include <app_version.h>
 #include <date_time.h>
 
-#if defined(CONFIG_MEMFAULT)
-#include <memfault/ports/zephyr/http.h>
-#include <memfault/metrics/metrics.h>
-#include <memfault/panics/coredump.h>
-#endif /* CONFIG_MEMFAULT */
-
 #include "app_common.h"
 #include "cloud.h"
 #include "cloud_internal.h"
