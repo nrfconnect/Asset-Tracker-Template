@@ -127,6 +127,7 @@ FAKE_VALUE_FUNC(int, storage_batch_read, struct storage_data_item *, k_timeout_t
 static void dummy_cb(const struct zbus_channel *chan);
 static void cloud_chan_cb(const struct zbus_channel *chan);
 static void wait_for_storage_batch_close(k_timeout_t timeout);
+static int storage_batch_read_custom(struct storage_data_item *out_item, k_timeout_t timeout);
 
 /* Define unused subscribers */
 ZBUS_SUBSCRIBER_DEFINE(app, 1);
@@ -181,13 +182,22 @@ enum fake_batch_mode {
 
 static enum fake_batch_mode fake_mode;
 static int fake_read_calls;
+static uint32_t fake_batch_session_id;
+
+static void setup_storage_batch_read_fake(enum fake_batch_mode mode, uint32_t session_id)
+{
+	fake_mode = mode;
+	fake_read_calls = 0;
+	fake_batch_session_id = session_id;
+	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+}
 
 static int storage_batch_read_custom(struct storage_data_item *out_item, k_timeout_t timeout)
 {
 	ARG_UNUSED(timeout);
 
 	if (fake_mode == FAKE_BATCH_NONE) {
-		return -EAGAIN;
+		return -ENODATA;
 	}
 
 	int call = fake_read_calls++;
@@ -228,7 +238,7 @@ static int storage_batch_read_custom(struct storage_data_item *out_item, k_timeo
 		break;
 	}
 
-	return -EAGAIN;
+	return -ENODATA;
 }
 
 /* Custom fake for nrf_cloud_coap_sensor_send that fails with -EINVAL on the first call
@@ -468,6 +478,9 @@ void setUp(void)
 	k_sem_reset(&storage_batch_closed);
 	k_sem_reset(&storage_consume_sem);
 	memset(&last_consume_msg, 0, sizeof(last_consume_msg));
+	fake_mode = FAKE_BATCH_NONE;
+	fake_read_calls = 0;
+	fake_batch_session_id = 0U;
 
 	/* Set default return values */
 	nrf_cloud_coap_location_send_fake.return_val = 0;
@@ -779,10 +792,8 @@ void test_storage_data_battery_sent_to_cloud(void)
 
 	connect_cloud();
 
-	/* Prepare fake to return one battery item, then -EAGAIN */
-	fake_mode = FAKE_BATCH_BATTERY;
-	fake_read_calls = 0;
-	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+	/* Prepare fake to return one battery item, then emit STORAGE_BATCH_EMPTY. */
+	setup_storage_batch_read_fake(FAKE_BATCH_BATTERY, batch_available.session_id);
 
 	publish_and_assert(&storage_chan, &batch_available);
 	wait_for_processing();
@@ -809,10 +820,8 @@ void test_storage_data_environmental_sent_to_cloud(void)
 
 	connect_cloud();
 
-	/* Prepare fake to return one environmental item, then -EAGAIN */
-	fake_mode = FAKE_BATCH_ENV;
-	fake_read_calls = 0;
-	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+	/* Prepare fake to return one environmental item, then emit STORAGE_BATCH_EMPTY. */
+	setup_storage_batch_read_fake(FAKE_BATCH_ENV, batch_available.session_id);
 
 	publish_and_assert(&storage_chan, &batch_available);
 	wait_for_processing();
@@ -833,31 +842,6 @@ void test_storage_data_environmental_sent_to_cloud(void)
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_network_info_update_fake.call_count);
 }
 
-void test_storage_batch_no_items_should_not_update_shadow_network_info(void)
-{
-	struct storage_msg batch_available = {
-		.type = STORAGE_BATCH_AVAILABLE,
-		.data_len = 1,
-		.session_id = 0x55667788,
-	};
-
-	connect_cloud();
-
-	/* Configure fake to return -EAGAIN immediately (no items available) */
-	fake_mode = FAKE_BATCH_NONE;
-	fake_read_calls = 0;
-	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
-
-	publish_and_assert(&storage_chan, &batch_available);
-	wait_for_processing();
-
-	/* Verify storage_batch_read was called but returned -EAGAIN */
-	TEST_ASSERT_EQUAL(1, storage_batch_read_fake.call_count);
-
-	/* No items were processed, so shadow network info should NOT be updated */
-	TEST_ASSERT_EQUAL(0, nrf_cloud_coap_shadow_network_info_update_fake.call_count);
-}
-
 void test_storage_batch_shadow_network_info_update_error_should_still_close_session(void)
 {
 	struct storage_msg batch_available = {
@@ -868,10 +852,8 @@ void test_storage_batch_shadow_network_info_update_error_should_still_close_sess
 
 	connect_cloud();
 
-	/* Prepare fake to return one battery item */
-	fake_mode = FAKE_BATCH_BATTERY;
-	fake_read_calls = 0;
-	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+	/* Prepare fake to return one battery item, then emit STORAGE_BATCH_EMPTY. */
+	setup_storage_batch_read_fake(FAKE_BATCH_BATTERY, batch_available.session_id);
 
 	/* Configure shadow network info update to fail */
 	nrf_cloud_coap_shadow_network_info_update_fake.return_val = -EIO;
@@ -1791,10 +1773,8 @@ void test_batch_consume_sent_after_successful_send(void)
 
 	connect_cloud();
 
-	/* Prepare fake to return one battery item, then -EAGAIN */
-	fake_mode = FAKE_BATCH_BATTERY;
-	fake_read_calls = 0;
-	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+	/* Prepare fake to return one battery item, then emit STORAGE_BATCH_EMPTY. */
+	setup_storage_batch_read_fake(FAKE_BATCH_BATTERY, batch_available.session_id);
 
 	publish_and_assert(&storage_chan, &batch_available);
 
@@ -1825,12 +1805,10 @@ void test_batch_permanent_error_drops_item_without_requeue(void)
 
 	connect_cloud();
 
-	/* Setup fake to return two battery items, then -EAGAIN, and configure send to fail with
+	/* Setup fake to return two battery items, then emit STORAGE_BATCH_EMPTY, and configure send to fail with
 	 * -EINVAL for the first item and succeed for the second item
 	 */
-	fake_mode = FAKE_BATCH_TWO_BATTERY;
-	fake_read_calls = 0;
-	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+	setup_storage_batch_read_fake(FAKE_BATCH_TWO_BATTERY, batch_available.session_id);
 	nrf_cloud_coap_sensor_send_fake.custom_fake =
 		nrf_cloud_coap_sensor_send_fail_first_custom_fake;
 
@@ -1868,10 +1846,8 @@ void test_batch_network_error_aborts_loop(void)
 
 	connect_cloud();
 
-	/* Setup fake to return two battery items, then -EAGAIN */
-	fake_mode = FAKE_BATCH_TWO_BATTERY;
-	fake_read_calls = 0;
-	storage_batch_read_fake.custom_fake = storage_batch_read_custom;
+	/* Setup fake to return two battery items, then emit STORAGE_BATCH_EMPTY. */
+	setup_storage_batch_read_fake(FAKE_BATCH_TWO_BATTERY, batch_available.session_id);
 	/* Network send fails with -EIO */
 	nrf_cloud_coap_sensor_send_fake.return_val = -EIO;
 

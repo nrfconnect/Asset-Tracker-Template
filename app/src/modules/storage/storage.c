@@ -579,7 +579,22 @@ static bool handle_batch_consume(struct storage_state *state_object,
 	/* Peek the next item into the pipe for the consumer */
 	ret = populate_pipe(state_object);
 	if (ret == -ENODATA) {
-		LOG_DBG("All items consumed, pipe empty");
+		/* All items in this batch have been consumed. Write an end marker to
+		 * the pipe so the consumer exits its drain loop immediately.
+		 */
+		struct storage_pipe_header end_marker = {
+			.type = STORAGE_DATA_TYPE_END,
+			.data_size = 0,
+		};
+
+		LOG_DBG("All items consumed, writing end-of-batch marker to pipe");
+		ret = pipe_write_all(&storage_pipe, (uint8_t *)&end_marker, sizeof(end_marker), PUB_TIMEOUT);
+		if (ret < 0) {
+			LOG_ERR("Failed to write end-of-batch marker to pipe: %d", ret);
+			send_batch_error_response(msg->session_id);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_IDLE]);
+			return false;
+		}
 	} else if (ret < 0) {
 		LOG_ERR("Failed to populate pipe after consume: %d", ret);
 	}
@@ -668,6 +683,11 @@ int storage_batch_read(struct storage_data_item *out_item, k_timeout_t timeout)
 		LOG_ERR("Incomplete header read: %d/%zu bytes",
 			ret, sizeof(header));
 		return -EIO;
+	}
+
+	/* STORAGE_DATA_TYPE_END signals no more items in this batch. */
+	if (header.type == STORAGE_DATA_TYPE_END) {
+		return -ENODATA;
 	}
 
 	/* Validate header */

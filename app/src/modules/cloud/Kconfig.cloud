@@ -140,6 +140,14 @@ config APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS
 	  Maximum time allowed for processing a single message in the module's state machine.
 	  The value must be smaller than CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS.
 
+config APP_CLOUD_STORAGE_BATCH_ITEM_READ_TIMEOUT_MS
+	int "Storage batch item read timeout (ms)"
+	range 1 1000
+	default 50
+	help
+	  Timeout in milliseconds used when reading one item from storage during
+	  STATE_CONNECTED_SENDING_DATA.
+
 module = APP_CLOUD
 module-str = Cloud
 source "subsys/logging/Kconfig.template.log_config"

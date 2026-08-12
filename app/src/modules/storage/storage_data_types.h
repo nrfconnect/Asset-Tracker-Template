@@ -144,6 +144,9 @@ enum storage_data_type {
 	DATA_SOURCE_LIST(_STORAGE_DATA_TYPE_ID)
 
 	STORAGE_DATA_TYPE_COUNT,
+
+	/* Marks end-of-batch in the pipe. pipe-only; never stored. */
+	STORAGE_DATA_TYPE_END,
 };
 
 /**

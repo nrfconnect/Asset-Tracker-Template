@@ -75,7 +75,7 @@ def test_buffer_ram(dut_cloud, hex_file_buffer_ram):
         dut_cloud.uart.wait_for_str(first_storing_list, timeout=60)
 
         # Wait for buffer processing, expecting all 30 items to be consumed ((BATTERY, ENVIRONMENTAL, LOCATION) x 10 samples)
-        dut_cloud.uart.wait_for_str("All items consumed, pipe empty", timeout=500)
+        dut_cloud.uart.wait_for_str("All items consumed, writing end-of-batch marker to pipe", timeout=500)
 
         # Wait for buffer processing to complete
         pipe_exit_pos = dut_cloud.uart.wait_for_str("state_buffer_pipe_active_exit", timeout=60)

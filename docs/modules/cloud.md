@@ -29,12 +29,20 @@ from the storage module.
 It handles `STORAGE_BATCH_AVAILABLE`, `STORAGE_BATCH_EMPTY`, `STORAGE_BATCH_BUSY`, and
 `STORAGE_BATCH_ERROR` messages on the `storage_chan` channel to manage batch data flow.
 
-For each `STORAGE_BATCH_AVAILABLE` event, the cloud module drains the batch by repeatedly
-calling `storage_batch_read()` and sending each item to nRF Cloud. Reading an item does not remove it from storage.
-Instead, once an item is successfully transmitted, the cloud module publishes `STORAGE_BATCH_CONSUME`, which removes it from the backend and primes the next item.
-On a network send error, the session is aborted without consuming the item, so that data is
-retained for the next batch attempt. When the batch is drained (or aborted), the cloud
-module issues `STORAGE_BATCH_CLOSE` to end the session.
+On `STORAGE_BATCH_AVAILABLE`, the cloud module enters the
+`STATE_CONNECTED_SENDING_DATA` state and drains the batch without blocking, one
+item per `CLOUD_STORAGE_BATCH_ITEM_PROCESS` event. Each step reads the head item
+with `storage_batch_read()` and sends it to nRF Cloud; reading an item does not
+remove it from storage. Once an item is successfully transmitted, the cloud
+module publishes `STORAGE_BATCH_CONSUME`, which removes it from the backend and
+primes the next item.
+
+The batch completes when `storage_batch_read()` returns `-ENODATA` (the storage
+module's end-of-batch marker), returning the module to `STATE_CONNECTED_READY`.
+On a network send error, or on `STORAGE_BATCH_EMPTY` or `STORAGE_BATCH_ERROR`,
+the session is aborted without consuming the item so the data is retained for
+the next batch attempt. The `STATE_CONNECTED_SENDING_DATA` exit action issues
+`STORAGE_BATCH_CLOSE` to end the session on every exit path.
 
 It also handles `STORAGE_DATA` messages on the `storage_data_chan` channel to forward individual data items to nRF Cloud.
 
