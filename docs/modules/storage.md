@@ -463,6 +463,10 @@ int storage_batch_read(struct storage_data_item *out_item, k_timeout_t timeout);
 
 It reads stored data through the batch interface, handling header parsing and data extraction automatically. All other operations (requesting batch access, session management, etc.) go through zbus messages.
 
+It returns `0` on a successful read, `-ENODATA` when the end-of-batch marker is
+reached (all items in the session have been consumed), `-EAGAIN` if no data
+becomes available within `timeout`, or another negative `errno` on error.
+
 > [!IMPORTANT]
 > This function should only be called after receiving a `STORAGE_BATCH_AVAILABLE` message in response to a `STORAGE_BATCH_REQUEST`.
 > When done consuming all items, send `STORAGE_BATCH_CLOSE` with the same `session_id`.

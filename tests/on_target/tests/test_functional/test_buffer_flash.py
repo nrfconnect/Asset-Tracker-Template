@@ -93,7 +93,7 @@ def test_buffer_flash(dut_cloud, hex_file_buffer_flash):
         # Avoids a race where "All items consumed" or "state_buffer_pipe_active_exit" is logged between
         # the rollover detection and a new get_size() call, which would cause the search to miss them.
         dut_cloud.uart.wait_for_str(
-            "All items consumed, pipe empty",
+            "All items consumed, writing end-of-batch marker to pipe",
             timeout=300,
             start_pos=start_pos,
         )

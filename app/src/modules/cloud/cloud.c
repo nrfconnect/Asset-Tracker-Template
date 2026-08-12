@@ -122,6 +122,10 @@ enum cloud_module_state {
 		STATE_CONNECTED,
 			/* Connected to cloud and network connection, ready to send data */
 			STATE_CONNECTED_READY,
+				/* Connected and idle, waiting for data to send */
+				STATE_CONNECTED_IDLE,
+				/* Connected and actively draining storage batch */
+				STATE_CONNECTED_SENDING_DATA,
 			/* Connected to cloud, but not network connection */
 			STATE_CONNECTED_PAUSED,
 };
@@ -151,7 +155,18 @@ struct cloud_state_object {
 	/* Connection backoff time */
 	uint32_t backoff_time;
 
+	/* Active storage batch context */
+	uint32_t storage_batch_session_id;
+};
 
+/* Result of processing one storage batch item in STATE_CONNECTED_SENDING_DATA. */
+enum batch_drain_result {
+	/* More items may follow; remain in STATE_CONNECTED_SENDING_DATA. */
+	BATCH_DRAIN_CONTINUE,
+	/* End-of-batch marker reached; all items delivered successfully. */
+	BATCH_DRAIN_DONE,
+	/* Read or network error; stop draining without completing the batch. */
+	BATCH_DRAIN_ABORTED,
 };
 
 /* Forward declarations of state handlers */
@@ -172,6 +187,10 @@ static void state_connected_entry(void *obj);
 static void state_connected_exit(void *obj);
 static void state_connected_ready_entry(void *obj);
 static enum smf_state_result state_connected_ready_run(void *obj);
+static enum smf_state_result state_connected_idle_run(void *obj);
+static void state_connected_sending_data_entry(void *obj);
+static enum smf_state_result state_connected_sending_data_run(void *obj);
+static void state_connected_sending_data_exit(void *obj);
 static void state_connected_paused_entry(void *obj);
 static enum smf_state_result state_connected_paused_run(void *obj);
 
@@ -224,6 +243,18 @@ static const struct smf_state states[] = {
 	[STATE_CONNECTED_READY] =
 		SMF_CREATE_STATE(state_connected_ready_entry, state_connected_ready_run, NULL,
 				 &states[STATE_CONNECTED],
+				 &states[STATE_CONNECTED_IDLE]),
+
+	[STATE_CONNECTED_IDLE] =
+		SMF_CREATE_STATE(NULL, state_connected_idle_run, NULL,
+				 &states[STATE_CONNECTED_READY],
+				 NULL),
+
+	[STATE_CONNECTED_SENDING_DATA] =
+		SMF_CREATE_STATE(state_connected_sending_data_entry,
+				 state_connected_sending_data_run,
+				 state_connected_sending_data_exit,
+				 &states[STATE_CONNECTED_READY],
 				 NULL),
 
 	[STATE_CONNECTED_PAUSED] =
@@ -323,6 +354,55 @@ static void send_request_failed(void)
 	err = zbus_chan_pub(&priv_cloud_chan, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
 		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+static void storage_batch_item_process_trigger(void)
+{
+	int err;
+	const struct priv_cloud_msg msg = { .type = CLOUD_STORAGE_BATCH_ITEM_PROCESS };
+
+	err = zbus_chan_pub(&priv_cloud_chan, &msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+}
+
+static void storage_batch_close(struct cloud_state_object *state_object)
+{
+	if (state_object->storage_batch_session_id == 0U) {
+		return;
+	}
+
+	int err;
+	struct storage_msg out_msg = {
+		.type = STORAGE_BATCH_CLOSE,
+		.session_id = state_object->storage_batch_session_id,
+	};
+
+	err = zbus_chan_pub(&storage_chan, &out_msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("Failed to close storage batch session, error: %d", err);
+		SEND_FATAL_ERROR();
+	}
+
+	state_object->storage_batch_session_id = 0U;
+}
+
+static void storage_batch_consume_item(uint32_t session_id, enum storage_data_type data_type)
+{
+	int err;
+	struct storage_msg out_msg = {
+		.type = STORAGE_BATCH_CONSUME,
+		.session_id = session_id,
+		.data_type = data_type,
+	};
+
+	err = zbus_chan_pub(&storage_chan, &out_msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("Failed to consume storage item, error: %d", err);
 		SEND_FATAL_ERROR();
 	}
 }
@@ -496,88 +576,6 @@ static int send_storage_data_to_cloud(const struct storage_data_item *item)
 	return -ENOTSUP;
 }
 
-static void handle_storage_batch_available(const struct storage_msg *msg)
-{
-	int err;
-	struct storage_data_item item;
-	uint32_t items_processed = 0;
-	uint32_t items_available = msg->data_len;
-	uint32_t session_id = msg->session_id;
-	struct storage_msg out_msg = {
-		.session_id = session_id,
-	};
-	bool session_error = false;
-
-	LOG_INF("Processing storage batch: %u items available", items_available);
-
-	/* Suppress delivery of storage_chan messages back to cloud_subscriber while we
-	 * are blocking in this loop.
-	 */
-	err = zbus_obs_set_chan_notification_mask(&cloud_subscriber, &storage_chan, true);
-	__ASSERT(err == 0, "cloud_subscriber not registered on storage_chan: %d", err);
-
-	/* Drain the batch buffer: read until timeout, abort on hard error */
-	while (!session_error) {
-		err = storage_batch_read(&item, K_MSEC(500));
-		if (err == -EAGAIN) {
-			LOG_DBG("No more data available in batch (timeout)");
-
-			break;
-		} else if (err) {
-			LOG_ERR("storage_batch_read failed, error: %d", err);
-			session_error = true;
-
-			continue;
-		}
-
-		err = send_storage_data_to_cloud(&item);
-		if (err) {
-			if (err == -ENOTSUP || err == -EINVAL) {
-				LOG_ERR("Data error sending data (type %d): %d", item.type, err);
-			} else {
-				LOG_WRN("Network error sending data (type %d): %d", item.type, err);
-				session_error = true;
-
-				continue;
-			}
-		} else {
-			items_processed++;
-		}
-
-		/* Consume the item: confirms a successful send or skips a malformed item */
-		out_msg.type = STORAGE_BATCH_CONSUME;
-		out_msg.data_type = item.type;
-		err = zbus_chan_pub(&storage_chan, &out_msg, PUB_TIMEOUT);
-		if (err) {
-			LOG_ERR("Failed to consume storage item, error: %d", err);
-			SEND_FATAL_ERROR();
-		}
-	}
-
-	LOG_DBG("Processed %u/%u storage items", items_processed, items_available);
-
-	/* Re-enable storage_chan notifications to cloud_subscriber */
-	err = zbus_obs_set_chan_notification_mask(&cloud_subscriber, &storage_chan, false);
-	__ASSERT(err == 0, "cloud_subscriber not registered on storage_chan: %d", err);
-
-	if (items_processed > 0) {
-		err = nrf_cloud_coap_shadow_network_info_update();
-		if (err) {
-			LOG_ERR("nrf_cloud_coap_shadow_network_info_update, error: %d", err);
-
-			/* Continue despite error to close the batch session */
-		}
-	}
-
-	/* Close the batch session */
-	out_msg.type = STORAGE_BATCH_CLOSE;
-	err = zbus_chan_pub(&storage_chan, &out_msg, PUB_TIMEOUT);
-	if (err) {
-		LOG_ERR("Failed to close storage batch session, error: %d", err);
-		SEND_FATAL_ERROR();
-	}
-}
-
 static void handle_storage_batch_empty(const struct storage_msg *msg)
 {
 	int err;
@@ -716,33 +714,6 @@ static void handle_priv_cloud_message(struct cloud_state_object const *state_obj
 	}
 }
 
-static void handle_storage_channel_message(struct cloud_state_object const *state_object)
-{
-	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
-
-	switch (msg->type) {
-	case STORAGE_BATCH_AVAILABLE:
-		LOG_DBG("Storage batch available, %d items, session_id: 0x%X",
-			msg->data_len, msg->session_id);
-		handle_storage_batch_available(msg);
-		break;
-	case STORAGE_BATCH_EMPTY:
-		LOG_DBG("Storage batch empty, session_id: 0x%X", msg->session_id);
-		handle_storage_batch_empty(msg);
-		break;
-	case STORAGE_BATCH_ERROR:
-		LOG_ERR("Storage batch error, session_id: 0x%X", msg->session_id);
-		handle_storage_batch_error(msg);
-		break;
-	case STORAGE_BATCH_BUSY:
-		LOG_WRN("Storage batch busy, session_id: 0x%X", msg->session_id);
-		handle_storage_batch_busy(msg);
-		break;
-	default:
-		break;
-	}
-}
-
 static void handle_storage_data_message(struct cloud_state_object const *state_object)
 {
 	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
@@ -765,6 +736,62 @@ static void network_connection_status_retain(struct cloud_state_object *state_ob
 				(msg->type == NETWORK_CONNECTED) ? true : false;
 		}
 	}
+}
+
+static void shadow_network_info_update(void)
+{
+	int err = nrf_cloud_coap_shadow_network_info_update();
+
+	if (err) {
+		LOG_ERR("nrf_cloud_coap_shadow_network_info_update, error: %d", err);
+	}
+}
+
+static enum batch_drain_result
+handle_storage_batch_item(const struct cloud_state_object *state_object)
+{
+	int err;
+	struct storage_data_item item;
+
+	if (state_object->storage_batch_session_id == 0U) {
+		return BATCH_DRAIN_ABORTED;
+	}
+
+	err = storage_batch_read(&item,
+				 K_MSEC(CONFIG_APP_CLOUD_STORAGE_BATCH_ITEM_READ_TIMEOUT_MS));
+	if (err == -EAGAIN) {
+		/* No data became available within timeout; retry in next batch-item event. */
+		storage_batch_item_process_trigger();
+		return BATCH_DRAIN_CONTINUE;
+	}
+
+	if (err == -ENODATA) {
+		LOG_DBG("Storage batch session 0x%X finished",
+			state_object->storage_batch_session_id);
+		return BATCH_DRAIN_DONE;
+	}
+
+	if (err) {
+		LOG_ERR("storage_batch_read failed, error: %d", err);
+		return BATCH_DRAIN_ABORTED;
+	}
+
+	err = send_storage_data_to_cloud(&item);
+	if (err) {
+		if (err == -ENOTSUP || err == -EINVAL) {
+			LOG_ERR("Data error sending data (type %d): %d", item.type, err);
+		} else {
+			LOG_WRN("Network error sending data (type %d): %d", item.type, err);
+
+			return BATCH_DRAIN_ABORTED;
+		}
+	}
+
+	/* Consume the item after successful send or known malformed payload. */
+	storage_batch_consume_item(state_object->storage_batch_session_id, item.type);
+	storage_batch_item_process_trigger();
+
+	return BATCH_DRAIN_CONTINUE;
 }
 
 /* State handlers */
@@ -1117,7 +1144,7 @@ static void state_connected_ready_entry(void *obj)
 
 static enum smf_state_result state_connected_ready_run(void *obj)
 {
-	struct cloud_state_object const *state_object = obj;
+	struct cloud_state_object *state_object = obj;
 
 	if (state_object->chan == &priv_cloud_chan) {
 		handle_priv_cloud_message(state_object);
@@ -1137,12 +1164,6 @@ static enum smf_state_result state_connected_ready_run(void *obj)
 		default:
 			break;
 		}
-
-		return SMF_EVENT_HANDLED;
-	}
-
-	if (state_object->chan == &storage_chan) {
-		handle_storage_channel_message(state_object);
 
 		return SMF_EVENT_HANDLED;
 	}
@@ -1174,6 +1195,133 @@ static enum smf_state_result state_connected_ready_run(void *obj)
 #endif /* CONFIG_APP_LOCATION */
 
 	return SMF_EVENT_PROPAGATE;
+}
+
+static enum smf_state_result state_connected_idle_run(void *obj)
+{
+	struct cloud_state_object *state_object = obj;
+
+	if (state_object->chan == &storage_chan) {
+		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
+
+		switch (msg->type) {
+		case STORAGE_BATCH_AVAILABLE:
+			LOG_DBG("Storage batch available, %d items, session_id: 0x%X",
+				msg->data_len, msg->session_id);
+			state_object->storage_batch_session_id = msg->session_id;
+			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_SENDING_DATA]);
+			break;
+
+		case STORAGE_BATCH_EMPTY:
+			LOG_DBG("Storage batch empty, session_id: 0x%X", msg->session_id);
+			handle_storage_batch_empty(msg);
+			break;
+
+		case STORAGE_BATCH_ERROR:
+			LOG_ERR("Storage batch error, session_id: 0x%X", msg->session_id);
+			handle_storage_batch_error(msg);
+			break;
+
+		case STORAGE_BATCH_BUSY:
+			LOG_WRN("Storage batch busy, session_id: 0x%X", msg->session_id);
+			handle_storage_batch_busy(msg);
+			break;
+
+		default:
+			break;
+
+		}
+		return SMF_EVENT_HANDLED;
+	}
+	return SMF_EVENT_PROPAGATE;
+}
+
+static void state_connected_sending_data_entry(void *obj)
+{
+	struct cloud_state_object *state_object = obj;
+
+	LOG_DBG("%s", __func__);
+
+	if (state_object->storage_batch_session_id == 0U) {
+		LOG_WRN("Entered sending state without active batch, returning to ready");
+		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_IDLE]);
+		return;
+	}
+
+	storage_batch_item_process_trigger();
+}
+
+static enum smf_state_result
+handle_sending_data_storage_msg(struct cloud_state_object *state_object)
+{
+	const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
+	bool session_matches = (state_object->storage_batch_session_id != 0U &&
+				msg->session_id == state_object->storage_batch_session_id);
+
+	switch (msg->type) {
+	case STORAGE_BATCH_ERROR:
+		if (!session_matches) {
+			break;
+		}
+		LOG_ERR("Storage batch error while sending, session_id: 0x%X", msg->session_id);
+		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_IDLE]);
+		return SMF_EVENT_HANDLED;
+	case STORAGE_BATCH_EMPTY:
+		if (!session_matches) {
+			break;
+		}
+		smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_IDLE]);
+		return SMF_EVENT_HANDLED;
+	default:
+		break;
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
+
+static enum smf_state_result state_connected_sending_data_run(void *obj)
+{
+	struct cloud_state_object *state_object = obj;
+
+	if (state_object->chan == &priv_cloud_chan) {
+		const struct priv_cloud_msg *msg =
+			(const struct priv_cloud_msg *)state_object->msg_buf;
+
+		if (msg->type == CLOUD_STORAGE_BATCH_ITEM_PROCESS) {
+			switch (handle_storage_batch_item(state_object)) {
+			case BATCH_DRAIN_DONE:
+				shadow_network_info_update();
+				smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_IDLE]);
+				break;
+
+			case BATCH_DRAIN_ABORTED:
+				smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_IDLE]);
+				break;
+
+			case BATCH_DRAIN_CONTINUE:
+				break;
+			}
+			return SMF_EVENT_HANDLED;
+		}
+
+		handle_priv_cloud_message(state_object);
+		return SMF_EVENT_HANDLED;
+	}
+
+	if (state_object->chan == &storage_chan) {
+		return handle_sending_data_storage_msg(state_object);
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
+
+static void state_connected_sending_data_exit(void *obj)
+{
+	struct cloud_state_object *state_object = obj;
+
+	LOG_DBG("%s", __func__);
+
+	storage_batch_close(state_object);
 }
 
 /* Handlers for STATE_CONNECTED_PAUSED */
