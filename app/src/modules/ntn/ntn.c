@@ -329,13 +329,6 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 		}
 #endif
 
-		err = lte_lc_psm_req(false);
-		if (err) {
-			LOG_ERR("Failed to deactivate legacy PSM, error: %d", err);
-
-			return err;
-		}
-
 		state->ntn_initialized = true;
 
 		k_sleep(K_MSEC(5000));
