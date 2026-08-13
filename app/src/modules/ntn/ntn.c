@@ -256,7 +256,10 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	uint32_t location_validity_time;
 	uint64_t current_time = k_uptime_get();
 
-	if (state->location_validity_end_time > current_time) {
+	if (state->location_validity_end_time == 0) {
+		location_validity_time = 0;  /* Infinite validity */
+	}
+	else if (state->location_validity_end_time > current_time) {
 		location_validity_time =
 			(uint32_t)(state->location_validity_end_time - current_time) / MSEC_PER_SEC;
 	} else {
@@ -448,10 +451,9 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 {
 	int err;
 	char message[256];
-	char imei[16] = {0};
+	char rsrp[16] = {0}, band[16] = {0}, ue_mode[16] = {0}, oper[16] = {0}, imei[16] = {0}, temp[16] = {0};
 	char imei_suffix[5];
 	size_t imei_len;
-	char temp[16] = {0};
 
 	if (state->sock_fd < 0) {
 		LOG_ERR("Socket not connected");
@@ -461,16 +463,41 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 
 	err = modem_info_string_get(MODEM_INFO_IMEI, imei, sizeof(imei));
 	if (err < 0) {
-		err = snprintk(imei, sizeof(imei), "N/A");
-		if (err < 0 || err >= sizeof(imei)) {
-			LOG_ERR("Failed to get IMEI, error: %d", err);
+		LOG_WRN("Failed to get modem IMEI, error: %d", err);
+		snprintk(imei, sizeof(imei), "N/A");
+	}
 
-			return -EINVAL;
-		}
+	err = modem_info_string_get(MODEM_INFO_RSRP, rsrp, sizeof(rsrp));
+	if (err < 0) {
+		LOG_WRN("Failed to get modem RSRP, error: %d", err);
+		snprintk(rsrp, sizeof(rsrp), "N/A");
+	}
+
+	err = modem_info_string_get(MODEM_INFO_CUR_BAND, band, sizeof(band));
+	if (err < 0) {
+		LOG_WRN("Failed to get modem band, error: %d", err);
+		snprintk(band, sizeof(band), "N/A");
+	}
+
+	err = modem_info_string_get(MODEM_INFO_UE_MODE, ue_mode, sizeof(ue_mode));
+	if (err < 0) {
+		LOG_WRN("Failed to get modem UE mode, error: %d", err);
+		snprintk(ue_mode, sizeof(ue_mode), "N/A");
+	}
+
+	err = modem_info_string_get(MODEM_INFO_OPERATOR, oper, sizeof(oper));
+	if (err < 0) {
+		LOG_WRN("Failed to get modem operator, error: %d", err);
+		snprintk(oper, sizeof(oper), "N/A");
+	}
+
+	err = modem_info_string_get(MODEM_INFO_TEMP, temp, sizeof(temp));
+	if (err < 0) {
+		LOG_WRN("Failed to get modem temperature, error: %d", err);
+		snprintk(temp, sizeof(temp), "N/A");
 	}
 
 	/* Extract last 4 characters of IMEI safely */
-
 	imei_len = strnlen(imei, sizeof(imei));
 	if (imei_len > 4) {
 		err = snprintk(imei_suffix, sizeof(imei_suffix), "%s", imei + (imei_len - 4));
@@ -492,20 +519,22 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 
 	imei_suffix[sizeof(imei_suffix) - 1] = '\0';
 
-	/* Get the temperature from the modem */
-	err = modem_info_string_get(MODEM_INFO_TEMP, temp, sizeof(temp));
-	if (err < 0) {
-		err = snprintk(temp, sizeof(temp), "N/A");
-		if (err < 0 || err >= sizeof(temp)) {
-			LOG_ERR("Failed to get temperature, error: %d", err);
-
-			return -EINVAL;
-		}
-	}
-
-	temp[sizeof(temp) - 1] = '\0';
-
-#if defined(CONFIG_APP_NTN_SEND_GNSS_DATA)
+#if defined(CONFIG_APP_NTN_THINGY_ROCKS_ENDPOINT)
+	// imei,ping_rtt,rsrp,band,ue_mode,oper,lat_str,lon_str,accuracy,...
+	// ...battery_str,temp_str,pressure_str,humidity_str
+	snprintk(message, sizeof(message),
+				"%s,,%d,%s,%s,%s,%s,%.2f,%.2f,%d,%s,%s,%s,%s",
+				imei,
+				-1,
+				rsrp,
+				band,
+				ue_mode,
+				oper,
+				state->last_pvt.latitude,
+				state->last_pvt.longitude,
+				(int)state->last_pvt.accuracy,
+				"99.99",temp,"999.99","99.99");
+#elif defined(CONFIG_APP_NTN_SEND_GNSS_DATA)
 	/* Format GNSS data as string */
 	err = snprintk(message, sizeof(message),
 		"Device: *%s, temp: %s, lat=%.2f, lon=%.2f, alt=%.2f, "
@@ -530,14 +559,14 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 	}
 #endif
 
-	/* Send data */
+	LOG_DBG("Sending data");
 	err = send(state->sock_fd, message, strlen(message), 0);
 	if (err < 0) {
-		LOG_ERR("Failed to send GNSS data, error: %d", errno);
+		LOG_ERR("Failed to send data, error: %d", errno);
 		return -errno;
 	}
 
-	LOG_DBG("Sent GNSS data payload of %d bytes", strlen(message));
+	LOG_DBG("Sent data payload of %d bytes", strlen(message));
 
 	return 0;
 }
@@ -608,14 +637,14 @@ static void state_running_entry(void *obj)
 	if (err) {
 		LOG_ERR("Failed to set NTN profile, error: %d", err);
 
-		return err;
+		return;
 	}
 
 	err = lte_lc_cellular_profile_configure(&tn_profile);
 	if (err) {
 		LOG_ERR("Failed to set TN profile, error: %d", err);
 
-		return err;
+		return;
 	}
 
 	ntn_register_handler(ntn_event_handler);

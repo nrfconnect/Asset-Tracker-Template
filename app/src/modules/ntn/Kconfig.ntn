@@ -88,6 +88,11 @@ config APP_NTN_MSG_PROCESSING_TIMEOUT_SECONDS
 	  Maximum time allowed for processing a single message in the NTN module.
 	  Must be less than APP_NTN_WATCHDOG_TIMEOUT_SECONDS.
 
+config APP_NTN_THINGY_ROCKS_ENDPOINT
+	bool "Use world.thingy.rocks endpoint"
+	help
+	  Use world.thingy.rocks endpoint.
+
 module = APP_NTN
 module-str = NTN
 source "subsys/logging/Kconfig.template.log_config"
