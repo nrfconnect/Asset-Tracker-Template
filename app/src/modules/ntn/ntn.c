@@ -589,7 +589,7 @@ static void state_running_entry(void *obj)
 	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
-	LOG_INF("Initializing NTN module");
+	LOG_DBG("%s", __func__);
 
 	k_work_init(&timer_work, timer_work_handler);
 	k_work_init(&gnss_location_work, gnss_location_work_handler);
@@ -624,6 +624,8 @@ static void state_running_entry(void *obj)
 static enum smf_state_result state_running_run(void *obj)
 {
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+
+	LOG_DBG("%s", __func__);
 
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
@@ -670,6 +672,8 @@ static void state_gnss_entry(void *obj)
 	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
+	LOG_DBG("%s", __func__);
+
 	/* Close socket if it was open */
 	if (state->sock_fd >= 0) {
 		close(state->sock_fd);
@@ -677,8 +681,6 @@ static void state_gnss_entry(void *obj)
 		state->sock_fd = -1;
 		state->socket_connected = false;
 	}
-
-	LOG_INF("Entering GNSS mode");
 
 	err = set_gnss_active_mode(state);
 	if (err) {
@@ -691,6 +693,8 @@ static void state_gnss_entry(void *obj)
 static enum smf_state_result state_gnss_run(void *obj)
 {
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+
+	LOG_DBG("%s", __func__);
 
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
@@ -729,7 +733,7 @@ static void state_gnss_exit(void *obj)
 {
 	int err;
 
-	LOG_INF("Exiting GNSS mode");
+	LOG_DBG("%s", __func__);
 
 	err = nrf_modem_gnss_stop();
 	if (err) {
@@ -747,7 +751,7 @@ static void state_ntn_entry(void *obj)
 	int err;
 	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
-	LOG_INF("Entering NTN mode");
+	LOG_DBG("%s", __func__);
 
 	err = set_ntn_active_mode(state);
 	if (err) {
@@ -757,8 +761,10 @@ static void state_ntn_entry(void *obj)
 
 static enum smf_state_result state_ntn_run(void *obj)
 {
-	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 	int err;
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+
+	LOG_DBG("%s", __func__);
 
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
@@ -814,8 +820,10 @@ static enum smf_state_result state_ntn_run(void *obj)
 
 static void state_ntn_exit(void *obj)
 {
-	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 	int err;
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
+
+	LOG_DBG("%s", __func__);
 
 	/* Close socket if it was open */
 	if (state->sock_fd >= 0) {
