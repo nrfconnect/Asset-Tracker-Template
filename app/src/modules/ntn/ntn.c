@@ -256,38 +256,10 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 			return err;
 		}
 	} else {
-		struct lte_lc_cellular_profile ntn_profile = {
-			.id = 0,
-			.act = LTE_LC_ACT_NTN,
-			.uicc = LTE_LC_UICC_PHYSICAL,
-		};
-
-		struct lte_lc_cellular_profile tn_profile = {
-			.id = 1,
-			.act = LTE_LC_ACT_LTEM || LTE_LC_ACT_NBIOT,
-			.uicc = LTE_LC_UICC_PHYSICAL,
-		};
-
 		/* Power off modem */
 		err = lte_lc_power_off();
 		if (err) {
 			LOG_ERR("lte_lc_power_off, error: %d", err);
-
-			return err;
-		}
-
-		/* Set NTN profile */
-		err = lte_lc_cellular_profile_configure(&ntn_profile);
-		if (err) {
-			LOG_ERR("Failed to set NTN profile, error: %d", err);
-
-			return err;
-		}
-
-		/* Set TN profile */
-		err = lte_lc_cellular_profile_configure(&tn_profile);
-		if (err) {
-			LOG_ERR("Failed to set TN profile, error: %d", err);
 
 			return err;
 		}
@@ -416,7 +388,11 @@ static int set_gnss_inactive_mode(void)
 {
 	int err;
 
-	/* Set modem to CFUN=30 mode when exiting GNSS state */
+	err = nrf_modem_gnss_stop();
+	if (err) {
+		LOG_ERR("Failed to stop GNSS, error: %d", err);
+	}
+
 	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_DEACTIVATE_GNSS);
 	if (err) {
 		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
@@ -609,7 +585,34 @@ static void state_running_entry(void *obj)
 		return;
 	}
 
+	struct lte_lc_cellular_profile ntn_profile = {
+		.id = 0,
+		.act = LTE_LC_ACT_NTN,
+		.uicc = LTE_LC_UICC_PHYSICAL,
+	};
+
+	struct lte_lc_cellular_profile tn_profile = {
+		.id = 1,
+		.act = LTE_LC_ACT_LTEM || LTE_LC_ACT_NBIOT,
+		.uicc = LTE_LC_UICC_PHYSICAL,
+	};
+
+	err = lte_lc_cellular_profile_configure(&ntn_profile);
+	if (err) {
+		LOG_ERR("Failed to set NTN profile, error: %d", err);
+
+		return err;
+	}
+
+	err = lte_lc_cellular_profile_configure(&tn_profile);
+	if (err) {
+		LOG_ERR("Failed to set TN profile, error: %d", err);
+
+		return err;
+	}
+
 	ntn_register_handler(ntn_event_handler);
+
 
 	k_timer_start(&state->ntn_timer, K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES), K_NO_WAIT);
 }
@@ -724,19 +727,11 @@ static enum smf_state_result state_gnss_run(void *obj)
 
 static void state_gnss_exit(void *obj)
 {
-	int err;
+	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
 
-	err = nrf_modem_gnss_stop();
-	if (err) {
-		LOG_ERR("Failed to stop GNSS, error: %d", err);
-	}
-
-	err = set_gnss_inactive_mode();
-	if (err) {
-		LOG_ERR("Failed to set GNSS inactive mode, error: %d", err);
-	}
+	set_gnss_inactive_mode();
 }
 
 static void state_ntn_entry(void *obj)
