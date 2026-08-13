@@ -252,6 +252,7 @@ static int configure_ntn_channel_select(void)
 static int set_ntn_active_mode(struct ntn_state_object *state)
 {
 	int err;
+	enum lte_lc_func_mode mode;
 	uint32_t location_validity_time;
 	uint64_t current_time = k_uptime_get();
 
@@ -262,61 +263,48 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 		location_validity_time = 1;
 	}
 
-	if (state->ntn_initialized) {
-		/* Configure NTN system mode */
-		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT,
-					     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
-		if (err) {
-			LOG_ERR("Failed to set NTN system mode, error: %d", err);
+	err = lte_lc_func_mode_get(&mode);
+	if (err) {
+		LOG_ERR("Failed to get LTE function mode, error: %d", err);
 
-			return err;
-		}
+		return err;
+	}
 
-		LOG_DBG("NTN initialized, using AT+CFUN=21");
+	/* If needed, go offline to be able to set NTN system mode */
+	switch (mode) {
+	case LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG: __fallthrough;
+	case LTE_LC_FUNC_MODE_OFFLINE: __fallthrough;
+	case LTE_LC_FUNC_MODE_POWER_OFF:
 
-		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
+		break;
+	default:
+		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE);
 		if (err) {
 			LOG_ERR("lte_lc_func_mode_set, error: %d", err);
 
 			return err;
 		}
 
-		err = ntn_location_set((double)state->last_pvt.latitude,
+		break;
+	}
+
+	/* Configure NTN system mode */
+	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+	if (err) {
+		LOG_ERR("Failed to set NTN system mode, error: %d", err);
+
+		return err;
+	}
+
+	err = ntn_location_set((double)state->last_pvt.latitude,
 				       (double)state->last_pvt.longitude,
 				       (float)state->last_pvt.altitude,
 				       location_validity_time);
-		if (err) {
-			LOG_ERR("Failed to set location, error: %d", err);
+	if (err) {
+		LOG_ERR("Failed to set location, error: %d", err);
 
-			return err;
-		}
-	} else {
-		/* Power off modem */
-		err = lte_lc_power_off();
-		if (err) {
-			LOG_ERR("lte_lc_power_off, error: %d", err);
-
-			return err;
-		}
-
-		/* Configure NTN system mode */
-		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT,
-					     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
-		if (err) {
-			LOG_ERR("Failed to set NTN system mode, error: %d", err);
-
-			return err;
-		}
-
-		err = ntn_location_set((double)state->last_pvt.latitude,
-				       (double)state->last_pvt.longitude,
-				       (float)state->last_pvt.altitude,
-				       location_validity_time);
-		if (err) {
-			LOG_ERR("Failed to set location, error: %d", err);
-
-			return err;
-		}
+		return err;
+	}
 
 #if defined(CONFIG_APP_NTN_BANDLOCK_ENABLE)
 		err = nrf_modem_at_printf("AT%%XBANDLOCK=2,,\"%i\"", CONFIG_APP_NTN_BANDLOCK);
@@ -336,18 +324,11 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 		}
 #endif
 
-		state->ntn_initialized = true;
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
+	if (err) {
+		LOG_ERR("lte_lc_func_mode_set, error: %d\n", err);
 
-		k_sleep(K_MSEC(5000));
-
-		LOG_DBG("NTN now initialized, using lte_lc_connect_async to connect to network");
-
-		err = lte_lc_connect_async(lte_lc_evt_handler);
-		if (err) {
-			LOG_ERR("lte_lc_connect_async, error: %d\n", err);
-
-			return err;
-		}
+		return err;
 	}
 
 	return 0;
@@ -356,49 +337,40 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 static int set_gnss_active_mode(struct ntn_state_object *state)
 {
 	int err;
+	int periodic_fix_retry = 180;
+	enum lte_lc_func_mode mode;
 
-	if (state->gnss_initialized) {
-		/* Configure GNSS system mode */
-		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_GPS, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+	err = lte_lc_func_mode_get(&mode);
+	if (err) {
+		LOG_ERR("Failed to get LTE function mode, error: %d", err);
+
+		return err;
+	}
+
+	if ((mode != LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG)) {
+		/* Go offline to be able to set GNSS system mode */
+		err = lte_lc_offline();
 		if (err) {
-			LOG_ERR("Failed to set GNSS system mode, error: %d", err);
+			LOG_ERR("lte_lc_offline, error: %d", err);
 
 			return err;
 		}
+	}
 
-		/* Activate GNSS fun mode */
-		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
-		if (err) {
-			LOG_ERR("Failed to activate GNSS fun mode, error: %d", err);
+	/* Configure GNSS system mode */
+	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_GPS, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
+	if (err) {
+		LOG_ERR("Failed to set GNSS system mode, error: %d", err);
 
-			return err;
-		}
-	} else {
-		/* Power off modem */
-		err = lte_lc_power_off();
-		if (err) {
-			LOG_ERR("lte_lc_power_off, error: %d", err);
+		return err;
+	}
 
-			return err;
-		}
+	/* Activate GNSS fun mode */
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
+	if (err) {
+		LOG_ERR("Failed to activate GNSS fun mode, error: %d", err);
 
-		/* Configure GNSS system mode */
-		err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_GPS, LTE_LC_SYSTEM_MODE_PREFER_AUTO);
-		if (err) {
-			LOG_ERR("Failed to set GNSS system mode, error: %d", err);
-
-			return err;
-		}
-
-		/* Activate GNSS mode */
-		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
-		if (err) {
-			LOG_ERR("Failed to activate GNSS fun mode, error: %d", err);
-
-			return err;
-		}
-
-		state->gnss_initialized=true;
+		return err;
 	}
 
 	err = nrf_modem_gnss_fix_interval_set(0);
@@ -406,7 +378,7 @@ static int set_gnss_active_mode(struct ntn_state_object *state)
 		LOG_ERR("Failed to set GNSS fix interval, error: %d", err);
 	}
 
-	err = nrf_modem_gnss_fix_retry_set(180);
+	err = nrf_modem_gnss_fix_retry_set(periodic_fix_retry);
 	if (err) {
 		LOG_ERR("Failed to set GNSS fix retry, error: %d", err);
 	}
