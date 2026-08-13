@@ -199,11 +199,11 @@ static void gnss_location_work_handler(struct k_work *work)
 
 /* Helper functions */
 
-static int set_ntn_dormant_mode(void)
+static int set_ntn_offline_mode(void)
 {
 	int err;
 
-	/* Set modem to dormant mode without loosing registration  */
+	/* Set modem to offline mode without loosing registration  */
 	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
 	if (err) {
 		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
@@ -833,7 +833,7 @@ static void state_ntn_exit(void *obj)
 		state->socket_connected = false;
 	}
 
-	err = set_ntn_dormant_mode();
+	err = set_ntn_offline_mode();
 	if (err) {
 		LOG_ERR("Failed to set NTN dormant mode, error: %d", err);
 	}
