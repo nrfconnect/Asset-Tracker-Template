@@ -129,10 +129,11 @@ static void publish_last_pvt(const struct nrf_modem_gnss_pvt_data_frame *pvt)
 
 static void timer_work_handler(struct k_work *work)
 {
-	ntn_msg_publish(NTN_TIMEOUT);
+	/* Time to enable NTN and connect */
+	ntn_msg_publish(NTN_TRIGGER);
 }
 
-/* Timer callback for NTN mode timeout */
+/* Timer callback for NTN mode  */
 static void ntn_timer_handler(struct k_timer *timer)
 {
 	k_work_submit(&timer_work);
@@ -711,8 +712,8 @@ static enum smf_state_result state_running_run(void *obj)
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
-		if (msg->type == NTN_TIMEOUT) {
-			/* Timer expired, restart timer and transition to GNSS mode */
+		if (msg->type == NTN_TRIGGER) {
+			/* Timer expired, restart timer and transition to NTN mode */
 			k_timer_start(&state->ntn_timer,
 				      K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES),
 				      K_NO_WAIT);

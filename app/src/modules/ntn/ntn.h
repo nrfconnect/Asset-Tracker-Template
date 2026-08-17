@@ -21,8 +21,8 @@ enum ntn_msg_type {
 	NTN_LOCATION_REQUEST,
 	/* NTN location search completed */
 	NTN_LOCATION_SEARCH_DONE,
-	/* NTN mode timeout occurred */
-	NTN_TIMEOUT,
+	/* NTN trigger */
+	NTN_TRIGGER,
 	/* Network connectivity established */
 	NTN_NETWORK_CONNECTED,
 	/* Network connectivity lost */
