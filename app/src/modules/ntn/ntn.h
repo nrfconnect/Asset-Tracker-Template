@@ -27,8 +27,8 @@ enum ntn_msg_type {
 	NTN_NETWORK_CONNECTED,
 	/* Network connectivity lost */
 	NTN_NETWORK_DISCONNECTED,
-	/* GNSS search failed */
-	GNSS_SEARCH_FAILED,
+	/* GNSS search timeout */
+	GNSS_TIMEOUT,
 };
 
 /* NTN module message */

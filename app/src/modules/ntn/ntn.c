@@ -67,6 +67,7 @@ struct ntn_state_object {
 
 static struct k_work timer_work;
 static struct k_work gnss_location_work;
+static struct k_work gnss_timeout_work;
 
 /* Forward declarations */
 
@@ -137,6 +138,140 @@ static void timer_work_handler(struct k_work *work)
 static void ntn_timer_handler(struct k_timer *timer)
 {
 	k_work_submit(&timer_work);
+}
+
+static void handle_gnss_timeout_work_fn(struct k_work *work)
+{
+	/* GNSS timeout */
+	ntn_msg_publish(GNSS_TIMEOUT);
+}
+
+static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
+{
+	switch (evt->type) {
+	case LTE_LC_EVT_NW_REG_STATUS:
+		if (evt->nw_reg_status == LTE_LC_NW_REG_UICC_FAIL) {
+			LOG_ERR("No SIM card detected!");
+		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NOT_REGISTERED) {
+			LOG_WRN("Not registered, check rejection cause");
+		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME) {
+			LOG_DBG("LTE_LC_NW_REG_REGISTERED_HOME");
+		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
+			LOG_DBG("LTE_LC_NW_REG_REGISTERED_ROAMING");
+		}
+
+		break;
+
+	case LTE_LC_EVT_PDN:
+		switch (evt->pdn.type) {
+		case LTE_LC_EVT_PDN_ACTIVATED:
+			LOG_DBG("PDN connection activated");
+			ntn_msg_publish(NTN_NETWORK_CONNECTED);
+
+			break;
+		case LTE_LC_EVT_PDN_DEACTIVATED:
+			LOG_DBG("PDN connection deactivated");
+			ntn_msg_publish(NTN_NETWORK_DISCONNECTED);
+
+			break;
+		case LTE_LC_EVT_PDN_NETWORK_DETACH:
+			LOG_DBG("PDN connection network detached");
+			ntn_msg_publish(NTN_NETWORK_DISCONNECTED);
+
+			break;
+		case LTE_LC_EVT_PDN_SUSPENDED:
+			LOG_DBG("PDN connection suspended");
+			ntn_msg_publish(NTN_NETWORK_DISCONNECTED);
+
+			break;
+		case LTE_LC_EVT_PDN_RESUMED:
+			LOG_DBG("PDN connection resumed");
+			ntn_msg_publish(NTN_NETWORK_CONNECTED);
+
+		default:
+			break;
+		}
+
+		break;
+
+	case LTE_LC_EVT_MODEM_EVENT:
+		if (evt->modem_evt.type == LTE_LC_MODEM_EVT_RESET_LOOP) {
+			LOG_WRN("The modem has detected a reset loop!");
+		} else if (evt->modem_evt.type == LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE) {
+			LOG_DBG("LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE");
+		}
+		break;
+	case LTE_LC_EVT_RRC_UPDATE:
+		if (evt->rrc_mode == LTE_LC_RRC_MODE_CONNECTED) {
+			LOG_DBG("LTE_LC_RRC_MODE_CONNECTED");
+
+		}
+		else if (evt->rrc_mode == LTE_LC_RRC_MODE_IDLE) {
+			LOG_DBG("LTE_LC_RRC_MODE_IDLE");
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+static void ntn_event_handler(const struct ntn_evt *evt)
+{
+	switch (evt->type) {
+	case NTN_EVT_LOCATION_REQUEST:
+		LOG_DBG("NTN location requested: %s, accuracy: %d m",
+			evt->location_request.requested ? "true" : "false",
+			evt->location_request.accuracy);
+
+		ntn_msg_publish(NTN_LOCATION_REQUEST);
+
+		break;
+	default:
+		break;
+	}
+}
+
+static void gnss_event_handler(int event)
+{
+	int err;
+
+	switch (event) {
+	case NRF_MODEM_GNSS_EVT_PVT:
+		/* Schedule work to handle PVT data in thread context */
+		err = k_work_submit(&gnss_location_work);
+		if (err < 0) {
+			LOG_ERR("Failed to submit GNSS location work, error: %d", err);
+		}
+
+		break;
+	case NRF_MODEM_GNSS_EVT_FIX:
+		LOG_DBG("NRF_MODEM_GNSS_EVT_FIX");
+
+		break;
+	case NRF_MODEM_GNSS_EVT_BLOCKED:
+		LOG_WRN("NRF_MODEM_GNSS_EVT_BLOCKED");
+
+		break;
+	case NRF_MODEM_GNSS_EVT_SLEEP_AFTER_TIMEOUT:
+		LOG_ERR("NRF_MODEM_GNSS_EVT_SLEEP_AFTER_TIMEOUT");
+		/* Schedule work to set IDLE state in thread context */
+		err = k_work_submit(&gnss_timeout_work);
+		if (err < 0) {
+			LOG_ERR("Failed to submit gnss_timeout_work, error: %d", err);
+		}
+
+		break;
+	default:
+		LOG_DBG("Unknown GNSS event: %d", event);
+
+		break;
+	}
+}
+
+static void ntn_wdt_callback(int channel_id, void *user_data)
+{
+	LOG_ERR("NTN watchdog expired, Channel: %d, Thread: %s",
+		channel_id, k_thread_name_get((k_tid_t)user_data));
 }
 
 static void apply_gnss_time(const struct nrf_modem_gnss_pvt_data_frame *pvt_data)
@@ -612,22 +747,6 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 	return 0;
 }
 
-static void ntn_event_handler(const struct ntn_evt *evt)
-{
-	switch (evt->type) {
-	case NTN_EVT_LOCATION_REQUEST:
-		LOG_DBG("NTN location requested: %s, accuracy: %d m",
-			evt->location_request.requested ? "true" : "false",
-			evt->location_request.accuracy);
-
-		ntn_msg_publish(NTN_LOCATION_REQUEST);
-
-		break;
-	default:
-		break;
-	}
-}
-
 /* State handlers */
 
 static void state_running_entry(void *obj)
@@ -639,6 +758,7 @@ static void state_running_entry(void *obj)
 
 	k_work_init(&timer_work, timer_work_handler);
 	k_work_init(&gnss_location_work, gnss_location_work_handler);
+	k_work_init(&gnss_timeout_work, handle_gnss_timeout_work_fn);
 	k_timer_init(&state->ntn_timer, ntn_timer_handler, NULL);
 
 	err = nrf_modem_lib_init();
@@ -794,8 +914,8 @@ static enum smf_state_result state_gnss_run(void *obj)
 
 			return SMF_EVENT_HANDLED;
 
-		case GNSS_SEARCH_FAILED:
-			LOG_ERR("GNSS search failed, going to idle state");
+		case GNSS_TIMEOUT:
+			LOG_ERR("GNSS search timed out, going to idle state");
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
 			return SMF_EVENT_HANDLED;
@@ -928,95 +1048,6 @@ static enum smf_state_result state_idle_run(void *obj)
 	LOG_DBG("%s", __func__);
 
 	return SMF_EVENT_PROPAGATE;
-}
-
-static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
-{
-	switch (evt->type) {
-	case LTE_LC_EVT_NW_REG_STATUS:
-		if (evt->nw_reg_status == LTE_LC_NW_REG_UICC_FAIL) {
-			LOG_ERR("No SIM card detected!");
-		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NOT_REGISTERED) {
-			LOG_WRN("Not registered, check rejection cause");
-		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME) {
-			LOG_DBG("LTE_LC_NW_REG_REGISTERED_HOME");
-		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
-			LOG_DBG("LTE_LC_NW_REG_REGISTERED_ROAMING");
-		}
-
-		break;
-
-	case LTE_LC_EVT_PDN:
-		switch (evt->pdn.type) {
-		case LTE_LC_EVT_PDN_ACTIVATED:
-			LOG_DBG("PDN connection activated");
-			ntn_msg_publish(NTN_NETWORK_CONNECTED);
-
-			break;
-		case LTE_LC_EVT_PDN_DEACTIVATED:
-			LOG_DBG("PDN connection deactivated");
-			ntn_msg_publish(NTN_NETWORK_DISCONNECTED);
-
-			break;
-		case LTE_LC_EVT_PDN_NETWORK_DETACH:
-			LOG_DBG("PDN connection network detached");
-			ntn_msg_publish(NTN_NETWORK_DISCONNECTED);
-
-			break;
-		case LTE_LC_EVT_PDN_SUSPENDED:
-			LOG_DBG("PDN connection suspended");
-			ntn_msg_publish(NTN_NETWORK_DISCONNECTED);
-
-			break;
-		case LTE_LC_EVT_PDN_RESUMED:
-			LOG_DBG("PDN connection resumed");
-			ntn_msg_publish(NTN_NETWORK_CONNECTED);
-
-		default:
-			break;
-		}
-
-		break;
-
-	case LTE_LC_EVT_MODEM_EVENT:
-		if (evt->modem_evt.type == LTE_LC_MODEM_EVT_RESET_LOOP) {
-			LOG_WRN("The modem has detected a reset loop!");
-		} else if (evt->modem_evt.type == LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE) {
-			LOG_DBG("LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE");
-		}
-		break;
-	case LTE_LC_EVT_RRC_UPDATE:
-		if (evt->rrc_mode == LTE_LC_RRC_MODE_CONNECTED) {
-			LOG_DBG("LTE_LC_RRC_MODE_CONNECTED");
-
-		}
-		else if (evt->rrc_mode == LTE_LC_RRC_MODE_IDLE) {
-			LOG_DBG("LTE_LC_RRC_MODE_IDLE");
-		}
-		break;
-	default:
-		break;
-	}
-}
-
-static void gnss_event_handler(int event)
-{
-	switch (event) {
-	case NRF_MODEM_GNSS_EVT_PVT:
-		/* Schedule work to handle PVT data in thread context */
-		k_work_submit(&gnss_location_work);
-
-		break;
-	/* TODO: add handling for GNSS_SEARCH_FAILED, see mosh gnss.c */
-	default:
-		break;
-	}
-}
-
-static void ntn_wdt_callback(int channel_id, void *user_data)
-{
-	LOG_ERR("NTN watchdog expired, Channel: %d, Thread: %s",
-		channel_id, k_thread_name_get((k_tid_t)user_data));
 }
 
 static void ntn_module_thread(void)
