@@ -73,8 +73,10 @@ static struct k_work gnss_timeout_work;
 
 static void gnss_event_handler(int event);
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt);
+static void ntn_msg_publish(enum ntn_msg_type type);
+static void publish_last_pvt(const struct nrf_modem_gnss_pvt_data_frame *pvt);
+static void apply_gnss_time(const struct nrf_modem_gnss_pvt_data_frame *pvt_data);
 
-/* Forward declarations */
 static void state_running_entry(void *obj);
 static enum smf_state_result state_running_run(void *obj);
 static void state_gnss_entry(void *obj);
@@ -98,35 +100,8 @@ static const struct smf_state states[] = {
 				&states[STATE_RUNNING], NULL),
 };
 
-/* Helper function to publish NTN messages */
-static void ntn_msg_publish(enum ntn_msg_type type)
-{
-	int err;
-	struct ntn_msg msg = {
-		.type = type
-	};
 
-	err = zbus_chan_pub(&NTN_CHAN, &msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("Failed to publish NTN message, error: %d", err);
-
-		return;
-	}
-}
-
-static void publish_last_pvt(const struct nrf_modem_gnss_pvt_data_frame *pvt)
-{
-	int err;
-	struct ntn_msg msg = {
-		.type = NTN_LOCATION_SEARCH_DONE,
-		.pvt = *pvt
-	};
-
-	err = zbus_chan_pub(&NTN_CHAN, &msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("Failed to publish last PVT message, error: %d", err);
-	}
-}
+/* Event handlers */
 
 static void timer_work_handler(struct k_work *work)
 {
@@ -144,6 +119,47 @@ static void handle_gnss_timeout_work_fn(struct k_work *work)
 {
 	/* GNSS timeout */
 	ntn_msg_publish(GNSS_TIMEOUT);
+}
+
+static void gnss_location_work_handler(struct k_work *work)
+{
+	int err;
+	struct nrf_modem_gnss_pvt_data_frame pvt_data;
+
+	/* Read PVT data in thread context */
+	err = nrf_modem_gnss_read(&pvt_data, sizeof(pvt_data), NRF_MODEM_GNSS_DATA_PVT);
+	if (err != 0) {
+		LOG_ERR("Failed to read GNSS data nrf_modem_gnss_read(), err: %d", err);
+
+		return;
+	}
+
+	if (pvt_data.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
+		LOG_DBG("Got valid GNSS location: lat: %f, lon: %f, alt: %f",
+			(double)pvt_data.latitude,
+			(double)pvt_data.longitude,
+			(double)pvt_data.altitude);
+
+		apply_gnss_time(&pvt_data);
+		publish_last_pvt(&pvt_data);
+	}
+
+	/* Log SV (Satellite Vehicle) data */
+	for (int i = 0; i < NRF_MODEM_GNSS_MAX_SATELLITES; i++) {
+		if (pvt_data.sv[i].sv == 0) {
+			/* SV not valid, skip */
+			continue;
+		}
+
+		LOG_DBG("SV: %3d C/N0: %4.1f el: %2d az: %3d signal: %d in fix: %d unhealthy: %d",
+			pvt_data.sv[i].sv,
+			pvt_data.sv[i].cn0 * 0.1,
+			pvt_data.sv[i].elevation,
+			pvt_data.sv[i].azimuth,
+			pvt_data.sv[i].signal,
+			pvt_data.sv[i].flags & NRF_MODEM_GNSS_SV_FLAG_USED_IN_FIX ? 1 : 0,
+			pvt_data.sv[i].flags & NRF_MODEM_GNSS_SV_FLAG_UNHEALTHY ? 1 : 0);
+	}
 }
 
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
@@ -274,6 +290,37 @@ static void ntn_wdt_callback(int channel_id, void *user_data)
 		channel_id, k_thread_name_get((k_tid_t)user_data));
 }
 
+/* Helper functions */
+
+static void ntn_msg_publish(enum ntn_msg_type type)
+{
+	int err;
+	struct ntn_msg msg = {
+		.type = type
+	};
+
+	err = zbus_chan_pub(&NTN_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to publish NTN message, error: %d", err);
+
+		return;
+	}
+}
+
+static void publish_last_pvt(const struct nrf_modem_gnss_pvt_data_frame *pvt)
+{
+	int err;
+	struct ntn_msg msg = {
+		.type = NTN_LOCATION_SEARCH_DONE,
+		.pvt = *pvt
+	};
+
+	err = zbus_chan_pub(&NTN_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to publish last PVT message, error: %d", err);
+	}
+}
+
 static void apply_gnss_time(const struct nrf_modem_gnss_pvt_data_frame *pvt_data)
 {
 	int err;
@@ -291,49 +338,6 @@ static void apply_gnss_time(const struct nrf_modem_gnss_pvt_data_frame *pvt_data
 		LOG_ERR("Failed to apply GNSS time, error: %d", err);
 	}
 }
-
-static void gnss_location_work_handler(struct k_work *work)
-{
-	int err;
-	struct nrf_modem_gnss_pvt_data_frame pvt_data;
-
-	/* Read PVT data in thread context */
-	err = nrf_modem_gnss_read(&pvt_data, sizeof(pvt_data), NRF_MODEM_GNSS_DATA_PVT);
-	if (err != 0) {
-		LOG_ERR("Failed to read GNSS data nrf_modem_gnss_read(), err: %d", err);
-
-		return;
-	}
-
-	if (pvt_data.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
-		LOG_DBG("Got valid GNSS location: lat: %f, lon: %f, alt: %f",
-			(double)pvt_data.latitude,
-			(double)pvt_data.longitude,
-			(double)pvt_data.altitude);
-
-		apply_gnss_time(&pvt_data);
-		publish_last_pvt(&pvt_data);
-	}
-
-	/* Log SV (Satellite Vehicle) data */
-	for (int i = 0; i < NRF_MODEM_GNSS_MAX_SATELLITES; i++) {
-		if (pvt_data.sv[i].sv == 0) {
-			/* SV not valid, skip */
-			continue;
-		}
-
-		LOG_DBG("SV: %3d C/N0: %4.1f el: %2d az: %3d signal: %d in fix: %d unhealthy: %d",
-			pvt_data.sv[i].sv,
-			pvt_data.sv[i].cn0 * 0.1,
-			pvt_data.sv[i].elevation,
-			pvt_data.sv[i].azimuth,
-			pvt_data.sv[i].signal,
-			pvt_data.sv[i].flags & NRF_MODEM_GNSS_SV_FLAG_USED_IN_FIX ? 1 : 0,
-			pvt_data.sv[i].flags & NRF_MODEM_GNSS_SV_FLAG_UNHEALTHY ? 1 : 0);
-	}
-}
-
-/* Helper functions */
 
 static void configure_periodic_search(void) {
 	struct lte_lc_periodic_search_cfg search_cfg = { 0 };
@@ -353,21 +357,6 @@ static void configure_periodic_search(void) {
 	lte_lc_periodic_search_set(&search_cfg);
 
 	return;
-}
-
-static int set_ntn_offline_mode(void)
-{
-	int err;
-
-	/* Set modem to offline mode without loosing registration  */
-	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
-	if (err) {
-		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
-
-		return err;
-	}
-
-	return 0;
 }
 
 #if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
@@ -506,6 +495,21 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
 	if (err) {
 		LOG_ERR("lte_lc_func_mode_set, error: %d\n", err);
+
+		return err;
+	}
+
+	return 0;
+}
+
+static int set_ntn_offline_mode(void)
+{
+	int err;
+
+	/* Set modem to offline mode without loosing registration  */
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
+	if (err) {
+		LOG_ERR("lte_lc_func_mode_set, error: %d", err);
 
 		return err;
 	}
