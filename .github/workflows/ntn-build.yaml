@@ -8,8 +8,6 @@ on:
         description: The ref to build
         required: true
         default: ntn_usecase
-  schedule:
-    - cron: "0 0 * * *"
 
 permissions:
   contents: read
