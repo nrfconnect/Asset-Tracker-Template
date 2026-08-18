@@ -27,6 +27,22 @@ enum ntn_msg_type {
 	NTN_NETWORK_CONNECTED,
 	/* Network connectivity lost */
 	NTN_NETWORK_DISCONNECTED,
+	/*  */
+	NTN_NETWORK_CONNECTION_FAILED,
+	/*  */
+	NTN_NETWORK_CONNECTION_TIMEOUT,
+	/* PDN connection resumed (context preserved) */
+	NTN_PDN_RESUMED,
+	/* RRC connected */
+	NTN_RRC_CONNECTED,
+	/* RRC idle */
+	NTN_RRC_IDLE,
+	/* Cell found / modem reports searching or registered */
+	NTN_CELL_FOUND,
+	/* Modem registered on NTN network (CEREG=1 or 5) */
+	NTN_NETWORK_REGISTERED,
+	/* RRC connected timeout */
+	RRC_CONNECTED_TIMEOUT,
 	/* GNSS search timeout */
 	GNSS_TIMEOUT,
 };

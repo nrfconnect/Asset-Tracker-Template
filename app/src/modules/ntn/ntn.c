@@ -13,6 +13,7 @@
 #include <modem/nrf_modem_lib.h>
 #include <modem/ntn.h>
 #include <nrf_modem_at.h>
+#include <modem/at_monitor.h>
 #include <nrf_modem_gnss.h>
 #include <modem/modem_info.h>
 #include <zephyr/task_wdt/task_wdt.h>
@@ -56,20 +57,29 @@ struct ntn_state_object {
 	struct smf_ctx ctx;
 	const struct zbus_channel *chan;
 	uint8_t msg_buf[MAX_MSG_SIZE];
-	struct k_timer ntn_timer;
-	bool socket_connected;
-	bool ntn_initialized;
-	bool gnss_initialized;
+	struct k_timer ntn_trigger_timer;
+	struct k_timer network_connection_timer;
+	struct k_timer rrc_connected_timer;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
 	int sock_fd;
 	uint64_t location_validity_end_time;
+	int64_t  modem_cell_found_time;
+	int64_t  modem_connectivity_time;
+	int64_t  pdn_resumed_time;
+	bool rrc_is_connected;
+	bool is_registered;
+	bool ntn_dwell_armed;
 };
 
-static struct k_work timer_work;
+static struct k_work ntn_trigger_timer_work;
+static struct k_work network_connection_timer_work;
+static struct k_work rrc_connected_timer_work;
 static struct k_work gnss_location_work;
 static struct k_work gnss_timeout_work;
 
 /* Forward declarations */
+
+static void cereg_mon(const char *notif);
 
 static void gnss_event_handler(int event);
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt);
@@ -103,16 +113,42 @@ static const struct smf_state states[] = {
 
 /* Event handlers */
 
-static void timer_work_handler(struct k_work *work)
+/* Timer callback for NTN mode  */
+static void ntn_trigger_timer_handler(struct k_timer *timer)
+{
+	k_work_submit(&ntn_trigger_timer_work);
+}
+
+/* Timer callback for network connection timeout */
+static void network_connection_timer_handler(struct k_timer *timer)
+{
+	k_work_submit(&network_connection_timer_work);
+}
+
+/* Timer callback for RRC connected dwell (post-uplink before CFUN offline) */
+static void rrc_connected_timer_handler(struct k_timer *timer)
+{
+	k_work_submit(&rrc_connected_timer_work);
+}
+
+static void ntn_trigger_timer_work_fn(struct k_work *work)
 {
 	/* Time to enable NTN and connect */
 	ntn_msg_publish(NTN_TRIGGER);
 }
 
-/* Timer callback for NTN mode  */
-static void ntn_timer_handler(struct k_timer *timer)
+static void network_connection_timer_work_fn(struct k_work *work)
 {
-	k_work_submit(&timer_work);
+	/* Network connection timeout */
+	LOG_WRN("Network connection timeout occurred");
+	ntn_msg_publish(NTN_NETWORK_CONNECTION_TIMEOUT);
+}
+
+static void rrc_connected_timer_work_fn(struct k_work *work)
+{
+	/* RRC connected timeout */
+	LOG_WRN("RRC connected timeout");
+	ntn_msg_publish(RRC_CONNECTED_TIMEOUT);
 }
 
 static void handle_gnss_timeout_work_fn(struct k_work *work)
@@ -121,7 +157,7 @@ static void handle_gnss_timeout_work_fn(struct k_work *work)
 	ntn_msg_publish(GNSS_TIMEOUT);
 }
 
-static void gnss_location_work_handler(struct k_work *work)
+static void gnss_location_work_fn(struct k_work *work)
 {
 	int err;
 	struct nrf_modem_gnss_pvt_data_frame pvt_data;
@@ -164,16 +200,40 @@ static void gnss_location_work_handler(struct k_work *work)
 
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 {
+	if (evt == NULL) {
+		return;
+	}
+
 	switch (evt->type) {
 	case LTE_LC_EVT_NW_REG_STATUS:
 		if (evt->nw_reg_status == LTE_LC_NW_REG_UICC_FAIL) {
+			/* cereg 90 */
 			LOG_ERR("No SIM card detected!");
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NOT_REGISTERED) {
 			LOG_WRN("Not registered, check rejection cause");
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME) {
+			/* cereg 1 */
 			LOG_DBG("LTE_LC_NW_REG_REGISTERED_HOME");
+			ntn_msg_publish(NTN_CELL_FOUND);
+			ntn_msg_publish(NTN_NETWORK_REGISTERED);
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
+			/* cereg 5 */
 			LOG_DBG("LTE_LC_NW_REG_REGISTERED_ROAMING");
+			ntn_msg_publish(NTN_CELL_FOUND);
+			ntn_msg_publish(NTN_NETWORK_REGISTERED);
+		} else if (evt->nw_reg_status == LTE_LC_NW_REG_SEARCHING) {
+			/* cereg 2 */
+			LOG_DBG("LTE_LC_NW_REG_SEARCHING");
+			ntn_msg_publish(NTN_CELL_FOUND);
+		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTRATION_DENIED) {
+			/* cereg 3 */
+			LOG_DBG("LTE_LC_NW_REG_REGISTRATION_DENIED");
+		} else if (evt->nw_reg_status == LTE_LC_NW_REG_NO_SUITABLE_CELL) {
+			/* cereg 91 */
+			LOG_DBG("LTE_LC_NW_REG_NO_SUITABLE_CELL");
+		} else if (evt->nw_reg_status == LTE_LC_NW_REG_UNKNOWN) {
+			/* cereg 4 */
+			LOG_DBG("LTE_LC_NW_REG_UNKNOWN");
 		}
 
 		break;
@@ -202,7 +262,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			break;
 		case LTE_LC_EVT_PDN_RESUMED:
 			LOG_DBG("PDN connection resumed");
-			ntn_msg_publish(NTN_NETWORK_CONNECTED);
+			ntn_msg_publish(NTN_PDN_RESUMED);
 
 		default:
 			break;
@@ -216,16 +276,28 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		} else if (evt->modem_evt.type == LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE) {
 			LOG_DBG("LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE");
 		}
+
 		break;
+
 	case LTE_LC_EVT_RRC_UPDATE:
 		if (evt->rrc_mode == LTE_LC_RRC_MODE_CONNECTED) {
 			LOG_DBG("LTE_LC_RRC_MODE_CONNECTED");
-
+			ntn_msg_publish(NTN_RRC_CONNECTED);
 		}
 		else if (evt->rrc_mode == LTE_LC_RRC_MODE_IDLE) {
 			LOG_DBG("LTE_LC_RRC_MODE_IDLE");
+			ntn_msg_publish(NTN_RRC_IDLE);
 		}
+
 		break;
+	case LTE_LC_EVT_CELL_UPDATE:
+		struct lte_lc_cell cell_info = evt->cell;
+
+		LOG_DBG("LTE_LC_EVT_CELL_UPDATE, id: %u", cell_info.id);
+		LOG_DBG("LTE_LC_EVT_CELL_UPDATE, tac: %u", cell_info.tac);
+
+		break;
+
 	default:
 		break;
 	}
@@ -306,6 +378,61 @@ static void ntn_msg_publish(enum ntn_msg_type type)
 		return;
 	}
 }
+
+/*
+ * lte_lc's cereg module filters out +CEREG notifications when cell ID and
+ * registration status are unchanged. After PDN resume onto the same cell,
+ * this means LTE_LC_EVT_NW_REG_STATUS / LTE_LC_EVT_CELL_UPDATE never fire
+ * and modem_cell_found_time is never set. Monitor +CEREG directly to work
+ * around this.
+ *
+ * Parsing is intentionally defensive:
+ *  - Locate the ':' rather than assuming a fixed prefix length, so a missing
+ *    space or slightly different formatting does not produce garbage.
+ *  - Skip whitespace, require at least one digit, then atoi the value.
+ *  - Only act on the registration-status values we care about; everything
+ *    else (including unparsable input) is ignored silently.
+ */
+static void cereg_mon(const char *notif)
+{
+	enum lte_lc_nw_reg_status status;
+	const char *p;
+
+	if (notif == NULL) {
+		return;
+	}
+
+	p = strchr(notif, ':');
+	if (p == NULL) {
+		return;
+	}
+	p++;
+
+	while (*p == ' ' || *p == '\t') {
+		p++;
+	}
+
+	if (*p < '0' || *p > '9') {
+		return;
+	}
+
+	status = (enum lte_lc_nw_reg_status)atoi(p);
+
+	switch (status) {
+	case LTE_LC_NW_REG_REGISTERED_HOME:
+	case LTE_LC_NW_REG_REGISTERED_ROAMING:
+		ntn_msg_publish(NTN_CELL_FOUND);
+		ntn_msg_publish(NTN_NETWORK_REGISTERED);
+		break;
+	case LTE_LC_NW_REG_SEARCHING:
+		ntn_msg_publish(NTN_CELL_FOUND);
+		break;
+	default:
+		break;
+	}
+}
+
+AT_MONITOR(cereg_monitor, "+CEREG", cereg_mon, PAUSED);
 
 static void publish_last_pvt(const struct nrf_modem_gnss_pvt_data_frame *pvt)
 {
@@ -627,11 +754,35 @@ static int sock_open_and_connect(struct ntn_state_object *state)
 	return 0;
 }
 
+static int sock_send_dummy(struct ntn_state_object *state)
+{
+	int err;
+	static const char dummy[] = "Dummy";
+
+	if (state->sock_fd < 0) {
+		LOG_ERR("Socket not connected");
+
+		return -ENOTCONN;
+	}
+
+	err = send(state->sock_fd, dummy, sizeof(dummy) - 1, 0);
+	if (err < 0) {
+		LOG_ERR("Failed to send dummy packet, error: %d", errno);
+
+		return -errno;
+	}
+
+	LOG_DBG("Sent dummy packet (%zu bytes)", sizeof(dummy) - 1);
+
+	return 0;
+}
+
 static int sock_send_gnss_data(struct ntn_state_object *state)
 {
 	int err;
 	char message[256];
 	char rsrp[16] = {0}, band[16] = {0}, ue_mode[16] = {0}, oper[16] = {0}, imei[16] = {0}, temp[16] = {0};
+	int32_t packet_delay;
 	char imei_suffix[5];
 	size_t imei_len;
 
@@ -677,6 +828,12 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 		snprintk(temp, sizeof(temp), "N/A");
 	}
 
+	if (state->modem_cell_found_time > 0 && state->modem_connectivity_time > 0) {
+		packet_delay = state->modem_connectivity_time - state->modem_cell_found_time;
+	} else {
+		packet_delay = -1;
+	}
+
 	/* Extract last 4 characters of IMEI safely */
 	imei_len = strnlen(imei, sizeof(imei));
 	if (imei_len > 4) {
@@ -705,7 +862,7 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 	snprintk(message, sizeof(message),
 				"%s,,%d,%s,%s,%s,%s,%.2f,%.2f,%d,%s,%s,%s,%s",
 				imei,
-				-1,
+				packet_delay,
 				rsrp,
 				band,
 				ue_mode,
@@ -760,10 +917,15 @@ static void state_running_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 
-	k_work_init(&timer_work, timer_work_handler);
-	k_work_init(&gnss_location_work, gnss_location_work_handler);
+	k_work_init(&ntn_trigger_timer_work, ntn_trigger_timer_work_fn);
+	k_work_init(&network_connection_timer_work, network_connection_timer_work_fn);
+	k_work_init(&rrc_connected_timer_work, rrc_connected_timer_work_fn);
+	k_work_init(&gnss_location_work, gnss_location_work_fn);
 	k_work_init(&gnss_timeout_work, handle_gnss_timeout_work_fn);
-	k_timer_init(&state->ntn_timer, ntn_timer_handler, NULL);
+
+	k_timer_init(&state->ntn_trigger_timer, ntn_trigger_timer_handler, NULL);
+	k_timer_init(&state->network_connection_timer, network_connection_timer_handler, NULL);
+	k_timer_init(&state->rrc_connected_timer, rrc_connected_timer_handler, NULL);
 
 	err = nrf_modem_lib_init();
 	if (err) {
@@ -824,7 +986,7 @@ static void state_running_entry(void *obj)
 	ntn_register_handler(ntn_event_handler);
 
 
-	k_timer_start(&state->ntn_timer, K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES), K_NO_WAIT);
+	k_timer_start(&state->ntn_trigger_timer, K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES), K_NO_WAIT);
 }
 
 static enum smf_state_result state_running_run(void *obj)
@@ -838,7 +1000,7 @@ static enum smf_state_result state_running_run(void *obj)
 
 		if (msg->type == NTN_TRIGGER) {
 			/* Timer expired, restart timer and transition to NTN mode */
-			k_timer_start(&state->ntn_timer,
+			k_timer_start(&state->ntn_trigger_timer,
 				      K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES),
 				      K_NO_WAIT);
 			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
@@ -862,7 +1024,7 @@ static enum smf_state_result state_running_run(void *obj)
 			return SMF_EVENT_HANDLED;
 		}
 	} else if (state->chan == &BUTTON_CHAN) {
-		k_timer_start(&state->ntn_timer,
+		k_timer_start(&state->ntn_trigger_timer,
 			      K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES),
 			      K_NO_WAIT);
 		smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
@@ -885,7 +1047,6 @@ static void state_gnss_entry(void *obj)
 		close(state->sock_fd);
 
 		state->sock_fd = -1;
-		state->socket_connected = false;
 	}
 
 	err = set_gnss_active_mode(state);
@@ -951,10 +1112,35 @@ static void state_ntn_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 
+	state->pdn_resumed_time = 0;
+	state->modem_cell_found_time = 0;
+	state->modem_connectivity_time = 0;
+	state->is_registered = false;
+	state->ntn_dwell_armed = false;
+
+	/* lte_lc filters out +CEREG when registration status and cell ID
+	* are unchanged, which is typical after PDN resume onto the
+	* same cell. Resume the AT monitor to catch these directly.
+	*/
+	at_monitor_resume(&cereg_monitor);
+
 	err = set_ntn_active_mode(state);
 	if (err) {
 		LOG_ERR("Failed to set NTN active mode, error: %d", err);
 	}
+
+	/* Start network connection timeout timer.
+	 *
+	 * NTN cell search and registration take significantly longer than
+	 * terrestrial NB-IoT due to long propagation delays and sparse search
+	 * opportunities, so this timeout must be sized generously.
+	 * Once the modem reports CEREG registered, the timer is restarted with
+	 * APP_NTN_REGISTERED_TIMEOUT_SECONDS so RRC/PDN setup and the actual
+	 * uplink data transfer get the time they need before CFUN=45 is issued.
+	 */
+	k_timer_start(&state->network_connection_timer,
+		      K_SECONDS(CONFIG_APP_NTN_NETWORK_CONNECTION_TIMEOUT_SECONDS),
+		      K_NO_WAIT);
 }
 
 static enum smf_state_result state_ntn_run(void *obj)
@@ -967,50 +1153,187 @@ static enum smf_state_result state_ntn_run(void *obj)
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
-		if (msg->type != NTN_NETWORK_CONNECTED) {
-			return SMF_EVENT_PROPAGATE;
-		}
+		switch (msg->type) {
+		case NTN_PDN_RESUMED:
+			state->pdn_resumed_time = k_uptime_get();
 
-		LOG_DBG("Setting up socket");
+			/* Note: PDN_RESUMED fires from the modem's internal context
+			 * restore that happens during CFUN=21 activation, well before
+			 * any cell acquisition or network registration. It is NOT a
+			 * connectivity milestone and must not advance is_registered or
+			 * shorten the connection-timeout window. The dummy uplink
+			 * below is what actually triggers the modem's service request
+			 * once a cell becomes available.
+			 */
 
-		/* Network is connected, set up socket */
-		err = sock_open_and_connect(state);
-		if (err) {
-			LOG_ERR("Failed to connect socket, error: %d", err);
+			LOG_DBG("PDN resumed, opening socket and sending dummy");
 
-			state->socket_connected = false;
-		} else {
-			LOG_DBG("Socket connected successfully");
+			err = sock_open_and_connect(state);
+			if (err) {
+				LOG_ERR("Failed to connect socket: %d", err);
 
-			state->socket_connected = true;
+				return SMF_EVENT_HANDLED;
+			}
 
-			/* Send initial GNSS data if available */
+			err = sock_send_dummy(state);
+			if (err) {
+				LOG_ERR("Failed to send dummy packet: %d", err);
+			}
+
+			return SMF_EVENT_HANDLED;
+
+		case NTN_RRC_CONNECTED:
+			state->rrc_is_connected = true;
+			state->modem_connectivity_time = k_uptime_get();
+
+			if (state->pdn_resumed_time > 0) {
+				int32_t delta_ms;
+
+				delta_ms = (int32_t)(k_uptime_get() - state->pdn_resumed_time);
+
+				LOG_DBG("RRC connected %d ms after PDN resumed", delta_ms);
+			}
+
+			if (state->sock_fd < 0) {
+				LOG_WRN("RRC connected but no socket open");
+
+				return SMF_EVENT_HANDLED;
+			}
+
 			if (state->last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
-				LOG_DBG("Sending initial GNSS data");
-
 				err = sock_send_gnss_data(state);
 				if (err) {
-					LOG_ERR("Failed to send initial GNSS data, error: %d", err);
+					LOG_ERR("Failed to send GNSS data: %d", err);
 				} else {
-					LOG_DBG("Initial GNSS data sent successfully");
+					LOG_INF("GNSS data sent on RRC connected");
 				}
 			} else {
-				LOG_DBG("No valid GNSS data available to send initially");
+				LOG_DBG("No valid GNSS data to send");
 			}
+
+			if (!state->ntn_dwell_armed) {
+				state->ntn_dwell_armed = true;
+
+				k_timer_start(&state->network_connection_timer,
+					K_SECONDS(CONFIG_APP_NTN_RRC_CONNECTED_DWELL_SECONDS),
+					K_NO_WAIT);
+				k_timer_start(&state->rrc_connected_timer,
+					K_SECONDS(CONFIG_APP_NTN_RRC_CONNECTED_DWELL_SECONDS),
+					K_NO_WAIT);
+			}
+
+			return SMF_EVENT_HANDLED;
+
+		case NTN_RRC_IDLE:
+			LOG_DBG("Setting NTN RRC state to idle");
+
+			state->rrc_is_connected = false;
+
+			return SMF_EVENT_HANDLED;
+
+		case NTN_CELL_FOUND:
+			at_monitor_pause(&cereg_monitor);
+
+			if (!state->rrc_is_connected) {
+				LOG_DBG("Cell found");
+
+				state->modem_cell_found_time = k_uptime_get();
+			}
+
+			return SMF_EVENT_HANDLED;
+
+		case NTN_NETWORK_REGISTERED:
+			/* Both lte_lc_evt_handler and the +CEREG AT monitor publish
+			 * NTN_NETWORK_REGISTERED on registered states (CEREG=1/5), and
+			 * the modem may emit several CEREG URCs during a single attempt
+			 * (e.g. on TAC change). Without gating, every event would
+			 * re-arm the timer with the extended timeout and could keep
+			 * STATE_NTN alive indefinitely while RRC never comes up.
+			 *
+			 * Extend the timeout exactly once, the first time we see
+			 * registration. Subsequent events are no-ops.
+			 *
+			 * Implements the gating rule "do not issue CFUN=45 while
+			 * registered until data transfer completes or fails".
+			 */
+			if (state->is_registered || state->ntn_dwell_armed) {
+				return SMF_EVENT_HANDLED;
+			}
+
+			state->is_registered = true;
+
+			LOG_INF("NTN network registered, extending timeout to %d s",
+				CONFIG_APP_NTN_REGISTERED_TIMEOUT_SECONDS);
+			k_timer_start(&state->network_connection_timer,
+				      K_SECONDS(CONFIG_APP_NTN_REGISTERED_TIMEOUT_SECONDS),
+				      K_NO_WAIT);
+
+			return SMF_EVENT_HANDLED;
+
+		case NTN_NETWORK_CONNECTION_TIMEOUT:
+			/* The timer fires from ISR context, the work item then
+			 * publishes NTN_NETWORK_CONNECTION_TIMEOUT on zbus. By the
+			 * time SMF processes the message, an NTN_NETWORK_REGISTERED
+			 * may already have restarted the timer with the extended
+			 * "registered" timeout. Detect that case and ignore the
+			 * stale timeout so the freshly armed window is honoured.
+			 */
+			if (k_timer_remaining_get(
+				    &state->network_connection_timer) > 0) {
+				LOG_DBG("Stale NTN_NETWORK_CONNECTION_TIMEOUT, "
+					"timer was restarted; ignoring");
+				return SMF_EVENT_HANDLED;
+			}
+
+			__fallthrough;
+		case RRC_CONNECTED_TIMEOUT:
+			__fallthrough;
+		case NTN_NETWORK_CONNECTION_FAILED:
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+			return SMF_EVENT_HANDLED;
+
+		case NTN_NETWORK_CONNECTED:
+			k_timer_stop(&state->network_connection_timer);
+
+			state->modem_connectivity_time = k_uptime_get();
+
+			/* Network is connected, set up socket */
+			err = sock_open_and_connect(state);
+			if (err) {
+				LOG_ERR("Failed to connect socket: %d", err);
+
+				return SMF_EVENT_HANDLED;
+			} else {
+				LOG_DBG("Socket setup successfully");
+
+			}
+
+			if (state->last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
+				err = sock_send_gnss_data(state);
+				if (err) {
+					LOG_ERR("Failed to send GNSS data: %d", err);
+				}
+			} else {
+				LOG_DBG("No valid GNSS data to send");
+			}
+
+			/*
+			* In future, we should wait until we get ACK for data being transmitted,
+			* and send CFUN=45 only after data were sent successfully.
+			*
+			* It may take 10s to send data in NTN.
+			* k_sleep is added as intermediate solution
+			*/
+			k_sleep(K_MSEC(30000));
+
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+			return SMF_EVENT_HANDLED;
+
+		default:
+			break;
 		}
-
-		/*
-		 * In future, we should wait until we get ACK for data being transmitted,
-		 * and send CFUN=45 only after data were sent successfully.
-		 *
-		 * It may take 10s to send data in NTN.
-		 * k_sleep is added as intermediate solution
-		 */
-		k_sleep(K_MSEC(60000));
-
-		smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
-
-		return SMF_EVENT_HANDLED;
 	}
 
 	return SMF_EVENT_PROPAGATE;
@@ -1028,8 +1351,12 @@ static void state_ntn_exit(void *obj)
 		close(state->sock_fd);
 
 		state->sock_fd = -1;
-		state->socket_connected = false;
 	}
+
+	k_timer_stop(&state->network_connection_timer);
+	k_timer_stop(&state->rrc_connected_timer);
+
+	at_monitor_pause(&cereg_monitor);
 
 	err = set_ntn_offline_mode();
 	if (err) {
@@ -1040,9 +1367,11 @@ static void state_ntn_exit(void *obj)
 
 static void state_idle_entry(void *obj)
 {
-	ARG_UNUSED(obj);
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
 	LOG_DBG("%s", __func__);
+
+	state->rrc_is_connected = false;
 }
 
 static enum smf_state_result state_idle_run(void *obj)
@@ -1064,6 +1393,7 @@ static void ntn_module_thread(void)
 	const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
 	struct ntn_state_object ntn_state = {
 		.sock_fd = -1,
+		.rrc_is_connected = false,
 	 };
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, ntn_wdt_callback, (void *)k_current_get());

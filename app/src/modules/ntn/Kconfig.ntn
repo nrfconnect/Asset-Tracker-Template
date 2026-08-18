@@ -98,6 +98,42 @@ config APP_NTN_IRIDIUM
 	help
 	  Iridium network.
 
+config APP_NTN_NETWORK_CONNECTION_TIMEOUT_SECONDS
+	int "NTN cell search / connection timeout in seconds"
+	range 1 600
+	default 180
+	help
+	  Maximum time the application waits, after switching the modem to NTN
+	  active mode (CFUN=21), for the modem to acquire a satellite cell and
+	  register on the network. Once this timer expires the NTN attempt is
+	  aborted and the modem is taken to flight mode (CFUN=45).
+
+	  NTN cell search takes significantly longer than terrestrial NB-IoT
+	  because of long propagation delays, fewer search opportunities per
+	  DRX cycle and fewer cells. A value below ~60 seconds is rarely
+	  enough; 90-180 seconds is a reasonable range.
+
+config APP_NTN_REGISTERED_TIMEOUT_SECONDS
+	int "Extended NTN timeout once registered, in seconds"
+	range 1 600
+	default 20
+	help
+	  Once the modem reports CEREG registered (HOME or ROAMING) on the NTN
+	  network, the connection timeout is restarted with this value to give
+	  RRC connection setup, PDN activation and uplink data transfer enough
+	  time to complete before the application gives up and issues CFUN=45.
+
+	  This realises the gating rule "do not issue CFUN=45 while the network
+	  is registered until data transfer completes or fails".
+
+config APP_NTN_RRC_CONNECTED_DWELL_SECONDS
+	int "Wait after RRC connected before offline"
+	range 1 600
+	default 40
+	help
+	  After RRC connects and uplink data is sent, the NTN state machine waits
+	  this long before going offline.
+
 module = APP_NTN
 module-str = NTN
 source "subsys/logging/Kconfig.template.log_config"
