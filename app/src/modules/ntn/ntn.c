@@ -1294,8 +1294,6 @@ static enum smf_state_result state_ntn_run(void *obj)
 			return SMF_EVENT_HANDLED;
 
 		case NTN_NETWORK_CONNECTED:
-			k_timer_stop(&state->network_connection_timer);
-
 			state->modem_connectivity_time = k_uptime_get();
 
 			/* Network is connected, set up socket */
