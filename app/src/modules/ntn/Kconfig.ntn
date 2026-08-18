@@ -116,7 +116,7 @@ config APP_NTN_NETWORK_CONNECTION_TIMEOUT_SECONDS
 config APP_NTN_REGISTERED_TIMEOUT_SECONDS
 	int "Extended NTN timeout once registered, in seconds"
 	range 1 600
-	default 20
+	default 120
 	help
 	  Once the modem reports CEREG registered (HOME or ROAMING) on the NTN
 	  network, the connection timeout is restarted with this value to give
@@ -129,7 +129,7 @@ config APP_NTN_REGISTERED_TIMEOUT_SECONDS
 config APP_NTN_RRC_CONNECTED_DWELL_SECONDS
 	int "Wait after RRC connected before offline"
 	range 1 600
-	default 40
+	default 60
 	help
 	  After RRC connects and uplink data is sent, the NTN state machine waits
 	  this long before going offline.
