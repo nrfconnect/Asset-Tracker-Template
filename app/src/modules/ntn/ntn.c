@@ -1318,16 +1318,16 @@ static enum smf_state_result state_ntn_run(void *obj)
 				LOG_DBG("No valid GNSS data to send");
 			}
 
-			/*
-			* In future, we should wait until we get ACK for data being transmitted,
-			* and send CFUN=45 only after data were sent successfully.
-			*
-			* It may take 10s to send data in NTN.
-			* k_sleep is added as intermediate solution
-			*/
-			k_sleep(K_MSEC(30000));
+			if (!state->ntn_dwell_armed) {
+				state->ntn_dwell_armed = true;
 
-			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+				k_timer_start(&state->network_connection_timer,
+					K_SECONDS(CONFIG_APP_NTN_RRC_CONNECTED_DWELL_SECONDS),
+					K_NO_WAIT);
+				k_timer_start(&state->rrc_connected_timer,
+					K_SECONDS(CONFIG_APP_NTN_RRC_CONNECTED_DWELL_SECONDS),
+					K_NO_WAIT);
+			}
 
 			return SMF_EVENT_HANDLED;
 
