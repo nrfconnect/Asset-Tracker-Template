@@ -125,7 +125,7 @@ Triggering SGP4 manually
 ![Experimental](https://img.shields.io/badge/status-experimental-orange)
 
 ### Description
-Device boots, connects to nRFCloud via TN SoftSIM, downloads TLE data from shadow (or via HTTP client to if CONFIG_TLE_VIA_HTTP). Then goes to GNSS state and gets fix. After having collected TLE and GNSS, it runs SGP4 and computes next pass. (Note: only one satellite in the shadow limitation). After computing next pass, it schedules gnss_timer and ntn_timer. Gnns_timer to wake up 5 minutes before pass to update location. Ntn_timer to switch to ntn mode and scan for cell. If attach complete, it sends data to Thingy World (https://world.thingy.rocks/). 
+Device boots, connects to nRFCloud via TN SoftSIM, downloads TLE data from shadow. Then goes to GNSS state and gets fix. After having collected TLE and GNSS, it runs SGP4 and computes next pass. (Note: only one satellite in the shadow limitation). After computing next pass, it schedules gnss_timer and ntn_timer. Gnns_timer to wake up 5 minutes before pass to update location. Ntn_timer to switch to ntn mode and scan for cell. If attach complete, it sends data to Thingy World (https://world.thingy.rocks/). 
 
 ### Instructions
 Follow Onomondo softsim ncs installation: https://github.com/onomondo/nrf-softsim

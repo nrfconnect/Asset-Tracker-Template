@@ -42,10 +42,6 @@
 #include "memfault_lte_coredump_modem_trace.h"
 #endif
 
-#if defined(CONFIG_TLE_VIA_HTTP)
-#include "celestrak_client.h"
-#endif
-
 LOG_MODULE_REGISTER(ntn_module, CONFIG_APP_NTN_LOG_LEVEL);
 
 static const char *sib32_payload_start(const char *notif)
@@ -1499,15 +1495,6 @@ static void state_running_entry(void *obj)
 		LOG_WRN("AT+CGPADDR=10 query failed, error: %d", rc);
 	}
 
-#if defined(CONFIG_TLE_VIA_HTTP)
-	/* Initialize Celestrak client */
-	err = celestrak_client_init();
-	if (err) {
-		LOG_ERR("Failed to initialize Celestrak client, error: %d", err);
-		return;
-	}
-#endif
-
 	/* Register GNSS event handler */
 	nrf_modem_gnss_event_handler_set(gnss_event_handler);
 
@@ -1961,57 +1948,8 @@ static enum smf_state_result state_tn_run(void *obj)
 			return SMF_EVENT_HANDLED;
 		} else if (msg->type == NETWORK_CONNECTED) {
 			k_sleep(K_SECONDS(2));
-#if defined(CONFIG_TLE_VIA_HTTP)
-			/* Fetch TLE for SIOT1 with proper error handling */
-			char tle_buffer[1024] = {0};
-			size_t bytes_written = 0;
-			const char* siot1_catnr = "60550";  // SATELIOT_1
 
-			LOG_INF("Starting TLE fetch for SIOT1 via SoftSIM");
-
-			err = celestrak_fetch_tle(siot1_catnr, tle_buffer, sizeof(tle_buffer), &bytes_written);
-			if (err != 0 || bytes_written == 0) {
-				LOG_ERR("Failed to fetch TLEs");
-				goto fail;
-			}
-
-			LOG_INF("TLE for SIOT1:\n%s", tle_buffer);
-
-			/* Parse the TLE data - it comes in 3 lines format */
-			char *saveptr;
-			char *line = strtok_r(tle_buffer, "\n", &saveptr);
-			if (!line) {
-				LOG_ERR("Failed to parse satellite name");
-				goto fail;
-			}
-
-			const char *tle_name = line;
-
-			line = strtok_r(NULL, "\n", &saveptr);
-			if (!line) {
-				LOG_ERR("Failed to parse TLE line 1");
-				goto fail;
-			}
-			const char *tle_line1 = line;
-
-			line = strtok_r(NULL, "\n", &saveptr);
-			if (!line) {
-				LOG_ERR("Failed to parse TLE line 2");
-				goto fail;
-			}
-			const char *tle_line2 = line;
-			int tle_index;
-
-			clear_cached_tles(state);
-			tle_index = store_tle_entry(state, tle_name, tle_line1, tle_line2);
-			if (tle_index < 0) {
-				LOG_ERR("Failed to store fetched TLE data, error: %d", tle_index);
-				goto fail;
-			}
-
-			LOG_INF("TLE data stored successfully for %s",
-				state->tle_entries[tle_index].name);
-#else /* TLE via nRFCloud */
+			/* TLE via nRFCloud */
 			err = connect_to_cloud();
 			if (err) {
 				LOG_ERR("Failed to connect to nRF Cloud CoAP on TN");
@@ -2061,8 +1999,6 @@ static enum smf_state_result state_tn_run(void *obj)
 			} else if (err == 0) {
 				LOG_INF("CoAP connection paused");
 			}
-#endif
-
 
 			/* Prepare modem traces for upload */
 			err = memfault_lte_coredump_modem_trace_prepare_for_upload();
