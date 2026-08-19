@@ -10,7 +10,7 @@ if APP_NTN
 
 config APP_NTN_THREAD_STACK_SIZE
 	int "NTN module thread stack size"
-	default 2048
+	default 4096
 
 config APP_NTN_TIMER_TIMEOUT_MINUTES
 	int "NTN timer timeout in minutes"
