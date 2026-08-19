@@ -521,23 +521,6 @@ static void ntn_wdt_callback(int channel_id, void *user_data)
 		channel_id, k_thread_name_get((k_tid_t)user_data));
 }
 
-static void log_stack_usage(const char *label)
-{
-#if defined(CONFIG_THREAD_STACK_INFO)
-	size_t unused;
-	int err;
-
-	err = k_thread_stack_space_get(k_current_get(), &unused);
-	if (err == 0) {
-		LOG_DBG("Stack %s: unused=%zu used~=%zu/%u",
-			label, unused, CONFIG_APP_NTN_THREAD_STACK_SIZE - unused,
-			CONFIG_APP_NTN_THREAD_STACK_SIZE);
-	}
-#else
-	ARG_UNUSED(label);
-#endif
-}
-
 /* Helper function to publish NTN messages */
 static void ntn_msg_publish(enum ntn_msg_type type)
 {
@@ -2145,8 +2128,6 @@ static void state_sgp4_entry(void *obj)
 	const char *selected_tle_name = NULL;
 
 	LOG_DBG("%s", __func__);
-	log_stack_usage("before_sgp4");
-
 
 	if (!state->has_valid_sib32 && !state->has_valid_tle) {
 		LOG_WRN("SGP4 requested without prediction data");
@@ -2669,8 +2650,6 @@ static void ntn_module_thread(void)
 
 			return;
 		}
-
-	// log_stack_usage("main_loop_top");
 
 		/* Wait for messages */
 		err = zbus_sub_wait_msg(&ntn_subscriber, &ntn_state.chan, ntn_state.msg_buf, zbus_wait_ms);
