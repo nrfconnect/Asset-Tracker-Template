@@ -19,6 +19,7 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/net/socket.h>
 #include <errno.h>
+#include <math.h>
 
 #include "app_common.h"
 #include "ntn.h"
@@ -61,6 +62,7 @@ struct ntn_state_object {
 	struct k_timer network_connection_timer;
 	struct k_timer rrc_connected_timer;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
+	double elevation;
 	int sock_fd;
 	uint64_t location_validity_end_time;
 	int64_t  modem_cell_found_time;
@@ -379,6 +381,187 @@ static void ntn_msg_publish(enum ntn_msg_type type)
 	}
 }
 
+static const char *sib3x_payload_start(const char *notif)
+{
+	const char *sib3x = strstr(notif, "SIBCONFIG:");
+
+	return sib3x != NULL ? sib3x : notif;
+}
+
+/* AT monitor for SIB3X notifications */
+static void sib3x_mon(const char *notif)
+{
+	int err;
+	struct ntn_msg msg;
+	const char *sib3x = sib3x_payload_start(notif);
+	size_t sib3x_len = strlen(sib3x);
+
+	if (strncmp(sib3x, "SIBCONFIG: 32,", sizeof("SIBCONFIG: 32,") - 1) == 0) {
+		LOG_DBG("Received SIB32: %s", sib3x);
+		msg.type = NTN_SET_SIB32;
+
+		if (sib3x_len == 0 || sib3x_len >= sizeof(msg.sib32_data)) {
+			LOG_WRN("Ignoring SIB32 notification with invalid length: %u", (unsigned int)sib3x_len);
+			return;
+		}
+
+		strncpy(msg.sib32_data, sib3x, sizeof(msg.sib32_data) - 1);
+		msg.sib32_data[sizeof(msg.sib32_data) - 1] = '\0';
+	} else if (strncmp(sib3x, "SIBCONFIG: 31,", sizeof("SIBCONFIG: 31,") - 1) == 0) {
+		LOG_DBG("Received SIB31: %s", sib3x);
+	        msg.type = NTN_SET_SIB31;
+
+		if (sib3x_len == 0 || sib3x_len >= sizeof(msg.sib31_data)) {
+			LOG_WRN("Ignoring SIB31 notification with invalid length: %u", (unsigned int)sib3x_len);
+			return;
+		}
+
+		strncpy(msg.sib31_data, sib3x, sizeof(msg.sib31_data) - 1);
+		msg.sib31_data[sizeof(msg.sib31_data) - 1] = '\0';
+	}
+
+	err = zbus_chan_pub(&NTN_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("Failed to publish SIB32 update, error: %d", err);
+		return;
+	}
+}
+
+static char *next_token(char **saveptr, char *delim)
+{
+	char *tok = strtok_r(NULL, delim, saveptr);
+
+	if (!tok) {
+		LOG_ERR("No token found");
+		return NULL;
+	}
+	return tok;
+}
+
+static bool compute_elevation_from_sib31(struct ntn_state_object *state, const char *sib31_data)
+{
+	int err;
+	int sibnr;
+	int ephemeris_type;
+	char *buf;
+	int ret;
+	char *saveptr;
+	char cell_id[9];
+	char *tok;
+	int atsib31_len;
+	int64_t tmp[3];
+
+	const char *atsib31 = sib3x_payload_start(sib31_data);
+
+	if (atsib31 == NULL) {
+		LOG_ERR("AT SIB31 is NULL");
+		return -EINVAL;
+	}
+	atsib31_len = strlen(atsib31);
+	LOG_INF("SIB31 length is %d",atsib31_len);
+
+	buf = malloc(atsib31_len + 1);
+	if (buf == NULL) {
+		LOG_ERR("Failed to allocate SIB31 parse buffer");
+		return -ENOMEM;
+	}
+	memcpy(buf, atsib31, atsib31_len);
+	buf[atsib31_len] = '\0';
+
+	/* Parse the SIBREQ/SIBCONFIG header */
+	tok = strtok_r(buf, " ", &saveptr);
+	if (!tok) {
+		LOG_ERR("Failed to parse SIB notification, no token found");
+		ret = -EINVAL;
+		goto cleanup;
+	}
+
+	if (strcmp(tok, "SIBREQ:") != 0 && strcmp(tok, "SIBCONFIG:") != 0) {
+		LOG_ERR("Not a SIBREQ/SIBCONFIG string");
+		ret = -EINVAL;
+		goto cleanup;
+	}
+
+	/* Parse the SIB number */
+	tok = next_token(&saveptr, ",");
+	sibnr = strtol(tok, NULL, 10);
+	LOG_INF("SIB Number is %d", sibnr);
+	if (sibnr != 31) {
+		LOG_ERR("Not a SIB 31 string");
+		ret = -EINVAL;
+		goto cleanup;
+	}
+
+	/* Parse the cell ID */
+	tok = next_token(&saveptr, "\"");
+	if (cell_id != NULL) {
+		strncpy(cell_id, tok, 8);
+		cell_id[8] = '\0';
+	}
+
+	tok = next_token(&saveptr, ",");
+	ephemeris_type = strtol(tok, NULL, 10);
+	if (ephemeris_type == 1 ) {  //State vector
+		tok = next_token(&saveptr, ",");
+		tmp[0] = strtoll(tok, NULL, 10);
+		tok = next_token(&saveptr, ",");
+		tmp[1] = strtoll(tok, NULL, 10);
+		tok = next_token(&saveptr, ",");
+		tmp[2] = strtoll(tok, NULL, 10);
+
+		double sat_pos[3];
+		sat_pos[0]=tmp[0]*1.3;
+		sat_pos[1]=tmp[1]*1.3;
+		sat_pos[2]=tmp[2]*1.3;
+		LOG_INF("SAT position is x:%3.f,y:%3.f,z:%3.f",sat_pos[0],sat_pos[1],sat_pos[2]);
+
+		/* Convert deg to radians/meters  */
+		double UE_long = (double)state->last_pvt.longitude / 180 * GNSS_GPS_PI; //+GMSTinRadian;
+		double UE_lat = (double)state->last_pvt.latitude / 180 * GNSS_GPS_PI;
+		double UE_h = (double)state->last_pvt.altitude;
+
+		/* WGS-84 model conversion from GPS coordinates to XYZ */
+		double A = 6378137; /* Semi-major axis (radius of the earth in meters) */
+		double f = 1 / 298.257223563;  /* 1/f Reciprocal of Earth flattening factor */
+		double e2 = f * (2 - f); /* Square of eccentricity */
+		double Rc = A / (sqrt(1 - e2 * (sin(UE_lat) * sin(UE_lat))));
+
+		/*Compute XYZ UE position*/
+		double ue_position[3];
+		ue_position[0] = (Rc + UE_h) * cos(UE_lat) * cos(UE_long);
+		ue_position[1] = (Rc + UE_h) * cos(UE_lat) * sin(UE_long);
+		ue_position[2] = (Rc * (1 - e2) + UE_h) * sin(UE_lat);
+
+		/*Compute position difference vector*/
+		double pos_diff[3];
+		pos_diff[0] = sat_pos[0] - ue_position[0];
+		pos_diff[1] = sat_pos[1] - ue_position[1];
+		pos_diff[2] = sat_pos[2] - ue_position[2];
+
+		/* Compute distance from difference vector*/
+		double distance_m = sqrt(pos_diff[0] * pos_diff[0] + pos_diff[1] * pos_diff[1] + pos_diff[2] * pos_diff[2]);
+
+		/* The satellite elevation angle (deg) from UE and SAT location */
+		state->elevation = (pos_diff[0] * ue_position[0] + pos_diff[1] * ue_position[1] + pos_diff[2] * ue_position[2]) /
+					(distance_m * sqrt(ue_position[0] * ue_position[0] + ue_position[1] * ue_position[1] + ue_position[2] * ue_position[2]));
+		state->elevation = acos(SATURATE(-1.0, state->elevation, 1.0));
+		state->elevation = 90 - (180 * state->elevation / GNSS_GPS_PI);
+		//state->elevation = 45;
+		LOG_INF("Computed elevation is  %1.f",state->elevation);
+	} else if (ephemeris_type == 2 ) {  //Orbital params
+		//TODO
+		LOG_ERR("Orbital data not yet implemented");
+	} else {
+		LOG_ERR("SIB31 ephemeris is buggy");
+	}
+
+	return true;
+
+	cleanup:
+	free(buf);
+	return true;
+}
+
 /*
  * lte_lc's cereg module filters out +CEREG notifications when cell ID and
  * registration status are unchanged. After PDN resume onto the same cell,
@@ -432,6 +615,7 @@ static void cereg_mon(const char *notif)
 	}
 }
 
+AT_MONITOR(sib3x_monitor, "SIBCONFIG", sib3x_mon, PAUSED);
 AT_MONITOR(cereg_monitor, "+CEREG", cereg_mon, PAUSED);
 
 static void publish_last_pvt(const struct nrf_modem_gnss_pvt_data_frame *pvt)
@@ -618,6 +802,13 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 #endif
 
 	configure_periodic_search();
+
+	at_monitor_resume(&sib3x_monitor);
+
+	err = nrf_modem_at_printf("AT%%SIBCONFIG=32,1,31,0");
+	if (err) {
+		LOG_WRN("SIBCONFIG=32,1,31,0 failed: %d", err);
+	}
 
 	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_LTE);
 	if (err) {
@@ -860,7 +1051,7 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 	// imei,ping_rtt,rsrp,band,ue_mode,oper,lat_str,lon_str,accuracy,...
 	// ...battery_str,temp_str,pressure_str,humidity_str
 	snprintk(message, sizeof(message),
-				"%s,,%d,%s,%s,%s,%s,%.2f,%.2f,%d,%s,%s,%s,%s",
+				"%s,,%d,%s,%s,%s,%s,%.3f,%.3f,%d,%.1f,%s,%s,%s",
 				imei,
 				packet_delay,
 				rsrp,
@@ -870,7 +1061,7 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 				state->last_pvt.latitude,
 				state->last_pvt.longitude,
 				(int)state->last_pvt.accuracy,
-				"99.99",temp,"999.99","99.99");
+				state->elevation,temp,"999.99","99.99");
 #elif defined(CONFIG_APP_NTN_SEND_GNSS_DATA)
 	/* Format GNSS data as string */
 	err = snprintk(message, sizeof(message),
@@ -930,8 +1121,6 @@ static void state_running_entry(void *obj)
 	err = nrf_modem_lib_init();
 	if (err) {
 		LOG_ERR("Failed to initialize the modem library, error: %d", err);
-
-		return;
 	}
 
 	/* Register GNSS event handler */
@@ -944,8 +1133,6 @@ static void state_running_entry(void *obj)
 	err = lte_lc_pdn_default_ctx_events_enable();
 	if (err) {
 		LOG_ERR("lte_lc_pdn_default_ctx_events_enable, error: %d", err);
-
-		return;
 	}
 
 	struct lte_lc_cellular_profile ntn_profile = {
@@ -964,27 +1151,20 @@ static void state_running_entry(void *obj)
 	err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,0,8,0");
 		if (err) {
 			LOG_ERR("Failed to set CELLULARPRFL=2,0,8,0, error: %d", err);
-
-			return;
 		}
 #else
 	err = lte_lc_cellular_profile_configure(&ntn_profile);
 	if (err) {
 		LOG_ERR("Failed to set NTN profile, error: %d", err);
-
-		return;
 	}
 #endif
 
 	err = lte_lc_cellular_profile_configure(&tn_profile);
 	if (err) {
 		LOG_ERR("Failed to set TN profile, error: %d", err);
-
-		return;
 	}
 
 	ntn_register_handler(ntn_event_handler);
-
 
 	k_timer_start(&state->ntn_trigger_timer, K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES), K_NO_WAIT);
 }
@@ -998,7 +1178,8 @@ static enum smf_state_result state_running_run(void *obj)
 	if (state->chan == &NTN_CHAN) {
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
-		if (msg->type == NTN_TRIGGER) {
+		switch (msg->type) {
+		case NTN_TRIGGER:
 			/* Timer expired, restart timer and transition to NTN mode */
 			k_timer_start(&state->ntn_trigger_timer,
 				      K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES),
@@ -1006,9 +1187,8 @@ static enum smf_state_result state_running_run(void *obj)
 			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
 
 			return SMF_EVENT_HANDLED;
-		}
 
-		if (msg->type == NTN_LOCATION_REQUEST) {
+		case NTN_LOCATION_REQUEST:
 			uint64_t current_time = k_uptime_get();
 
 			if (current_time < state->location_validity_end_time) {
@@ -1022,7 +1202,13 @@ static enum smf_state_result state_running_run(void *obj)
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
 
 			return SMF_EVENT_HANDLED;
+		default:
+
+			break;
 		}
+
+
+
 	} else if (state->chan == &BUTTON_CHAN) {
 		k_timer_start(&state->ntn_trigger_timer,
 			      K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES),
@@ -1154,6 +1340,11 @@ static enum smf_state_result state_ntn_run(void *obj)
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
 		switch (msg->type) {
+		case NTN_SET_SIB31:
+			compute_elevation_from_sib31(state, msg->sib31_data);
+			at_monitor_pause(&sib3x_monitor);
+
+			break;
 		case NTN_PDN_RESUMED:
 			state->pdn_resumed_time = k_uptime_get();
 
@@ -1354,6 +1545,7 @@ static void state_ntn_exit(void *obj)
 	k_timer_stop(&state->network_connection_timer);
 	k_timer_stop(&state->rrc_connected_timer);
 
+	at_monitor_pause(&sib3x_monitor);
 	at_monitor_pause(&cereg_monitor);
 
 	err = set_ntn_offline_mode();
