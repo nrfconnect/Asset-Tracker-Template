@@ -18,6 +18,12 @@ extern "C" {
 #define NTN_TLE_NAME_MAX_LEN 30
 #define NTN_TLE_LINE_MAX_LEN 80
 #define NTN_SIB32_MAX_LEN 512
+#define NTN_SIB31_MAX_LEN 512
+#define NTN_SIB31_MAX_FIELD_COUNT 32
+#define GNSS_GPS_PI 3.1415926535898
+/* Saturate value x to the range [MIN_VALUE..MAX_VALUE] */
+#define SATURATE(MIN_VALUE, x, MAX_VALUE) \
+	((x) < (MIN_VALUE) ? (MIN_VALUE) : ((x) > (MAX_VALUE) ? (MAX_VALUE) : (x)))
 
 /* NTN module message types */
 enum ntn_msg_type {
@@ -42,6 +48,7 @@ enum ntn_msg_type {
 	NTN_SHELL_SET_TLE, /* Set TLE from shell */
 	NTN_SHELL_SET_PEAK_OFFSET, /* Set NTN activation offset from shell */
 	NTN_SET_SIB32, /* Set SIB32 prediction data from shell or AT monitor */
+	NTN_SET_SIB31, /* Set SIB31 prediction data from shell or AT monitor */
 	NTN_CLEAR_SIB32, /* Clear cached SIB32 prediction data */
 	KEEPALIVE_TIMER,     /* Keepalive timer */
 	SGP4_TRIGGER, /* */
@@ -60,6 +67,7 @@ struct ntn_msg {
 	char tle_line2[NTN_TLE_LINE_MAX_LEN];
 	int32_t peak_offset_seconds;
 	char sib32_data[NTN_SIB32_MAX_LEN];
+	char sib31_data[NTN_SIB31_MAX_LEN];
 	struct nrf_modem_gnss_pvt_data_frame pvt;
 };
 
