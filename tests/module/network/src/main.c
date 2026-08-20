@@ -643,6 +643,32 @@ void test_modem_fault_work_submit_failure(void)
 	TEST_ASSERT_EQUAL(0, err);
 }
 
+void test_modem_battery_low_no_msg(void)
+{
+	const struct zbus_channel *chan;
+	struct network_msg msg;
+
+	send_mdmev_evt(LTE_LC_MODEM_EVT_BATTERY_LOW);
+
+	/* No zbus message should be published for this event */
+	int err = zbus_sub_wait_msg(&test_subscriber, &chan, &msg, K_MSEC(200));
+
+	TEST_ASSERT_EQUAL(-ENOMSG, err);
+}
+
+void test_modem_overheated_no_msg(void)
+{
+	const struct zbus_channel *chan;
+	struct network_msg msg;
+
+	send_mdmev_evt(LTE_LC_MODEM_EVT_OVERHEATED);
+
+	/* No zbus message should be published for this event */
+	int err = zbus_sub_wait_msg(&test_subscriber, &chan, &msg, K_MSEC(200));
+
+	TEST_ASSERT_EQUAL(-ENOMSG, err);
+}
+
 void test_modem_fault_handler(void)
 {
 	int err;
