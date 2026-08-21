@@ -49,14 +49,16 @@ enum ntn_msg_type {
 	NTN_CELL_FOUND,
 	/* Modem registered on NTN network (CEREG=1 or 5) */
 	NTN_NETWORK_REGISTERED,
-	/* RRC connected timeout */
-	RRC_CONNECTED_TIMEOUT,
 	/* GNSS search timeout */
 	GNSS_TIMEOUT,
 	/* Set SIB32 prediction data from shell or AT monitor */
 	NTN_SET_SIB32,
 	/* Set SIB31 prediction data from shell or AT monitor */
 	NTN_SET_SIB31,
+	/* Network acknowledged the last payload send (SO_SENDCB) */
+	NTN_SEND_ACK,
+	/* Payload send failed locally or was not acknowledged before timeout */
+	NTN_SEND_FAILED,
 };
 
 /* NTN module message */

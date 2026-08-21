@@ -18,6 +18,7 @@
 #include <modem/modem_info.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/net/socket.h>
+#include <zephyr/net/socket_ncs.h>
 #include <errno.h>
 #include <math.h>
 
@@ -60,7 +61,6 @@ struct ntn_state_object {
 	uint8_t msg_buf[MAX_MSG_SIZE];
 	struct k_timer ntn_trigger_timer;
 	struct k_timer network_connection_timer;
-	struct k_timer rrc_connected_timer;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
 	double elevation;
 	int sock_fd;
@@ -70,12 +70,19 @@ struct ntn_state_object {
 	int64_t  pdn_resumed_time;
 	bool rrc_is_connected;
 	bool is_registered;
-	bool ntn_dwell_armed;
 };
+
+struct send_ack_ctx {
+	atomic_t ready;
+	int status;
+	size_t bytes_sent;
+};
+
+static struct send_ack_ctx send_ack;
+static struct k_work send_ack_work;
 
 static struct k_work ntn_trigger_timer_work;
 static struct k_work network_connection_timer_work;
-static struct k_work rrc_connected_timer_work;
 static struct k_work gnss_location_work;
 static struct k_work gnss_timeout_work;
 
@@ -127,12 +134,6 @@ static void network_connection_timer_handler(struct k_timer *timer)
 	k_work_submit(&network_connection_timer_work);
 }
 
-/* Timer callback for RRC connected dwell (post-uplink before CFUN offline) */
-static void rrc_connected_timer_handler(struct k_timer *timer)
-{
-	k_work_submit(&rrc_connected_timer_work);
-}
-
 static void ntn_trigger_timer_work_fn(struct k_work *work)
 {
 	/* Time to enable NTN and connect */
@@ -144,13 +145,6 @@ static void network_connection_timer_work_fn(struct k_work *work)
 	/* Network connection timeout */
 	LOG_WRN("Network connection timeout occurred");
 	ntn_msg_publish(NTN_NETWORK_CONNECTION_TIMEOUT);
-}
-
-static void rrc_connected_timer_work_fn(struct k_work *work)
-{
-	/* RRC connected timeout */
-	LOG_WRN("RRC connected timeout");
-	ntn_msg_publish(RRC_CONNECTED_TIMEOUT);
 }
 
 static void handle_gnss_timeout_work_fn(struct k_work *work)
@@ -911,6 +905,68 @@ static int set_gnss_inactive_mode(void)
 	return 0;
 }
 
+static void send_ack_work_fn(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	if (send_ack.status != 0) {
+		LOG_WRN("Send not acked by network: status=%d, bytes=%zu",
+			send_ack.status, send_ack.bytes_sent);
+		ntn_msg_publish(NTN_SEND_FAILED);
+	} else {
+		LOG_INF("Send acked by network: %zu bytes", send_ack.bytes_sent);
+		ntn_msg_publish(NTN_SEND_ACK);
+	}
+
+	atomic_clear(&send_ack.ready);
+}
+
+/* Called in IRQ context */
+static void send_ack_cb(const struct socket_ncs_sendcb_params *params)
+{
+	if (atomic_get(&send_ack.ready)) {
+		LOG_WRN("Send ack already pending");
+		return;
+	}
+
+	send_ack.status = params->status;
+	send_ack.bytes_sent = params->bytes_sent;
+	atomic_set(&send_ack.ready, 1);
+
+	k_work_submit(&send_ack_work);
+}
+
+static int sock_set_send_timeout(int sock_fd)
+{
+	struct timeval tmo = {
+		.tv_sec = CONFIG_APP_NTN_SEND_ACK_TIMEOUT_SECONDS,
+	};
+
+	if (setsockopt(sock_fd, SOL_SOCKET, SO_SNDTIMEO, &tmo, sizeof(tmo)) < 0) {
+		LOG_ERR("SO_SNDTIMEO failed: %d", errno);
+		return -errno;
+	}
+
+	return 0;
+}
+
+static int sock_enable_send_ack(int sock_fd)
+{
+	struct socket_ncs_sendcb pcb = { .callback = send_ack_cb };
+
+	if (setsockopt(sock_fd, SOL_SOCKET, SO_SENDCB, &pcb, sizeof(pcb)) < 0) {
+		LOG_ERR("SO_SENDCB failed: %d", errno);
+		return -errno;
+	}
+
+	return 0;
+}
+
+static void sock_disable_send_ack(int sock_fd)
+{
+	(void)setsockopt(sock_fd, SOL_SOCKET, SO_SENDCB, NULL, 0);
+}
+
 /* Socket functions */
 static int sock_open_and_connect(struct ntn_state_object *state)
 {
@@ -942,6 +998,14 @@ static int sock_open_and_connect(struct ntn_state_object *state)
 		return -errno;
 	}
 
+	err = sock_set_send_timeout(state->sock_fd);
+	if (err < 0) {
+		close(state->sock_fd);
+		state->sock_fd = -1;
+
+		return err;
+	}
+
 	return 0;
 }
 
@@ -956,6 +1020,7 @@ static int sock_send_dummy(struct ntn_state_object *state)
 		return -ENOTCONN;
 	}
 
+	/* Just triggers service request, ack not needed */
 	err = send(state->sock_fd, dummy, sizeof(dummy) - 1, 0);
 	if (err < 0) {
 		LOG_ERR("Failed to send dummy packet, error: %d", errno);
@@ -1087,16 +1152,53 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 	}
 #endif
 
-	LOG_DBG("Sending data");
+	err = sock_enable_send_ack(state->sock_fd);
+	if (err < 0) {
+		return err;
+	}
+
+	LOG_DBG("Sending data with network-ack notification");
 	err = send(state->sock_fd, message, strlen(message), 0);
 	if (err < 0) {
+		sock_disable_send_ack(state->sock_fd);
 		LOG_ERR("Failed to send data, error: %d", errno);
 		return -errno;
 	}
 
-	LOG_DBG("Sent data payload of %d bytes", strlen(message));
+	LOG_DBG("Queued data payload of %d bytes", err);
 
 	return 0;
+}
+
+/*
+ * Queue GNSS payload and wait for SO_SENDCB. On failure, publish
+ * NTN_SEND_FAILED and let the state machine go offline.
+ */
+static void try_send_gnss_data(struct ntn_state_object *state)
+{
+	int err;
+
+	if (state->sock_fd < 0) {
+		LOG_WRN("No socket open");
+		ntn_msg_publish(NTN_SEND_FAILED);
+		return;
+	}
+
+	if (!(state->last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID)) {
+		LOG_DBG("No valid GNSS data to send");
+		ntn_msg_publish(NTN_SEND_FAILED);
+		return;
+	}
+
+	err = sock_send_gnss_data(state);
+	if (err) {
+		LOG_ERR("Failed to send GNSS data: %d", err);
+		ntn_msg_publish(NTN_SEND_FAILED);
+		return;
+	}
+
+	k_timer_stop(&state->network_connection_timer);
+	LOG_INF("GNSS data queued, waiting for network ack");
 }
 
 /* State handlers */
@@ -1110,13 +1212,12 @@ static void state_running_entry(void *obj)
 
 	k_work_init(&ntn_trigger_timer_work, ntn_trigger_timer_work_fn);
 	k_work_init(&network_connection_timer_work, network_connection_timer_work_fn);
-	k_work_init(&rrc_connected_timer_work, rrc_connected_timer_work_fn);
 	k_work_init(&gnss_location_work, gnss_location_work_fn);
 	k_work_init(&gnss_timeout_work, handle_gnss_timeout_work_fn);
+	k_work_init(&send_ack_work, send_ack_work_fn);
 
 	k_timer_init(&state->ntn_trigger_timer, ntn_trigger_timer_handler, NULL);
 	k_timer_init(&state->network_connection_timer, network_connection_timer_handler, NULL);
-	k_timer_init(&state->rrc_connected_timer, rrc_connected_timer_handler, NULL);
 
 	err = nrf_modem_lib_init();
 	if (err) {
@@ -1302,7 +1403,6 @@ static void state_ntn_entry(void *obj)
 	state->modem_cell_found_time = 0;
 	state->modem_connectivity_time = 0;
 	state->is_registered = false;
-	state->ntn_dwell_armed = false;
 
 	/* lte_lc filters out +CEREG when registration status and cell ID
 	* are unchanged, which is typical after PDN resume onto the
@@ -1321,8 +1421,9 @@ static void state_ntn_entry(void *obj)
 	 * terrestrial NB-IoT due to long propagation delays and sparse search
 	 * opportunities, so this timeout must be sized generously.
 	 * Once the modem reports CEREG registered, the timer is restarted with
-	 * APP_NTN_REGISTERED_TIMEOUT_SECONDS so RRC/PDN setup and the actual
-	 * uplink data transfer get the time they need before CFUN=45 is issued.
+	 * APP_NTN_REGISTERED_TIMEOUT_SECONDS so RRC/PDN setup have time to
+	 * complete. After a payload is queued, the connection timer is stopped
+	 * and APP_NTN_SEND_ACK_TIMEOUT_SECONDS governs the post-send phase.
 	 */
 	k_timer_start(&state->network_connection_timer,
 		      K_SECONDS(CONFIG_APP_NTN_NETWORK_CONNECTION_TIMEOUT_SECONDS),
@@ -1385,33 +1486,7 @@ static enum smf_state_result state_ntn_run(void *obj)
 				LOG_DBG("RRC connected %d ms after PDN resumed", delta_ms);
 			}
 
-			if (state->sock_fd < 0) {
-				LOG_WRN("RRC connected but no socket open");
-
-				return SMF_EVENT_HANDLED;
-			}
-
-			if (state->last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
-				err = sock_send_gnss_data(state);
-				if (err) {
-					LOG_ERR("Failed to send GNSS data: %d", err);
-				} else {
-					LOG_INF("GNSS data sent on RRC connected");
-				}
-			} else {
-				LOG_DBG("No valid GNSS data to send");
-			}
-
-			if (!state->ntn_dwell_armed) {
-				state->ntn_dwell_armed = true;
-
-				k_timer_start(&state->network_connection_timer,
-					K_SECONDS(CONFIG_APP_NTN_RRC_CONNECTED_DWELL_SECONDS),
-					K_NO_WAIT);
-				k_timer_start(&state->rrc_connected_timer,
-					K_SECONDS(CONFIG_APP_NTN_RRC_CONNECTED_DWELL_SECONDS),
-					K_NO_WAIT);
-			}
+			try_send_gnss_data(state);
 
 			return SMF_EVENT_HANDLED;
 
@@ -1447,7 +1522,7 @@ static enum smf_state_result state_ntn_run(void *obj)
 			 * Implements the gating rule "do not issue CFUN=45 while
 			 * registered until data transfer completes or fails".
 			 */
-			if (state->is_registered || state->ntn_dwell_armed) {
+			if (state->is_registered) {
 				return SMF_EVENT_HANDLED;
 			}
 
@@ -1477,8 +1552,6 @@ static enum smf_state_result state_ntn_run(void *obj)
 			}
 
 			__fallthrough;
-		case RRC_CONNECTED_TIMEOUT:
-			__fallthrough;
 		case NTN_NETWORK_CONNECTION_FAILED:
 			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
@@ -1493,30 +1566,29 @@ static enum smf_state_result state_ntn_run(void *obj)
 				LOG_ERR("Failed to connect socket: %d", err);
 
 				return SMF_EVENT_HANDLED;
-			} else {
-				LOG_DBG("Socket setup successfully");
-
 			}
 
-			if (state->last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
-				err = sock_send_gnss_data(state);
-				if (err) {
-					LOG_ERR("Failed to send GNSS data: %d", err);
-				}
-			} else {
-				LOG_DBG("No valid GNSS data to send");
+			LOG_DBG("Socket setup successfully");
+
+			try_send_gnss_data(state);
+
+			return SMF_EVENT_HANDLED;
+
+		case NTN_SEND_ACK:
+			if (state->sock_fd >= 0) {
+				sock_disable_send_ack(state->sock_fd);
 			}
 
-			if (!state->ntn_dwell_armed) {
-				state->ntn_dwell_armed = true;
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
-				k_timer_start(&state->network_connection_timer,
-					K_SECONDS(CONFIG_APP_NTN_RRC_CONNECTED_DWELL_SECONDS),
-					K_NO_WAIT);
-				k_timer_start(&state->rrc_connected_timer,
-					K_SECONDS(CONFIG_APP_NTN_RRC_CONNECTED_DWELL_SECONDS),
-					K_NO_WAIT);
+			return SMF_EVENT_HANDLED;
+
+		case NTN_SEND_FAILED:
+			if (state->sock_fd >= 0) {
+				sock_disable_send_ack(state->sock_fd);
 			}
+
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
 
 			return SMF_EVENT_HANDLED;
 
@@ -1537,13 +1609,13 @@ static void state_ntn_exit(void *obj)
 
 	/* Close socket if it was open */
 	if (state->sock_fd >= 0) {
+		sock_disable_send_ack(state->sock_fd);
 		close(state->sock_fd);
 
 		state->sock_fd = -1;
 	}
 
 	k_timer_stop(&state->network_connection_timer);
-	k_timer_stop(&state->rrc_connected_timer);
 
 	at_monitor_pause(&sib3x_monitor);
 	at_monitor_pause(&cereg_monitor);
