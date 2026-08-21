@@ -434,46 +434,42 @@ static char *next_token(char **saveptr, char *delim)
 
 static bool compute_elevation_from_sib31(struct ntn_state_object *state, const char *sib31_data)
 {
-	int err;
 	int sibnr;
 	int ephemeris_type;
-	char *buf;
-	int ret;
+	char buf[NTN_SIB31_MAX_LEN];
 	char *saveptr;
 	char cell_id[9];
 	char *tok;
-	int atsib31_len;
+	size_t atsib31_len;
 	int64_t tmp[3];
 
 	const char *atsib31 = sib3x_payload_start(sib31_data);
 
 	if (atsib31 == NULL) {
 		LOG_ERR("AT SIB31 is NULL");
-		return -EINVAL;
+		return false;
 	}
-	atsib31_len = strlen(atsib31);
-	LOG_INF("SIB31 length is %d",atsib31_len);
 
-	buf = malloc(atsib31_len + 1);
-	if (buf == NULL) {
-		LOG_ERR("Failed to allocate SIB31 parse buffer");
-		return -ENOMEM;
+	atsib31_len = strlen(atsib31);
+	LOG_INF("SIB31 length is %zu", atsib31_len);
+
+	if (atsib31_len >= sizeof(buf)) {
+		LOG_ERR("SIB31 payload too long: %zu", atsib31_len);
+		return false;
 	}
-	memcpy(buf, atsib31, atsib31_len);
-	buf[atsib31_len] = '\0';
+
+	memcpy(buf, atsib31, atsib31_len + 1);
 
 	/* Parse the SIBREQ/SIBCONFIG header */
 	tok = strtok_r(buf, " ", &saveptr);
 	if (!tok) {
 		LOG_ERR("Failed to parse SIB notification, no token found");
-		ret = -EINVAL;
-		goto cleanup;
+		return false;
 	}
 
 	if (strcmp(tok, "SIBREQ:") != 0 && strcmp(tok, "SIBCONFIG:") != 0) {
 		LOG_ERR("Not a SIBREQ/SIBCONFIG string");
-		ret = -EINVAL;
-		goto cleanup;
+		return false;
 	}
 
 	/* Parse the SIB number */
@@ -482,13 +478,12 @@ static bool compute_elevation_from_sib31(struct ntn_state_object *state, const c
 	LOG_INF("SIB Number is %d", sibnr);
 	if (sibnr != 31) {
 		LOG_ERR("Not a SIB 31 string");
-		ret = -EINVAL;
-		goto cleanup;
+		return false;
 	}
 
 	/* Parse the cell ID */
 	tok = next_token(&saveptr, "\"");
-	if (cell_id != NULL) {
+	if (tok != NULL) {
 		strncpy(cell_id, tok, 8);
 		cell_id[8] = '\0';
 	}
@@ -549,10 +544,6 @@ static bool compute_elevation_from_sib31(struct ntn_state_object *state, const c
 		LOG_ERR("SIB31 ephemeris is buggy");
 	}
 
-	return true;
-
-	cleanup:
-	free(buf);
 	return true;
 }
 
