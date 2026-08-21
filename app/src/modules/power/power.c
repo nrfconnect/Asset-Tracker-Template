@@ -614,7 +614,8 @@ static void power_module_thread(void)
 		.charger = DEVICE_DT_GET(DT_NODELABEL(npm1300_charger)),
 	};
 	int32_t chg_status;
-	struct nrf_fuel_gauge_init_parameters parameters = {.model = &battery_model};
+	struct nrf_fuel_gauge_init_parameters parameters =
+		NRF_FUEL_GAUGE_DEFAULT_INIT_PARAMETERS_SECONDARY(0.0f, 0.0f, 0.0f, &battery_model);
 
 	LOG_DBG("Power module task started");
 
