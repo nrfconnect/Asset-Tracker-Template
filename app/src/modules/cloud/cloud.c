@@ -25,7 +25,6 @@
 #ifdef CONFIG_APP_ENVIRONMENTAL
 #include "cloud_environmental.h"
 #endif /* CONFIG_APP_ENVIRONMENTAL */
-#include "app_common.h"
 #include "network.h"
 #include "storage.h"
 
