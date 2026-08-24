@@ -48,7 +48,7 @@ def test_shell(dut_cloud, hex_file):
 
     # Wait until connected and ready to sample
     dut_cloud.uart.flush()
-    dut_cloud.uart.wait_for_str("handle_storage_batch_available: No more data available in batch", timeout=120)
+    dut_cloud.uart.wait_for_str("connected_waiting_entry: connected_waiting_entry", timeout=120)
 
     # Button press
     dut_cloud.uart.flush()
