@@ -1661,7 +1661,7 @@ static void try_send_gnss_data(struct ntn_state_object *state)
 		return;
 	}
 
-	k_timer_stop(&state->network_connection_timer);
+	k_timer_stop(&state->network_connection_timeout_timer);
 	LOG_INF("GNSS data queued, waiting for network ack");
 }
 
