@@ -125,7 +125,7 @@ config APP_NTN_TIMER_NTN_VALUE_SECONDS
 config APP_NTN_NETWORK_CONNECTION_TIMEOUT_SECONDS
 	int "NTN cell search / connection timeout in seconds"
 	range 1 600
-	default 120
+	default 180
 	help
 	  Maximum time the application waits, after switching the modem to NTN
 	  active mode (CFUN=21), for the modem to acquire a satellite cell and
@@ -140,7 +140,7 @@ config APP_NTN_NETWORK_CONNECTION_TIMEOUT_SECONDS
 config APP_NTN_REGISTERED_TIMEOUT_SECONDS
 	int "Extended NTN timeout once registered, in seconds"
 	range 1 600
-	default 20
+	default 120
 	help
 	  Once the modem reports CEREG registered (HOME or ROAMING) on the NTN
 	  network, the connection timeout is restarted with this value to give
@@ -150,20 +150,12 @@ config APP_NTN_REGISTERED_TIMEOUT_SECONDS
 config APP_NTN_SEND_ACK_TIMEOUT_SECONDS
 	int "Network send acknowledgement timeout in seconds"
 	range 1 600
-	default 120
+	default 60
 	help
 	  SO_SNDTIMEO value for payload sends using SO_SENDCB. After a payload
 	  is queued, the modem waits up to this long for network acknowledgement
 	  before the send callback reports failure and NTN_SEND_FAILED is
 	  published. Valid modem values are 1 to 600 seconds.
-
-config APP_NTN_RRC_CONNECTED_DWELL_SECONDS
-	int "Wait after RRC connected before offline"
-	range 1 600
-	default 40
-	help
-	  After RRC connects and uplink data is sent, the NTN state machine waits
-	  this long before going offline.
 
 config APP_NTN_ABORT_ON_NOT_REGISTERED
 	bool "Abort NTN attempt immediately on CEREG=0"
