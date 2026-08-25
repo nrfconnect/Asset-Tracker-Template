@@ -20,9 +20,8 @@ config APP_POWER_SHELL
 
 config APP_POWER_IDLE_CURRENT_NA
 	int "Idle current in nanoamperes"
-	default 3500
 	help
-	  Idle current in nanoamperes used for battery life estimation when the device is idle.
+	  Board idle current in nanoamperes used for battery life estimation when the device is idle.
 
 config APP_POWER_SAMPLE_INTERVAL_MS
 	int "Battery sample interval"
