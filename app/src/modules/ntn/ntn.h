@@ -32,7 +32,6 @@ enum ntn_msg_type {
 	NETWORK_DISCONNECTED, /* Network disconnected */
 	NETWORK_CONNECTION_FAILED, /*  */
 	NETWORK_CONNECTION_TIMEOUT, /*  */
-	RRC_CONNECTED_TIMEOUT, /* RRC connected timeout */
 	NTN_PDN_RESUMED, /* PDN connection resumed (context preserved) */
 	NTN_RRC_CONNECTED, /* RRC connected */
 	NTN_RRC_IDLE, /* RRC idle */
@@ -54,6 +53,10 @@ enum ntn_msg_type {
 	SGP4_TRIGGER, /* */
 	GNSS_TRIGGER, /* */
 	IDLE_TRIGGER, /* Force IDLE state from shell */
+	/* Network acknowledged the last payload send (SO_SENDCB) */
+	NTN_SEND_ACK,
+	/* Payload send failed locally or was not acknowledged before timeout */
+	NTN_SEND_FAILED,
 };
 
 /* NTN module message */
