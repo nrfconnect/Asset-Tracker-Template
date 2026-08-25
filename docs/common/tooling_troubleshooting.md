@@ -525,6 +525,10 @@ Memfault is a device observability platform that complements traditional debuggi
 > The modem trace upload feature can send upwards of 1 MB of modem trace data in case of application crashes.
 > Consider this when planning your data usage and costs.
 
+> [!TIP]
+> Traces uploaded to Memfault can also be decrypted, so you can inspect the nRF Cloud CoAP exchange leading up to a crash.
+> See [Decrypted traces uploaded to Memfault](#decrypted-traces-uploaded-to-memfault).
+
 Example of a coredump received in Memfault:
 
 ![Memfault UI](../images/memfault.png)
@@ -601,6 +605,159 @@ Convert the trace file to PCAPNG with nRF Util or the Cellular Monitor applicati
 ```bash
 nrfutil trace lte --input-file modem_trace.bin --output-pcapng rtt-trace.pcapng
 ```
+
+### Decrypting DTLS traffic in modem traces
+
+By default, nRF Cloud CoAP traffic appears in a modem trace as encrypted DTLS records, so Wireshark cannot show the CoAP and CBOR payloads.
+The modem exposes the session keys to Nordic tools when the DTLS connection uses a security tag in the reserved developer range `NRF_SEC_TAG_TLS_DECRYPT_0` to `NRF_SEC_TAG_TLS_DECRYPT_19` (`2147483648` to `2147483667`).
+Building the template with the CoAP security tag pointed at one of these tags gives you fully decoded nRF Cloud traffic in Wireshark.
+
+> [!WARNING]
+> The developer security tags are intended for development and testing only.
+> Any trace captured from a session that uses them can be decrypted with Nordic tools.
+> Never ship production firmware configured this way.
+
+#### Requirements
+
+- A device running `mfw_nrf91x1` v2.0.0 or later. Check the modem firmware version with `at at+cgmr`.
+- Modem traces enabled, see [UART Tracing](#uart-tracing) or [RTT Tracing](#rtt-tracing).
+- The device claimed and provisioned to nRF Cloud, see [Connecting](connecting.md).
+- The nRF Cloud CoAP root CA certificate present in the developer security tag:
+
+    - **Thingy:91 X**: The certificate is written to the developer security tag during production, so no action is needed.
+    - **nRF9151 DK**: You must provision the certificate yourself first, see [Provisioning the CoAP CA certificate on the nRF9151 DK](#provisioning-the-coap-ca-certificate-on-the-nrf9151-dk).
+
+#### Building with the developer security tag
+
+Two Kconfig options control which security tags the cloud module uses:
+
+- `CONFIG_NRF_CLOUD_COAP_SEC_TAG` - holds the CA certificate used to verify the nRF Cloud CoAP server during the DTLS handshake. Point this at the developer tag.
+- `CONFIG_NRF_CLOUD_COAP_JWT_SEC_TAG` - holds the private key used to sign the JWT that authenticates the device to nRF Cloud. Keep this at `16842753`, the security tag where the nRF Provisioning Service stores the cloud access key.
+
+> [!IMPORTANT]
+> `CONFIG_NRF_CLOUD_COAP_JWT_SEC_TAG` defaults to the value of `CONFIG_NRF_CLOUD_COAP_SEC_TAG`, so you must set it explicitly.
+> If you only override the CoAP security tag, the device signs its JWT with a key that nRF Cloud does not recognize and authentication fails even though the DTLS handshake succeeds.
+
+Build and flash with UART tracing and the developer security tag.
+
+**Thingy:91 X**
+
+```bash
+west build -p -b thingy91x/nrf9151/ns --sysbuild -- \
+    -DEXTRA_CONF_FILE="overlay-modem-trace-over-uart.conf" \
+    -DEXTRA_DTC_OVERLAY_FILE="overlay-modem-trace-shmem.overlay" \
+    -DCONFIG_NRF_CLOUD_COAP_SEC_TAG=2147483667 \
+    -DCONFIG_NRF_CLOUD_COAP_JWT_SEC_TAG=16842753 \
+    && west flash --recover
+```
+
+**nRF9151 DK**
+
+```bash
+west build -p -b nrf9151dk/nrf9151/ns --sysbuild -- \
+    -DEXTRA_CONF_FILE="overlay-modem-trace-over-uart.conf" \
+    -DEXTRA_DTC_OVERLAY_FILE="overlay-modem-trace-shmem.overlay" \
+    -DCONFIG_NRF_CLOUD_COAP_SEC_TAG=2147483667 \
+    -DCONFIG_NRF_CLOUD_COAP_JWT_SEC_TAG=16842753 \
+    && west flash --recover
+```
+
+#### Capturing and inspecting decrypted traffic
+
+The [Cellular Monitor app](https://docs.nordicsemi.com/bundle/nrf-connect-cellularmonitor/page/index.html) handles the trace database selection and Wireshark hand-off for you:
+
+1. Connect the device over USB and open Cellular Monitor.
+1. Set **Modem trace database** to **Autoselect**, or to the modem firmware version programmed on the device.
+1. Select **Open in Wireshark**.
+1. Click **Start** and let the device connect to nRF Cloud.
+1. In Wireshark, expand a DTLS packet and look for the **Decrypted TLS** layer in the packet details pane. The decoded CoAP request or response and its CBOR payload are shown underneath.
+
+You can also capture with nRF Util as described in [UART Tracing](#uart-tracing) and open the resulting `.pcapng` afterwards.
+
+If the **Decrypted TLS** layer is missing, check the following:
+
+- The build actually used the developer security tag. Verify with `rg NRF_CLOUD_COAP_SEC_TAG build/app/zephyr/.config`.
+- The trace database matches the modem firmware on the device.
+- The trace covers the DTLS handshake. The keys are exported with the handshake, so a trace started mid-session cannot be decrypted. Reset the device with the capture running, either physically or by running `kernel reboot` in the shell.
+
+#### Decrypted traces uploaded to Memfault
+
+Decryption is a property of the DTLS session, not of the trace backend. Once the device is built with the developer security tag, provisioned, and producing decodable traces locally, the same traces remain decodable when the device is configured to upload modem traces to Memfault on a coredump.
+
+Combine the developer security tag with the Memfault modem trace overlays, see [Memfault Remote Debugging](#memfault-remote-debugging).
+
+**Thingy:91 X**
+
+```bash
+west build -p -b thingy91x/nrf9151/ns --sysbuild -- \
+    -DEXTRA_CONF_FILE="overlay-upload-modem-traces-to-memfault.conf" \
+    -DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay" \
+    -DCONFIG_NRF_CLOUD_COAP_SEC_TAG=2147483667 \
+    -DCONFIG_NRF_CLOUD_COAP_JWT_SEC_TAG=16842753 \
+    && west flash --recover
+```
+
+**nRF9151 DK**
+
+```bash
+west build -p -b nrf9151dk/nrf9151/ns --sysbuild -- \
+    -DEXTRA_CONF_FILE="overlay-upload-modem-traces-to-memfault.conf" \
+    -DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay" \
+    -DCONFIG_NRF_CLOUD_COAP_SEC_TAG=2147483667 \
+    -DCONFIG_NRF_CLOUD_COAP_JWT_SEC_TAG=16842753 \
+    && west flash --recover
+```
+
+Download the trace from the device timeline in Memfault, convert it with nRF Util or the Cellular Monitor app, and open it in Wireshark. The **Decrypted TLS** layer is present exactly as it is for a live capture:
+
+```bash
+nrfutil trace lte --input-file memfault-modem-trace.bin --output-pcapng memfault-trace.pcapng
+```
+
+This makes it possible to inspect the nRF Cloud CoAP exchange leading up to a crash on a device that is not attached to a debugger.
+
+#### Provisioning the CoAP CA certificate on the nRF9151 DK
+
+The nRF9151 DK does not ship with the nRF Cloud CoAP root CA in the developer security tag, so you need to install it once.
+
+1. Save the nRF Cloud CoAP root CA certificate to a file named `coap_ca.pem`.
+   The certificate is maintained in the [`ca_certs.py`](https://github.com/nRFCloud/utils/blob/main/src/nrfcloud_utils/ca_certs.py) file in the nRF Cloud utils repository.
+   Copy the value of the `nrf_cloud_coap_ca` variable, including the `BEGIN CERTIFICATE` and `END CERTIFICATE` lines.
+
+    > [!NOTE]
+    > Only the CoAP root CA is needed. The AWS root CA in the same file is used for MQTT, REST, and HTTP file downloads, none of which the template uses.
+
+1. Install [nrfcredstore](https://github.com/NordicSemiconductor/nrfcredstore):
+
+    ```bash
+    pip3 install -r nrf/scripts/requirements-extra.txt
+    ```
+
+1. Disconnect from the network before writing credentials. Credential storage only succeeds when the modem is offline. In the device shell, run:
+
+    ```bash
+    uart:~$ att_network disconnect
+    ```
+
+    Then close the serial terminal so `nrfcredstore` can open the UART exclusively for credential writing.
+
+1. Write the certificate to security tag `2147483667`:
+
+    ```bash
+    nrfcredstore <serial port> write 2147483667 ROOT_CA_CERT coap_ca.pem
+    ```
+
+    The tool autodetects whether the device exposes a raw AT interface or the AT shell. If autodetection fails, force the interface used by the template with `nrfcredstore --cmd-type shell <serial port> write ...`.
+
+1. Verify that the certificate is in place:
+
+    ```bash
+    nrfcredstore <serial port> list --tag 2147483667
+    Secure tag   Key type           SHA
+    2147483667   ROOT_CA_CERT       XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    ```
+
+    A `ROOT_CA_CERT` entry for security tag `2147483667` means the root CA is stored and the DTLS handshake can be verified against it.
 
 ### Dumping modem traces over UART after capture
 
