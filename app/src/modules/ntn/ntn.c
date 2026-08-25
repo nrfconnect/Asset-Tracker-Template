@@ -1422,6 +1422,11 @@ static int sock_open_and_connect(struct ntn_state_object *state)
 	struct sockaddr_storage host_addr;
 	struct sockaddr_in *server4 = ((struct sockaddr_in *)&host_addr);
 
+	if (state->sock_fd >= 0) {
+		close(state->sock_fd);
+		state->sock_fd = -1;
+	}
+
 	server4->sin_family = AF_INET;
 	server4->sin_port = htons(CONFIG_APP_NTN_SERVER_PORT);
 
