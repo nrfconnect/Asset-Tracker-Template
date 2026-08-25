@@ -375,20 +375,21 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 			 */
 			LOG_DBG("Ignoring transient CEREG=0; waiting for connection timeout");
 #endif /* CONFIG_APP_NTN_ABORT_ON_NOT_REGISTERED */
-		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME) {
-			/* cereg 1 */
-			LOG_DBG("LTE_LC_NW_REG_REGISTERED_HOME");
-			ntn_msg_publish(NTN_CELL_FOUND);
-			ntn_msg_publish(NTN_NETWORK_REGISTERED);
-		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
-			/* cereg 5 */
-			LOG_DBG("LTE_LC_NW_REG_REGISTERED_ROAMING");
-			ntn_msg_publish(NTN_CELL_FOUND);
-			ntn_msg_publish(NTN_NETWORK_REGISTERED);
-		} else if (evt->nw_reg_status == LTE_LC_NW_REG_SEARCHING) {
-			/* cereg 2 */
-			LOG_DBG("LTE_LC_NW_REG_SEARCHING");
-			ntn_msg_publish(NTN_CELL_FOUND);
+		// Let cereg_mon handle these events
+		// } else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME) {
+		// 	/* cereg 1 */
+		// 	LOG_DBG("LTE_LC_NW_REG_REGISTERED_HOME");
+		// 	ntn_msg_publish(NTN_CELL_FOUND);
+		// 	ntn_msg_publish(NTN_NETWORK_REGISTERED);
+		// } else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
+		// 	/* cereg 5 */
+		// 	LOG_DBG("LTE_LC_NW_REG_REGISTERED_ROAMING");
+		// 	ntn_msg_publish(NTN_CELL_FOUND);
+		// 	ntn_msg_publish(NTN_NETWORK_REGISTERED);
+		// } else if (evt->nw_reg_status == LTE_LC_NW_REG_SEARCHING) {
+		// 	/* cereg 2 */
+		// 	LOG_DBG("LTE_LC_NW_REG_SEARCHING");
+		// 	ntn_msg_publish(NTN_CELL_FOUND);
 		} else if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTRATION_DENIED) {
 			/* cereg 3 */
 			LOG_DBG("LTE_LC_NW_REG_REGISTRATION_DENIED");
@@ -581,11 +582,17 @@ static void cereg_mon(const char *notif)
 
 	switch (status) {
 	case LTE_LC_NW_REG_REGISTERED_HOME:
+		LOG_DBG("LTE_LC_NW_REG_REGISTERED_HOME");
 	case LTE_LC_NW_REG_REGISTERED_ROAMING:
+		LOG_DBG("LTE_LC_NW_REG_REGISTERED_ROAMING");
+		/* When UE wakes up from CFUN=45, it does not report LTE_LC_NW_REG_SEARCHING
+		 * therefore publish NTN_CELL_FOUND on registered event
+		 */
 		ntn_msg_publish(NTN_CELL_FOUND);
 		ntn_msg_publish(NTN_NETWORK_REGISTERED);
 		break;
 	case LTE_LC_NW_REG_SEARCHING:
+		LOG_DBG("LTE_LC_NW_REG_SEARCHING");
 		ntn_msg_publish(NTN_CELL_FOUND);
 		break;
 	default:
@@ -1642,7 +1649,7 @@ static void try_send_gnss_data(struct ntn_state_object *state)
 	}
 
 	if (!(state->last_pvt.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID)) {
-		LOG_DBG("No valid GNSS data to send");
+		LOG_WRN("No valid GNSS data to send");
 		ntn_msg_publish(NTN_SEND_FAILED);
 		return;
 	}
@@ -2586,8 +2593,6 @@ static enum smf_state_result state_ntn_run(void *obj)
 			return SMF_EVENT_HANDLED;
 
 		case NTN_CELL_FOUND:
-			at_monitor_pause(&cereg_monitor);
-
 			if (!state->rrc_is_connected) {
 				LOG_DBG("Cell found");
 
