@@ -126,7 +126,7 @@ config APP_NTN_REGISTERED_TIMEOUT_SECONDS
 config APP_NTN_SEND_ACK_TIMEOUT_SECONDS
 	int "Network send acknowledgement timeout in seconds"
 	range 1 600
-	default 120
+	default 60
 	help
 	  SO_SNDTIMEO value for payload sends using SO_SENDCB. After a payload
 	  is queued, the modem waits up to this long for network acknowledgement
