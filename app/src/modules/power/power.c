@@ -503,22 +503,21 @@ static enum smf_state_result state_running_run(void *obj)
 {
 	const struct power_state_object *state_object = obj;
 
-	/* Handle sample requests at top level */
+#if defined(CONFIG_APP_POWER_SHELL)
+	/* Handle sample log requests at top level */
 	if (state_object->chan == &power_chan) {
 		const struct power_msg *power_msg = (const struct power_msg *)state_object->msg_buf;
 
-		if (power_msg->type == POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST) {
-			send_battery_percentage_sample_response(state_object);
 
-			return SMF_EVENT_HANDLED;
-		}
-#if defined(CONFIG_APP_POWER_SHELL)
 		if (power_msg->type == POWER_BATTERY_SAMPLE_LOG) {
 			log_battery_sample(state_object);
 			return SMF_EVENT_HANDLED;
 		}
-#endif /* CONFIG_APP_POWER_SHELL */
 	}
+#else
+	ARG_UNUSED(state_object);
+
+#endif /* CONFIG_APP_POWER_SHELL */
 
 	return SMF_EVENT_PROPAGATE;
 }
@@ -551,7 +550,19 @@ static enum smf_state_result state_idle_run(void *obj)
 			return SMF_EVENT_HANDLED;
 		}
 	}
+	if (state_object->chan == &power_chan) {
+		const struct power_msg *power_msg = (const struct power_msg *)state_object->msg_buf;
 
+		/* Sample requests are sendt from main on entry to STATE_SAMPLING, so they indicate
+		 * that the system is active and should transition to STATE_ACTIVE.
+		 */
+		if (power_msg->type == POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST) {
+			send_battery_percentage_sample_response(state_object);
+			smf_set_state(SMF_CTX(state_object), &states[STATE_ACTIVE]);
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
 	return SMF_EVENT_PROPAGATE;
 }
 
@@ -584,6 +595,15 @@ static enum smf_state_result state_active_run(void *obj)
 		}
 
 		if (msg->type == POWER_PRIV_MODEM_SLEEP_EXIT) {
+			return SMF_EVENT_HANDLED;
+		}
+	}
+	if (state_object->chan == &power_chan) {
+		const struct power_msg *power_msg = (const struct power_msg *)state_object->msg_buf;
+
+		if (power_msg->type == POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST) {
+			send_battery_percentage_sample_response(state_object);
+
 			return SMF_EVENT_HANDLED;
 		}
 	}
