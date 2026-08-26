@@ -948,6 +948,18 @@ static int sock_set_send_timeout(int sock_fd)
 	return 0;
 }
 
+static int sock_clear_send_timeout(int sock_fd)
+{
+	struct timeval tmo = { 0 };
+
+	if (setsockopt(sock_fd, SOL_SOCKET, SO_SNDTIMEO, &tmo, sizeof(tmo)) < 0) {
+		LOG_ERR("SO_SNDTIMEO failed: %d", errno);
+		return -errno;
+	}
+
+	return 0;
+}
+
 static int sock_enable_send_ack(int sock_fd)
 {
 	struct socket_ncs_sendcb pcb = { .callback = send_ack_cb };
@@ -960,9 +972,14 @@ static int sock_enable_send_ack(int sock_fd)
 	return 0;
 }
 
-static void sock_disable_send_ack(int sock_fd)
+static int sock_disable_send_ack(int sock_fd)
 {
-	(void)setsockopt(sock_fd, SOL_SOCKET, SO_SENDCB, NULL, 0);
+	if (setsockopt(sock_fd, SOL_SOCKET, SO_SENDCB, NULL, 0) < 0){
+		LOG_ERR("SO_SENDCB failed: %d", errno);
+		return -errno;
+	}
+
+	return 0;
 }
 
 /* Socket functions */
@@ -1001,14 +1018,6 @@ static int sock_open_and_connect(struct ntn_state_object *state)
 		return -errno;
 	}
 
-	err = sock_set_send_timeout(state->sock_fd);
-	if (err < 0) {
-		close(state->sock_fd);
-		state->sock_fd = -1;
-
-		return err;
-	}
-
 	return 0;
 }
 
@@ -1023,7 +1032,17 @@ static int sock_send_dummy(struct ntn_state_object *state)
 		return -ENOTCONN;
 	}
 
-	/* Just triggers service request, ack not needed */
+	/* Service-request trigger only; must not use SO_SENDCB/SO_SNDTIMEO. */
+	err = sock_disable_send_ack(state->sock_fd);
+	if (err < 0) {
+		return err;
+	}
+
+	err = sock_clear_send_timeout(state->sock_fd);
+	if (err < 0) {
+		return err;
+	}
+
 	err = send(state->sock_fd, dummy, sizeof(dummy) - 1, 0);
 	if (err < 0) {
 		LOG_ERR("Failed to send dummy packet, error: %d", errno);
@@ -1154,6 +1173,11 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 		return -EINVAL;
 	}
 #endif
+
+	err = sock_set_send_timeout(state->sock_fd);
+	if (err < 0) {
+		return err;
+	}
 
 	err = sock_enable_send_ack(state->sock_fd);
 	if (err < 0) {
