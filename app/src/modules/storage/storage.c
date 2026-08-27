@@ -802,6 +802,13 @@ static enum smf_state_result state_running_run(void *o)
 			update_threshold(state_object, msg->data_len);
 			break;
 
+		case STORAGE_NOTIFY_THRESHOLD_REACHED:
+			/* Re-evaluate the threshold for all data types and notify if reached */
+			STRUCT_SECTION_FOREACH(storage_data, type) {
+				check_and_notify_buffer_threshold(state_object, type);
+			}
+			break;
+
 #ifdef CONFIG_APP_STORAGE_SHELL_STATS
 		case STORAGE_STATS:
 			/* Show storage statistics */

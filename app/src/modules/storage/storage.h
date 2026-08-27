@@ -52,6 +52,13 @@ enum storage_msg_type {
 	 */
 	STORAGE_STATS,
 
+	/* Request a re-evaluation of the buffer threshold.
+	 * A STORAGE_THRESHOLD_REACHED message is sent for each data type that currently has
+	 * a number of items in storage >= the configured threshold.
+	 * If no data type has reached the threshold, no message is sent.
+	 */
+	STORAGE_NOTIFY_THRESHOLD_REACHED,
+
 	/* Output messages */
 
 	/* Number of items in storage >= trigger limit.
