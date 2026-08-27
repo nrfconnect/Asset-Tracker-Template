@@ -26,7 +26,7 @@ def test_shell(dut_cloud, hex_file):
     dut_cloud.uart.xfactoryreset()
 
     patterns_button_press = [
-        "main: connected_sampling_entry: connected_sampling_entry",
+        "main: sampling_entry: sampling_entry",
     ]
     patterns_cloud_publish = [
         'Sending on payload channel: {"messageType":"DATA","appId":"donald","data":"duck"',
@@ -48,7 +48,7 @@ def test_shell(dut_cloud, hex_file):
 
     # Wait until connected and ready to sample
     dut_cloud.uart.flush()
-    dut_cloud.uart.wait_for_str("connected_waiting_entry: connected_waiting_entry", timeout=120)
+    dut_cloud.uart.wait_for_str("waiting_entry: waiting_entry", timeout=120)
 
     # Button press
     dut_cloud.uart.flush()
