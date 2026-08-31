@@ -34,8 +34,9 @@ class NRFCloud():
     def __init__(self, api_key: str, url: str="https://api.nrfcloud.com/v1", timeout: int=10) -> None:
         """ Initalizes the class """
         self.url = url
-        # Time format used by nrfcloud.com
+        # Time format used by nrfcloud.com (API may omit fractional seconds)
         self.time_fmt = '%Y-%m-%dT%H:%M:%S.%fZ'
+        self.time_fmt_no_frac = '%Y-%m-%dT%H:%M:%SZ'
         self.default_headers = {
             'Authorization': "Bearer " + api_key,
             'Accept':'application/json',
@@ -71,6 +72,14 @@ class NRFCloud():
                 raise
         # If we exit the loop due to retryable status codes, raise the last response's status
         r.raise_for_status()
+
+    def _parse_timestamp(self, timestamp_str: str) -> datetime:
+        for fmt in (self.time_fmt, self.time_fmt_no_frac):
+            try:
+                return datetime.strptime(timestamp_str, fmt).replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+        raise ValueError(f"Unsupported timestamp format: {timestamp_str}")
 
     def _get(self, path: str, **kwargs) -> dict:
         return self._request_with_retry(self.session.get, path, return_json=True, **kwargs)
@@ -178,10 +187,9 @@ class NRFCloud():
         if appname:
             params['appId'] = appname
 
-        timestamp = lambda x: datetime.strptime(x['receivedAt'], self.time_fmt)
         messages = self._get(path="/messages", params=params)
 
-        return [(timestamp(x), x['message'])
+        return [(self._parse_timestamp(x['receivedAt']), x['message'])
             for x in messages['items']]
 
     def check_message_age(self, message: dict, hours: int=0, minutes: int=0, seconds: int=0) -> bool:
@@ -195,7 +203,7 @@ class NRFCloud():
         :return: bool True/False
         """
         diff = timedelta(hours=hours, minutes=minutes, seconds=seconds)
-        return datetime.now(timezone.utc) - message[0].replace(tzinfo=timezone.utc) < diff
+        return datetime.now(timezone.utc) - message[0] < diff
 
     def patch_config(self, device_id: str, sample_interval: int, storage_threshold: int) -> None:
         """
