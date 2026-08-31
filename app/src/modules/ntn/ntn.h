@@ -51,6 +51,14 @@ enum ntn_msg_type {
 	NTN_NETWORK_REGISTERED,
 	/* GNSS search timeout */
 	GNSS_TIMEOUT,
+	/* Force GNSS state from shell */
+	GNSS_TRIGGER,
+	/* Force IDLE state from shell */
+	IDLE_TRIGGER,
+	/* Set GNSS location from shell */
+	NTN_SHELL_SET_GNSS_LOCATION,
+	/* Set date time from shell */
+	NTN_SHELL_SET_DATETIME,
 	/* Set SIB32 prediction data from shell or AT monitor */
 	NTN_SET_SIB32,
 	/* Set SIB31 prediction data from shell or AT monitor */
@@ -65,6 +73,8 @@ enum ntn_msg_type {
 struct ntn_msg {
 	enum ntn_msg_type type;
 	struct nrf_modem_gnss_pvt_data_frame pvt;
+	uint32_t location_validity_seconds;
+	char datetime[32];
 	char sib32_data[NTN_SIB32_MAX_LEN];
 	char sib31_data[NTN_SIB31_MAX_LEN];
 };

@@ -21,6 +21,7 @@
 #include <zephyr/net/socket_ncs.h>
 #include <errno.h>
 #include <math.h>
+#include <time.h>
 
 #include "app_common.h"
 #include "ntn.h"
@@ -95,6 +96,7 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt);
 static void ntn_msg_publish(enum ntn_msg_type type);
 static void publish_last_pvt(const struct nrf_modem_gnss_pvt_data_frame *pvt);
 static void apply_gnss_time(const struct nrf_modem_gnss_pvt_data_frame *pvt_data);
+static int apply_manual_datetime(const char *datetime_str);
 
 static void state_running_entry(void *obj);
 static enum smf_state_result state_running_run(void *obj);
@@ -546,6 +548,42 @@ static bool compute_elevation_from_sib31(struct ntn_state_object *state, const c
 	}
 
 	return true;
+}
+
+static int parse_datetime_string(const char *time_str, struct tm *out)
+{
+	if (sscanf(time_str, "%d-%d-%d-%d:%d:%d",
+		   &out->tm_year, &out->tm_mon, &out->tm_mday,
+		   &out->tm_hour, &out->tm_min, &out->tm_sec) != 6) {
+		return -EINVAL;
+	}
+
+	out->tm_year -= 1900;
+	out->tm_mon -= 1;
+
+	return 0;
+}
+
+static int apply_manual_datetime(const char *datetime_str)
+{
+	struct tm manual_time = {0};
+	int err;
+
+	err = parse_datetime_string(datetime_str, &manual_time);
+	if (err) {
+		LOG_ERR("Failed to parse manual date time");
+		return err;
+	}
+
+	err = date_time_set(&manual_time);
+	if (err) {
+		LOG_ERR("Failed to set manual date time: %d", err);
+		return err;
+	}
+
+	LOG_INF("Applied manual date time: %s", datetime_str);
+
+	return 0;
 }
 
 /*
@@ -1307,12 +1345,62 @@ static enum smf_state_result state_running_run(void *obj)
 		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
 
 		switch (msg->type) {
+		case GNSS_TRIGGER:
+			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
+
+			return SMF_EVENT_HANDLED;
+		case IDLE_TRIGGER:
+			smf_set_state(SMF_CTX(state), &states[STATE_IDLE]);
+
+			return SMF_EVENT_HANDLED;
 		case NTN_TRIGGER:
-			/* Timer expired, restart timer and transition to NTN mode */
 			k_timer_start(&state->ntn_trigger_timer,
 				      K_MINUTES(CONFIG_APP_NTN_TIMER_TIMEOUT_MINUTES),
 				      K_NO_WAIT);
 			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
+
+			return SMF_EVENT_HANDLED;
+		case NTN_SHELL_SET_GNSS_LOCATION: {
+			struct nrf_modem_gnss_pvt_data_frame pvt = msg->pvt;
+			int64_t now_ms;
+
+			if (date_time_now(&now_ms) == 0) {
+				time_t now = now_ms / 1000;
+				struct tm tm_now;
+
+				gmtime_r(&now, &tm_now);
+				pvt.datetime.year = tm_now.tm_year + 1900;
+				pvt.datetime.month = tm_now.tm_mon + 1;
+				pvt.datetime.day = tm_now.tm_mday;
+				pvt.datetime.hour = tm_now.tm_hour;
+				pvt.datetime.minute = tm_now.tm_min;
+				pvt.datetime.seconds = tm_now.tm_sec;
+			}
+
+			pvt.flags |= NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID;
+			if (pvt.accuracy <= 0.0f) {
+				pvt.accuracy = 5.0f;
+			}
+
+			memcpy(&state->last_pvt, &pvt, sizeof(state->last_pvt));
+			if (msg->location_validity_seconds == 0) {
+				state->location_validity_end_time = 0;
+			} else {
+				state->location_validity_end_time =
+					k_uptime_get() +
+					msg->location_validity_seconds * MSEC_PER_SEC;
+			}
+
+			LOG_INF("Stored manual GNSS location: lat=%.6f lon=%.6f alt=%.2f",
+				(double)state->last_pvt.latitude,
+				(double)state->last_pvt.longitude,
+				(double)state->last_pvt.altitude);
+
+			return SMF_EVENT_HANDLED;
+		}
+
+		case NTN_SHELL_SET_DATETIME:
+			apply_manual_datetime(msg->datetime);
 
 			return SMF_EVENT_HANDLED;
 
@@ -1688,7 +1776,7 @@ static void ntn_module_thread(void)
 	struct ntn_state_object ntn_state = {
 		.sock_fd = -1,
 		.rrc_is_connected = false,
-	 };
+	};
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, ntn_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {
