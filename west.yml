@@ -16,3 +16,7 @@ manifest:
       repo-path: sdk-nrf
       revision: 2d607e644189fd91b80ec5b976d4efc556695350
       import: true
+    - name: myriota-hyperpulse
+      path: modules/lib/myriota-hyperpulse
+      url: https://github.com/Myriota/HyperPulse-Zephyr.git
+      revision: main

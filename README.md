@@ -2,9 +2,10 @@
 
 > **Note:** The NTN use case variant of the Asset Tracker Template is experimental and intended for development and testing purposes.
 
-## Related Variant
+## Related Variants
 
 - [TN-NTN use case (`tn_ntn_usecase` branch)](https://github.com/nrfconnect/Asset-Tracker-Template/tree/tn_ntn_usecase)
+- [Myriota HyperPulse (`ntn_usecase_with_myriota` branch)](.) — uses Myriota SIM and HyperPulse library instead of Nordic NTN/UDP
 
 ## Overview
 
@@ -59,6 +60,34 @@ west build app -b nrf9151dk/nrf9151/ns -- -DEXTRA_CONF_FILE=overlay-ntn-iridium.
 ```shell
 west build app -b nrf9151dk/nrf9151/ns -- -DEXTRA_CONF_FILE=overlay-ntn-amari.conf
 ```
+
+### NTN Myriota (HyperPulse SIM) - nRF9151 DK
+
+Requires the [Myriota HyperPulse Zephyr module](https://github.com/Myriota/HyperPulse-Zephyr)
+at `modules/lib/myriota-hyperpulse` in your west workspace, NTN modem firmware
+(`mfw_nrf9151-ntn`), and a programmed `network_info.hex` (merged automatically when
+using sysbuild).
+
+```shell
+west build app -b nrf9151dk/nrf9151/ns --sysbuild -- \
+  -DCONF_FILE=prj-ntn-myriota.conf \
+  -DEXTRA_CONF_FILE="overlay-ntn-myriota.conf;boards/overlay-ntn-myriota.conf" \
+  -DPM_STATIC_YML_FILE=pm_static_myriota.yml
+```
+
+Use `prj-ntn-myriota.conf` instead of the default `prj.conf` — the full ATT config is too
+large to fit alongside the HyperPulse flash partitions (~224 KB overflow).
+
+Flash the merged image:
+
+```shell
+nrfutil device program --firmware build/app_and_network_info_merged.hex --recover
+nrfutil device reset
+```
+
+Shell commands (`att_ntn trigger`, `att_ntn gnss_trigger`, etc.) work as with the
+Nordic NTN backend. Uplink data is sent via HyperPulse `AT#MSEND` to the Myriota
+network rather than a UDP endpoint.
 
 ## Flash and Run
 

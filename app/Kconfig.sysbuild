@@ -5,6 +5,8 @@
 #
 
 choice BOOTLOADER
+	# HyperPulse builds use a fixed storage partition layout; MCUboot+TFM breaks it.
+	default BOOTLOADER_NONE if SB_CONFIG_HYPERPULSE_MERGE_APP_AND_NETWORK_INFO
 	default BOOTLOADER_MCUBOOT if !BOARD_NATIVE_SIM
 endchoice
 

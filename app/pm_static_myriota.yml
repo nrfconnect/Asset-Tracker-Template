@@ -1,0 +1,24 @@
+#
+# Copyright (c) 2025 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+# HyperPulse storage layout for nRF9151 (fixed addresses for network_info).
+# Do NOT set app/tfm_nonsecure sizes here — that breaks TFM+MCUboot and gives
+# the linker FLASH length 0. Partition Manager auto-sizes app to fit before
+# nonsecure_storage.
+
+nonsecure_storage:
+  address: 0xcc000
+  size: 0x34000
+  span: [hyperpulse_storage_network, hyperpulse_storage_platform]
+
+hyperpulse_storage_network:
+  address: 0xcc000
+  size: 0x30000
+  inside: [nonsecure_storage]
+
+hyperpulse_storage_platform:
+  address: 0xfc000
+  size: 0x4000
+  inside: [nonsecure_storage]

@@ -8,13 +8,25 @@ menuconfig APP_NTN
 
 if APP_NTN
 
+choice APP_NTN_BACKEND
+	prompt "NTN backend"
+	default APP_NTN_BACKEND_NORDIC
+
+config APP_NTN_BACKEND_NORDIC
+	bool "Nordic NTN library (Skylo/Iridium)"
+
+config APP_NTN_BACKEND_MYRIOTA
+	bool "Myriota HyperPulse"
+
+endchoice
+
 config APP_NTN_THREAD_STACK_SIZE
 	int "NTN module thread stack size"
 	default 12292
 
 config APP_NTN_TIMER_TIMEOUT_MINUTES
 	int "NTN timer timeout in minutes"
-	default 15
+	default 60
 	help
 	  Timer timeout for NTN mode before switching back to GNSS mode.
 
@@ -29,6 +41,7 @@ config APP_NTN_LOCATION_VALIDITY_TIME_SECONDS
 
 config APP_NTN_BANDLOCK_ENABLE
 	bool "Enable NTN band lock"
+	depends on APP_NTN_BACKEND_NORDIC
 	help
 	  Enable band lock for NTN mode.
 
@@ -44,6 +57,7 @@ endif # APP_NTN_BANDLOCK_ENABLE
 
 config APP_NTN_CHANNEL_SELECT_ENABLE
 	bool "Enable NTN channel select"
+	depends on APP_NTN_BACKEND_NORDIC
 	help
 	  Enable channel selection for NTN mode.
 
@@ -59,20 +73,36 @@ endif # APP_NTN_CHANNEL_SELECT_ENABLE
 
 config APP_NTN_SERVER_ADDR
 	string "NTN server address"
+	depends on APP_NTN_BACKEND_NORDIC
 	default ""
 	help
 	  IP address of the NTN server to connect to.
 
 config APP_NTN_SERVER_PORT
 	int "NTN server port"
+	depends on APP_NTN_BACKEND_NORDIC
 	default 0
 	help
 	  Port number of the NTN server to connect to.
 
 config APP_NTN_SEND_GNSS_DATA
-	bool "Send GNSS data to UDP endpoint"
+	bool "Send GNSS data in uplink payload"
 	help
-	  Send GNSS data to UDP endpoint.
+	  Include GNSS coordinates in the uplink message payload.
+
+config APP_NTN_MYRIOTA_GNSS_TIMEOUT_SECONDS
+	int "HyperPulse GNSS acquisition timeout in seconds"
+	depends on APP_NTN_BACKEND_MYRIOTA
+	default 90
+	help
+	  Timeout for AT#MLOCATION GNSS fix requests.
+
+config APP_NTN_MYRIOTA_SEND_TIMEOUT_SECONDS
+	int "HyperPulse uplink operation timeout in seconds"
+	depends on APP_NTN_BACKEND_MYRIOTA
+	default 180
+	help
+	  Maximum time to wait for an uplink attempt to complete before aborting.
 
 config APP_NTN_WATCHDOG_TIMEOUT_SECONDS
 	int "NTN module watchdog timeout in seconds"
@@ -95,11 +125,13 @@ config APP_NTN_THINGY_ROCKS_ENDPOINT
 
 config APP_NTN_IRIDIUM
 	bool "Iridium network"
+	depends on APP_NTN_BACKEND_NORDIC
 	help
 	  Iridium network.
 
 config APP_NTN_NETWORK_CONNECTION_TIMEOUT_SECONDS
 	int "NTN cell search / connection timeout in seconds"
+	depends on APP_NTN_BACKEND_NORDIC
 	range 1 600
 	default 180
 	help
@@ -115,6 +147,7 @@ config APP_NTN_NETWORK_CONNECTION_TIMEOUT_SECONDS
 
 config APP_NTN_REGISTERED_TIMEOUT_SECONDS
 	int "Extended NTN timeout once registered, in seconds"
+	depends on APP_NTN_BACKEND_NORDIC
 	range 1 600
 	default 120
 	help
@@ -125,6 +158,7 @@ config APP_NTN_REGISTERED_TIMEOUT_SECONDS
 
 config APP_NTN_SEND_ACK_TIMEOUT_SECONDS
 	int "Network send acknowledgement timeout in seconds"
+	depends on APP_NTN_BACKEND_NORDIC
 	range 1 600
 	default 60
 	help
