@@ -22,6 +22,7 @@ target_sources(app PRIVATE
 # Module source folders
 add_subdirectory(src/modules/network)
 add_subdirectory(src/cbor)
+add_subdirectory(memfault)
 
 # Optional modules
 add_subdirectory_ifdef(CONFIG_APP_BUTTON src/modules/button)
