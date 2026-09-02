@@ -170,6 +170,7 @@ enum batch_drain_result {
 
 /* Forward declarations of state handlers */
 static void state_running_entry(void *obj);
+static enum smf_state_result state_running_run(void *obj);
 static void state_disconnected_entry(void *obj);
 static enum smf_state_result state_disconnected_run(void *obj);
 static void state_connecting_entry(void *obj);
@@ -196,7 +197,7 @@ static enum smf_state_result state_connected_paused_run(void *obj);
 /* State machine definition */
 static const struct smf_state states[] = {
 	[STATE_RUNNING] =
-		SMF_CREATE_STATE(state_running_entry, NULL, NULL,
+		SMF_CREATE_STATE(state_running_entry, state_running_run, NULL,
 				 NULL, /* No parent state */
 				 &states[STATE_DISCONNECTED]), /* Initial transition */
 
@@ -820,6 +821,45 @@ static void state_running_entry(void *obj)
 	}
 }
 
+/* Default handling of storage batch responses. Applies whenever the module is not able to
+ * send the batch to cloud, in which case the batch session is closed right away.
+ * Substates that can send data handle these messages themselves.
+ */
+static enum smf_state_result state_running_run(void *obj)
+{
+	struct cloud_state_object const *state_object = obj;
+
+	if (state_object->chan == &storage_chan) {
+		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
+
+		switch (msg->type) {
+		case STORAGE_BATCH_AVAILABLE:
+		case STORAGE_BATCH_EMPTY:
+			LOG_WRN("Storage batch received, cloud cannot send, closing session 0x%X",
+				msg->session_id);
+
+			handle_storage_batch_empty(msg);
+
+			return SMF_EVENT_HANDLED;
+		case STORAGE_BATCH_ERROR:
+			LOG_DBG("Storage batch error received, closing session 0x%X",
+				msg->session_id);
+
+			handle_storage_batch_error(msg);
+
+			return SMF_EVENT_HANDLED;
+		case STORAGE_BATCH_BUSY:
+			handle_storage_batch_busy(msg);
+
+			return SMF_EVENT_HANDLED;
+		default:
+			break;
+		}
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
+
 static void state_disconnected_entry(void *obj)
 {
 	int err;
@@ -1370,34 +1410,6 @@ static enum smf_state_result state_connected_paused_run(void *obj)
 		}
 	}
 #endif /* CONFIG_NRF_CLOUD_AGNSS && CONFIG_APP_LOCATION */
-
-	if (state_object->chan == &storage_chan) {
-		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
-
-		switch (msg->type) {
-		case STORAGE_BATCH_AVAILABLE:
-		case STORAGE_BATCH_EMPTY:
-			LOG_WRN("Storage batch received, cloud is paused, closing session 0x%X",
-				msg->session_id);
-
-			handle_storage_batch_empty(msg);
-
-			return SMF_EVENT_HANDLED;
-		case STORAGE_BATCH_ERROR:
-			LOG_DBG("Storage batch error received while paused, closing session 0x%X",
-				msg->session_id);
-
-			handle_storage_batch_error(msg);
-
-			return SMF_EVENT_HANDLED;
-		case STORAGE_BATCH_BUSY:
-			handle_storage_batch_busy(msg);
-
-			return SMF_EVENT_HANDLED;
-		default:
-			break;
-		}
-	}
 
 	return SMF_EVENT_PROPAGATE;
 }
