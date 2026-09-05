@@ -94,7 +94,20 @@ git add $FLASH_BADGE_FILE_DEST $RAM_BADGE_FILE_DEST \
     $FLASH_HISTORY_CSV_DEST $RAM_HISTORY_CSV_DEST \
     $FLASH_PLOT_HTML_DEST $RAM_PLOT_HTML_DEST \
     $ROM_REPORT_DEST $RAM_REPORT_DEST
-git commit -m "Update memory usage badges"
-git push origin gh-pages
+git commit -m "Update memory usage badges" || {
+    echo "No badge changes to commit"
+    exit 0
+}
+
+max_attempts=3
+attempt=1
+until git push origin gh-pages; do
+    if [ "$attempt" -ge "$max_attempts" ]; then
+        handle_error "Failed to push updates to gh-pages after ${max_attempts} attempts"
+    fi
+    echo "Push failed (attempt ${attempt}/${max_attempts}), retrying..."
+    attempt=$((attempt + 1))
+    sleep 5
+done
 
 echo "Successfully updated gh-pages branch"
