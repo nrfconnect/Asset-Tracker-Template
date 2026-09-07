@@ -196,7 +196,9 @@ static int myriota_get_imei(char *imei, size_t imei_len)
 		return -EIO;
 	}
 
-	if (sscanf(response, "+CGSN: %15s", imei) != 1) {
+	/* Modem returns quoted IMEI: +CGSN: "359404235474245" — avoid capturing the quote. */
+	if (sscanf(response, "+CGSN: \"%15[^\"]\"", imei) != 1 &&
+	    sscanf(response, "+CGSN: %15[0-9]", imei) != 1) {
 		return -EINVAL;
 	}
 
@@ -326,7 +328,22 @@ static int myriota_format_payload(struct ntn_state_object *state, char *message,
 		snprintk(imei_suffix, sizeof(imei_suffix), "N/A");
 	}
 
-#if defined(CONFIG_APP_NTN_SEND_GNSS_DATA)
+#if defined(CONFIG_APP_NTN_THINGY_ROCKS_ENDPOINT)
+	// imei,ping_rtt,rsrp,band,ue_mode,oper,lat_str,lon_str,accuracy,...
+	// ...battery_str,temp_str,pressure_str,humidity_str
+	err = snprintk(message, message_len,
+		       "%s,,%d,%s,%s,%s,%s,%.3f,%.3f,%d,%.1f,%s,%s,%s",
+		       imei,
+			-1,
+			"139",
+			"0",
+			"0",
+			"90129",
+			state->last_pvt.latitude,
+			state->last_pvt.longitude,
+			(int)state->last_pvt.accuracy,
+			99.9, temp, "999.99", "99.99");
+#elif defined(CONFIG_APP_NTN_SEND_GNSS_DATA)
 	err = snprintk(message, message_len,
 		       "Device: *%s, temp: %s, lat=%.2f, lon=%.2f, alt=%.2f, "
 		       "time=%04d-%02d-%02d %02d:%02d:%02d",
