@@ -1407,7 +1407,8 @@ static enum smf_state_result state_running_run(void *obj)
 		case NTN_LOCATION_REQUEST:
 			uint64_t current_time = k_uptime_get();
 
-			if (current_time < state->location_validity_end_time) {
+			if (state->location_validity_end_time == 0 ||
+			    current_time < state->location_validity_end_time) {
 				LOG_DBG("NTN location is still valid, skipping location request");
 
 				return SMF_EVENT_HANDLED;
@@ -1474,7 +1475,8 @@ static enum smf_state_result state_gnss_run(void *obj)
 			memcpy(&state->last_pvt, &msg->pvt, sizeof(state->last_pvt));
 
 			state->location_validity_end_time =
-				k_uptime_get() +
+				CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS == 0 ?
+				0 : k_uptime_get() +
 				CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS * MSEC_PER_SEC;
 
 			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
