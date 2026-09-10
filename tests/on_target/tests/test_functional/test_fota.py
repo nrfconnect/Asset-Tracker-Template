@@ -6,6 +6,7 @@
 import pytest
 import time
 import os
+import re
 import functools
 from utils.flash_tools import flash_device, reset_device
 from utils.nrfcloud import NRFCloudFOTAError
@@ -17,16 +18,12 @@ logger = get_logger()
 
 MFW_FILEPATH = "artifacts/mfw_nrf91x1_2.0.4.zip"
 
-# Stable version used for testing
-TEST_APP_VERSION = "1.0.2"
-
 DELTA_MFW_BUNDLEID_20X_TO_FOTA_TEST = "5060efda-fcae-48d1-ab2d-7cfeb7dde8a9"
 DELTA_MFW_BUNDLEID_FOTA_TEST_TO_20X = "c1e5d090-1217-47ef-ac4e-b74339c50a06"
 FULL_MFW_BUNDLEID = "02fd1b8f-5c06-43e7-8c9c-173a50259456"
 MFW_DELTA_VERSION_FOTA_TEST = "mfw_nrf91x1_2.0.4-FOTA-TEST"
 MFW_VERSION = "mfw_nrf91x1_2.0.4"
 
-APP_BUNDLEID = os.getenv("APP_BUNDLEID")
 MCUBOOT_BUNDLEID = os.getenv("MCUBOOT_BUNDLEID")
 
 BOOTLOADER_VERSION_BASELINE = "2"
@@ -34,11 +31,6 @@ BOOTLOADER_VERSION_UPDATED = "3"
 BOOTLOADER_FIRMWARE_VERSION_LOG = "Firmware version 3"
 
 FOTA_STATUS_DETAIL_SUCCESS = "FOTA update completed successfully"
-
-TEST_APP_BIN = {
-    "thingy91x": "artifacts/stable_version_jan_2025-update-signed.bin",
-    "nrf9151dk": "artifacts/nrf9151dk_mar_2025_update_signed.bin"
-}
 
 DEVICE_MSG_TIMEOUT = 60 * 5
 APP_FOTA_TIMEOUT = 60 * 15
@@ -132,6 +124,45 @@ def get_modemversion(dut_fota):
 def get_bootloaderversion(dut_fota):
     shadow = dut_fota.fota.get_device(dut_fota.device_id)
     return shadow["state"]["reported"]["device"]["deviceInfo"]["bootloaderVersion"]
+
+def _app_version_file():
+    for candidate in [
+        os.path.join(os.getcwd(), "../../app/VERSION"),
+        os.path.join(os.path.dirname(__file__), "../../../../app/VERSION"),
+    ]:
+        if os.path.isfile(candidate):
+            return os.path.abspath(candidate)
+    raise FileNotFoundError("app/VERSION not found")
+
+def parse_app_version():
+    """Return the application version string embedded in the firmware."""
+    version = {}
+    with open(_app_version_file()) as f:
+        for line in f:
+            match = re.match(r"^(\w+)\s*=\s*(\S+)", line.strip())
+            if match:
+                version[match.group(1)] = match.group(2)
+
+    app_version = (
+        f"{version['VERSION_MAJOR']}."
+        f"{version['VERSION_MINOR']}."
+        f"{version['PATCHLEVEL']}"
+    )
+    tweak = int(version.get("VERSION_TWEAK", "0"))
+    if tweak:
+        app_version += f"+{tweak}"
+    extra = version.get("EXTRAVERSION")
+    if extra:
+        app_version += f"-{extra}"
+    return app_version
+
+def bump_app_version(version):
+    """Return a forward-compatible version string with patchlevel incremented."""
+    match = re.match(r"^(\d+)\.(\d+)\.(\d+)(\+\d+)?(-.+)?$", version)
+    if not match:
+        raise ValueError(f"Unsupported app version format: {version}")
+    major, minor, patch, tweak, extra = match.groups()
+    return f"{major}.{minor}.{int(patch) + 1}{tweak or ''}{extra or ''}"
 
 def await_bootloader_version(dut_fota, expected, timeout=DEVICE_MSG_TIMEOUT):
     start = time.time()
@@ -294,7 +325,9 @@ def ensure_no_pending_fota_jobs_before_test(dut_fota):
 
 @pytest.fixture
 def run_fota_fixture(dut_fota, hex_file, reschedule=False):
-    def _run_fota(bundle_id="", fota_type="app", fotatimeout=APP_FOTA_TIMEOUT, new_version=TEST_APP_VERSION, reschedule=False):
+    def _run_fota(bundle_id="", fota_type="app", fotatimeout=APP_FOTA_TIMEOUT, new_version=None, reschedule=False):
+        if new_version is None:
+            new_version = parse_app_version()
         flash_device(os.path.abspath(hex_file))
         dut_fota.uart.xfactoryreset()
         dut_fota.uart.flush()
@@ -381,13 +414,32 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
 
 
 @pytest.mark.slow
-def test_app_fota(run_fota_fixture):
+def test_app_fota(run_fota_fixture, dut_fota, dfu_zip_file):
     '''
-    Test application FOTA from nightly version to stable version
+    Test application FOTA from nightly build to the same firmware uploaded with a
+    bumped version number (forward compatibility).
     '''
-    run_fota_fixture(
-        bundle_id=APP_BUNDLEID,
-    )
+    baseline_version = parse_app_version()
+    cloud_version = bump_app_version(baseline_version)
+    bundle_id = None
+
+    try:
+        bundle_id = dut_fota.fota.upload_zephyr_zip(
+            dfu_zip_file,
+            version=cloud_version,
+            name=f"ATT nightly FOTA test {cloud_version}",
+        )
+        logger.info(
+            f"Uploaded nightly firmware bundle {bundle_id} "
+            f"(cloud version {cloud_version}, embedded {baseline_version})"
+        )
+        run_fota_fixture(
+            bundle_id=bundle_id,
+            new_version=baseline_version,
+        )
+    finally:
+        if bundle_id:
+            dut_fota.fota.delete_bundle(bundle_id)
 
 @pytest.mark.slow
 def test_bootloader_fota(dut_fota, hex_file):
