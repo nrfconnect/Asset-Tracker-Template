@@ -19,13 +19,25 @@ permissions:
   contents: read
 
 jobs:
+  setup:
+    runs-on: ubuntu-24.04
+    outputs:
+      toolchain-version: ${{ steps.setup.outputs.toolchain-version }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/toolchain
+        id: setup
+
   build:
     name: Build and analyze
     runs-on: build_self_hosted
-    container: ghcr.io/zephyrproject-rtos/ci:v0.29.3
+    needs: setup
+    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:${{ needs.setup.outputs.toolchain-version }}
+    defaults:
+      run:
+        shell: bash
     env:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory # Directory where build-wrapper output will be placed
-      CMAKE_PREFIX_PATH: /opt/toolchains
     steps:
       - uses: actions/checkout@v6
         if: github.event_name == 'pull_request'
@@ -60,7 +72,9 @@ jobs:
             fi
             pip install -r nrf/scripts/requirements-fixed.txt
             apt-get update
-            apt install -y curl ruby-full
+            # `make` is required to build native_sim but is not shipped in the
+            # sdk-nrf-toolchain container (unlike the Zephyr CI image).
+            apt install -y curl ruby-full make
 
       - name: Run tests with ASAN, no Sonarcloud and build_wrapper
         working-directory: asset-tracker-template

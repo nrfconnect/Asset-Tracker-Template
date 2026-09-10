@@ -1,0 +1,30 @@
+name: "Toolchain"
+description: "Resolve the NCS toolchain version for the pinned sdk-nrf revision"
+outputs:
+  toolchain-version:
+    description: The sdk-nrf-toolchain container tag matching the pinned NCS revision
+    value: ${{ steps.setup.outputs.TOOLCHAIN_VERSION }}
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v6
+      with:
+        path: asset-tracker-template
+    - name: Find NCS revision
+      shell: bash
+      run: |
+        NCS_REV=$(grep "revision:" asset-tracker-template/west.yml | awk '{print $2}' | xargs)
+        echo "NCS_REV=${NCS_REV}" >> $GITHUB_ENV
+        echo "NCS_REV=${NCS_REV}"
+    - uses: actions/checkout@v6
+      with:
+        path: nrf
+        repository: nrfconnect/sdk-nrf
+        ref: ${{ env.NCS_REV }}
+    - name: Compute toolchain version
+      id: setup
+      shell: bash
+      run: |
+        TOOLCHAIN_VERSION=$(./nrf/scripts/print_toolchain_checksum.sh)
+        echo "TOOLCHAIN_VERSION=${TOOLCHAIN_VERSION}"
+        echo "TOOLCHAIN_VERSION=${TOOLCHAIN_VERSION}" >> "$GITHUB_OUTPUT"

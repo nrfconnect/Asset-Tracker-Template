@@ -103,11 +103,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  setup:
+    runs-on: ubuntu-24.04
+    outputs:
+      toolchain-version: ${{ steps.setup.outputs.toolchain-version }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/toolchain
+        id: setup
+
   build:
     runs-on: build_self_hosted
-    container: ghcr.io/zephyrproject-rtos/ci:v0.29.3
-    env:
-      CMAKE_PREFIX_PATH: /opt/toolchains
+    needs: setup
+    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:${{ needs.setup.outputs.toolchain-version }}
+    defaults:
+      run:
+        shell: bash
     outputs:
       run_id: ${{ github.run_id }}
       version: ${{ env.VERSION }}
