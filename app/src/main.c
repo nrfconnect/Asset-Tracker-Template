@@ -126,7 +126,9 @@ static void timer_sample_stop(void);
 static K_WORK_DELAYABLE_DEFINE(timer_sample_data_work, timer_sample_data_work_fn);
 
 /* Forward declarations of state handlers */
+static void waiting_for_modules_init_entry(void *o);
 static enum smf_state_result waiting_for_modules_init_run(void *o);
+static void running_entry(void *o);
 static enum smf_state_result running_run(void *o);
 
 /* Connectivity handlers */
@@ -243,7 +245,7 @@ struct main_state {
 static const struct smf_state states[] = {
 	/* Initial state, waiting for modules to initialize */
 	[STATE_WAITING_FOR_MODULES_INIT] = SMF_CREATE_STATE(
-		NULL,
+		waiting_for_modules_init_entry,
 		waiting_for_modules_init_run,
 		NULL,
 		NULL,
@@ -251,7 +253,7 @@ static const struct smf_state states[] = {
 	),
 	/* Top-level states */
 	[STATE_RUNNING] = SMF_CREATE_STATE(
-		NULL,
+		running_entry,
 		running_run,
 		NULL,
 		NULL,
@@ -485,7 +487,7 @@ static void waiting_entry_common(const struct main_state *state_object)
 		}
 	}
 
-	LOG_DBG("Next sample trigger in %d seconds", time_remaining);
+	LOG_INF("Next sample trigger in %d seconds", time_remaining);
 
 	timer_sample_start(time_remaining);
 }
@@ -617,10 +619,10 @@ static void update_shadow_reported_section(const struct config_params *config,
 	}
 
 	if (config->sample_interval != 0) {
-		LOG_DBG("Reported sample_interval: %d", config->sample_interval);
+		LOG_INF("Reported sample_interval: %d", config->sample_interval);
 	}
 	if (config->storage_threshold_valid) {
-		LOG_DBG("Reported storage_threshold: %d", config->storage_threshold);
+		LOG_INF("Reported storage_threshold: %d", config->storage_threshold);
 	}
 }
 
@@ -631,13 +633,13 @@ static void config_apply(struct main_state *state_object, const struct config_pa
 
 	if (!config->sample_interval &&
 	    !config->storage_threshold_valid) {
-		LOG_DBG("No configuration parameters to update");
+		LOG_INF("No configuration parameters to update");
 		return;
 	}
 
 	if (config->sample_interval &&
 	    config->sample_interval != state_object->sample_interval_sec) {
-		LOG_DBG("Updating sample interval to %d seconds", config->sample_interval);
+		LOG_INF("Updating sample interval to %d seconds", config->sample_interval);
 		state_object->sample_interval_sec = config->sample_interval;
 		interval_changed = true;
 	}
@@ -649,7 +651,7 @@ static void config_apply(struct main_state *state_object, const struct config_pa
 			.data_len = config->storage_threshold,
 		};
 
-		LOG_DBG("Updating storage threshold to %d samples", config->storage_threshold);
+		LOG_INF("Updating storage threshold to %d samples", config->storage_threshold);
 		state_object->storage_threshold = config->storage_threshold;
 
 		err = zbus_chan_pub(&storage_chan, &storage_msg, PUB_TIMEOUT);
@@ -681,7 +683,7 @@ static void config_apply(struct main_state *state_object, const struct config_pa
 static void command_execute(uint32_t command_type)
 {
 	if (command_type == CLOUD_COMMAND_TYPE_PROVISION) {
-		LOG_DBG("Received provisioning command from cloud, requesting reprovisioning...");
+		LOG_INF("Received provisioning command from cloud, requesting reprovisioning...");
 		struct cloud_msg cloud_msg = {
 			.type = CLOUD_PROVISIONING_REQUEST,
 		};
@@ -694,7 +696,7 @@ static void command_execute(uint32_t command_type)
 			return;
 		}
 	} else {
-		LOG_DBG("No valid command to process");
+		LOG_INF("No valid command to process");
 	}
 }
 
@@ -769,7 +771,7 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 
 	/* For EMPTY_DELTA response, do nothing */
 	case CLOUD_SHADOW_RESPONSE_EMPTY_DELTA:
-		LOG_DBG("Received empty shadow delta response, no configuration changes to apply");
+		LOG_INF("Received empty shadow delta response, no configuration changes to apply");
 		break;
 
 	/* For EMPTY_DESIRED response, report the current configuration in the reported section. */
@@ -784,7 +786,7 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 
 		break;
 	default:
-		LOG_DBG("Received cloud message that is not a shadow response, ignoring: %d",
+		LOG_INF("Received cloud message that is not a shadow response, ignoring: %d",
 			msg->type);
 		break;
 	}
@@ -815,6 +817,13 @@ static void check_modules_ready(const struct main_state *state_object)
 /* Zephyr State Machine framework handlers */
 
 /* STATE_WAITING_FOR_MODULES_INIT */
+static void waiting_for_modules_init_entry(void *o)
+{
+	ARG_UNUSED(o);
+
+	LOG_INF("%s", __func__);
+}
+
 static enum smf_state_result waiting_for_modules_init_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
@@ -864,6 +873,13 @@ static enum smf_state_result waiting_for_modules_init_run(void *o)
 	return SMF_EVENT_PROPAGATE;
 }
 
+static void running_entry(void *o)
+{
+	ARG_UNUSED(o);
+
+	LOG_INF("%s", __func__);
+}
+
 static enum smf_state_result running_run(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
@@ -890,7 +906,7 @@ static enum smf_state_result running_run(void *o)
 		const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
 
 		if (msg->type == CLOUD_PROVISIONED) {
-			LOG_DBG("Device provisioning completed");
+			LOG_INF("Device provisioning completed");
 			/* After reprovisioning, the device shadow is no longer considered synced
 			 * with the cloud, so reset the flag to trigger a new sync on the next
 			 * connection.
@@ -909,7 +925,7 @@ static void disconnected_entry(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
-	LOG_DBG("%s", __func__);
+	LOG_INF("%s", __func__);
 
 	state_object->running_history = STATE_DISCONNECTED;
 }
@@ -953,7 +969,7 @@ static void connected_entry(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
-	LOG_DBG("%s", __func__);
+	LOG_INF("%s", __func__);
 
 	state_object->running_history = STATE_CONNECTED;
 
@@ -1047,7 +1063,7 @@ static void disconnected_sampling_entry(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
-	LOG_DBG("%s", __func__);
+	LOG_INF("%s", __func__);
 	trigger_sampling(state_object);
 }
 
@@ -1074,7 +1090,7 @@ static void disconnected_waiting_entry(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
-	LOG_DBG("%s", __func__);
+	LOG_INF("%s", __func__);
 	waiting_entry_common(state_object);
 
 #if defined(CONFIG_APP_LED)
@@ -1142,7 +1158,7 @@ static enum smf_state_result disconnected_waiting_run(void *o)
 static void disconnected_waiting_exit(void *o)
 {
 	ARG_UNUSED(o);
-	LOG_DBG("%s", __func__);
+	LOG_INF("%s", __func__);
 
 	waiting_exit_common();
 }
@@ -1153,7 +1169,7 @@ static void connected_sampling_entry(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
-	LOG_DBG("%s", __func__);
+	LOG_INF("%s", __func__);
 	trigger_sampling(state_object);
 }
 
@@ -1187,7 +1203,7 @@ static void connected_waiting_entry(void *o)
 {
 	const struct main_state *state_object = (const struct main_state *)o;
 
-	LOG_DBG("%s", __func__);
+	LOG_INF("%s", __func__);
 	waiting_entry_common(state_object);
 }
 
@@ -1234,7 +1250,7 @@ static void connected_waiting_exit(void *o)
 {
 	ARG_UNUSED(o);
 
-	LOG_DBG("%s", __func__);
+	LOG_INF("%s", __func__);
 	waiting_exit_common();
 }
 
@@ -1242,7 +1258,7 @@ static void connected_sending_entry(void *o)
 {
 	struct main_state *state_object = (struct main_state *)o;
 
-	LOG_DBG("%s", __func__);
+	LOG_INF("%s", __func__);
 
 	/* Send data immediately when entering this state */
 	cloud_send_now(state_object);
@@ -1281,7 +1297,7 @@ static void fota_entry(void *o)
 {
 	ARG_UNUSED(o);
 
-	LOG_DBG("%s", __func__);
+	LOG_INF("%s", __func__);
 
 #if defined(CONFIG_APP_LED)
 	int err;
@@ -1392,7 +1408,7 @@ static void rebooting_entry(void *o)
 {
 	ARG_UNUSED(o);
 
-	LOG_DBG("%s", __func__);
+	LOG_INF("%s", __func__);
 
 	/* Flush log buffer */
 	LOG_PANIC();
@@ -1419,7 +1435,7 @@ int main(void)
 		.first_sample_pending = true,
 	};
 
-	LOG_DBG("Main has started");
+	LOG_INF("Main has started");
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {

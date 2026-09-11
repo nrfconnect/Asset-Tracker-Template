@@ -92,10 +92,10 @@ static int littlefs_mount(struct fs_mount_t *mp)
 	ret = fs_mount(mp);
 	switch (ret) {
 	case 0:
-		LOG_INF("%s mounted", mp->mnt_point);
+		LOG_DBG("%s mounted", mp->mnt_point);
 		break;
 	case -EBUSY:
-		LOG_INF("%s already mounted", mp->mnt_point);
+		LOG_DBG("%s already mounted", mp->mnt_point);
 		ret = 0;
 		break;
 	case -ENOSPC:
@@ -153,7 +153,7 @@ static void verify_partition_size(void)
 		 "LittleFS partition too small. Need at least %d blocks, partition has %lu",
 		 necessary_blocks, stat.f_blocks);
 
-	LOG_INF("LittleFS partition size verified: need %d blocks, have %lu blocks",
+	LOG_DBG("LittleFS partition size verified: need %d blocks, have %lu blocks",
 		necessary_blocks, stat.f_blocks);
 }
 
@@ -890,7 +890,7 @@ static int lfs_storage_clear(void)
 		return ret;
 	}
 
-	LOG_INF("Storage cleared successfully");
+	LOG_DBG("Storage cleared successfully");
 
 	return 0;
 }

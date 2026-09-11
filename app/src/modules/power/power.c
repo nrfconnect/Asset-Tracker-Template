@@ -282,11 +282,11 @@ static void send_battery_percentage_sample_response(const struct power_state_obj
 #if defined(CONFIG_APP_POWER_SHELL)
 static void log_battery_sample(const struct power_state_object *state_object)
 {
-	LOG_INF("Battery percentage: %.2f%%", (double)state_object->percentage);
-	LOG_INF("Battery voltage: %.4f V", (double)state_object->voltage);
-	LOG_INF("Battery current: %.4f A", (double)state_object->current);
-	LOG_INF("Battery temperature: %.2f °C", (double)state_object->temperature);
-	LOG_INF("Battery is %s charging", state_object->charging ? "" : "not ");
+	LOG_DBG("Battery percentage: %.2f%%", (double)state_object->percentage);
+	LOG_DBG("Battery voltage: %.4f V", (double)state_object->voltage);
+	LOG_DBG("Battery current: %.4f A", (double)state_object->current);
+	LOG_DBG("Battery temperature: %.2f °C", (double)state_object->temperature);
+	LOG_DBG("Battery is %s charging", state_object->charging ? "" : "not ");
 }
 #endif /* CONFIG_APP_POWER_SHELL */
 
