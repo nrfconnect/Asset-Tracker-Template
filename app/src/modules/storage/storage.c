@@ -728,8 +728,8 @@ static void handle_storage_stats(void)
 	int total_records = 0;
 	int total_types = 0;
 
-	LOG_INF("=== Storage Statistics ===");
-	LOG_INF("Backend: %s: %s", backend ? "Available" : "Not available",
+	LOG_DBG("=== Storage Statistics ===");
+	LOG_DBG("Backend: %s: %s", backend ? "Available" : "Not available",
 		IS_ENABLED(CONFIG_APP_STORAGE_BACKEND_RAM)        ? "RAM"
 		: IS_ENABLED(CONFIG_APP_STORAGE_BACKEND_LITTLEFS) ? "LittleFS"
 								  : "Unknown");
@@ -747,15 +747,15 @@ static void handle_storage_stats(void)
 			continue;
 		}
 
-		LOG_INF("%s: %d records", type->name, count);
+		LOG_DBG("%s: %d records", type->name, count);
 
 		total_records += count;
 		total_types++;
 	}
 
-	LOG_INF("Total: %d records across %d data types", total_records, total_types);
-	LOG_INF("Max records per type: %d", CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE);
-	LOG_INF("========================");
+	LOG_DBG("Total: %d records across %d data types", total_records, total_types);
+	LOG_DBG("Max records per type: %d", CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE);
+	LOG_DBG("========================");
 }
 #endif /* CONFIG_APP_STORAGE_SHELL_STATS */
 

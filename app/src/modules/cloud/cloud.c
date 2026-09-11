@@ -280,7 +280,7 @@ static void connect_to_cloud(const struct cloud_state_object *state_object)
 
 	err = nrf_cloud_client_id_get(buf, sizeof(buf));
 	if (err == 0) {
-		LOG_INF("Connecting to nRF Cloud CoAP with client ID: %s", buf);
+		LOG_DBG("Connecting to nRF Cloud CoAP with client ID: %s", buf);
 	} else {
 		LOG_ERR("nrf_cloud_client_id_get, error: %d, cannot continue", err);
 
@@ -290,7 +290,7 @@ static void connect_to_cloud(const struct cloud_state_object *state_object)
 
 	err = nrf_cloud_coap_connect(APP_VERSION_STRING);
 	if (err == 0) {
-		LOG_INF("nRF Cloud CoAP connection successful");
+		LOG_DBG("nRF Cloud CoAP connection successful");
 
 		msg.type = CLOUD_CONNECTION_SUCCESS;
 	} else if (err == -EACCES || err == -ENOEXEC || err == -ECONNREFUSED) {
@@ -1088,7 +1088,7 @@ static void state_connected_entry(void *obj)
 	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
-	LOG_INF("Connected to Cloud");
+	LOG_DBG("Connected to Cloud");
 }
 
 static void state_connected_exit(void *obj)

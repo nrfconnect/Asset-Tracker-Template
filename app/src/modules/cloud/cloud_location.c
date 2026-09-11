@@ -304,7 +304,7 @@ static int handle_gnss_location_data(const struct location_msg *location_msg)
 		return err;
 	}
 
-	LOG_INF("GNSS location data sent to nRF Cloud successfully");
+	LOG_DBG("GNSS location data sent to nRF Cloud successfully");
 	return 0;
 }
 #endif /* CONFIG_LOCATION_METHOD_GNSS */
