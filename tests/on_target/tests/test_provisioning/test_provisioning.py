@@ -135,8 +135,8 @@ def _wait_for_provisioning_completion_and_cloud_connection(
 
     dut_cloud.uart.wait_for_str(
         [
-            "main: running_run: Device provisioning completed",
-            "cloud: Connected to Cloud",
+            "main: Device provisioning completed",
+            "Connected to Cloud",
         ],
         timeout=timeout,
         start_pos=dut_cloud.uart.get_size(),
@@ -288,7 +288,7 @@ def _run_reprovisioning_expecting_no_commands(dut_cloud):
     dut_cloud.uart.wait_for_str(
         [
             "cloud: No commands from the nRF Provisioning Service to process",
-            "cloud: Connected to Cloud",
+            "Connected to Cloud",
         ],
         timeout=300,
         start_pos=dut_cloud.uart.get_size(),
