@@ -63,6 +63,13 @@ runs:
           fi
           params+=("-DEXTRA_CONF_FILE=overlay-debug-att.conf")
           params+=("-DEXTRA_DTC_OVERLAY_FILE=overlay-upload-modem-traces-to-memfault.overlay")
+          # Thingy:91 X only: its developer security tag is provisioned with the
+          # nRF Cloud CoAP CA in production, so DTLS traffic in modem traces can be
+          # decrypted. The nRF9151 DK ships that tag empty and is left untouched.
+          if [[ "${{ inputs.short_board }}" == "thingy91x" ]]; then
+            params+=("-DCONFIG_NRF_CLOUD_COAP_SEC_TAG=2147483667")
+            params+=("-DCONFIG_NRF_CLOUD_COAP_JWT_SEC_TAG=16842753")
+          fi
         fi
         if [[ "${{ inputs.mqtt }}" == "true" ]]; then
           params+=("-DEXTRA_CONF_FILE=$(pwd)/../examples/modules/cloud/overlay-mqtt.conf")

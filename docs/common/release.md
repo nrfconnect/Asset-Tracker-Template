@@ -43,6 +43,10 @@ The debug artifact is the standard Thingy:91 X firmware with the modem-trace-to-
 |-------------------|----------------------|----------------|--------------|
 | `asset-tracker-template-{VERSION}-debug-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | Standard firmware plus modem trace capture to external flash (~1 MB) and upload to Memfault on crash | Investigating crashes in deployed devices where cellular context around the failure is needed |
 
+> [!WARNING]
+> The debug artifact is built with `CONFIG_NRF_CLOUD_COAP_SEC_TAG=2147483667` and `CONFIG_NRF_CLOUD_COAP_JWT_SEC_TAG=16842753`, so its nRF Cloud DTLS traffic can be decrypted with Nordic tools, see [Decrypting DTLS traffic in modem traces](tooling_troubleshooting.md#decrypting-dtls-traffic-in-modem-traces). Use it for debugging only, never for production.
+> There is no equivalent nRF9151 DK artifact because the DK ships with the developer security tag empty, so the CoAP CA certificate must be [provisioned by hand](tooling_troubleshooting.md#provisioning-the-coap-ca-certificate-on-the-nrf9151-dk) first.
+
 #### Specialized configuration variants
 
 | **Artifact name** | **Hardware platform** | **Description** | **Use case** |
