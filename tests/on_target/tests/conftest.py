@@ -198,6 +198,18 @@ def bin_file():
     pytest.fail("No matching firmware .bin file found in the artifacts directory")
 
 @pytest.fixture(scope="session")
+def dfu_zip_file():
+    # Search for the zephyr-built DFU zip in the artifacts folder
+    artifacts_dir = "artifacts"
+    zip_pattern = f"asset-tracker-template-{r'[0-9a-z\\.]+'}-{DUT_DEVICE_TYPE}-nrf91-dfu.zip"
+
+    for file in os.listdir(artifacts_dir):
+        if re.match(zip_pattern, file):
+            return os.path.join(artifacts_dir, file)
+
+    pytest.fail("No matching firmware DFU zip file found in the artifacts directory")
+
+@pytest.fixture(scope="session")
 def hex_file_patched():
     # Skip if not thingy91x since patched build is only available for thingy91x
     if DUT_DEVICE_TYPE != 'thingy91x':
