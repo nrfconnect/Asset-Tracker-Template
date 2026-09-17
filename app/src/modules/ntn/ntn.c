@@ -1609,6 +1609,8 @@ static enum smf_state_result state_ntn_run(void *obj)
 				}
 
 				try_send_gnss_data(state);
+				/* One send attempt per PDN resume; ignore later RRC bounces. */
+				state->pdn_resumed_time = 0;
 			}
 
 			return SMF_EVENT_HANDLED;
