@@ -1,0 +1,19 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+/* Environmental metrics, sampled from the on-board BME680. */
+
+/* Degrees C, one decimal place of precision. */
+MEMFAULT_METRICS_KEY_DEFINE_WITH_SCALE_VALUE(temperature_c, kMemfaultMetricType_Signed, 10)
+
+/* kPa, two decimal places of precision. */
+MEMFAULT_METRICS_KEY_DEFINE_WITH_SCALE_VALUE(air_pressure_kpa, kMemfaultMetricType_Unsigned, 100)
+
+/* Percent relative humidity, two decimal places of precision. */
+MEMFAULT_METRICS_KEY_DEFINE_WITH_SCALE_VALUE(humidity_pct, kMemfaultMetricType_Unsigned, 100)
+
+/* Gas resistance in ohms, used as a proxy for air quality (higher is cleaner air). */
+MEMFAULT_METRICS_KEY_DEFINE(air_quality_gas_resistance_ohm, kMemfaultMetricType_Unsigned)
