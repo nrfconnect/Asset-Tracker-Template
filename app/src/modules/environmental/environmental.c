@@ -11,6 +11,9 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
 #include <date_time.h>
+#if defined(CONFIG_MEMFAULT)
+#include <memfault/metrics/metrics.h>
+#endif
 
 #include "app_common.h"
 #include "environmental.h"
@@ -78,12 +81,34 @@ static const struct smf_state states[] = {
 	[STATE_RUNNING] = SMF_CREATE_STATE(NULL, state_running_run, NULL, NULL, NULL),
 };
 
+/* Record the environmental values as Memfault heartbeat metrics. */
+#if defined(CONFIG_MEMFAULT)
+static void record_memfault_metrics(double temperature, double pressure, double humidity,
+				     uint32_t gas_resistance)
+{
+	MEMFAULT_METRIC_SET_SIGNED(temperature_c, (int32_t)(temperature * 10));
+	MEMFAULT_METRIC_SET_UNSIGNED(air_pressure_kpa, (uint32_t)(pressure * 100));
+	MEMFAULT_METRIC_SET_UNSIGNED(humidity_pct, (uint32_t)(humidity * 100));
+	MEMFAULT_METRIC_SET_UNSIGNED(air_quality_gas_resistance_ohm, gas_resistance);
+}
+#else
+static void record_memfault_metrics(double temperature, double pressure, double humidity,
+				     uint32_t gas_resistance)
+{
+	ARG_UNUSED(temperature);
+	ARG_UNUSED(pressure);
+	ARG_UNUSED(humidity);
+	ARG_UNUSED(gas_resistance);
+}
+#endif
+
 static void sample_sensors(const struct device *const bme680)
 {
 	int err;
 	struct sensor_value temp = { 0 };
 	struct sensor_value press = { 0 };
 	struct sensor_value humidity = { 0 };
+	struct sensor_value gas_res = { 0 };
 
 	err = sensor_sample_fetch(bme680);
 	if (err) {
@@ -113,6 +138,13 @@ static void sample_sensors(const struct device *const bme680)
 		return;
 	}
 
+	err = sensor_channel_get(bme680, SENSOR_CHAN_GAS_RES, &gas_res);
+	if (err) {
+		LOG_ERR("sensor_channel_get, error: %d", err);
+		SEND_FATAL_ERROR();
+		return;
+	}
+
 	struct environmental_msg msg = {
 		.type = ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE,
 		.temperature = sensor_value_to_double(&temp),
@@ -131,6 +163,8 @@ static void sample_sensors(const struct device *const bme680)
 	/* Log the environmental values and limit to 2 decimals */
 	LOG_DBG("Temperature: %.2f C, Pressure: %.2f Pa, Humidity: %.2f %%",
 		msg.temperature, msg.pressure, msg.humidity);
+
+	record_memfault_metrics(msg.temperature, msg.pressure, msg.humidity, (uint32_t)gas_res.val1);
 
 	err = zbus_chan_pub(&environmental_chan, &msg, PUB_TIMEOUT);
 	if (err) {
