@@ -138,11 +138,12 @@ static void sample_sensors(const struct device *const bme680)
 		return;
 	}
 
+	/* Gas resistance only feeds the (supplementary) air quality metric, so a failure to
+	 * read it should not prevent the rest of the environmental sample from being reported.
+	 */
 	err = sensor_channel_get(bme680, SENSOR_CHAN_GAS_RES, &gas_res);
 	if (err) {
-		LOG_ERR("sensor_channel_get, error: %d", err);
-		SEND_FATAL_ERROR();
-		return;
+		LOG_WRN("sensor_channel_get (gas resistance), error: %d", err);
 	}
 
 	struct environmental_msg msg = {
