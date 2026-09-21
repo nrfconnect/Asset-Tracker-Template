@@ -1410,10 +1410,10 @@ static void rebooting_entry(void *o)
 
 	LOG_INF("%s", __func__);
 
+	k_sleep(K_SECONDS(10));
+
 	/* Flush log buffer */
 	LOG_PANIC();
-
-	k_sleep(K_SECONDS(10));
 
 	sys_reboot(SYS_REBOOT_COLD);
 }
