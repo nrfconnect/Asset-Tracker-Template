@@ -19,6 +19,9 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/net/socket_ncs.h>
+#include <zephyr/posix/arpa/inet.h>
+#include <zephyr/posix/sys/socket.h>
+#include <zephyr/posix/unistd.h>
 #include <errno.h>
 #include <math.h>
 #include <time.h>
@@ -1012,7 +1015,7 @@ static int sock_enable_send_ack(int sock_fd)
 
 static int sock_disable_send_ack(int sock_fd)
 {
-	if (setsockopt(sock_fd, SOL_SOCKET, SO_SENDCB, NULL, 0) < 0){
+	if (setsockopt(sock_fd, SOL_SOCKET, SO_SENDCB, NULL, 0) < 0) {
 		LOG_ERR("SO_SENDCB failed: %d", errno);
 		return -errno;
 	}
@@ -1046,7 +1049,8 @@ static int sock_open_and_connect(struct ntn_state_object *state)
 	}
 
 	/* Connect socket */
-	err = connect(state->sock_fd, (struct sockaddr *)&host_addr, sizeof(struct sockaddr_in));
+	err = connect(state->sock_fd, (struct sockaddr *)&host_addr,
+		      sizeof(struct sockaddr_in));
 	if (err < 0) {
 		LOG_ERR("Failed to connect socket, error: %d", errno);
 		close(state->sock_fd);
@@ -1301,29 +1305,29 @@ static void state_running_entry(void *obj)
 		LOG_ERR("lte_lc_pdn_default_ctx_events_enable, error: %d", err);
 	}
 
-	struct lte_lc_cellular_profile ntn_profile = {
-		.id = 0,
-		.act = LTE_LC_ACT_NTN,
-		.uicc = LTE_LC_UICC_PHYSICAL,
-	};
-
-	struct lte_lc_cellular_profile tn_profile = {
-		.id = 1,
-		.act = LTE_LC_ACT_LTEM || LTE_LC_ACT_NBIOT,
-		.uicc = LTE_LC_UICC_PHYSICAL,
-	};
-
 #if defined(CONFIG_APP_NTN_IRIDIUM)
 	err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,0,8,0");
 		if (err) {
 			LOG_ERR("Failed to set CELLULARPRFL=2,0,8,0, error: %d", err);
 		}
 #else
+	struct lte_lc_cellular_profile ntn_profile = {
+		.id = 0,
+		.act = LTE_LC_ACT_NTN,
+		.uicc = LTE_LC_UICC_PHYSICAL,
+	};
+
 	err = lte_lc_cellular_profile_configure(&ntn_profile);
 	if (err) {
 		LOG_ERR("Failed to set NTN profile, error: %d", err);
 	}
 #endif
+
+	struct lte_lc_cellular_profile tn_profile = {
+		.id = 1,
+		.act = LTE_LC_ACT_LTEM || LTE_LC_ACT_NBIOT,
+		.uicc = LTE_LC_UICC_PHYSICAL,
+	};
 
 	err = lte_lc_cellular_profile_configure(&tn_profile);
 	if (err) {
