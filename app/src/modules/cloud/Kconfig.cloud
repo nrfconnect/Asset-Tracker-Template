@@ -121,7 +121,7 @@ config APP_CLOUD_MESSAGE_QUEUE_SIZE
 
 config APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout"
-	default 220
+	default 300
 	help
 	  Timeout in seconds for the cloud module watchdog.
 	  The timeout given in this option covers both:
@@ -135,13 +135,14 @@ config APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS
 
 config APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS
 	int "Maximum message processing time"
-	default 160
+	default 240
 	help
 	  Maximum time allowed for processing a single message in the module's state machine.
 	  The value must be smaller than CONFIG_APP_CLOUD_WATCHDOG_TIMEOUT_SECONDS.
 	  This must cover the worst-case time to connect to nRF Cloud, which is dominated by
 	  the modem's DTLS handshake timeout (TLS_DTLS_HANDSHAKE_TIMEO_123S, 123 seconds),
-	  plus the CoAP authentication exchange and DNS resolution and socket setup overhead.
+	  plus DNS resolution, the CoAP authentication exchange, and socket setup overhead.
+	  Reconnect after CoAP timeouts uses the same blocking connect path.
 
 config APP_CLOUD_STORAGE_BATCH_ITEM_READ_TIMEOUT_MS
 	int "Storage batch item read timeout (ms)"

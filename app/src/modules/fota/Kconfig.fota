@@ -22,7 +22,7 @@ config APP_FOTA_THREAD_STACK_SIZE
 
 config APP_FOTA_WATCHDOG_TIMEOUT_SECONDS
 	int "Watchdog timeout"
-	default 210
+	default 300
 	help
 	  Timeout in seconds for the FOTA module watchdog.
 	  The timeout given in this option covers both:
@@ -35,10 +35,12 @@ config APP_FOTA_WATCHDOG_TIMEOUT_SECONDS
 
 config APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS
 	int "Maximum message processing time"
-	default 180
+	default 240
 	help
 	  Maximum time allowed for processing a single message in the module's state machine.
 	  The value must be smaller than CONFIG_APP_FOTA_WATCHDOG_TIMEOUT_SECONDS.
+	  FOTA job polling uses blocking CoAP requests against nRF Cloud and can take as long
+	  as a cloud connect when the link is slow.
 
 module = APP_FOTA
 module-str = FOTA
