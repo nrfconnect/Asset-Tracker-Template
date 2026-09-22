@@ -133,7 +133,21 @@ jobs:
 
       - name: Initialize
         working-directory: asset-tracker-template
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # west clones the NCS repositories into directories next to this
+          # checkout, which the credentials installed by actions/checkout do not
+          # cover. The resulting anonymous fetches share one rate limit per
+          # runner host and start being answered with 401 once it is exhausted,
+          # leaving git to ask for a username and the job to fail. Send the job
+          # token along instead. The config lives in the job container and goes
+          # away with it.
+          if [ -n "$GITHUB_TOKEN" ]; then
+            git config --global \
+              url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf \
+              "https://github.com/"
+          fi
           if [ ! -d "../.west" ]; then
             west init -l .
           else
