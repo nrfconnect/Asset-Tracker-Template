@@ -126,13 +126,9 @@ def get_bootloaderversion(dut_fota):
     return shadow["state"]["reported"]["device"]["deviceInfo"]["bootloaderVersion"]
 
 def _app_version_file():
-    for candidate in [
-        os.path.join(os.getcwd(), "../../app/VERSION"),
-        os.path.join(os.path.dirname(__file__), "../../../../app/VERSION"),
-    ]:
-        if os.path.isfile(candidate):
-            return os.path.abspath(candidate)
-    raise FileNotFoundError("app/VERSION not found")
+    return os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "../../../../app/VERSION")
+    )
 
 def parse_app_version():
     """Return the application version string embedded in the firmware."""
@@ -148,21 +144,13 @@ def parse_app_version():
         f"{version['VERSION_MINOR']}."
         f"{version['PATCHLEVEL']}"
     )
-    tweak = int(version.get("VERSION_TWEAK", "0"))
-    if tweak:
-        app_version += f"+{tweak}"
     extra = version.get("EXTRAVERSION")
     if extra:
         app_version += f"-{extra}"
+    tweak = int(version.get("VERSION_TWEAK", "0"))
+    if tweak:
+        app_version += f"+{tweak}"
     return app_version
-
-def bump_app_version(version):
-    """Return a forward-compatible version string with patchlevel incremented."""
-    match = re.match(r"^(\d+)\.(\d+)\.(\d+)(\+\d+)?(-.+)?$", version)
-    if not match:
-        raise ValueError(f"Unsupported app version format: {version}")
-    major, minor, patch, tweak, extra = match.groups()
-    return f"{major}.{minor}.{int(patch) + 1}{tweak or ''}{extra or ''}"
 
 def await_bootloader_version(dut_fota, expected, timeout=DEVICE_MSG_TIMEOUT):
     start = time.time()
@@ -325,10 +313,10 @@ def ensure_no_pending_fota_jobs_before_test(dut_fota):
 
 @pytest.fixture
 def run_fota_fixture(dut_fota, hex_file, reschedule=False):
-    def _run_fota(bundle_id="", fota_type="app", fotatimeout=APP_FOTA_TIMEOUT, new_version=None, reschedule=False):
+    def _run_fota(bundle_id="", fota_type="app", fotatimeout=APP_FOTA_TIMEOUT, new_version=None, reschedule=False, flash_hex=None):
         if new_version is None:
             new_version = parse_app_version()
-        flash_device(os.path.abspath(hex_file))
+        flash_device(os.path.abspath(flash_hex or hex_file))
         dut_fota.uart.xfactoryreset()
         dut_fota.uart.flush()
         reset_device()
@@ -414,28 +402,36 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
 
 
 @pytest.mark.slow
-def test_app_fota(run_fota_fixture, dut_fota, dfu_zip_file):
+def test_app_fota(run_fota_fixture, dut_fota, dfu_zip_file, release_hex_file):
     '''
-    Test application FOTA from nightly build to the same firmware uploaded with a
-    bumped version number (forward compatibility).
+    Test application FOTA upgrading the most recent release to the nightly build.
     '''
-    baseline_version = parse_app_version()
-    cloud_version = bump_app_version(baseline_version)
-    bundle_id = None
+    nightly_version = parse_app_version()
+    release_version = release_hex_file.version
 
+    # The version check after the update is a substring match against the
+    # reported appVersion, so it only proves anything if the nightly version
+    # cannot already be found in the version the device starts out with.
+    assert nightly_version not in release_version, (
+        f"Nightly version {nightly_version} is indistinguishable from release "
+        f"version {release_version}, so the update would not be verified"
+    )
+
+    bundle_id = None
     try:
         bundle_id = dut_fota.fota.upload_zephyr_zip(
             dfu_zip_file,
-            version=cloud_version,
-            name=f"ATT nightly FOTA test {cloud_version}",
+            version=nightly_version,
+            name=f"ATT nightly FOTA test {nightly_version}",
         )
         logger.info(
-            f"Uploaded nightly firmware bundle {bundle_id} "
-            f"(cloud version {cloud_version}, embedded {baseline_version})"
+            f"Upgrading release {release_version} to nightly {nightly_version} "
+            f"using bundle {bundle_id}"
         )
         run_fota_fixture(
             bundle_id=bundle_id,
-            new_version=baseline_version,
+            new_version=nightly_version,
+            flash_hex=release_hex_file.path,
         )
     finally:
         if bundle_id:

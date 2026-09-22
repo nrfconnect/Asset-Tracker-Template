@@ -188,6 +188,9 @@ jobs:
           MEMFAULT_ORGANIZATION_SLUG: ${{ vars.MEMFAULT_ORGANIZATION_SLUG }}
           MEMFAULT_PROJECT_SLUG: ${{ vars.MEMFAULT_PROJECT_SLUG }}
           MCUBOOT_BUNDLEID: ${{ vars.MCUBOOT_BUNDLEID }}
+          # Used to resolve and download the most recent release, which the app
+          # FOTA test flashes before updating to the build under test.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate and Push Power Badge
         if: ${{ always() && matrix.device == 'ppk_thingy91x' }}
