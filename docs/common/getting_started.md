@@ -217,6 +217,9 @@ The application is now built and flashed to the device. Open a serial terminal a
 
 To test that everything is working as expected, complete the following steps:
 
+> [!NOTE]
+> nRF Cloud is transitioning to a Memfault-integrated experience. The steps below use the **legacy nRF Cloud portal**. After logging in at [nrfcloud.com](https://nrfcloud.com), open the legacy app using the link in the **bottom left corner** of the new UI.
+
 1. In a web browser, navigate to [nRF Cloud](https://nrfcloud.com) and log in to your account. Navigate to the **Device management** menu and select **Devices**. You should now see your device listed in the device overview. Click on the device ID to see the device page.
 
     ![nRF Cloud device management menu](../images/nrfcloud_devices.png)

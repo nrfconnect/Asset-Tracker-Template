@@ -26,6 +26,9 @@ The following location methods are supported:
 
 ## Integration with nRF Cloud
 
+> [!NOTE]
+> nRF Cloud is transitioning to a Memfault-integrated experience. The portal features below are in the **legacy nRF Cloud portal**. After logging in at [nrfcloud.com](https://nrfcloud.com), open the legacy app using the link in the **bottom left corner** of the new UI.
+
 The location data is automatically sent to nRF Cloud, allowing you to:
 
 - Track device location in the nRF Cloud portal.

@@ -488,10 +488,10 @@ Memfault is a device observability platform that complements traditional debuggi
 
        Once provisioned, the device automatically forwards coredumps and metrics to the Memfault project linked to your nRF Cloud account. Modem traces are also uploaded on crash when using the `-debug-thingy91x` release artifact or the modem-trace overlay described below.
 
-1. **Open the Memfault dashboard from nRF Cloud:**
+1. **Open the Memfault dashboard:**
 
-    1. Log in to [nRF Cloud](https://nrfcloud.com/).
-    1. click the **Memfault** entry in the left sidebar to open the linked Memfault project.
+    1. Log in at [nrfcloud.com](https://nrfcloud.com/). You land in the new Memfault-integrated nRF Cloud experience, which is the Memfault dashboard for your linked project.
+    1. Device-management UI steps in other guides (claiming, shadow configuration, and so on) use the **legacy nRF Cloud portal**. Open it using the link in the **bottom left corner** of the new UI.
 
 1. **Upload the firmware symbol file:**
 

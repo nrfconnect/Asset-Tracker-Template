@@ -39,6 +39,9 @@ The Asset Tracker can be configured remotely through nRF Cloud's device shadow m
 
 ### Configuration through nRF Cloud UI
 
+> [!NOTE]
+> nRF Cloud is transitioning to a Memfault-integrated experience. The steps below use the **legacy nRF Cloud portal**. After logging in at [nrfcloud.com](https://nrfcloud.com), open the legacy app using the link in the **bottom left corner** of the new UI.
+
 > [!IMPORTANT]
 > The order of the configuration JSON structure matters.
 
@@ -77,6 +80,8 @@ sampling interval and storage mode accordingly.
 
 You can update these parameters using
 [nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState).
+
+Obtain `$API_KEY` from the legacy nRF Cloud portal: open the legacy app (bottom left of the new UI at [nrfcloud.com](https://nrfcloud.com)), select your team, then **burger menu** → **User Account** → **Team Details**. On-target tests use the same key as `NRFCLOUD_API_KEY`. See [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/tokens-and-keys).
 
 **Example 1:**
 

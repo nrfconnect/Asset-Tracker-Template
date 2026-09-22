@@ -56,6 +56,9 @@ The **attestation token** uniquely identifies your device and proves its authent
 
 ### Step 2: Claim the device in nRF Cloud
 
+> [!NOTE]
+> nRF Cloud is transitioning to a Memfault-integrated experience. The steps below use the **legacy nRF Cloud portal**. After logging in at [nrfcloud.com](https://nrfcloud.com), open the legacy app using the link in the **bottom left corner** of the new UI.
+
 1. Log in to the [nRF Cloud](https://nrfcloud.com/#/) portal.
 1. Select **Security Services** in the left sidebar.
 
@@ -137,11 +140,16 @@ curl 'https://api.provisioning.nrfcloud.com/v1/claimed-devices' \
 -d '{"claimToken": "YOUR_DEVICE_ATTESTATION_TOKEN", "tags": ["nrf-cloud-onboarding"]}'
 ```
 
+Obtain `YOUR_API_TOKEN` from the legacy nRF Cloud portal: open the legacy app (bottom left of the new UI at [nrfcloud.com](https://nrfcloud.com)), select your team, then **burger menu** → **User Account** → **Team Details**. On-target tests use the same key as `NRFCLOUD_API_KEY`. See [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/tokens-and-keys).
+
 ## Reprovisioning
 
 Reprovisioning replaces the credentials currently stored on the device. In an end product, it is recommended to reprovision devices at a reasonable interval (depending on the application use case) for security reasons.
 
 ### Manual
+
+> [!NOTE]
+> nRF Cloud is transitioning to a Memfault-integrated experience. The steps below use the **legacy nRF Cloud portal**. After logging in at [nrfcloud.com](https://nrfcloud.com), open the legacy app using the link in the **bottom left corner** of the new UI.
 
 1. Log in to the [nRF Cloud](https://nrfcloud.com/#/) portal.
 1. Select **Security Services** in the left sidebar.
@@ -168,13 +176,16 @@ curl 'https://api.provisioning.nrfcloud.com/v1/claimed-devices/YOUR_DEVICE_ID/pr
 -d '{"request": {"cloudAccessKeyGeneration": {"secTag": 16842753}}}'
 ```
 
-For detailed API documentation, see [nRF Cloud REST API](https://api-docs.nrfcloud.com/).
+For detailed API documentation, see [nRF Cloud REST API](https://api-docs.nrfcloud.com/). Use the same API key as for claiming; see [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/tokens-and-keys).
 
 ## Unclaiming a device
 
 Unclaiming removes a device from your nRF Cloud account. If a device is already claimed on another account, it must be unclaimed there before it can be claimed on a different account.
 
 ### Manual
+
+> [!NOTE]
+> nRF Cloud is transitioning to a Memfault-integrated experience. The steps below use the **legacy nRF Cloud portal**. After logging in at [nrfcloud.com](https://nrfcloud.com), open the legacy app using the link in the **bottom left corner** of the new UI.
 
 1. Log in to the [nRF Cloud](https://nrfcloud.com/#/) portal.
 1. Select **Security Services** in the left sidebar.
@@ -195,3 +206,5 @@ You can also use the REST API as an alternative for unclaiming by running the fo
 curl -X DELETE 'https://api.provisioning.nrfcloud.com/v1/claimed-devices/YOUR_DEVICE_ID' \
 -H 'Authorization: Bearer YOUR_API_TOKEN'
 ```
+
+Use the same API key as for claiming; see [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/tokens-and-keys).
