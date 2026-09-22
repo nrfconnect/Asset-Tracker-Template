@@ -2,11 +2,11 @@
 
 Connecting a device to [nRF Cloud](https://nrfcloud.com) involves three steps:
 
-- **Claiming** - Registering the device with your nRF Cloud account using the device's unique **attestation token**. This is an action performed in the nRF Cloud portal (or over the REST API).
-- **Provisioning** - Securely installing cloud access credentials onto the device. After claiming, the nRF Provisioning Service delivers these credentials to the device over a DTLS-protected CoAP channel, and the firmware writes them into the modem's secure storage.
+- **Onboarding** - Registering the device with your nRF Cloud project using the device's unique **attestation token**. This is an action performed in the nRF Cloud portal (or over the API). Onboarding both claims the device and adds it to your project in a single step; credentials are delivered automatically.
+- **Provisioning** - Securely installing cloud access credentials onto the device. After onboarding, the nRF Provisioning Service delivers these credentials to the device over a DTLS-protected CoAP channel, and the firmware writes them into the modem's secure storage.
 - **Cloud connection** - Establishing a secure CoAP connection from the device to nRF Cloud using the provisioned credentials.
 
-The Asset Tracker Template firmware performs provisioning and cloud connection automatically once the device has been claimed. This page describes how to perform the required user actions (claiming) and how to trigger and reset the flow during development.
+The Asset Tracker Template firmware performs provisioning and cloud connection automatically once the device has been onboarded. This page describes how to perform the required user actions (onboarding) and how to trigger and reset the flow during development.
 
 <details>
 <summary><strong>What happens during provisioning</strong></summary>
@@ -30,7 +30,7 @@ The Asset Tracker Template uses the <a href="https://docs.nordicsemi.com/bundle/
 <p>The modem must be offline during credential writing because it cannot be connected to the network while data is being written to its secure storage.
 Therefore, it is normal for LTE to disconnect and reconnect multiple times during provisioning.</p>
 
-<p>The attestation token is different from the JWT - it is used during the initial device claiming process to prove device authenticity to nRF Cloud, not during the provisioning protocol itself.</p>
+<p>The attestation token is different from the JWT, it is used during the initial device onboarding process to prove device authenticity to nRF Cloud, not during the provisioning protocol itself.</p>
 
 <p>For more details on the provisioning library, see the <a href="https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/networking/nrf_provisioning.html">nRF Cloud device provisioning documentation</a>.</p>
 
@@ -38,7 +38,7 @@ Therefore, it is normal for LTE to disconnect and reconnect multiple times durin
 
 ## Connecting a device
 
-Connecting a device requires actions on both the device and the nRF Cloud portal. First, you obtain the attestation token from the device, then you claim the device in nRF Cloud, and finally you trigger the device to fetch its credentials.
+Connecting a device requires actions on both the device and the nRF Cloud portal. First, you obtain the attestation token from the device, then you onboard the device in nRF Cloud, and finally you trigger the device to fetch its credentials.
 
 ### Step 1: Obtain the device attestation token
 
@@ -54,42 +54,26 @@ The **attestation token** uniquely identifies your device and proves its authent
 
     The token is printed as a string starting with `%ATTESTTOKEN:`. Copy the entire token value (excluding the `%ATTESTTOKEN:` prefix).
 
-### Step 2: Claim the device in nRF Cloud
+### Step 2: Onboard the device in nRF Cloud
 
-> [!NOTE]
-> nRF Cloud is transitioning to a Memfault-integrated experience. The steps below use the **legacy nRF Cloud portal**. After logging in at [nrfcloud.com](https://nrfcloud.com), open the legacy app using the link in the **bottom left corner** of the new UI.
+Onboarding claims the device and registers it with your nRF Cloud project in a single step. Credentials are delivered automatically once the device is added.
 
-1. Log in to the [nRF Cloud](https://nrfcloud.com/#/) portal.
-1. Select **Security Services** in the left sidebar.
+1. Log in to the [nRF Cloud](https://nrfcloud.com) portal.
+1. Go to **Fleet** → **Devices** and select **Add devices**.
+1. When prompted for the device type, select **nRF91 Series**.
+1. Paste the attestation token from Step 1 into the **Attestation token** field.
+1. Preview and confirm the token to add the device to your fleet.
 
-    A panel opens to the right.
-
-1. Select **Claimed Devices**.
-1. Click **Claim Device**.
-
-    A pop-up opens.
-
-1. Copy and paste the attestation token into the **Claim token** text box.
-1. Set **Provisioning rule** to **nRF Cloud Onboarding** and click **Claim Device**.
-
-    > **Important:** The **nRF Cloud Onboarding** rule is a named set of provisioning commands stored in your nRF Cloud account. It tells the provisioning service which credentials and configuration to deliver to the device after it is claimed. Selecting the correct rule is required — without it, the device will be claimed but will not receive the credentials required to connect to nRF Cloud.
-
-    <details>
-    <summary><strong>If "nRF Cloud Onboarding" rule is not showing:</strong></summary>
-
-    Create a new rule using the following configuration:
-
-    <img src="../images/claim.png" alt="Claim Device" width="300" />
-    </details>
+For the full walkthrough, see [Device Onboarding](https://docs.nrfcloud.com/docs/nrfcloud/device-onboarding) in the nRF Cloud documentation. If you previously claimed devices through the legacy Security Services flow, [Secure Device Onboarding](https://docs.nrfcloud.com/docs/nrfcloud/secure-device-onboarding) explains what changed.
 
 ### Step 3: Trigger provisioning on the device
 
-After claiming, the device must contact the provisioning service to fetch its credentials. To trigger this immediately:
+After onboarding, the device must contact the provisioning service to fetch its credentials. To trigger this immediately:
 
 - **Thingy:91 X**: Press and hold the button on the top of the device (**Button 1**) for about three seconds.
 - **nRF9151 DK**: Press and hold **Button 1** for about three seconds.
 
-The device will poll the provisioning service, receive its credentials, and connect to nRF Cloud over CoAP. Provisioning can take up to a minute. Once complete, the device appears under **Device Management** → **Devices** in the nRF Cloud portal.
+The device will poll the provisioning service, receive its credentials, and connect to nRF Cloud over CoAP. Provisioning can take up to a minute. Once complete, the device appears under **Fleet** → **Devices** in the nRF Cloud portal. Each device page shows its provisioning status and the time it last checked in, so you can confirm the credential exchange completed.
 
 > [!NOTE]
 > It is normal for the LTE connection to disconnect and reconnect during provisioning. The modem must go offline temporarily while credentials are written to its secure storage. See the "What happens during provisioning" section at the top of this page for details.
@@ -101,7 +85,7 @@ The device will poll the provisioning service, receive its credentials, and conn
 
 <p>
 <ul>
-<li><strong>Monitor device data:</strong> View real-time data from your device, including location, temperature, battery percentage, and other sensor readings in the <a href="https://nrfcloud.com/#/">nRF Cloud</a> portal.</li>
+<li><strong>Monitor device data:</strong> View real-time data from your device, including location, temperature, battery percentage, and other sensor readings in the <a href="https://nrfcloud.com">nRF Cloud</a> portal.</li>
 <li><strong>Retrieve data programmatically:</strong>
 <ul>
 <li>Use the <a href="https://docs.nordicsemi.com/bundle/nrf-cloud/page/Devices/MessagesAndAlerts/MessageRoutingService/ReceivingMessages.html">Message Routing Service</a> to automatically forward device messages to your own cloud infrastructure or application endpoints.</li>
@@ -129,18 +113,9 @@ curl -X GET "https://api.nrfcloud.com/v1/messages?device_id=${DEVICE_ID}&pageLim
 </p>
 </details>
 
-### REST API alternative
+### API alternative
 
-You can also use the REST API as an alternative for provisioning by running the following command:
-
-```bash
-curl 'https://api.provisioning.nrfcloud.com/v1/claimed-devices' \
--H 'Content-Type: application/json' \
--H 'Authorization: Bearer YOUR_API_TOKEN' \
--d '{"claimToken": "YOUR_DEVICE_ATTESTATION_TOKEN", "tags": ["nrf-cloud-onboarding"]}'
-```
-
-Obtain `YOUR_API_TOKEN` from the legacy nRF Cloud portal: open the legacy app (bottom left of the new UI at [nrfcloud.com](https://nrfcloud.com)), select your team, then **burger menu** → **User Account** → **Team Details**. On-target tests use the same key as `NRFCLOUD_API_KEY`. See [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/tokens-and-keys).
+To onboard devices programmatically, use the nRF Cloud bulk onboarding endpoint. It accepts a CSV with as few as one data row (a `deviceId` and `attestationToken` column) and is authenticated with an organization auth token. See [Onboarding devices in bulk](https://docs.nrfcloud.com/docs/nrfcloud/secure-device-onboarding#onboarding-devices-in-bulk) for the CSV format, endpoint, and required credentials.
 
 ## Reprovisioning
 
@@ -148,63 +123,22 @@ Reprovisioning replaces the credentials currently stored on the device. In an en
 
 ### Manual
 
-> [!NOTE]
-> nRF Cloud is transitioning to a Memfault-integrated experience. The steps below use the **legacy nRF Cloud portal**. After logging in at [nrfcloud.com](https://nrfcloud.com), open the legacy app using the link in the **bottom left corner** of the new UI.
+1. In the nRF Cloud portal, open the device page and select **Reset** under **Provisioning Status**. The device generates new credentials on its next check-in.
 
-1. Log in to the [nRF Cloud](https://nrfcloud.com/#/) portal.
-1. Select **Security Services** in the left sidebar.
-
-    A panel opens to the right.
-
-1. Select **Claimed Devices**.
-1. Find the device and click **Reset**.
-1. Trigger on device:
+1. Trigger the check-in on the device so it re-provisions immediately instead of waiting for the next scheduled poll:
 
     - **Shell**: `att_cloud provision`
     - **Cloud**: Update device shadow with `{"desired": {"command": [1, 1]}}`.
 
 For detailed information on sending commands to devices through REST API, including command structure and available command types, see [Sending commands through REST API](configuration.md#sending-commands-through-rest-api) in the configuration documentation.
 
-### REST API alternative
+## Removing a device
 
-You can also use the REST API as an alternative for reprovisioning by running the following command:
+If a device is already claimed on another project, it must be released there before it can be onboarded to a different project. To remove a device, open the nRF Cloud portal, go to **Fleet** → **Devices**, open the device page, and choose one of the following:
 
-```bash
-curl 'https://api.provisioning.nrfcloud.com/v1/claimed-devices/YOUR_DEVICE_ID/provisioning' \
--H 'Content-Type: application/json' \
--H 'Authorization: Bearer YOUR_API_TOKEN' \
--d '{"request": {"cloudAccessKeyGeneration": {"secTag": 16842753}}}'
-```
+- **Delete Device** removes the device from the fleet and releases the claim, so another project can onboard it.
+- **Deactivate** removes the device from the fleet but keeps the claim, blocking other projects; it can be reactivated later.
 
-For detailed API documentation, see [nRF Cloud REST API](https://api-docs.nrfcloud.com/). Use the same API key as for claiming; see [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/tokens-and-keys).
+Both actions permanently remove the device's fleet data (historical messages and configuration). A deleted device must be onboarded again to reconnect.
 
-## Unclaiming a device
-
-Unclaiming removes a device from your nRF Cloud account. If a device is already claimed on another account, it must be unclaimed there before it can be claimed on a different account.
-
-### Manual
-
-> [!NOTE]
-> nRF Cloud is transitioning to a Memfault-integrated experience. The steps below use the **legacy nRF Cloud portal**. After logging in at [nrfcloud.com](https://nrfcloud.com), open the legacy app using the link in the **bottom left corner** of the new UI.
-
-1. Log in to the [nRF Cloud](https://nrfcloud.com/#/) portal.
-1. Select **Security Services** in the left sidebar.
-
-    A panel opens to the right.
-
-1. Select **Claimed Devices**.
-1. Select the device in the list and click **Unclaim Device**.
-
-> [!IMPORTANT]
-> Unclaiming a device also deletes it from Device Management. All device data, including historical messages and configuration, will be removed. The device will need to be claimed again and reprovisioned to reconnect to nRF Cloud.
-
-### REST API alternative
-
-You can also use the REST API as an alternative for unclaiming by running the following command:
-
-```bash
-curl -X DELETE 'https://api.provisioning.nrfcloud.com/v1/claimed-devices/YOUR_DEVICE_ID' \
--H 'Authorization: Bearer YOUR_API_TOKEN'
-```
-
-Use the same API key as for claiming; see [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/tokens-and-keys).
+For details, see [Deleting, unclaiming, and deactivating devices](https://docs.nrfcloud.com/docs/nrfcloud/secure-device-onboarding#deleting-unclaiming-and-deactivating-devices) in the nRF Cloud documentation.
