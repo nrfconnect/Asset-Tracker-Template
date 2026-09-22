@@ -6,6 +6,7 @@
 import os
 import re
 import pytest
+import requests
 import types
 from utils.flash_tools import recover_device
 from utils.uart import Uart, UartBinary
@@ -23,6 +24,7 @@ UART_ID = os.getenv('UART_ID', SEGGER)
 DEVICE_UUID = os.getenv('UUID')
 NRFCLOUD_API_KEY = os.getenv('NRFCLOUD_API_KEY')
 DUT_DEVICE_TYPE = os.getenv('DUT_DEVICE_TYPE')
+GITHUB_REPOSITORY = os.getenv('GITHUB_REPOSITORY', 'nrfconnect/Asset-Tracker-Template')
 
 def get_uarts():
     # Handle platform-specific serial device paths
@@ -201,13 +203,53 @@ def bin_file():
 def dfu_zip_file():
     # Search for the zephyr-built DFU zip in the artifacts folder
     artifacts_dir = "artifacts"
-    zip_pattern = f"asset-tracker-template-{r'[0-9a-z\\.]+'}-{DUT_DEVICE_TYPE}-nrf91-dfu.zip"
+    zip_pattern = f"asset-tracker-template-{r'[0-9a-z\.]+'}-{DUT_DEVICE_TYPE}-nrf91-dfu.zip"
 
     for file in os.listdir(artifacts_dir):
         if re.match(zip_pattern, file):
             return os.path.join(artifacts_dir, file)
 
     pytest.fail("No matching firmware DFU zip file found in the artifacts directory")
+
+@pytest.fixture(scope="session")
+def release_hex_file():
+    # Firmware from the most recent release, used as the starting point for the
+    # app FOTA test. The version is returned alongside the path because the test
+    # needs to tell this firmware apart from the nightly build it updates to.
+    api_url = f"https://api.github.com/repos/{GITHUB_REPOSITORY}/releases/latest"
+    headers = {"Accept": "application/vnd.github+json"}
+    token = os.getenv("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    response = requests.get(api_url, headers=headers, timeout=30)
+    if not response.ok:
+        pytest.fail(
+            f"Could not resolve latest release: {response.status_code} {response.text}"
+        )
+
+    release = response.json()
+    tag = release["tag_name"]
+    asset_name = f"asset-tracker-template-{tag}-{DUT_DEVICE_TYPE}-nrf91.hex"
+    asset = next((a for a in release["assets"] if a["name"] == asset_name), None)
+    if asset is None:
+        pytest.fail(f"Release {tag} has no asset named {asset_name}")
+
+    path = os.path.join("artifacts", asset_name)
+    if not os.path.isfile(path):
+        logger.info(f"Downloading {asset_name} from release {tag}")
+        # No auth header here: the download redirects to a storage host that
+        # rejects requests carrying GitHub credentials.
+        download = requests.get(asset["browser_download_url"], timeout=300)
+        if not download.ok:
+            pytest.fail(f"Could not download {asset_name}: {download.status_code}")
+        with open(path, "wb") as f:
+            f.write(download.content)
+
+    return types.SimpleNamespace(
+        path=path,
+        version=tag[1:] if tag.startswith("v") else tag,
+    )
 
 @pytest.fixture(scope="session")
 def hex_file_patched():
