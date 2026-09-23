@@ -54,7 +54,10 @@ The debug artifact is the standard Thingy:91 X firmware with the modem-trace-to-
 | `asset-tracker-template-{VERSION}-mtrace-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | Firmware with modem trace output enabled through UART 1 | Cellular connectivity debugging and analysis |
 | `asset-tracker-template-{VERSION}-mtrace-nrf9151dk-nrf91.*` | nRF9151 DK | Firmware with modem trace output enabled through UART 1  | Cellular connectivity debugging and analysis |
 | `asset-tracker-template-{VERSION}-ext-gnss-nrf9151dk-nrf91.*` | nRF9151 DK | Firmware configured for external GNSS antenna | Testing with external GNSS antenna setup |
-| `asset-tracker-template-{VERSION}-buffer-flash-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | LittleFS storage backend with buffered sampling | Testing persistent flash buffering |
+| `asset-tracker-template-{VERSION}-buffer-flash-thingy91x-nrf91.*` | Thingy:91 X (nRF9151) | LittleFS storage backend with buffered sampling, plus modem trace capture to external flash and upload to Memfault on crash | Testing persistent flash buffering with cellular context around crashes |
+
+> [!WARNING]
+> Like the debug artifact, the buffer-flash artifact is built with `CONFIG_NRF_CLOUD_COAP_SEC_TAG=2147483667` and `CONFIG_NRF_CLOUD_COAP_JWT_SEC_TAG=16842753`, so its nRF Cloud DTLS traffic can be decrypted with Nordic tools, see [Decrypting DTLS traffic in modem traces](tooling_troubleshooting.md#decrypting-dtls-traffic-in-modem-traces). Use it for debugging only, never for production.
 
 ### Configuration overlays
 

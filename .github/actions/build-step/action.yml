@@ -85,6 +85,20 @@ runs:
         if [[ "${{ inputs.buffer_flash }}" == "true" ]]; then
           params+=("-DCONFIG_APP_STORAGE_BACKEND_LITTLEFS=y")
           params+=("-DCONFIG_APP_STORAGE_LOG_LEVEL_DBG=y")
+          # Continuously capture modem traces to flash and upload them to Memfault on coredump.
+          cat overlay-upload-modem-traces-to-memfault.conf >> overlay-buffer-flash-att.conf
+          if [[ "${{ inputs.memfault_release }}" == "true" ]]; then
+            echo CONFIG_MEMFAULT_NCS_FW_VERSION_STATIC=y >> overlay-buffer-flash-att.conf
+          fi
+          params+=("-DEXTRA_CONF_FILE=overlay-buffer-flash-att.conf")
+          params+=("-DEXTRA_DTC_OVERLAY_FILE=overlay-upload-modem-traces-to-memfault.overlay")
+          # Thingy:91 X only: its developer security tag is provisioned with the
+          # nRF Cloud CoAP CA in production, so DTLS traffic in modem traces can be
+          # decrypted. The nRF9151 DK ships that tag empty and is left untouched.
+          if [[ "${{ inputs.short_board }}" == "thingy91x" ]]; then
+            params+=("-DCONFIG_NRF_CLOUD_COAP_SEC_TAG=2147483667")
+            params+=("-DCONFIG_NRF_CLOUD_COAP_JWT_SEC_TAG=16842753")
+          fi
         fi
         if [[ "${{ inputs.buffer_ram }}" == "true" ]]; then
           params+=("-DCONFIG_APP_STORAGE_LOG_LEVEL_DBG=y")

@@ -282,6 +282,7 @@ jobs:
         if: ${{ inputs.build_thingy91x_buffer_flash || env.build_type == 'release' || env.build_type == 'all' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
+          memfault_release: ${{ env.build_type == 'release' }}
           board: thingy91x/nrf9151/ns
           short_board: thingy91x
           version: ${{ env.VERSION }}-buffer-flash
