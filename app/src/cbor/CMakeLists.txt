@@ -17,13 +17,17 @@ configure_file(
 
 # Generate encoder and decoder code using zcbor
 set(zcbor_command
-        zcbor code # Invoke code generation
+	${PYTHON_EXECUTABLE}
+	${ZEPHYR_ZCBOR_MODULE_DIR}/zcbor/zcbor.py
+	code
 	--cddl ${CMAKE_CURRENT_BINARY_DIR}/device_shadow.cddl
 	--decode # Generate decoding functions
 	--encode # Generate encoding functions
 	--short-names # Attempt to make generated symbol names shorter (at the risk of collision)
 	-t shadow-object # Create a public API for encoding and decoding the "shadow-object" type from the cddl file
 	--output-cmake device_shadow.cmake # The generated cmake file will be placed here
+	--unordered-maps # Enable support for unordered maps
+	--defines
 )
 execute_process(COMMAND ${zcbor_command}
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
