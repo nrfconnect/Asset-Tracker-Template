@@ -56,3 +56,25 @@ jobs:
               upload-mcu-symbols \
               --check-uploaded \
               asset-tracker-template-${{ inputs.version }}-debug-thingy91x-nrf91.elf
+
+      - name: Publish Memfault buffer-flash symbols (nightly CI account)
+        run: |
+          source venv/bin/activate
+          memfault \
+              --org-token ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }} \
+              --org ${{ vars.MEMFAULT_ORGANIZATION_SLUG }} \
+              --project ${{ vars.MEMFAULT_PROJECT_SLUG }} \
+              upload-mcu-symbols \
+              --check-uploaded \
+              asset-tracker-template-${{ inputs.version }}-buffer-flash-thingy91x-nrf91.elf
+
+      - name: Publish Memfault buffer-flash symbols (test fleet account)
+        run: |
+          source venv/bin/activate
+          memfault \
+              --org-token ${{ secrets.MEMFAULT_FLEET_ORGANIZATION_TOKEN }} \
+              --org ${{ vars.MEMFAULT_FLEET_ORGANIZATION_SLUG }} \
+              --project ${{ vars.MEMFAULT_FLEET_PROJECT_SLUG }} \
+              upload-mcu-symbols \
+              --check-uploaded \
+              asset-tracker-template-${{ inputs.version }}-buffer-flash-thingy91x-nrf91.elf
