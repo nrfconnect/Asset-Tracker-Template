@@ -1,0 +1,32 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+/* Used for hardware fallback by task watchdog. */
+&wdt010 {
+	status = "okay";
+};
+
+/* Carve the Memfault coredump partition out of the application slots. Must match
+ * app/sysbuild/mcuboot/boards/nrf9251dk_nrf9251_cpuapp.overlay.
+ */
+&mram1x {
+	partitions {
+		cpuapp_slot0_partition: partition@322000 {
+			compatible = "zephyr,mapped-partition";
+			reg = <0x322000 DT_SIZE_K(588)>;
+		};
+
+		memfault_coredump_partition: partition@3b5000 {
+			compatible = "zephyr,mapped-partition";
+			reg = <0x3b5000 DT_SIZE_K(64)>;
+		};
+
+		cpuapp_slot1_partition: partition@40a000 {
+			compatible = "zephyr,mapped-partition";
+			reg = <0x40a000 DT_SIZE_K(588)>;
+		};
+	};
+};
