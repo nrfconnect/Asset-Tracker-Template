@@ -518,6 +518,7 @@ static enum smf_state_result state_polling_for_update_run(void *obj)
 	return SMF_EVENT_PROPAGATE;
 }
 
+#if defined(CONFIG_SPI_NOR)
 /* Erase the MCUboot trailer page (last 4 KiB of slot1 on external SPI-NOR).
  * stream_flash only erases written sectors, so a stale trailer survives J-Link
  * flashes of internal flash; boot_set_pending() then fails on the swap magic.
@@ -544,6 +545,12 @@ static void erase_secondary_trailer(void)
 
 	flash_area_close(fa);
 }
+#else
+static void erase_secondary_trailer(void)
+{
+	/* No external SPI-NOR secondary slot on this target. */
+}
+#endif /* CONFIG_SPI_NOR */
 
 static void state_downloading_update_entry(void *obj)
 {
