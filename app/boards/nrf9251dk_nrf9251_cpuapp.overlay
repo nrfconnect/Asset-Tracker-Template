@@ -9,6 +9,11 @@
 	status = "okay";
 };
 
+/* Built-in Wi-Fi, used for Wi-Fi location. */
+&cpuapp_wifi {
+	status = "okay";
+};
+
 /* Carve the Memfault coredump partition out of the application slots. Must match
  * app/sysbuild/mcuboot/boards/nrf9251dk_nrf9251_cpuapp.overlay.
  */
