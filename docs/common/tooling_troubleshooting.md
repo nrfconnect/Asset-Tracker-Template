@@ -521,6 +521,8 @@ Memfault is a device observability platform that complements traditional debuggi
         -DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay"
     ```
 
+    On the nRF9251 DK, use the devicetree overlay `overlay-upload-modem-traces-to-memfault-nrf9251.overlay` instead.
+
 > [!IMPORTANT]
 > The modem trace upload feature can send upwards of 1 MB of modem trace data in case of application crashes.
 > Consider this when planning your data usage and costs.
@@ -764,7 +766,7 @@ The nRF9151 DK does not ship with the nRF Cloud CoAP root CA in the developer se
 You can configure the device to continuously capture modem traces to external flash memory. After capture, you can use a shell command to dump the stored traces over UART using the [Cellular Monitor app](https://docs.nordicsemi.com/bundle/nrf-connect-cellularmonitor/page/index.html) for storage and analysis.
 
 > [!IMPORTANT]
-> The flash trace backend needs two things from devicetree on top of the Kconfig options below: the modem trace shared-memory region (see the [UART Tracing](#uart-tracing) note) and a dedicated `modem_trace` flash partition. Both are already declared by `app/overlay-upload-modem-traces-to-memfault.overlay`, which you can use directly or copy as a starting point. Pass it on the build command line with `-DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay"`.
+> The flash trace backend needs two things from devicetree on top of the Kconfig options below: the modem trace shared-memory region (see the [UART Tracing](#uart-tracing) note) and a dedicated `modem_trace` flash partition. Both are already declared by `app/overlay-upload-modem-traces-to-memfault.overlay`, which you can use directly or copy as a starting point. Pass it on the build command line with `-DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay"`. On the nRF9251 DK, use `app/overlay-upload-modem-traces-to-memfault-nrf9251.overlay`.
 
 Add to `prj.conf`:
 
