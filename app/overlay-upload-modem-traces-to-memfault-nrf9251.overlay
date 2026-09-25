@@ -1,0 +1,56 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+/*
+ * nRF9251 modem tracing to Memfault, flash backend stored in MRAM.
+ *
+ * The trace shared memory region mirrors the non-UART parts of the
+ * nrf92-modem-trace-uart snippet (nrf/snippets/nrf92-modem-trace-uart).
+ *
+ * Pair with overlay-upload-modem-traces-to-memfault-nrf9251.conf.
+ */
+
+/delete-node/ &cpuapp_cpucell_ipc_shm_ctrl;
+/delete-node/ &cpuapp_cpucell_ipc_shm_heap;
+/delete-node/ &cpucell_cpuapp_ipc_shm_heap;
+
+/* Reduce size of application RAM to make room for trace. */
+&cpuapp_ram0x_sram {
+	reg = <0x2f000000 DT_SIZE_K(332)>;
+	ranges = <0x0 0x2f000000 0x53000>;
+};
+
+&cpuapp_cpucell_ram0x_region {
+	/* Move IPC shared memory and add trace region. */
+	cpuapp_cpucell_ipc_shm_ctrl: memory@3000 {
+		reg = <0x3000 DT_SIZE_K(4)>;
+	};
+
+	cpuapp_cpucell_ipc_shm_heap: memory@4000 {
+		reg = <0x4000 DT_SIZE_K(16)>;
+	};
+
+	cpucell_cpuapp_ipc_shm_heap: memory@8000 {
+		reg = <0x8000 DT_SIZE_K(16)>;
+	};
+
+	cpucell_cpuapp_ipc_shm_trace: memory@c000 {
+		reg = <0xc000 DT_SIZE_K(16)>;
+	};
+};
+
+/* Modem trace storage: 512 KiB (128 sectors of 4 KiB) in the unused MRAM above
+ * secure_storage_partition.
+ */
+&mram1x {
+	partitions {
+		modem_trace: partition@4af000 {
+			compatible = "zephyr,mapped-partition";
+			label = "modem_trace";
+			reg = <0x4af000 DT_SIZE_K(512)>;
+		};
+	};
+};
