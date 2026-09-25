@@ -1,0 +1,29 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menuconfig APP_ATTEST_TOKEN
+	bool "Application attestation token library"
+	depends on HAS_IRONSIDE_SE
+	select BASE64
+	select AT_CMD_CUSTOM
+	select AT_PARSER
+	select PSA_CRYPTO
+	select PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_IMPORT
+	select PSA_WANT_ALG_ECDSA
+	select PSA_WANT_ECC_SECP_R1_256
+	select PSA_WANT_ALG_SHA_256
+	select PSA_WANT_GENERATE_RANDOM
+	help
+	  Generate a device attestation token on the application core using PSA
+	  crypto and the IronSide SE Identity Attestation Key (IAK).
+
+if APP_ATTEST_TOKEN
+
+module=APP_ATTEST_TOKEN
+module-str=Application Attestation Token
+source "$(ZEPHYR_BASE)/subsys/logging/Kconfig.template.log_config"
+
+endif # APP_ATTEST_TOKEN
