@@ -34,7 +34,7 @@ on:
         required: false
         default: false
       test_filter:
-        description: 'Pytest -k expression to isolate tests (e.g. "test_app_fota").
+        description: 'Pytest -k expression to isolate tests (e.g. "test_app_fota_release_to_nightly").
                       Leave empty to run all tests for the selected devices.'
         type: string
         required: false
@@ -76,6 +76,8 @@ jobs:
       build_thingy91x_mtrace: ${{ steps.setup.outputs.build_thingy91x_mtrace == 'true' }}
       build_nrf9151dk_mtrace: ${{ steps.setup.outputs.build_nrf9151dk_mtrace == 'true' }}
       build_nrf9151dk_ext_gnss: ${{ steps.setup.outputs.build_nrf9151dk_ext_gnss == 'true' }}
+      build_thingy91x_fota_target: ${{ steps.setup.outputs.build_thingy91x_fota_target == 'true' }}
+      build_nrf9151dk_fota_target: ${{ steps.setup.outputs.build_nrf9151dk_fota_target == 'true' }}
     steps:
       - name: Setup
         id: setup
@@ -143,6 +145,8 @@ jobs:
           build_thingy91x_mtrace=false
           build_nrf9151dk_mtrace=false
           build_nrf9151dk_ext_gnss=false
+          build_thingy91x_fota_target=false
+          build_nrf9151dk_fota_target=false
 
           for d in $devices; do
             case "$d" in
@@ -167,6 +171,10 @@ jobs:
             build_thingy91x_mqtt=true
             build_thingy91x_buffer_flash=true
             build_thingy91x_buffer_ram=true
+            build_thingy91x_fota_target=true
+          fi
+          if [[ "${run_nightly_tests:-false}" == "true" && "$build_nrf9151dk_base" == "true" ]]; then
+            build_nrf9151dk_fota_target=true
           fi
 
           # mtrace variants have no test consumer. They are release
@@ -174,10 +182,6 @@ jobs:
           # the legacy fallback in ``build.yml`` (e.g. scheduled nightly runs
           # which historically built them).
 
-          echo "devices=$devices"
-          echo "build_type=$build_type"
-          echo "push_memory_badges=$push_memory_badges"
-          echo "run_nightly_tests=${run_nightly_tests:-false}"
           {
             echo "devices=$devices"
             echo "build_type=$build_type"
@@ -192,6 +196,8 @@ jobs:
             echo "build_thingy91x_mtrace=$build_thingy91x_mtrace"
             echo "build_nrf9151dk_mtrace=$build_nrf9151dk_mtrace"
             echo "build_nrf9151dk_ext_gnss=$build_nrf9151dk_ext_gnss"
+            echo "build_thingy91x_fota_target=$build_thingy91x_fota_target"
+            echo "build_nrf9151dk_fota_target=$build_nrf9151dk_fota_target"
           } >> "$GITHUB_OUTPUT"
   build:
     needs: setup
@@ -212,6 +218,8 @@ jobs:
       build_thingy91x_mtrace: ${{ needs.setup.outputs.build_thingy91x_mtrace == 'true' }}
       build_nrf9151dk_mtrace: ${{ needs.setup.outputs.build_nrf9151dk_mtrace == 'true' }}
       build_nrf9151dk_ext_gnss: ${{ needs.setup.outputs.build_nrf9151dk_ext_gnss == 'true' }}
+      build_thingy91x_fota_target: ${{ needs.setup.outputs.build_thingy91x_fota_target == 'true' }}
+      build_nrf9151dk_fota_target: ${{ needs.setup.outputs.build_nrf9151dk_fota_target == 'true' }}
   test:
     permissions:
       actions: read

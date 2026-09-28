@@ -24,7 +24,7 @@ on:
         default: thingy91x
       pytest_args:
         description: Extra arguments appended verbatim to the pytest invocation.
-                     (e.g. "-k test_app_fota"). Leave empty for the default behaviour.
+                     (e.g. "-k test_app_fota_release_to_nightly"). Leave empty for the default behaviour.
         type: string
         required: false
         default: ""
@@ -56,7 +56,7 @@ on:
         default: thingy91x
       pytest_args:
         description: Extra arguments appended verbatim to the pytest invocation.
-                     (e.g. "-k test_app_fota"). Leave empty for the default behaviour.
+                     (e.g. "-k test_app_fota_release_to_nightly"). Leave empty for the default behaviour.
         type: string
         required: false
         default: ""

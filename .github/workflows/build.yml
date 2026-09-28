@@ -77,6 +77,20 @@ on:
         type: boolean
         required: false
         default: false
+      build_thingy91x_fota_target:
+        description: |
+          Build thingy91x app firmware with PATCHLEVEL+1 for nightly-to-nightly
+          application FOTA tests.
+        type: boolean
+        required: false
+        default: false
+      build_nrf9151dk_fota_target:
+        description: |
+          Build nrf9151dk app firmware with PATCHLEVEL+1 for nightly-to-nightly
+          application FOTA tests.
+        type: boolean
+        required: false
+        default: false
     outputs:
       run_id:
         description: The run ID of the workflow to fetch artifacts from
@@ -227,6 +241,31 @@ jobs:
           path: asset-tracker-template/app
           push_memory_badges: ${{ inputs.push_memory_badges }}
 
+      - name: Build thingy91x fota-target firmware
+        if: ${{ inputs.build_thingy91x_fota_target }}
+        working-directory: asset-tracker-template
+        shell: bash
+        run: |
+          cp app/VERSION app/VERSION.bak
+          patchlevel=$(awk '/^PATCHLEVEL/ {print $3}' app/VERSION)
+          sed -i "s/^PATCHLEVEL = .*/PATCHLEVEL = $((patchlevel + 1))/" app/VERSION
+          cat app/VERSION
+
+      - name: Build thingy91x fota-target firmware (west)
+        if: ${{ inputs.build_thingy91x_fota_target }}
+        uses: ./asset-tracker-template/.github/actions/build-step
+        with:
+          board: thingy91x/nrf9151/ns
+          short_board: thingy91x
+          version: ${{ env.VERSION }}-fota-target
+          path: asset-tracker-template/app
+
+      - name: Restore app/VERSION after thingy91x fota-target build
+        if: ${{ inputs.build_thingy91x_fota_target }}
+        working-directory: asset-tracker-template
+        shell: bash
+        run: mv app/VERSION.bak app/VERSION
+
       - name: Generate Memory Reports and Visualizations
         if: ${{ inputs.push_memory_badges }}
         working-directory: asset-tracker-template
@@ -254,6 +293,31 @@ jobs:
           short_board: nrf9151dk
           version: ${{ env.VERSION }}
           path: asset-tracker-template/app
+
+      - name: Build nrf9151dk fota-target firmware
+        if: ${{ inputs.build_nrf9151dk_fota_target }}
+        working-directory: asset-tracker-template
+        shell: bash
+        run: |
+          cp app/VERSION app/VERSION.bak
+          patchlevel=$(awk '/^PATCHLEVEL/ {print $3}' app/VERSION)
+          sed -i "s/^PATCHLEVEL = .*/PATCHLEVEL = $((patchlevel + 1))/" app/VERSION
+          cat app/VERSION
+
+      - name: Build nrf9151dk fota-target firmware (west)
+        if: ${{ inputs.build_nrf9151dk_fota_target }}
+        uses: ./asset-tracker-template/.github/actions/build-step
+        with:
+          board: nrf9151dk/nrf9151/ns
+          short_board: nrf9151dk
+          version: ${{ env.VERSION }}-fota-target
+          path: asset-tracker-template/app
+
+      - name: Restore app/VERSION after nrf9151dk fota-target build
+        if: ${{ inputs.build_nrf9151dk_fota_target }}
+        working-directory: asset-tracker-template
+        shell: bash
+        run: mv app/VERSION.bak app/VERSION
 
       # Asset Tracker Template debug firmware build
       - name: Build thingy91x debug firmware

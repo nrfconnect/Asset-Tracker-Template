@@ -212,6 +212,24 @@ def dfu_zip_file():
     pytest.fail("No matching firmware DFU zip file found in the artifacts directory")
 
 @pytest.fixture(scope="session")
+def dfu_zip_fota_target_file():
+    # Second nightly build with PATCHLEVEL+1 (see .github/workflows/build.yml).
+    artifacts_dir = "artifacts"
+    zip_pattern = (
+        f"asset-tracker-template-{r'[0-9a-z\.\-]+'}-fota-target-"
+        f"{DUT_DEVICE_TYPE}-nrf91-dfu.zip"
+    )
+
+    for file in os.listdir(artifacts_dir):
+        if re.match(zip_pattern, file):
+            return os.path.join(artifacts_dir, file)
+
+    pytest.fail(
+        "No matching fota-target DFU zip found in the artifacts directory "
+        "(build with build_*_fota_target enabled)"
+    )
+
+@pytest.fixture(scope="session")
 def release_hex_file():
     # Firmware from the most recent release, used as the starting point for the
     # app FOTA test. The version is returned alongside the path because the test
