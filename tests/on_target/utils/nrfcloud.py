@@ -365,7 +365,15 @@ class NRFCloudFOTA(NRFCloud):
         headers = {
             "Content-Type": "application/zip"
         }
-        r = self._post("/firmwares", headers=headers, data=fd.read())
+        try:
+            r = self._post("/firmwares", headers=headers, data=fd.read())
+        except HTTPError as e:
+            detail = ""
+            if e.response is not None and e.response.text:
+                detail = f": {e.response.text}"
+            raise NRFCloudFOTAError(
+                f"Firmware upload failed for version {version!r}{detail}"
+            ) from e
         uris = r.json()["uris"]
         m = re.match(
             r"https://(firmware|bundles)(?:\.dev|\.beta)?\.nrfcloud\.com/([a-f0-9-]+)/((?:APP|MODEM|BOOT)[^/]*)?",

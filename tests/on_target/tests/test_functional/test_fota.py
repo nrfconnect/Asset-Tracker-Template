@@ -32,6 +32,9 @@ BOOTLOADER_FIRMWARE_VERSION_LOG = "Firmware version 3"
 
 FOTA_STATUS_DETAIL_SUCCESS = "FOTA update completed successfully"
 
+# fota-target CI build bumps PATCHLEVEL by this delta (see build.yml).
+FOTA_TARGET_PATCHLEVEL_DELTA = 1
+
 DEVICE_MSG_TIMEOUT = 60 * 5
 APP_FOTA_TIMEOUT = 60 * 15
 BOOTLOADER_FOTA_TIMEOUT = 60 * 20
@@ -130,8 +133,8 @@ def _app_version_file():
         os.path.join(os.path.dirname(__file__), "../../../../app/VERSION")
     )
 
-def parse_app_version():
-    """Return the application version string embedded in the firmware."""
+def parse_app_version(patchlevel_delta=0):
+    """Return appVersion as reported in the nRF Cloud shadow (APP_VERSION_STRING)."""
     version = {}
     with open(_app_version_file()) as f:
         for line in f:
@@ -139,17 +142,15 @@ def parse_app_version():
             if match:
                 version[match.group(1)] = match.group(2)
 
+    patchlevel = int(version["PATCHLEVEL"]) + patchlevel_delta
     app_version = (
         f"{version['VERSION_MAJOR']}."
         f"{version['VERSION_MINOR']}."
-        f"{version['PATCHLEVEL']}"
+        f"{patchlevel}"
     )
     extra = version.get("EXTRAVERSION")
     if extra:
         app_version += f"-{extra}"
-    tweak = int(version.get("VERSION_TWEAK", "0"))
-    if tweak:
-        app_version += f"+{tweak}"
     return app_version
 
 def await_bootloader_version(dut_fota, expected, timeout=DEVICE_MSG_TIMEOUT):
@@ -306,11 +307,6 @@ def run_fota_reschedule(dut_fota, fota_type):
     else:
         raise AssertionError(f"Fota update not available after {i} attempts")
 
-@pytest.fixture(autouse=True)
-def ensure_no_pending_fota_jobs_before_test(dut_fota):
-    """Ensure the DUT has no pending FOTA jobs before each test."""
-    dut_fota.fota.ensure_no_pending_fota_jobs(dut_fota.device_id)
-
 @pytest.fixture
 def run_fota_fixture(dut_fota, hex_file, reschedule=False):
     def _run_fota(bundle_id="", fota_type="app", fotatimeout=APP_FOTA_TIMEOUT, new_version=None, reschedule=False, flash_hex=None):
@@ -402,7 +398,7 @@ def run_fota_fixture(dut_fota, hex_file, reschedule=False):
 
 
 @pytest.mark.slow
-def test_app_fota(run_fota_fixture, dut_fota, dfu_zip_file, release_hex_file):
+def test_app_fota_release_to_nightly(run_fota_fixture, dut_fota, dfu_zip_file, release_hex_file):
     '''
     Test application FOTA upgrading the most recent release to the nightly build.
     '''
@@ -432,6 +428,48 @@ def test_app_fota(run_fota_fixture, dut_fota, dfu_zip_file, release_hex_file):
             bundle_id=bundle_id,
             new_version=nightly_version,
             flash_hex=release_hex_file.path,
+        )
+    finally:
+        if bundle_id:
+            dut_fota.fota.delete_bundle(bundle_id)
+
+@pytest.mark.slow
+def test_app_fota_nightly_to_nightly(
+    run_fota_fixture, dut_fota, dfu_zip_fota_target_file, hex_file
+):
+    '''
+    Test application FOTA from the baseline nightly build to a second nightly
+    build with PATCHLEVEL+1 (see FOTA_TARGET_PATCHLEVEL_DELTA and build.yml).
+    '''
+    baseline_version = parse_app_version()
+    target_version = parse_app_version(
+        patchlevel_delta=FOTA_TARGET_PATCHLEVEL_DELTA
+    )
+
+    assert baseline_version != target_version, (
+        f"Baseline and FOTA target versions must differ "
+        f"({baseline_version!r} vs {target_version!r})"
+    )
+    assert target_version not in baseline_version, (
+        f"Target version {target_version!r} is indistinguishable from baseline "
+        f"{baseline_version!r} in the shadow appVersion substring check"
+    )
+
+    bundle_id = None
+    try:
+        bundle_id = dut_fota.fota.upload_zephyr_zip(
+            dfu_zip_fota_target_file,
+            version=target_version,
+            name=f"ATT nightly-to-nightly FOTA {target_version}",
+        )
+        logger.info(
+            f"Upgrading nightly {baseline_version} to {target_version} "
+            f"using bundle {bundle_id}"
+        )
+        run_fota_fixture(
+            bundle_id=bundle_id,
+            new_version=target_version,
+            flash_hex=hex_file,
         )
     finally:
         if bundle_id:
