@@ -1,0 +1,38 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ *
+ * nrf9151dk-only fixup: unlike thingy91x, which has its own board-specific
+ * partition file with a from-scratch nordic-tz-secure/nordic-tz-nonsecure
+ * definition, nrf9151dk falls back to the generic nrf91xx_partition.dtsi.
+ * Its nordic-tz-secure node's data-partitions property references
+ * tfm_ps_partition/tfm_its_partition/tfm_otp_partition, which the nrf9151dk
+ * board overlays delete (this layout doesn't use TF-M storage). Delete and
+ * recreate nordic-tz-secure/nordic-tz-nonsecure without the now-dangling
+ * references, matching the pattern Nordic's own updated sample partition
+ * files (e.g. nrf91_bootloader_partitions.dtsi) use for the same situation.
+ *
+ * This is deliberately kept out of att_flash_partitions.dtsi (shared with
+ * thingy91x): thingy91x's own nordic-tz-secure/nordic-tz-nonsecure
+ * deliberately excludes slot1 (external flash, outside TF-M's purview), and
+ * this file's slot1_s_partition/slot1_ns_partition inclusion would silently
+ * override that.
+ */
+/ {
+	/delete-node/ nordic-tz-secure;
+	/delete-node/ nordic-tz-nonsecure;
+
+	nordic-tz-secure {
+		compatible = "nordic,tz-secure";
+		code-partitions = <&slot0_s_partition>,
+				  <&slot1_s_partition>;
+	};
+
+	nordic-tz-nonsecure {
+		compatible = "nordic,tz-nonsecure";
+		code-partitions = <&slot0_ns_partition>,
+				  <&slot1_ns_partition>;
+		data-partitions = <&storage_partition>;
+	};
+};

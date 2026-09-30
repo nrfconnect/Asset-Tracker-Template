@@ -39,7 +39,7 @@ def test_sampling(dut_board, hex_file):
     patterns_after_connect = [
         "state_polling_for_update_entry",
         "Configuration: Requesting device shadow desired from cloud",
-        "cloud: handle_cloud_location_request: Handling cloud location request",
+        "Handling cloud location request",
     ]
 
     if devicetype == "thingy91x":
