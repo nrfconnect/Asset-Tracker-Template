@@ -1,0 +1,65 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+/*
+ * Must match the app image's view of cpuapp_slot0_partition/cpuapp_slot1_partition
+ * exactly: MCUboot computes each slot's swap-status trailer as an offset from the
+ * end of that slot, so a mismatch between the app and MCUboot builds makes MCUboot
+ * look for mcumgr's swap/test request in the wrong place and silently skip it.
+ */
+
+/*
+ * The board DTS points zephyr,code-partition at slot0 for the application. The
+ * bootloader itself has to live in the dedicated boot partition, otherwise it is
+ * linked on top of the image it is supposed to load.
+ */
+/ {
+	chosen {
+		zephyr,code-partition = &cpuapp_boot_partition;
+	};
+
+	/* Held at reset to enter serial recovery; MCUboot errors out without it. */
+	aliases {
+		mcuboot-button0 = &button1;
+	};
+};
+
+&mram1x {
+	partitions {
+		/* Shrink the slot0 partition to make room for the Memfault coredump partition. */
+		cpuapp_slot0_partition: partition@322000 {
+			compatible = "zephyr,mapped-partition";
+			reg = <0x322000 DT_SIZE_K(588)>;
+		};
+
+		/* Add the Memfault coredump partition. */
+		memfault_coredump_partition: partition@3b5000 {
+			compatible = "zephyr,mapped-partition";
+			reg = <0x3b5000 DT_SIZE_K(64)>;
+		};
+
+		/* shrink the slot1 partition to match the changes made to slot0. */
+		cpuapp_slot1_partition: partition@40a000 {
+			compatible = "zephyr,mapped-partition";
+			reg = <0x40a000 DT_SIZE_K(588)>;
+		};
+	};
+};
+
+/*
+ * Serial recovery on VCOM1, leaving VCOM0 (uart133) free for MCUboot's console.
+ * serial_adapter.c cannot share a UART with the console, so they must differ.
+ */
+&uart132 {
+	status = "okay";
+	memory-regions = <&cpuapp_dma_region>;
+};
+
+/ {
+	chosen {
+		zephyr,uart-mcumgr = &uart132;
+	};
+};

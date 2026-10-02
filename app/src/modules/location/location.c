@@ -14,6 +14,9 @@
 #include <nrf_modem_gnss.h>
 #include <date_time.h>
 #include <modem/nrf_modem_lib.h>
+#if defined(CONFIG_LOCATION_METHOD_WIFI_SCANNING_PARAMS_OVERRIDE)
+#include <zephyr/net/wifi_mgmt.h>
+#endif /* CONFIG_LOCATION_METHOD_WIFI_SCANNING_PARAMS_OVERRIDE */
 
 #include "app_common.h"
 #include "modem/lte_lc.h"
@@ -34,6 +37,45 @@ BUILD_ASSERT(CONFIG_APP_LOCATION_NEIGHBOR_CELLS_MAX >= CONFIG_LTE_NEIGHBOR_CELLS
 BUILD_ASSERT(CONFIG_APP_LOCATION_WIFI_APS_MAX >=
 	     CONFIG_LOCATION_METHOD_WIFI_SCANNING_RESULTS_MAX_CNT);
 #endif /* CONFIG_LOCATION_METHOD_WIFI */
+
+#if defined(CONFIG_LOCATION_METHOD_WIFI_SCANNING_PARAMS_OVERRIDE)
+/* Passive scan (RX) dwell time per channel. APs send a beacon every 102.4 ms, and a beacon can be
+ * delayed by roughly 30 ms on a busy channel. 260 ms covers two such intervals, so each AP gets
+ * two chances to be heard and a single lost beacon does not drop it from the scan result.
+ */
+#define WIFI_SCAN_DWELL_TIME_PASSIVE_MS 260
+
+/* Most 2.4 GHz APs use the non-overlapping channels 1, 6 and 11. Scanning only these instead of
+ * all 13 channels cuts the scan time, and with it the power consumption, to about a quarter.
+ */
+static const uint8_t wifi_scan_channels[] = { 1, 6, 11 };
+
+BUILD_ASSERT(ARRAY_SIZE(wifi_scan_channels) <= WIFI_MGMT_SCAN_CHAN_MAX_MANUAL,
+	     "CONFIG_WIFI_MGMT_SCAN_CHAN_MAX_MANUAL is too small for the Wi-Fi scan channels");
+
+int __real_net_mgmt_NET_REQUEST_WIFI_SCAN(uint64_t mgmt_request, struct net_if *iface,
+					  void *data, size_t len);
+
+/* The location library does not let the application choose the Wi-Fi scan channels, so its scan
+ * request is wrapped at link time to set the channels and dwell time on the scan parameters.
+ */
+int __wrap_net_mgmt_NET_REQUEST_WIFI_SCAN(uint64_t mgmt_request, struct net_if *iface,
+					  void *data, size_t len)
+{
+	struct wifi_scan_params *params = data;
+
+	if (params != NULL && len == sizeof(*params)) {
+		params->dwell_time_passive = WIFI_SCAN_DWELL_TIME_PASSIVE_MS;
+
+		for (size_t i = 0; i < ARRAY_SIZE(wifi_scan_channels); i++) {
+			params->band_chan[i].band = WIFI_FREQ_BAND_2_4_GHZ;
+			params->band_chan[i].channel = wifi_scan_channels[i];
+		}
+	}
+
+	return __real_net_mgmt_NET_REQUEST_WIFI_SCAN(mgmt_request, iface, data, len);
+}
+#endif /* CONFIG_LOCATION_METHOD_WIFI_SCANNING_PARAMS_OVERRIDE */
 
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(location);

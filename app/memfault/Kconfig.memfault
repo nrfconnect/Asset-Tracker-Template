@@ -11,4 +11,19 @@ if MEMFAULT
 config MEMFAULT_NCS_FW_VERSION
         default "$(APPVERSION)"
 
+# The nRF Connect SDK definition of this option depends on SOC_SERIES_NRF91,
+# although the implementation also works on nRF92. A symbol defined in more than
+# one location gets the OR of the dependencies of each definition, so this
+# second definition makes the option available on nRF92 without an SDK patch.
+# It needs its own prompt to be assignable, and repeats the selects because
+# those of the SDK definition only apply when its dependencies are met.
+#
+# Remove once the dependency is widened in the nRF Connect SDK.
+config MEMFAULT_NCS_POST_COREDUMP_ON_NETWORK_CONNECTED
+	bool "Post coredump on network connected (nRF92)"
+	depends on LTE_LC_PDN_MODULE && LTE_LINK_CONTROL && SOC_SERIES_NRF92
+	select SMF
+	select SMF_ANCESTOR_SUPPORT
+	select SMF_INITIAL_TRANSITION
+
 endif # MEMFAULT
