@@ -1,0 +1,37 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ *
+ * Application core side of the PPR log forwarding. Added to the application image
+ * by app/sysbuild.cmake when SB_CONFIG_LAUNCH_PPR is enabled.
+ */
+
+/* Launch the PPR core. The board DTS already sets execution-memory and
+ * source-memory, so CONFIG_NORDIC_VPR_LAUNCHER is enabled automatically.
+ */
+&cpuppr_vpr {
+	status = "okay";
+};
+
+/* Multi-endpoint icmsg, so more endpoints can share the channel with the
+ * "logging" endpoint registered by CONFIG_LOG_LINK_IPC_SERVICE.
+ */
+&cpuapp_cpuppr_ipc {
+	compatible = "zephyr,ipc-icmsg-me-initiator";
+	status = "okay";
+};
+
+&cpuppr_vevif {
+	status = "okay";
+};
+
+&cpuapp_bellboard {
+	status = "okay";
+};
+
+/ {
+	chosen {
+		zephyr,log-ipc = &cpuapp_cpuppr_ipc;
+	};
+};

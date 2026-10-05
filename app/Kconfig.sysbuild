@@ -27,4 +27,31 @@ choice WIFI_NRF70_OPER_MODES
 	default WIFI_NRF70_SCAN_ONLY if BOARD_THINGY91X_NRF9151_NS
 endchoice
 
+config LAUNCH_PPR
+	bool "Launch the PPR core and forward its logs to the application core over IPC"
+	depends on SUPPORT_PPRCORE
+	help
+	  Builds app/ppr as the PPR core image, launches it from the application
+	  core, and forwards its log output over IPC (icmsg-me) to the application
+	  core's log backends.
+
+if SUPPORT_PPRCORE
+
+choice PPRCORE
+	default PPRCORE_REMOTE if LAUNCH_PPR
+
+config PPRCORE_REMOTE
+	bool "ATT PPR image"
+	depends on LAUNCH_PPR
+
+endchoice
+
+config PPRCORE_IMAGE_NAME
+	default "ppr" if PPRCORE_REMOTE
+
+config PPRCORE_IMAGE_PATH
+	default "$(APP_DIR)/ppr" if PPRCORE_REMOTE
+
+endif # SUPPORT_PPRCORE
+
 source "${ZEPHYR_BASE}/share/sysbuild/Kconfig"

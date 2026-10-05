@@ -1,0 +1,33 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+/* Follower side of the icmsg-me log channel, see ../cpuapp_ipc_log.overlay. */
+&cpuapp_cpuppr_ipc {
+	compatible = "zephyr,ipc-icmsg-me-follower";
+	status = "okay";
+};
+
+&cpuppr_vevif {
+	status = "okay";
+};
+
+&cpuapp_bellboard {
+	status = "okay";
+};
+
+/ {
+	chosen {
+		zephyr,log-ipc = &cpuapp_cpuppr_ipc;
+		/delete-property/ zephyr,console;
+	};
+};
+
+/* The PPR has no UART console, logs are forwarded over IPC. Keeps uart132 free
+ * for the application domain (MCUboot serial recovery).
+ */
+&uart132 {
+	status = "disabled";
+};

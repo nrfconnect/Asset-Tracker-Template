@@ -1,0 +1,13 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+config PPR_HELLO_INTERVAL_SECONDS
+	int "Hello world interval (seconds)"
+	default 5
+	help
+	  Interval between the "hello world" log messages printed by the PPR core.
+
+source "Kconfig.zephyr"
