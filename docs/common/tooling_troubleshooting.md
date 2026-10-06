@@ -491,7 +491,7 @@ Memfault is a device observability platform that complements traditional debuggi
 1. **Open the Memfault dashboard:**
 
     1. Log in at [nrfcloud.com](https://nrfcloud.com/). You land in the new Memfault-integrated nRF Cloud experience, which is the Memfault dashboard for your linked project.
-    1. Device-management UI steps in other guides (claiming, shadow configuration, and so on) use the **legacy nRF Cloud portal**. Open it using the link in the **bottom left corner** of the new UI.
+    1. Device onboarding (**Fleet** → **Devices** → **Add devices**) is done in the new UI, see [Connecting](connecting.md). Other device-management UI steps in these guides (shadow configuration, and so on) still use the **legacy nRF Cloud portal**. Open it using the link in the **bottom left corner** of the new UI.
 
 1. **Upload the firmware symbol file:**
 
@@ -621,7 +621,7 @@ Building the template with the CoAP security tag pointed at one of these tags gi
 
 - A device running `mfw_nrf91x1` v2.0.0 or later. Check the modem firmware version with `at at+cgmr`.
 - Modem traces enabled, see [UART Tracing](#uart-tracing) or [RTT Tracing](#rtt-tracing).
-- The device claimed and provisioned to nRF Cloud, see [Connecting](connecting.md).
+- The device onboarded and provisioned to nRF Cloud, see [Connecting](connecting.md).
 - The nRF Cloud CoAP root CA certificate present in the developer security tag:
 
     - **Thingy:91 X**: The certificate is written to the developer security tag during production, so no action is needed.

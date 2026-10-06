@@ -98,7 +98,8 @@ static void nrf_provisioning_callback(const struct nrf_provisioning_callback_dat
 		break;
 	case NRF_PROVISIONING_EVENT_FAILED_DEVICE_NOT_CLAIMED:
 		LOG_WRN("Provisioning failed, device not claimed");
-		LOG_WRN("Claim the device on nrfcloud.com using the attestation token below");
+		LOG_WRN("Onboard the device on nrfcloud.com (Fleet > Devices > Add devices) "
+			"using the attestation token below");
 		LOG_WRN("Attestation token (copy the entire value between the lines):");
 		LOG_WRN("\n\r----- BEGIN ATTESTATION TOKEN -----\n\r\n\r%.*s.%.*s"
 			"\n\r\n\r----- END ATTESTATION TOKEN -----",

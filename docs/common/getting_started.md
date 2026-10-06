@@ -211,7 +211,7 @@ west thingy91x-reset
 
 The application is now built and flashed to the device. Open a serial terminal at 115200 baud to view the logs. The [Serial Terminal app](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) (part of nRF Connect for Desktop) is recommended; PuTTY, Tera Term, and minicom also work.
 
-**Next step:** Continue to [Connecting](connecting.md) to claim and provision the device on nRF Cloud.
+**Next step:** Continue to [Connecting](connecting.md) to onboard and provision the device on nRF Cloud.
 
 ## Testing
 
