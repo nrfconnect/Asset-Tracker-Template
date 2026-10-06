@@ -96,6 +96,10 @@ class NRFCloud():
     def _patch(self, path: str, **kwargs):
         return self._request_with_retry(self.session.patch, path, **kwargs)
 
+    # TODO: migrate to the new onboarding API
+    # (POST /v1/organizations/{ORG}/projects/{PROJECT}/long-range/devices/bulk, needs an
+    # Organization Auth Token) once nRF Cloud also exposes delete and provisioning-command
+    # endpoints. Legacy /claimed-devices still works during the transition.
     def claim_device(self, attestation_token: str) -> None:
         """
         Add (claim) a provisioned device to nrfcloud.com
