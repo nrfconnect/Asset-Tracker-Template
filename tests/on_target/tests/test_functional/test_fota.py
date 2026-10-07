@@ -218,8 +218,8 @@ def trigger_fota_poll(dut_fota, max_attempts=3):
 
 def perform_disconnect_reconnect(dut_fota, expected_percentage):
     """Helper function to perform a disconnect/reconnect sequence and verify resumption at expected percentage"""
-    patterns_lte_offline = ["network: lte_lc_evt_handler: PDN connection network detached"]
-    patterns_lte_normal = ["network: lte_lc_evt_handler: PDN connection activated"]
+    patterns_lte_offline = ["PDN connection network detached"]
+    patterns_lte_normal = ["PDN connection activated"]
 
     logger.info(f"Disconnecting at {expected_percentage}% - device should resume at same percentage")
 

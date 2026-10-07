@@ -23,13 +23,13 @@ def test_gnss(dut_board, hex_file_ext_gnss):
     dut_board.uart.xfactoryreset()
 
     dut_board.uart.wait_for_str_with_retries(
-        "location_module: location_event_handler: Got location:",
+        "Got location:",
         max_retries=5,
         timeout=120,
         reset_func=reset_device)
 
     res = dut_board.uart.extract_value(
-        r"location_module: location_event_handler: Got location: lat: (\d+\.\d+), lon: (\d+\.\d+), acc: (\d+\.\d+), method: ([a-zA-Z]+)"
+        r"Got location: lat: (\d+\.\d+), lon: (\d+\.\d+), acc: (\d+\.\d+), method: ([a-zA-Z]+)"
     )
     assert res, "Failed to extract location data from UART output"
     print(res)
