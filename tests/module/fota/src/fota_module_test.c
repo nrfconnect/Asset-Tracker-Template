@@ -27,7 +27,6 @@ FAKE_VALUE_FUNC(int, nrf_cloud_fota_poll_update_apply, struct nrf_cloud_fota_pol
 FAKE_VALUE_FUNC(int, fota_download_cancel);
 FAKE_VALUE_FUNC(int, flash_area_open, uint8_t, const struct flash_area **);
 FAKE_VALUE_FUNC(int, flash_area_erase, const struct flash_area *, off_t, size_t);
-FAKE_VOID_FUNC(flash_area_close, const struct flash_area *);
 FAKE_VOID_FUNC1(callback_t, int);
 
 static struct flash_area fake_slot1_area = {
@@ -104,7 +103,6 @@ void setUp(void)
 	RESET_FAKE(fota_download_cancel);
 	RESET_FAKE(flash_area_open);
 	RESET_FAKE(flash_area_erase);
-	RESET_FAKE(flash_area_close);
 
 	flash_area_open_fake.custom_fake = flash_area_open_fake_impl;
 	flash_area_erase_fake.return_val = 0;

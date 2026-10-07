@@ -179,6 +179,7 @@ jobs:
             pip install -e $MATTER_IDL_PATH
           fi
           pip install -r nrf/scripts/requirements-build.txt
+          pip install "cbor2==5.9.0"
           rm -rf artifacts
           mkdir -p artifacts
 

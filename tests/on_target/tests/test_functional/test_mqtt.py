@@ -26,8 +26,8 @@ def test_mqtt_firmware(dut_board, hex_file_mqtt):
     dut_board.uart.xfactoryreset()
 
     # Log patterns to check
-    pattern_connect_to_broker = "network: lte_lc_evt_handler: PDN connection activated"
-    pattern_cloud = "cloud: on_mqtt_connack: MQTT connection established, session present: 0"
+    pattern_connect_to_broker = "PDN connection activated"
+    pattern_cloud = "MQTT connection established, session present: 0"
 
     # Cloud connection
     dut_board.uart.flush()
@@ -40,7 +40,7 @@ def test_mqtt_firmware(dut_board, hex_file_mqtt):
 
     dut_board.uart.write("att_cloud_publish_mqtt test-payload\r\n")
 
-    pattern_publish_ack = "cloud: on_mqtt_puback: Publish acknowledgment received, message id: 1"
+    pattern_publish_ack = "Publish acknowledgment received, message id: 1"
 
     # Wait for publish acknowledgment for the test payload
     dut_board.uart.wait_for_str(pattern_publish_ack, timeout=30)

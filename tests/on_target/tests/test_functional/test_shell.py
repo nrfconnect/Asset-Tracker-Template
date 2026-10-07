@@ -32,10 +32,10 @@ def test_shell(dut_cloud, hex_file):
         'Sending on payload channel: {"messageType":"DATA","appId":"donald","data":"duck"',
     ]
     patterns_network_disconnected = [
-        "network: lte_lc_evt_handler: PDN connection network detached",
+        "PDN connection network detached",
     ]
     patterns_network_connected = [
-        "network: lte_lc_evt_handler: PDN connection activated",
+        "PDN connection activated",
     ]
 
     # Boot

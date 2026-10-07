@@ -100,7 +100,7 @@ def test_config(dut_cloud, hex_file):
             timeout=120
         )
         dut_cloud.uart.wait_for_str(
-            f"storage: update_threshold: Updating buffer threshold limit: {BOOT_STORAGE_THRESHOLD}",
+            f"Updating buffer threshold limit: {BOOT_STORAGE_THRESHOLD}",
             timeout=120
         )
 
@@ -126,7 +126,7 @@ def test_config(dut_cloud, hex_file):
             timeout=120
         )
         dut_cloud.uart.wait_for_str(
-            f"storage: update_threshold: Updating buffer threshold limit: {RUNTIME_STORAGE_THRESHOLD}",
+            f"Updating buffer threshold limit: {RUNTIME_STORAGE_THRESHOLD}",
             timeout=120
         )
     finally:

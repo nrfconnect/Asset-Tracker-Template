@@ -71,6 +71,7 @@ jobs:
               pip install -e $MATTER_IDL_PATH
             fi
             pip install -r nrf/scripts/requirements-fixed.txt
+            pip install "cbor2==5.9.0"
             apt-get update
             # `make` is required to build native_sim but is not shipped in the
             # sdk-nrf-toolchain container (unlike the Zephyr CI image).
