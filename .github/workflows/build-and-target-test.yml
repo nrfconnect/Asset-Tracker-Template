@@ -34,7 +34,7 @@ on:
         required: false
         default: false
       test_filter:
-        description: 'Pytest -k expression to isolate tests (e.g. "test_app_fota_release_to_nightly").
+        description: 'Pytest -k expression to isolate tests (e.g. "test_app_fota").
                       Leave empty to run all tests for the selected devices.'
         type: string
         required: false
@@ -70,14 +70,15 @@ jobs:
       build_thingy91x_base: ${{ steps.setup.outputs.build_thingy91x_base == 'true' }}
       build_nrf9151dk_base: ${{ steps.setup.outputs.build_nrf9151dk_base == 'true' }}
       build_thingy91x_debug: ${{ steps.setup.outputs.build_thingy91x_debug == 'true' }}
-      build_thingy91x_mqtt: ${{ steps.setup.outputs.build_thingy91x_mqtt == 'true' }}
       build_thingy91x_buffer_flash: ${{ steps.setup.outputs.build_thingy91x_buffer_flash == 'true' }}
       build_thingy91x_buffer_ram: ${{ steps.setup.outputs.build_thingy91x_buffer_ram == 'true' }}
       build_thingy91x_mtrace: ${{ steps.setup.outputs.build_thingy91x_mtrace == 'true' }}
       build_nrf9151dk_mtrace: ${{ steps.setup.outputs.build_nrf9151dk_mtrace == 'true' }}
       build_nrf9151dk_ext_gnss: ${{ steps.setup.outputs.build_nrf9151dk_ext_gnss == 'true' }}
-      build_thingy91x_fota_target: ${{ steps.setup.outputs.build_thingy91x_fota_target == 'true' }}
-      build_nrf9151dk_fota_target: ${{ steps.setup.outputs.build_nrf9151dk_fota_target == 'true' }}
+      build_thingy91x_app_fota_update: ${{ steps.setup.outputs.build_thingy91x_app_fota_update == 'true' }}
+      build_nrf9151dk_app_fota_update: ${{ steps.setup.outputs.build_nrf9151dk_app_fota_update == 'true' }}
+      build_thingy91x_modem_fota_baseline: ${{ steps.setup.outputs.build_thingy91x_modem_fota_baseline == 'true' }}
+      build_nrf9151dk_modem_fota_baseline: ${{ steps.setup.outputs.build_nrf9151dk_modem_fota_baseline == 'true' }}
     steps:
       - name: Setup
         id: setup
@@ -139,14 +140,15 @@ jobs:
           build_thingy91x_base=false
           build_nrf9151dk_base=false
           build_thingy91x_debug=false
-          build_thingy91x_mqtt=false
           build_thingy91x_buffer_flash=false
           build_thingy91x_buffer_ram=false
           build_thingy91x_mtrace=false
           build_nrf9151dk_mtrace=false
           build_nrf9151dk_ext_gnss=false
-          build_thingy91x_fota_target=false
-          build_nrf9151dk_fota_target=false
+          build_thingy91x_app_fota_update=false
+          build_nrf9151dk_app_fota_update=false
+          build_thingy91x_modem_fota_baseline=false
+          build_nrf9151dk_modem_fota_baseline=false
 
           for d in $devices; do
             case "$d" in
@@ -164,17 +166,18 @@ jobs:
           done
 
           # Nightly slow tests for the thingy91x family exercise the variant
-          # firmwares (memfault/mqtt/buffer-*). They are ``@pytest.mark.slow``
+          # firmwares (memfault/buffer-*). They are ``@pytest.mark.slow``
           # so they only run when ``run_nightly_tests`` is true.
           if [[ "${run_nightly_tests:-false}" == "true" && "$build_thingy91x_base" == "true" ]]; then
             build_thingy91x_debug=true
-            build_thingy91x_mqtt=true
             build_thingy91x_buffer_flash=true
             build_thingy91x_buffer_ram=true
-            build_thingy91x_fota_target=true
+            build_thingy91x_app_fota_update=true
+            build_thingy91x_modem_fota_baseline=true
           fi
           if [[ "${run_nightly_tests:-false}" == "true" && "$build_nrf9151dk_base" == "true" ]]; then
-            build_nrf9151dk_fota_target=true
+            build_nrf9151dk_app_fota_update=true
+            build_nrf9151dk_modem_fota_baseline=true
           fi
 
           # mtrace variants have no test consumer. They are release
@@ -190,14 +193,15 @@ jobs:
             echo "build_thingy91x_base=$build_thingy91x_base"
             echo "build_nrf9151dk_base=$build_nrf9151dk_base"
             echo "build_thingy91x_debug=$build_thingy91x_debug"
-            echo "build_thingy91x_mqtt=$build_thingy91x_mqtt"
             echo "build_thingy91x_buffer_flash=$build_thingy91x_buffer_flash"
             echo "build_thingy91x_buffer_ram=$build_thingy91x_buffer_ram"
             echo "build_thingy91x_mtrace=$build_thingy91x_mtrace"
             echo "build_nrf9151dk_mtrace=$build_nrf9151dk_mtrace"
             echo "build_nrf9151dk_ext_gnss=$build_nrf9151dk_ext_gnss"
-            echo "build_thingy91x_fota_target=$build_thingy91x_fota_target"
-            echo "build_nrf9151dk_fota_target=$build_nrf9151dk_fota_target"
+            echo "build_thingy91x_app_fota_update=$build_thingy91x_app_fota_update"
+            echo "build_nrf9151dk_app_fota_update=$build_nrf9151dk_app_fota_update"
+            echo "build_thingy91x_modem_fota_baseline=$build_thingy91x_modem_fota_baseline"
+            echo "build_nrf9151dk_modem_fota_baseline=$build_nrf9151dk_modem_fota_baseline"
           } >> "$GITHUB_OUTPUT"
   build:
     needs: setup
@@ -212,14 +216,15 @@ jobs:
       build_thingy91x_base: ${{ needs.setup.outputs.build_thingy91x_base == 'true' }}
       build_nrf9151dk_base: ${{ needs.setup.outputs.build_nrf9151dk_base == 'true' }}
       build_thingy91x_debug: ${{ needs.setup.outputs.build_thingy91x_debug == 'true' }}
-      build_thingy91x_mqtt: ${{ needs.setup.outputs.build_thingy91x_mqtt == 'true' }}
       build_thingy91x_buffer_flash: ${{ needs.setup.outputs.build_thingy91x_buffer_flash == 'true' }}
       build_thingy91x_buffer_ram: ${{ needs.setup.outputs.build_thingy91x_buffer_ram == 'true' }}
       build_thingy91x_mtrace: ${{ needs.setup.outputs.build_thingy91x_mtrace == 'true' }}
       build_nrf9151dk_mtrace: ${{ needs.setup.outputs.build_nrf9151dk_mtrace == 'true' }}
       build_nrf9151dk_ext_gnss: ${{ needs.setup.outputs.build_nrf9151dk_ext_gnss == 'true' }}
-      build_thingy91x_fota_target: ${{ needs.setup.outputs.build_thingy91x_fota_target == 'true' }}
-      build_nrf9151dk_fota_target: ${{ needs.setup.outputs.build_nrf9151dk_fota_target == 'true' }}
+      build_thingy91x_app_fota_update: ${{ needs.setup.outputs.build_thingy91x_app_fota_update == 'true' }}
+      build_nrf9151dk_app_fota_update: ${{ needs.setup.outputs.build_nrf9151dk_app_fota_update == 'true' }}
+      build_thingy91x_modem_fota_baseline: ${{ needs.setup.outputs.build_thingy91x_modem_fota_baseline == 'true' }}
+      build_nrf9151dk_modem_fota_baseline: ${{ needs.setup.outputs.build_nrf9151dk_modem_fota_baseline == 'true' }}
   test:
     permissions:
       actions: read
