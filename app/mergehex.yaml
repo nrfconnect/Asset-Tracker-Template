@@ -1,0 +1,16 @@
+# Combines the per-board-target hex files from SB_CONFIG_MERGED_HEX_FILES into
+# a single programmable image, build/merged.hex, for every supported board:
+#
+#   west ncs-mergehex --no-rebuild -d build
+#
+# Sysbuild writes one merged_<board_target>.hex per board target. nRF91 builds
+# get two (bootloaders and provisioning on the secure target, TF-M + app on
+# /ns). Files that are not produced by the current build are skipped, so each
+# build only merges its own board's files. Inputs must not overlap.
+merged.hex:
+  # nrf9151dk/nrf9151/ns
+  - merged_nrf9151dk_nrf9151.hex
+  - merged_nrf9151dk_nrf9151_ns.hex
+  # thingy91x/nrf9151/ns
+  - merged_thingy91x_nrf9151.hex
+  - merged_thingy91x_nrf9151_ns.hex

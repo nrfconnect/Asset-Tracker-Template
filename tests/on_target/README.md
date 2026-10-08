@@ -71,9 +71,10 @@ export UART_ID=<substring of DUT ports, e.g. usbmodem2140>
 ### Provide firmware artifacts
 
 The tests read firmware from `artifacts/`. In CI this folder is populated automatically, but
-when running locally you must copy your build output into it:
+when running locally you must generate the merged image and copy your build output into it:
 
 ```shell
+west ncs-mergehex --no-rebuild -d ../../../build
 cp ../../../build/merged.hex \
    artifacts/asset-tracker-template-dev-${DUT_DEVICE_TYPE}-nrf91.hex
 cp ../../../build/app/zephyr/zephyr.signed.hex \

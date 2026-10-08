@@ -154,11 +154,14 @@ west flash --erase
 
 The `--erase` option performs a full chip erase (including UICR) before programming. Without it, `west flash` fails with a UICR-related error when the new firmware writes different UICR contents.
 
-By default, `west flash` after a sysbuild programs each bootloader and application image separately. That is equivalent to programming `build/merged.hex`, which combines the same images into one file. To flash the merged image in a single step (for example after changing partition layout), use:
+By default, `west flash` after a sysbuild programs each bootloader and application image separately. That is equivalent to programming `build/merged.hex`, which combines the same images into one file. To generate the merged image and flash it in a single step (for example after changing partition layout), use:
 
 ```shell
+west ncs-mergehex --no-rebuild
 west flash --erase --skip-rebuild --hex-file build/merged.hex
 ```
+
+`west ncs-mergehex` combines the per-board-target `build/merged_*.hex` files from the sysbuild into `build/merged.hex`, as listed in `app/mergehex.yaml`.
 
 Release builds publish the same merged image as `asset-tracker-template-{VERSION}-<board>-nrf91.hex` (see [release artifacts](release.md)).
 
