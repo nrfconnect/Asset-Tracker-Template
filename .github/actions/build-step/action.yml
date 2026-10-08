@@ -108,6 +108,9 @@ runs:
             -p --sysbuild -- \
             ${params[@]} 2>&1 | tee ../../artifacts/build_output_${{ inputs.short_board }}.log
 
+        # Combine sysbuild's per-board-target merged_*.hex into build/merged.hex (see app/mergehex.yaml)
+        west ncs-mergehex --no-rebuild -d build
+
         if [[ "${{ inputs.short_board }}" == "thingy91x" ]]; then
           if [[ "${{ inputs.push_memory_badges }}" == "true" ]]; then
             west build -d build/app -t rom_report

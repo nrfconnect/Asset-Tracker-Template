@@ -21,7 +21,7 @@ Each firmware variant includes the following set of artifacts:
 
 | **Artifact suffix** | **Description** | **Use case** |
 |---------------------|----------------|--------------|
-| `-nrf91.hex` | Full merged image (b0, MCUboot, signed application, provisioning data). Same contents as `build/merged.hex` from a local sysbuild. | Programming the entire internal flash with a J-Link debugger |
+| `-nrf91.hex` | Full merged image (b0, MCUboot, signed application, provisioning data). Same contents as `build/merged.hex` from a local sysbuild after running `west ncs-mergehex --no-rebuild`. | Programming the entire internal flash with a J-Link debugger |
 | `-nrf91.elf` | ELF file with debug symbols | Debugging, coredump analysis, `addr2line` |
 | `-nrf91.config` | Build configuration snapshot | Inspecting the Kconfig options used for the build |
 | `-nrf91-update-signed.hex` | Signed application-only hex (no bootloader) | Updating only the application slot with a debugger |
