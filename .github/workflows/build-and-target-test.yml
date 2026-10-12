@@ -28,6 +28,11 @@ on:
         type: boolean
         required: false
         default: false
+      device_prov_nrf9251dk:
+        description: 'Test prov_nrf9251dk'
+        type: boolean
+        required: false
+        default: false
       run_nightly_tests:
         description: 'Include slow tests for the selected boards'
         type: boolean
@@ -69,6 +74,7 @@ jobs:
       run_nightly_tests: ${{ steps.setup.outputs.run_nightly_tests == 'true' }}
       build_thingy91x_base: ${{ steps.setup.outputs.build_thingy91x_base == 'true' }}
       build_nrf9151dk_base: ${{ steps.setup.outputs.build_nrf9151dk_base == 'true' }}
+      build_nrf9251dk_base: ${{ steps.setup.outputs.build_nrf9251dk_base == 'true' }}
       build_thingy91x_debug: ${{ steps.setup.outputs.build_thingy91x_debug == 'true' }}
       build_thingy91x_mqtt: ${{ steps.setup.outputs.build_thingy91x_mqtt == 'true' }}
       build_thingy91x_buffer_flash: ${{ steps.setup.outputs.build_thingy91x_buffer_flash == 'true' }}
@@ -117,6 +123,9 @@ jobs:
             if [[ "${{ inputs.device_prov_thingy91x }}" == "true" ]]; then
               devices="$devices prov_thingy91x"
             fi
+            if [[ "${{ inputs.device_prov_nrf9251dk }}" == "true" ]]; then
+              devices="$devices prov_nrf9251dk"
+            fi
             # Trim leading space
             devices=$(echo "$devices" | xargs)
             if [[ -z "$devices" ]]; then
@@ -138,6 +147,7 @@ jobs:
           # legacy ``build_type`` fallback in ``build.yml``.
           build_thingy91x_base=false
           build_nrf9151dk_base=false
+          build_nrf9251dk_base=false
           build_thingy91x_debug=false
           build_thingy91x_mqtt=false
           build_thingy91x_buffer_flash=false
@@ -159,6 +169,9 @@ jobs:
               gnss_nrf9151dk)
                 build_nrf9151dk_base=true
                 build_nrf9151dk_ext_gnss=true
+                ;;
+              prov_nrf9251dk)
+                build_nrf9251dk_base=true
                 ;;
             esac
           done
@@ -189,6 +202,7 @@ jobs:
             echo "run_nightly_tests=${run_nightly_tests:-false}"
             echo "build_thingy91x_base=$build_thingy91x_base"
             echo "build_nrf9151dk_base=$build_nrf9151dk_base"
+            echo "build_nrf9251dk_base=$build_nrf9251dk_base"
             echo "build_thingy91x_debug=$build_thingy91x_debug"
             echo "build_thingy91x_mqtt=$build_thingy91x_mqtt"
             echo "build_thingy91x_buffer_flash=$build_thingy91x_buffer_flash"
@@ -211,6 +225,7 @@ jobs:
       push_memory_badges: ${{ needs.setup.outputs.push_memory_badges == 'true' }}
       build_thingy91x_base: ${{ needs.setup.outputs.build_thingy91x_base == 'true' }}
       build_nrf9151dk_base: ${{ needs.setup.outputs.build_nrf9151dk_base == 'true' }}
+      build_nrf9251dk_base: ${{ needs.setup.outputs.build_nrf9251dk_base == 'true' }}
       build_thingy91x_debug: ${{ needs.setup.outputs.build_thingy91x_debug == 'true' }}
       build_thingy91x_mqtt: ${{ needs.setup.outputs.build_thingy91x_mqtt == 'true' }}
       build_thingy91x_buffer_flash: ${{ needs.setup.outputs.build_thingy91x_buffer_flash == 'true' }}
