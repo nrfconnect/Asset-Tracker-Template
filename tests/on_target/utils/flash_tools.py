@@ -14,6 +14,10 @@ from utils.logger import get_logger
 logger = get_logger()
 
 SEGGER = os.getenv('SEGGER')
+IS_NRF92 = os.getenv('DUT_DEVICE_TYPE', '').startswith('nrf92')
+
+# RESET_SYSTEM is only supported on the secure core of nRF92.
+DEFAULT_RESET_KIND = "RESET_DEFAULT" if IS_NRF92 else "RESET_SYSTEM"
 
 RECOVER_MAX_ATTEMPTS = 3
 RECOVER_RETRY_DELAY_SECONDS = 5
@@ -26,7 +30,7 @@ PROTECTION_ERROR_MARKERS = (
     "readback protection",
 )
 
-def reset_device(serial=SEGGER, reset_kind="RESET_SYSTEM"):
+def reset_device(serial=SEGGER, reset_kind=DEFAULT_RESET_KIND):
     logger.info(f"Resetting device, segger: {serial}")
     try:
         result = subprocess.run(
@@ -68,7 +72,7 @@ def flash_device(hexfile, serial=SEGGER, extra_args=[]):
         logger.info("An error occurred while flashing the device.")
         logger.info("Error output:")
         logger.info(e.stderr)
-        if not _is_protection_error(e.stderr):
+        if IS_NRF92 or not _is_protection_error(e.stderr):
             raise
         logger.warning("Access port is closed, recovering the device and flashing again")
         recover_device(serial)
@@ -84,6 +88,11 @@ def flash_device(hexfile, serial=SEGGER, extra_args=[]):
     reset_device(serial)
 
 def recover_device(serial=SEGGER, core="Application", max_attempts=RECOVER_MAX_ATTEMPTS):
+    # Recover erases the BICR and can erase the RF tuning data on nRF92.
+    if IS_NRF92:
+        logger.info(f"Skipping recover on nRF92 device, segger: {serial}")
+        return
+
     for attempt in range(1, max_attempts + 1):
         logger.info(f"Recovering device, segger: {serial}")
         try:
