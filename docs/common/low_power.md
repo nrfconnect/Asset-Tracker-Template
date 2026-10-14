@@ -106,28 +106,20 @@ uart:~$ pm suspend uart@8000  # Suspend UART1
 
 ### Wi-Fi scanning optimization
 
-The application uses Wi-Fi® scanning for location services on the Thingy:91 X, through the nRF7002, and on the nRF9251 DK, through the built-in nRF92 Wi-Fi.
+The application uses Wi-Fi® scanning for location services on the Thingy:91 X, through the nRF7002, and on the nRF9251 DK, through the built-in nRF92 Wi-Fi. To reduce the scan time and the power consumption, both boards set `CONFIG_LOCATION_REQUEST_DEFAULT_WIFI_CHANNELS` to `"2:1,6,11"` to scan only channels 1, 6, and 11 in the 2.4 GHz band. Most commercial access points and hotspots use these standard non-overlapping channels, so scanning only them provides sufficient access point coverage for location services in the vast majority of applications.
 
-#### Thingy:91 X
-
-A full Wi-Fi scan across all bands can take 5 to 10 seconds, which consumes significant power. To reduce the scan time and the power consumption, the application restricts the scanning to the 2.4 GHz band by default.
+To scan all channels that the Wi-Fi hardware supports, set `CONFIG_LOCATION_REQUEST_DEFAULT_WIFI_CHANNELS=""` in the board configuration file.
+Listing more than three channels also needs higher values for `CONFIG_WIFI_MGMT_SCAN_CHAN_MAX_MANUAL` and `CONFIG_LOCATION_METHOD_WIFI_SCANNING_CHANNELS_MAX`.
 
 For detailed information about the Wi-Fi scan timing, channels, and dwell times, see the [Wi-Fi scan operation](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/protocols/wifi/scan_mode/scan_operation.html) documentation.
 
-The application sets `CONFIG_NRF_WIFI_2G_BAND` by default to restrict the Wi-Fi scanning to the 2.4 GHz band. This is a deliberate optimization for location services, for the following reasons:
+#### Thingy:91 X
 
-- Most commercial access points and hotspots use channels 1, 6, and 11, which are the standard non-overlapping 2.4 GHz channels. Scanning the 2.4 GHz band provides sufficient access point coverage for location services in the vast majority of applications.
-- The application uses active scanning by default, which is preferred for moving devices. Because the device might not stay in range of an access point for long, active scanning, which sends probe requests and receives probe responses, discovers access points significantly faster than passive scanning, which waits for beacons.
-
-If your use case needs 5 GHz access point coverage, remove `CONFIG_NRF_WIFI_2G_BAND=y` from the board configuration file, for example `boards/thingy91x_nrf9151_ns.conf`.
+The nRF7002 uses active scanning by default, which is preferred for moving devices. Because the device might not stay in range of an access point for long, active scanning, which sends probe requests and receives probe responses, discovers access points significantly faster than passive scanning, which waits for beacons. With an empty channel list, the nRF7002 also scans the 5 GHz band.
 
 #### nRF9251 DK
 
-To reduce scan time and power consumption, the application sets `CONFIG_LOCATION_REQUEST_DEFAULT_WIFI_CHANNELS` to `"2:1,6,11"` to scan only channels 1, 6, and 11, the standard non-overlapping 2.4 GHz channels that most commercial APs and hotspots use.
-
 The nRF92 scans the 2.4 GHz band only. It listens on each channel for the time set by `CONFIG_LOCATION_REQUEST_DEFAULT_WIFI_DWELL_TIME_PASSIVE`, 260 ms by default, but the modem may shorten it to fit around LTE activity. Most APs send a beacon about every 100 ms, so each AP gets two chances to be heard.
-
-To scan all 2.4 GHz channels, set `CONFIG_LOCATION_REQUEST_DEFAULT_WIFI_CHANNELS=""` in `boards/nrf9251dk_nrf9251_cpuapp.conf`.
 
 ## Optimization best practices
 
