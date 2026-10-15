@@ -30,3 +30,58 @@
 		};
 	};
 };
+
+&dma_fast_region {
+	status = "okay";
+};
+
+&gpio5 {
+	status = "okay";
+};
+
+&spi120 {
+	status = "okay";
+};
+
+/* External flash (32 MiB). fmfu_storage_partition is reserved for full modem FOTA. */
+flash_ext: &gd25le255e {
+	status = "okay";
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		fmfu_storage_partition: partition@0 {
+			label = "fmfu_storage";
+			reg = <0x00000000 0x00400000>;
+		};
+
+		littlefs_storage: partition@400000 {
+			label = "littlefs_storage";
+			reg = <0x00400000 0x00100000>;
+		};
+
+		external_flash_partition: partition@500000 {
+			label = "external_flash";
+			reg = <0x00500000 0x01b00000>;
+		};
+	};
+};
+
+/ {
+	fstab {
+		compatible = "zephyr,fstab";
+		lfs1: lfs1 {
+			compatible = "zephyr,fstab,littlefs";
+			mount-point = "/att_storage";
+			partition = <&littlefs_storage>;
+			automount;
+			read-size = <16>;
+			prog-size = <16>;
+			cache-size = <64>;
+			lookahead-size = <32>;
+			block-cycles = <512>;
+		};
+	};
+};
