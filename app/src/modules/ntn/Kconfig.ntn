@@ -27,6 +27,27 @@ config APP_NTN_LOCATION_VALIDITY_TIME_SECONDS
 	  If the device is moving and using LEO, the value should be shorter.
 	  The distance the device is expected to travel must also be considered.
 
+config APP_NTN_IRIDIUM
+	bool "Iridium network"
+	select LTE_LC_PERIODIC_SEARCH_MODULE
+	help
+	  Iridium network.
+
+config APP_NTN_SHELL
+	bool "NTN module shell commands"
+	default y if SHELL
+	help
+	  Enable shell commands for the NTN module, for example to provide the
+	  device location manually instead of acquiring it with GNSS.
+
+config APP_NTN_SHELL_DEFAULT_ACCURACY
+	int "Default accuracy in meters for manually set location"
+	default 10
+	depends on APP_NTN_SHELL
+	help
+	  Accuracy reported to nRF Cloud when no accuracy is given to
+	  the att_ntn_location_set shell command.
+
 config APP_NTN_BANDLOCK_ENABLE
 	bool "Enable NTN band lock"
 	help

@@ -24,6 +24,12 @@ west build app -b nrf9151dk/nrf9151/ns -- -DEXTRA_CONF_FILE=overlay-ntn-skylo-so
 
 ```
 
+## NTN Iridium - nRF9151 DK
+
+```shell
+west build app -b nrf9151dk/nrf9151/ns -- -DEXTRA_CONF_FILE=overlay-ntn-iridium.conf
+```
+
 ## NTN Amarisoft Callbox - nRF9151 DK
 
 ```shell

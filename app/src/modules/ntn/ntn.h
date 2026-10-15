@@ -37,6 +37,14 @@ enum ntn_msg_type {
 
 	/* GNSS search failed */
 	GNSS_SEARCH_FAILED,
+
+	/* Location provided externally (e.g. shell), carried in the pvt field.
+	 * Only latitude, longitude, altitude and accuracy are used.
+	 */
+	NTN_LOCATION_SET,
+
+	/* Invalidate the currently stored location */
+	NTN_LOCATION_CLEAR,
 };
 
 /* NTN module message */

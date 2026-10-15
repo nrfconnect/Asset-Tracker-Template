@@ -81,6 +81,7 @@ struct ntn_state_object {
 	struct k_timer ntn_timer;
 	struct nrf_modem_gnss_pvt_data_frame last_pvt;
 	uint64_t location_validity_end_time;
+	bool gnss_active;
 };
 
 static struct k_work timer_work;
@@ -332,6 +333,71 @@ static void gnss_location_work_handler(struct k_work *work)
 
 /* Helper functions */
 
+static bool location_is_valid(const struct ntn_state_object *state)
+{
+	return k_uptime_get() < state->location_validity_end_time;
+}
+
+static uint32_t location_validity_left_s(const struct ntn_state_object *state)
+{
+	uint64_t current_time = k_uptime_get();
+
+	if (state->location_validity_end_time > current_time) {
+		return (uint32_t)((state->location_validity_end_time - current_time) /
+				  MSEC_PER_SEC);
+	}
+
+	return 1;
+}
+
+static void location_store(struct ntn_state_object *state,
+			   const struct nrf_modem_gnss_pvt_data_frame *pvt)
+{
+	state->last_pvt = *pvt;
+	state->location_validity_end_time =
+		k_uptime_get() + CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS * MSEC_PER_SEC;
+}
+
+static void location_set_from_msg(struct ntn_state_object *state, const struct ntn_msg *msg)
+{
+	location_store(state, &msg->pvt);
+
+	LOG_INF("Location set: lat: %f, lon: %f, alt: %f, acc: %f, valid for %d s",
+		(double)state->last_pvt.latitude,
+		(double)state->last_pvt.longitude,
+		(double)state->last_pvt.altitude,
+		(double)state->last_pvt.accuracy,
+		CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS);
+}
+
+#if defined(CONFIG_APP_NTN_IRIDIUM)
+static void configure_periodic_search(void)
+{
+	int err;
+	struct lte_lc_periodic_search_cfg search_cfg = {
+		.pattern_count = 1,
+		.loop = true,
+		.return_to_pattern = 0,
+		.band_optimization = 0,
+		.patterns[0] = {
+			.type = LTE_LC_PERIODIC_SEARCH_PATTERN_TABLE,
+			.table = {
+				.val_1 = 2,
+				.val_2 = -1,
+				.val_3 = -1,
+				.val_4 = -1,
+				.val_5 = -1,
+			},
+		},
+	};
+
+	err = lte_lc_periodic_search_set(&search_cfg);
+	if (err) {
+		LOG_ERR("lte_lc_periodic_search_set, error: %d", err);
+	}
+}
+#endif
+
 static int set_ntn_offline_mode(void)
 {
 	int err;
@@ -352,15 +418,7 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	int err;
 	enum lte_lc_func_mode mode;
 	bool ntn_initialized = false;
-	uint32_t location_validity_time;
-	uint64_t current_time = k_uptime_get();
-
-	if (state->location_validity_end_time > current_time) {
-		location_validity_time =
-			(uint32_t)(state->location_validity_end_time - current_time) / MSEC_PER_SEC;
-	} else {
-		location_validity_time = 1;
-	}
+	uint32_t location_validity_time = location_validity_left_s(state);
 
 	err = lte_lc_func_mode_get(&mode);
 	if (err) {
@@ -390,6 +448,14 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 	}
 
 	/* Configure NTN system mode */
+#if defined(CONFIG_APP_NTN_IRIDIUM)
+	err = nrf_modem_at_printf("AT%%XSYSTEMMODE=0,0,0,0,0,1");
+	if (err) {
+		LOG_ERR("Failed to set XSYSTEMMODE=0,0,0,0,0,1, error: %d", err);
+
+		return err;
+	}
+#else
 	err = lte_lc_system_mode_set(LTE_LC_SYSTEM_MODE_NTN_NBIOT,
 				     LTE_LC_SYSTEM_MODE_PREFER_AUTO);
 	if (err) {
@@ -397,6 +463,7 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 
 		return err;
 	}
+#endif
 
 	err = ntn_location_set((double)state->last_pvt.latitude,
 				(double)state->last_pvt.longitude,
@@ -418,12 +485,21 @@ static int set_ntn_active_mode(struct ntn_state_object *state)
 #endif
 
 #if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
+#if defined(CONFIG_APP_NTN_IRIDIUM)
+	err = nrf_modem_at_printf("AT%%FREQRANGES=1,7,,1,\"%i\",\"\"",
+				  CONFIG_APP_NTN_CHANNEL_SELECT);
+#else
 	err = nrf_modem_at_printf("AT%%CHSELECT=1,14,%i", CONFIG_APP_NTN_CHANNEL_SELECT);
+#endif
 	if (err) {
 		LOG_ERR("Failed to set NTN channel, error: %d", err);
 
 		return err;
 	}
+#endif
+
+#if defined(CONFIG_APP_NTN_IRIDIUM)
+	configure_periodic_search();
 #endif
 
 	LOG_DBG("NTN initialized, activating LTE functional mode");
@@ -610,7 +686,12 @@ static void state_running_entry(void *obj)
 		};
 
 	/* Set NTN profile */
+#if defined(CONFIG_APP_NTN_IRIDIUM)
+	/* Iridium access technology (8) is not part of enum lte_lc_act */
+	err = nrf_modem_at_printf("AT%%CELLULARPRFL=2,%d,8,%d", ntn_profile.id, ntn_profile.uicc);
+#else
 	err = lte_lc_cellular_profile_configure(&ntn_profile);
+#endif
 		if (err) {
 			LOG_ERR("Failed to set NTN profile, error: %d", err);
 
@@ -658,6 +739,15 @@ static enum smf_state_result state_running_run(void *obj)
 
 		if (msg->type == BUTTON_PRESS_LONG) {
 			smf_set_state(SMF_CTX(state), &states[STATE_TN]);
+		}
+	} else if (state->chan == &NTN_CHAN) {
+		struct ntn_msg *msg = (struct ntn_msg *)state->msg_buf;
+
+		if (msg->type == NTN_LOCATION_SET) {
+			location_set_from_msg(state, msg);
+		} else if (msg->type == NTN_LOCATION_CLEAR) {
+			state->location_validity_end_time = 0;
+			LOG_INF("Location cleared, GNSS will be used for the next fix");
 		}
 	}
 
@@ -707,6 +797,20 @@ static void state_tn_entry(void *obj)
 		LOG_ERR("Failed to set remove NTN band lock, error: %d", err);
 
 		return;
+	}
+#endif
+
+#if defined(CONFIG_APP_NTN_IRIDIUM)
+#if defined(CONFIG_APP_NTN_CHANNEL_SELECT_ENABLE)
+	err = nrf_modem_at_printf("AT%%FREQRANGES=0");
+	if (err) {
+		LOG_ERR("Failed to clear NTN frequency ranges, error: %d", err);
+	}
+#endif
+
+	err = lte_lc_periodic_search_clear();
+	if (err) {
+		LOG_ERR("lte_lc_periodic_search_clear, error: %d", err);
 	}
 #endif
 
@@ -827,9 +931,8 @@ static enum smf_state_result state_idle_run(void *obj)
 
 			return SMF_EVENT_HANDLED;
 		} else if (msg->type == NTN_LOCATION_REQUEST) {
-			uint64_t current_time = k_uptime_get();
-			if (current_time < state->location_validity_end_time) {
-			LOG_DBG("NTN location is still valid, skipping location request");
+			if (location_is_valid(state)) {
+				LOG_DBG("NTN location is still valid, skipping location request");
 
 				return SMF_EVENT_HANDLED;
 			}
@@ -837,9 +940,9 @@ static enum smf_state_result state_idle_run(void *obj)
 			LOG_DBG("NTN location requested, location is invalid, going to GNSS mode");
 
 			smf_set_state(SMF_CTX(state), &states[STATE_GNSS]);
-		}
 
-		return SMF_EVENT_HANDLED;
+			return SMF_EVENT_HANDLED;
+		}
 	}
 
 	return SMF_EVENT_PROPAGATE;
@@ -852,12 +955,23 @@ static void state_gnss_entry(void *obj)
 
 	LOG_DBG("%s", __func__);
 
+	if (location_is_valid(state)) {
+		LOG_INF("Location still valid for %d s, bypassing GNSS",
+			location_validity_left_s(state));
+
+		smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
+
+		return;
+	}
+
 	err = set_gnss_active_mode(state);
 	if (err) {
 		LOG_ERR("Unable to set GNSS active");
 
 		return;
 	}
+
+	state->gnss_active = true;
 }
 
 static enum smf_state_result state_gnss_run(void *obj)
@@ -870,12 +984,13 @@ static enum smf_state_result state_gnss_run(void *obj)
 		switch (msg->type) {
 		case NTN_LOCATION_SEARCH_DONE:
 			/* Location search completed, transition to NTN mode */
-			state->last_pvt = msg->pvt;
+			location_store(state, &msg->pvt);
+			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
 
-			state->location_validity_end_time =
-				k_uptime_get() +
-				CONFIG_APP_NTN_LOCATION_VALIDITY_TIME_SECONDS * MSEC_PER_SEC;
-
+			return SMF_EVENT_HANDLED;
+		case NTN_LOCATION_SET:
+			LOG_INF("Location provided while searching, stopping GNSS");
+			location_set_from_msg(state, msg);
 			smf_set_state(SMF_CTX(state), &states[STATE_NTN]);
 
 			return SMF_EVENT_HANDLED;
@@ -898,11 +1013,14 @@ static enum smf_state_result state_gnss_run(void *obj)
 
 static void state_gnss_exit(void *obj)
 {
-	ARG_UNUSED(obj);
+	struct ntn_state_object *state = (struct ntn_state_object *)obj;
 
 	LOG_DBG("%s", __func__);
 
-	set_gnss_inactive_mode();
+	if (state->gnss_active) {
+		set_gnss_inactive_mode();
+		state->gnss_active = false;
+	}
 }
 
 static void state_ntn_entry(void *obj)
@@ -930,7 +1048,19 @@ static enum smf_state_result state_ntn_run(void *obj)
 		return SMF_EVENT_PROPAGATE;
 	}
 
-	if (msg->type == NETWORK_NO_SUITABLE_CELL) {
+	if (msg->type == NTN_LOCATION_SET) {
+		location_set_from_msg(state, msg);
+
+		err = ntn_location_set((double)state->last_pvt.latitude,
+				       (double)state->last_pvt.longitude,
+				       (float)state->last_pvt.altitude,
+				       location_validity_left_s(state));
+		if (err) {
+			LOG_ERR("Failed to update NTN location, error: %d", err);
+		}
+
+		return SMF_EVENT_HANDLED;
+	} else if (msg->type == NETWORK_NO_SUITABLE_CELL) {
 		/* The modem performed a complete network search and found no suitable cell,
 			* go to idle state.
 			*/
