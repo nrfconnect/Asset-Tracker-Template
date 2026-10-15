@@ -1,23 +1,23 @@
-# Tooling and Troubleshooting
+# Tooling and troubleshooting
 
-General overview of tools used to troubleshoot the template code and/or modem/network behavior.
-For more knowledge on debugging and troubleshooting [nRF Connect SDK](https://github.com/nrfconnect/sdk-nrf) based applications in general, refer to these links:
+This page provides an overview of the tools you use to troubleshoot the template code, the modem, and the network behavior.
+For more information about debugging and troubleshooting [nRF Connect SDK](https://github.com/nrfconnect/sdk-nrf) based applications in general, see the following resources:
 
 - [Debugging and troubleshooting](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/)
-- [Cellular IoT Fundamentals Developer Academy Course](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals/)
-- [nRF Connect SDK Debugging Guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/test_and_optimize/debugging.html)
-- [Zephyr Debugging Guide](https://docs.zephyrproject.org/latest/develop/debug/index.html)
+- [Cellular IoT Fundamentals](https://academy.nordicsemi.com/courses/cellular-iot-fundamentals/)
+- [Debugging in the nRF Connect SDK](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/test_and_optimize/debugging.html)
+- [Debugging in Zephyr](https://docs.zephyrproject.org/latest/develop/debug/index.html)
 
-## Shell Commands
+## Shell commands
 
-The template provides several shell commands for controlling and monitoring device behavior. Connect to the device's UART interface using either:
+The template provides several shell commands for controlling and monitoring device behavior. Connect to the device's UART interface using one of the following applications:
 
-- [Serial terminal app](https://docs.nordicsemi.com/bundle/nrf-connect-serial-terminal/page/index.html) from nRF Connect for Desktop.
-- Your preferred terminal application (for example, `putty`, `minicom`, `terraterm`).
+- The [Serial Terminal app](https://docs.nordicsemi.com/bundle/nrf-connect-serial-terminal/page/index.html) from nRF Connect for Desktop.
+- Your preferred terminal application, for example PuTTY, minicom, or Tera Term.
 
-### Available Commands
+### Available commands
 
-Run `help` to list all available commands:
+To list all available commands, run `help`:
 
 ```bash
 uart:~$ help
@@ -53,9 +53,13 @@ Available commands:
   shell                        : Useful, not Unix-like shell commands.
 ```
 
-### Shell Command Examples
+### Shell command examples
 
-#### Cloud Publishing
+The following sections show example output for the most common shell commands.
+
+#### Cloud publishing
+
+The `att_cloud publish` command sends a custom payload to nRF Cloud:
 
 ```bash
 uart:~$ att_cloud publish TEMP "24"
@@ -63,6 +67,8 @@ Sending on payload channel: {"messageType":"DATA","appId":"TEMP","data":"24","ts
 ```
 
 #### Perform cloud provisioning
+
+The `att_cloud provision` command contacts the nRF Provisioning Service:
 
 ```bash
 uart:~$ att_cloud provision
@@ -80,11 +86,11 @@ uart:~$ att_cloud provision
 [00:00:45.290,954] <wrn> cloud: Treating as provisioning finished
 ```
 
-When the provisioning command is called, the device connects to the provisioning endpoint, checks for any pending commands for the device, and executes them if present. Use this command to reprovision the device during development, or when you want to swap out the credentials used in the CoAP connection.
+When you call the provisioning command, the device connects to the provisioning endpoint, checks for any pending commands for the device, and executes them if present. Use this command to reprovision the device during development, or when you want to swap out the credentials used in the CoAP connection.
 
 #### Poll for FOTA updates
 
-Use this command to manually trigger a firmware update check against nRF Cloud. The device must be connected to the network and cloud.
+Use the `att_fota poll` command to trigger a firmware update check against nRF Cloud manually. The device must be connected to the network and the cloud.
 
 ```bash
 uart:~$ att_fota poll
@@ -92,9 +98,11 @@ uart:~$ att_fota poll
 [00:00:43.289,245] <inf> nrf_cloud_fota_poll: No pending FOTA job
 ```
 
-If a FOTA job is available, the FOTA module starts downloading the update automatically. See the [Firmware updates (FOTA)](fota.md) guide for details on creating and applying update jobs.
+If a FOTA job is available, the FOTA module starts downloading the update automatically. For information about creating and applying update jobs, see [Firmware updates (FOTA)](fota.md).
 
 #### Network disconnect
+
+The `att_network disconnect` command detaches the device from the cellular network:
 
 ```bash
 uart:~$ att_network disconnect
@@ -107,7 +115,9 @@ uart:~$ att_network disconnect
 [00:00:37.205,444] <dbg> network: state_disconnected_entry: state_disconnected_entry
 ```
 
-#### AT Command Execution
+#### AT command execution
+
+The `at` command runs an AT command on the modem. The following example reads the device IMEI:
 
 ```bash
 uart:~$ at at+cgsn
@@ -115,32 +125,36 @@ uart:~$ at at+cgsn
 OK
 ```
 
+The following example reads the current PSM configuration:
+
 ```bash
 uart:~$ at at+cpsms?
 +CPSMS: 1,,,"00001100","00000011"
 OK
 ```
 
-## Debugging Tools
+## Debugging tools
 
-### Low Power Profiling
+The following sections describe the tools you use to profile the power consumption, debug the application, analyze the threads, and inspect the module states.
 
-To get a rough estimate of the power consumption of the device and what you should expect depending on your network configuration and data transmission, you can use the [Online Power Profiler for LTE](https://devzone.nordicsemi.com/power/w/opp/3/online-power-profiler-for-lte).
+### Low power profiling
 
-For exact measurements, it is recommended to use a Power Analyzer or the [PPK: Power Profiler Kit 2](https://www.nordicsemi.com/Products/Development-hardware/Power-Profiler-Kit-2).
+To get a rough estimate of the device's power consumption, and of what to expect depending on your network configuration and data transmission, use the [Online Power Profiler for LTE](https://devzone.nordicsemi.com/power/w/opp/3/online-power-profiler-for-lte).
 
-For detailed guidance on how the PPK can be used to profile and measure power, see the [Power Profiler Kit User Guide](https://docs.nordicsemi.com/bundle/ug_ppk2/page/UG/ppk/PPK_user_guide_Intro.html).
+For exact measurements, use a power analyzer or the [Power Profiler Kit 2](https://www.nordicsemi.com/Products/Development-hardware/Power-Profiler-Kit-2).
 
-### GDB Debugging
+For detailed guidance on how to use the PPK to profile and measure power, see the [Power Profiler Kit user guide](https://docs.nordicsemi.com/bundle/ug_ppk2/page/UG/ppk/PPK_user_guide_Intro.html).
 
-Debug the template using GDB via west commands:
+### GDB debugging
+
+To debug the template with the GNU Debugger (GDB), use the following west command:
 
 ```bash
 # Attach GDB, skip rebuilding application
 west attach --skip-rebuild
 ```
 
-Common GDB commands:
+The following GDB commands are the most common ones:
 
 ```bash
 (gdb) tui enable
@@ -155,15 +169,15 @@ Common GDB commands:
 
 For more information, see the following documentation:
 
-- [West Debugging Guide](https://docs.zephyrproject.org/latest/develop/west/build-flash-debug.html#debugging-west-debug-west-debugserver)
-- [nRF Connect SDK VS Code Debugging](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/debugging-in-vs-code/)
-- [GDB Manual](https://man7.org/linux/man-pages/man1/gdb.1.html)
+- [Debugging with west](https://docs.zephyrproject.org/latest/develop/west/build-flash-debug.html#debugging-west-debug-west-debugserver)
+- [Debugging in VS Code](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/debugging-in-vs-code/)
+- [GDB manual](https://man7.org/linux/man-pages/man1/gdb.1.html)
 
 ### SEGGER SystemView
 
-Analyze thread execution and scheduling using [SEGGER SystemView](https://www.segger.com/products/development-tools/systemview/).
+Analyze the thread execution and scheduling using [SEGGER SystemView](https://www.segger.com/products/development-tools/systemview/), which presents the recorded trace as shown in the following animation:
 
-![Segger Systemview](../gifs/sysview-ui.gif)
+![SEGGER SystemView user interface showing the recorded thread activity of the template](../gifs/sysview-ui.gif)
 
 #### Configuration
 
@@ -186,11 +200,11 @@ Alternatively, use the RTT tracing snippet:
 west build -p -b <board> -- -Dapp_SNIPPET=rtt-tracing
 ```
 
-### Thread Analysis
+### Thread analysis
 
-Monitor and optimize stack sizes using the Thread Analyzer:
+To monitor and optimize the stack sizes, use the Thread Analyzer.
 
-Add to `prj.conf`:
+Add the following configuration to the `prj.conf` file:
 
 ```bash
 CONFIG_THREAD_ANALYZER=y
@@ -201,7 +215,7 @@ CONFIG_THREAD_ANALYZER_AUTO_STACK_SIZE=1024
 CONFIG_THREAD_NAME=y
 ```
 
-The listed configurations configure the thread analyzer to print thread information every 30 seconds:
+These options configure the Thread Analyzer to print thread information every 30 seconds:
 
 ```bash
 [00:00:30.725,463] <inf> thread_analyzer:  location_api_workq  : STACK: unused 376 usage 3720 / 4096 (90 %); CPU: 0 %
@@ -253,16 +267,15 @@ The listed configurations configure the thread analyzer to print thread informat
 [00:00:30.728,759] <inf> thread_analyzer:  ISR0                : STACK: unused 1736 usage 312 / 2048 (15 %)
 ```
 
-For more information, see [Zephyr Thread Analyzer](https://docs.zephyrproject.org/latest/services/debugging/thread-analyzer.html).
+For more information, see [Thread analyzer](https://docs.zephyrproject.org/latest/services/debugging/thread-analyzer.html) in the Zephyr documentation.
 
 ### Hardfaults
 
-When a hardfault occurs, you can check the [LR and PC](https://stackoverflow.com/questions/8236959/what-are-sp-stack-and-lr-in-arm) registers to find the offending instruction.
-For example, in this fault frame the PC is `0x00002681`, thread is `main` and type of error is a stack overflow.
-So in this case, there is no need to look up the PC or LR to understand the issue.
-The main stack size needs to be increased.
+When a hardfault occurs, check the [LR and PC](https://stackoverflow.com/questions/8236959/what-are-sp-stack-and-lr-in-arm) registers to find the offending instruction.
+In the following fault frame, the PC is `0x00002681`, the thread is `main`, and the error type is a stack overflow.
+In this case, you do not need to look up the PC or the LR to understand the issue, because you must increase the main stack size.
 
-For more information on how to debug hardfaults, see [Memfault Cortex Hardfault debug](https://interrupt.memfault.com/blog/cortex-m-hardfault-debug).
+For more information about how to debug hardfaults, see [How to debug a HardFault on an ARM Cortex-M MCU](https://interrupt.memfault.com/blog/cortex-m-hardfault-debug).
 
 ```bash
 *** Using Zephyr OS v4.0.99-7607c6585566 ***
@@ -346,43 +359,44 @@ Secure faults will display:
 - Non-secure SP and LR registers.
 - Violation details.
 
-For more information, refer to the following documentation:
+For more information, see the following documentation:
 
-- [TF-M Documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/tfm/introduction/readme.html#repositories)
-- [nRF Connect SDK TF-M Guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/security/tfm/index.html)
+- [TF-M documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/tfm/introduction/readme.html#repositories)
+- [Trusted Firmware-M in the nRF Connect SDK](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/security/tfm/index.html)
 
 > [!NOTE]
-> On hardfault, the fault frame might not be printed due to the device rebooting before the log buffer is flushed.
-> To circumvent this issue add the following configurations:
+> On a hardfault, the device might reboot before it flushes the log buffer, so it might not print the fault frame.
+> To circumvent this issue, add the following configuration:
+>
 > ```bash
 > CONFIG_LOG_MODE_IMMEDIATE=y
 > CONFIG_RESET_ON_FATAL_ERROR=n
 > ```
 
-When enabling immediate logging, it might be necessary to increase the stack size of certain threads, because log messages are emitted in the calling thread's context, which increases stack usage.
+When you enable immediate logging, you might have to increase the stack size of certain threads, because the application emits the log messages in the calling thread's context, which increases the stack usage.
 
-### State Inspection Script
+### State inspection script
 
-The `inspect_state.py` script allows you to inspect the current state of the application's state machines and internal data structures on a running device. It supports two modes of operation:
+The `inspect_state.py` script lets you inspect the current state of the application's state machines and internal data structures on a running device. It supports the following two modes of operation:
 
-- **Live Inspection**: It connects to the device using J-Link, parses the ELF file to find symbol locations and types, and reads the memory to display the current state.
-- **Coredump Analysis**: It can also analyze a coredump file generated by the device, allowing you to inspect the state at the time of the crash.
+- **Live inspection**: The script connects to the device using J-Link, parses the ELF file to find the symbol locations and types, and reads the memory to display the current state.
+- **Coredump analysis**: The script can also analyze a coredump file that the device generated, which lets you inspect the state at the time of the crash.
 
-This is particularly useful for debugging when the application is stuck or behaving unexpectedly, and you want to see the exact state of each module without halting the CPU or adding extensive logging, or when analyzing crashes.
+The script is particularly useful for debugging when the application is stuck or behaves unexpectedly and you want to see the exact state of each module without halting the CPU or adding extensive logging, and when you analyze crashes.
 
-**Prerequisites:**
+The script has the following prerequisites:
 
-*   Python 3 installed.
-*   Required Python packages: `pyelftools` (>=0.30) and `pylink-square`.
+- Python 3 installed.
+- The `pyelftools` package, version 0.30 or later, and the `pylink-square` package:
+
     ```bash
     pip install "pyelftools>=0.30" pylink-square
     ```
-*   J-Link debug probe connected to the device.
-*   The `zephyr.elf` file corresponding to the running firmware.
 
-**Usage:**
+- A J-Link debug probe connected to the device.
+- The `zephyr.elf` file that corresponds to the running firmware.
 
-Run the script from the `scripts` directory (or adjust the path), providing the path to your ELF file and optionally the J-Link device name:
+Run the script from the `scripts` directory, or adjust the path, and provide the path to your ELF file and optionally the J-Link device name:
 
 ```bash
 # Live inspection
@@ -390,8 +404,6 @@ python3 Asset-Tracker-Template/scripts/inspect_state.py --elf build/app/zephyr/z
 # Coredump analysis
 python3 Asset-Tracker-Template/scripts/inspect_state.py --elf path/to/symbols.elf --coredump path/to/coredump.elf
 ```
-
-**Example Output:**
 
 The script first shows a summary table of all modules and their current state:
 
@@ -426,7 +438,7 @@ Options:
 Select option: 2
 ```
 
-Selecting a module (for example, `2` for Cloud) reveals the detailed structure of its state variable, including all internal members:
+Selecting a module, for example `2` for the Cloud module, reveals the detailed structure of its state variable, including all internal members:
 
 ```text
 --- Cloud State Details ---
@@ -443,9 +455,9 @@ backoff_time        : 60 (0x3C)
 ----------------------------------------
 ```
 
-#### Memory Section Placement for State Objects
+#### Memory section placement for state objects
 
-All module state objects (main, cloud, location, network, storage) are explicitly placed in the `.data` section of memory using the `__attribute__((section(".data")))` compiler attribute:
+The template places all module state objects, which are the Main, Cloud, Location, Network, and Storage module objects, explicitly in the `.data` section of memory using the `__attribute__((section(".data")))` compiler attribute:
 
 ```c
 /* Place state object in .data section to ensure it is captured in coredumps
@@ -458,62 +470,64 @@ __attribute__((section(".data"))) static struct main_state main_state = {
 ```
 
 By default, Memfault coredumps do not include the `.bss` section.
-Without explicit initialization or attribute placement in the `.data` section, state objects would be placed in `.bss` by the compiler and would not appear in coredumps.
-By placing these objects in `.data`, they are captured in Memfault coredumps and can be inspected by the `inspect_state.py` script when analyzing crashes after the fact.
-This ensures that even in post-mortem debugging scenarios where the device is not under a live debugger, you can still access the complete state of all module state machines at the time of the crash or event.
+Without explicit initialization or attribute placement in the `.data` section, the compiler would place the state objects in `.bss`, and they would not appear in coredumps.
+Placing these objects in `.data` captures them in the Memfault coredumps, so the `inspect_state.py` script can inspect them when you analyze crashes after the fact.
+As a result, you can access the complete state of all module state machines at the time of the crash or event, even in post-mortem debugging scenarios where the device is not under a live debugger.
 
-## Memfault Remote Debugging
+## Memfault remote debugging
 
-Memfault is enabled by default in all standard firmware builds. Once a device is provisioned to nRF Cloud, it automatically forwards coredumps, LTE and location metrics, and other diagnostic data to the Memfault project linked to your account via nRF Cloud CoAP.
+Memfault is enabled by default in all standard firmware builds. Once a device is provisioned to nRF Cloud, it automatically forwards coredumps, LTE and location metrics, and other diagnostic data to the Memfault project linked to your account through nRF Cloud CoAP.
 
-For deeper post-mortem analysis, you can also capture modem traces around application crashes and upload them to Memfault. Use the pre-built `-debug-thingy91x` [release artifact](release.md#debug-variant), or apply the modem-trace overlay when building locally (see below).
+For deeper post-mortem analysis, you can also capture modem traces around application crashes and upload them to Memfault. Use the pre-built `-debug-thingy91x` [release artifact](release.md#debug-variant), or apply the modem trace overlay when building locally, as described in [Use Memfault](#use-memfault).
 
-Remote debugging enables the device to send metrics such as LTE, location, and memory statistics, as well as coredump captures on crashes, to analyse problems across single devices or a fleet of devices once they occur.
+Remote debugging enables the device to send metrics such as LTE, location, and memory statistics, as well as coredump captures on crashes, so you can analyze problems across single devices or a fleet of devices once they occur.
 
-### When to Use Memfault
+### When to use Memfault
 
-Memfault is a device observability platform that complements traditional debugging tools by providing remote diagnostics and fleet-wide insights. It is particularly valuable when:
+Memfault is a device observability platform that complements traditional debugging tools by providing remote diagnostics and fleet-wide insights. It is particularly valuable in the following situations:
 
-- Devices are deployed in remote or inaccessible locations, and you need to capture crashes and diagnostics without physical access or a live debug session.
-- Issues only reproduce under real network conditions or occur sporadically and are difficult to recreate on the bench.
-- You need full post-mortem context, such as register state, stack traces, memory contents, and (optionally) modem traces, to root-cause crashes after the fact.
-- You want to track device health, LTE connectivity, stack usage, and memory statistics across an entire fleet and watch trends over time.
-- You want to spot systemic issues affecting specific firmware versions, hardware batches, or network configurations, and collect crash data to identify recurring patterns.
+- The devices are deployed in remote or inaccessible locations, and you need to capture crashes and diagnostics without physical access or a live debug session.
+- The issues only reproduce under real network conditions, or they occur sporadically and are difficult to recreate on the bench.
+- You need the full post-mortem context to find the root cause of crashes after the fact, such as the register state, the stack traces, the memory contents, and optionally the modem traces.
+- You want to track the device health, the LTE connectivity, the stack usage, and the memory statistics across an entire fleet, and watch the trends over time.
+- You want to spot systemic issues that affect specific firmware versions, hardware batches, or network configurations, and collect crash data to identify recurring patterns.
 
-### How to use Memfault
+### Use Memfault
 
-1. **Provision the device:**
+To set up remote debugging with Memfault, complete the following steps:
 
-    1. Follow the [Getting Started](getting_started.md) guide to connect the device to your nRF Cloud instance.
+1. Provision the device.
 
-       Once provisioned, the device automatically forwards coredumps and metrics to the Memfault project linked to your nRF Cloud account. Modem traces are also uploaded on crash when using the `-debug-thingy91x` release artifact or the modem-trace overlay described below.
+    Follow [Getting started](getting_started.md) to connect the device to your nRF Cloud instance.
 
-1. **Open the Memfault dashboard:**
+    Once provisioned, the device forwards coredumps and metrics automatically to the Memfault project linked to your nRF Cloud account. The device also uploads modem traces on a crash when you use the `-debug-thingy91x` release artifact or the modem trace overlay.
 
-    1. Log in at [nrfcloud.com](https://nrfcloud.com/). You land in the new Memfault-integrated nRF Cloud experience, which is the Memfault dashboard for your linked project.
-    1. Device onboarding (**Fleet** → **Devices** → **Add devices**) is done in the new UI, see [Connecting](connecting.md). Other device-management UI steps in these guides (shadow configuration, and so on) still use the **legacy nRF Cloud portal**. Open it using the link in the **bottom left corner** of the new UI.
+1. Open the Memfault dashboard.
 
-1. **Upload the firmware symbol file:**
+    1. Log in at [nRF Cloud](https://nrfcloud.com). You land in the new Memfault-integrated nRF Cloud experience, which is the Memfault dashboard for your linked project.
+    1. Onboard the device in the new UI, under **Fleet** > **Devices** > **Add devices**, as described in [Connecting](connecting.md). The other device-management UI steps in these guides, such as the shadow configuration, still use the legacy nRF Cloud portal. Open it using the link in the bottom left corner of the new UI.
 
-   1. Upload the `zephyr.elf` file once per build, either from the Memfault UI (**Symbol Files** → **Upload Symbol File** → select `build/app/zephyr/zephyr.elf`) or from the command line using the [Memfault CLI](https://docs.memfault.com/docs/ci/install-memfault-cli):
+1. Upload the firmware symbol file.
 
-       ```bash
-       memfault \
-           --org-token <YOUR_ORG_TOKEN> \
-           --org <YOUR_ORG_SLUG> \
-           --project <YOUR_PROJECT_SLUG> \
-           upload-mcu-symbols build/app/zephyr/zephyr.elf
-       ```
+    Upload the `zephyr.elf` file once per build, either from the Memfault UI, under **Symbol Files** > **Upload Symbol File**, where you select `build/app/zephyr/zephyr.elf`, or from the command line using the [Memfault CLI](https://docs.memfault.com/docs/ci/install-memfault-cli):
 
-       Memfault needs the build's `zephyr.elf` to decode crash addresses into function names, line numbers, and variable names.
+    ```bash
+    memfault \
+        --org-token <YOUR_ORG_TOKEN> \
+        --org <YOUR_ORG_SLUG> \
+        --project <YOUR_PROJECT_SLUG> \
+        upload-mcu-symbols build/app/zephyr/zephyr.elf
+    ```
 
-1. **List your devices:**
+    Memfault needs the build's `zephyr.elf` to decode the crash addresses into function names, line numbers, and variable names.
 
-    1. In the Memfault UI, click **Devices** in the left toolbar to see all devices that have reported data.
-    1. Select a device to explore its coredumps, metrics, and modem traces (CDRs).
+1. List your devices.
 
-    All standard builds include Memfault coredump capture and fleet metrics via nRF Cloud CoAP.
-    To also upload modem traces on application crashes, either flash the pre-built `-debug-thingy91x` firmware from the [release page](release.md#debug-variant), or include the `overlay-upload-modem-traces-to-memfault.conf` Kconfig overlay **and** the devicetree overlay `overlay-upload-modem-traces-to-memfault.overlay` in your west build command:
+    1. In the Memfault UI, select **Devices** in the left toolbar to see all devices that have reported data.
+    1. Select a device to explore its coredumps, metrics, and modem traces, which are custom data recordings (CDRs).
+
+    All standard builds include Memfault coredump capture and fleet metrics through nRF Cloud CoAP.
+    To also upload modem traces on application crashes, either flash the pre-built `-debug-thingy91x` firmware from the [release page](release.md#debug-variant), or include both the `overlay-upload-modem-traces-to-memfault.conf` Kconfig overlay and the `overlay-upload-modem-traces-to-memfault.overlay` devicetree overlay in your west build command:
 
     ```bash
     west build -p -b <board> -- \
@@ -521,21 +535,20 @@ Memfault is a device observability platform that complements traditional debuggi
         -DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay"
     ```
 
-> [!IMPORTANT]
+> [!NOTE]
 > The modem trace upload feature can send upwards of 1 MB of modem trace data in case of application crashes.
 > Consider this when planning your data usage and costs.
+>
+> You can also decrypt the traces uploaded to Memfault, so you can inspect the nRF Cloud CoAP exchange leading up to a crash.
+> For more information, see [Decrypted traces uploaded to Memfault](#decrypted-traces-uploaded-to-memfault).
 
-> [!TIP]
-> Traces uploaded to Memfault can also be decrypted, so you can inspect the nRF Cloud CoAP exchange leading up to a crash.
-> See [Decrypted traces uploaded to Memfault](#decrypted-traces-uploaded-to-memfault).
+The following image shows an example of a coredump received in Memfault:
 
-Example of a coredump received in Memfault:
-
-![Memfault UI](../images/memfault.png)
+![Memfault user interface showing the decoded stack trace of a device coredump](../images/memfault.png)
 
 #### Test shell commands
 
-Trigger test faults using shell commands:
+To trigger test faults, use the following shell commands:
 
 ```bash
 uart:~$ mflt test hardfault
@@ -543,11 +556,11 @@ uart:~$ mflt test assert
 uart:~$ mflt test usagefault
 ```
 
-## Modem Tracing
+## Modem tracing
 
-Capture and analyze modem behavior live (AT, LTE, IP) using Wireshark.
+Capture and analyze the modem behavior live, which includes the AT, LTE, and IP traffic, using Wireshark.
 
-### UART Tracing
+### UART tracing
 
 Build and flash the application with `overlay-modem-trace-over-uart.conf` and `overlay-modem-trace-shmem.overlay`:
 
@@ -559,7 +572,7 @@ west build -p -b <board> --sysbuild -- \
 
 ```
 
-Capture traces using [nRF Connect for Desktop](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) Cellular Monitor application or manually using nRF Util:
+Capture the traces with the Cellular Monitor application in [nRF Connect for Desktop](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop), or manually with nRF Util:
 
 ```bash
 nrfutil trace lte --input-serialport /dev/tty.usbmodem141405 --output-pcapng trace.pcapng
@@ -570,20 +583,20 @@ nrfutil trace lte --input-serialport /dev/tty.usbmodem141405 --output-pcapng tra
 ⠒ Saving trace to trace.pcapng (11952 bytes)
 ```
 
-If no traces are captured, it might be necessary to reset the device.
-After capturing, the trace can be opened in Wireshark:
+If nRF Util captures no traces, reset the device.
+After the capture, open the trace in Wireshark:
 
 ```bash
 wireshark trace.pcapng
 ```
 
-You can also do live tracing by piping the traces to Wireshark:
+You can also trace live by piping the traces to Wireshark:
 
 ```bash
 nrfutil trace lte --input-serialport /dev/tty.usbmodem141405 --output-pcapng trace.pcapng --output-wireshark wireshark
 ```
 
-### RTT Tracing
+### RTT tracing
 
 Build and flash the application with the `nrf91-modem-trace-rtt` snippet and `overlay-modem-trace-shmem.overlay`:
 
@@ -594,7 +607,7 @@ west build -p -b <board> --sysbuild -- \
     && west flash --recover
 ```
 
-Capture modem traces with Segger J-Link RTT Logger:
+Capture the modem traces with the SEGGER J-Link RTT Logger:
 
 ```bash
 JLinkRTTLogger -Device NRF9160_XXAA -If SWD -Speed 50000 -RTTChannel 1 modem_trace.bin
@@ -608,39 +621,43 @@ nrfutil trace lte --input-file modem_trace.bin --output-pcapng rtt-trace.pcapng
 
 ### Decrypting DTLS traffic in modem traces
 
+The following sections describe the requirements for decrypting the nRF Cloud CoAP traffic in a modem trace, how to build the firmware for it, how to capture and inspect the decrypted traffic, and how to provision the certificate that the nRF9151 DK needs.
+
 By default, nRF Cloud CoAP traffic appears in a modem trace as encrypted DTLS records, so Wireshark cannot show the CoAP and CBOR payloads.
 The modem exposes the session keys to Nordic tools when the DTLS connection uses a security tag in the reserved developer range `NRF_SEC_TAG_TLS_DECRYPT_0` to `NRF_SEC_TAG_TLS_DECRYPT_19` (`2147483648` to `2147483667`).
 Building the template with the CoAP security tag pointed at one of these tags gives you fully decoded nRF Cloud traffic in Wireshark.
 
-> [!WARNING]
+> [!CAUTION]
 > The developer security tags are intended for development and testing only.
 > Any trace captured from a session that uses them can be decrypted with Nordic tools.
 > Never ship production firmware configured this way.
 
 #### Requirements
 
+Decrypting the DTLS traffic has the following requirements:
+
 - A device running `mfw_nrf91x1` v2.0.0 or later. Check the modem firmware version with `at at+cgmr`.
-- Modem traces enabled, see [UART Tracing](#uart-tracing) or [RTT Tracing](#rtt-tracing).
-- The device onboarded and provisioned to nRF Cloud, see [Connecting](connecting.md).
+- Modem traces enabled, as described in [UART tracing](#uart-tracing) or [RTT tracing](#rtt-tracing).
+- The device onboarded and provisioned to nRF Cloud, as described in [Connecting](connecting.md).
 - The nRF Cloud CoAP root CA certificate present in the developer security tag:
 
     - **Thingy:91 X**: The certificate is written to the developer security tag during production, so no action is needed.
-    - **nRF9151 DK**: You must provision the certificate yourself first, see [Provisioning the CoAP CA certificate on the nRF9151 DK](#provisioning-the-coap-ca-certificate-on-the-nrf9151-dk).
+    - **nRF9151 DK**: You must provision the certificate yourself first, as described in [Provisioning the CoAP CA certificate on the nRF9151 DK](#provisioning-the-coap-ca-certificate-on-the-nrf9151-dk).
 
 #### Building with the developer security tag
 
-Two Kconfig options control which security tags the cloud module uses:
+Two Kconfig options control which security tags the Cloud module uses:
 
-- `CONFIG_NRF_CLOUD_COAP_SEC_TAG` - holds the CA certificate used to verify the nRF Cloud CoAP server during the DTLS handshake. Point this at the developer tag.
-- `CONFIG_NRF_CLOUD_COAP_JWT_SEC_TAG` - holds the private key used to sign the JWT that authenticates the device to nRF Cloud. Keep this at `16842753`, the security tag where the nRF Provisioning Service stores the cloud access key.
+- `CONFIG_NRF_CLOUD_COAP_SEC_TAG`: Holds the CA certificate used to verify the nRF Cloud CoAP server during the DTLS handshake. Point this option at the developer tag.
+- `CONFIG_NRF_CLOUD_COAP_JWT_SEC_TAG`: Holds the private key used to sign the JWT that authenticates the device to nRF Cloud. Keep this option at `16842753`, which is the security tag where the nRF Provisioning Service stores the cloud access key.
 
-> [!IMPORTANT]
+> [!NOTE]
 > `CONFIG_NRF_CLOUD_COAP_JWT_SEC_TAG` defaults to the value of `CONFIG_NRF_CLOUD_COAP_SEC_TAG`, so you must set it explicitly.
-> If you only override the CoAP security tag, the device signs its JWT with a key that nRF Cloud does not recognize and authentication fails even though the DTLS handshake succeeds.
+> If you only override the CoAP security tag, the device signs its JWT with a key that nRF Cloud does not recognize, and the authentication fails even though the DTLS handshake succeeds.
 
 Build and flash with UART tracing and the developer security tag.
 
-**Thingy:91 X**
+For the Thingy:91 X, run the following command:
 
 ```bash
 west build -p -b thingy91x/nrf9151/ns --sysbuild -- \
@@ -651,7 +668,7 @@ west build -p -b thingy91x/nrf9151/ns --sysbuild -- \
     && west flash --recover
 ```
 
-**nRF9151 DK**
+For the nRF9151 DK, run the following command:
 
 ```bash
 west build -p -b nrf9151dk/nrf9151/ns --sysbuild -- \
@@ -664,17 +681,17 @@ west build -p -b nrf9151dk/nrf9151/ns --sysbuild -- \
 
 #### Capturing and inspecting decrypted traffic
 
-The [Cellular Monitor app](https://docs.nordicsemi.com/bundle/nrf-connect-cellularmonitor/page/index.html) handles the trace database selection and Wireshark hand-off for you:
+The [Cellular Monitor app](https://docs.nordicsemi.com/bundle/nrf-connect-cellularmonitor/page/index.html) handles the trace database selection and the Wireshark hand-off for you:
 
 1. Connect the device over USB and open Cellular Monitor.
 1. Set **Modem trace database** to **Autoselect**, or to the modem firmware version programmed on the device.
 1. Select **Open in Wireshark**.
-1. Click **Start** and let the device connect to nRF Cloud.
-1. In Wireshark, expand a DTLS packet and look for the **Decrypted TLS** layer in the packet details pane. The decoded CoAP request or response and its CBOR payload are shown underneath.
+1. Select **Start** and let the device connect to nRF Cloud.
+1. In Wireshark, expand a DTLS packet and look for the **Decrypted TLS** layer in the packet details pane. The decoded CoAP request or response and its CBOR payload appear underneath.
 
-You can also capture with nRF Util as described in [UART Tracing](#uart-tracing) and open the resulting `.pcapng` afterwards.
+You can also capture with nRF Util as described in [UART tracing](#uart-tracing), and open the resulting `.pcapng` file afterwards.
 
-If the **Decrypted TLS** layer is missing, check the following:
+If the **Decrypted TLS** layer is missing, check the following points:
 
 - The build actually used the developer security tag. Verify with `rg NRF_CLOUD_COAP_SEC_TAG build/app/zephyr/.config`.
 - The trace database matches the modem firmware on the device.
@@ -684,9 +701,9 @@ If the **Decrypted TLS** layer is missing, check the following:
 
 Decryption is a property of the DTLS session, not of the trace backend. Once the device is built with the developer security tag, provisioned, and producing decodable traces locally, the same traces remain decodable when the device is configured to upload modem traces to Memfault on a coredump.
 
-Combine the developer security tag with the Memfault modem trace overlays, see [Memfault Remote Debugging](#memfault-remote-debugging).
+Combine the developer security tag with the Memfault modem trace overlays, as described in [Memfault remote debugging](#memfault-remote-debugging).
 
-**Thingy:91 X**
+For the Thingy:91 X, run the following command:
 
 ```bash
 west build -p -b thingy91x/nrf9151/ns --sysbuild -- \
@@ -697,7 +714,7 @@ west build -p -b thingy91x/nrf9151/ns --sysbuild -- \
     && west flash --recover
 ```
 
-**nRF9151 DK**
+For the nRF9151 DK, run the following command:
 
 ```bash
 west build -p -b nrf9151dk/nrf9151/ns --sysbuild -- \
@@ -714,18 +731,17 @@ Download the trace from the device timeline in Memfault, convert it with nRF Uti
 nrfutil trace lte --input-file memfault-modem-trace.bin --output-pcapng memfault-trace.pcapng
 ```
 
-This makes it possible to inspect the nRF Cloud CoAP exchange leading up to a crash on a device that is not attached to a debugger.
+This lets you inspect the nRF Cloud CoAP exchange leading up to a crash on a device that is not attached to a debugger.
 
 #### Provisioning the CoAP CA certificate on the nRF9151 DK
 
-The nRF9151 DK does not ship with the nRF Cloud CoAP root CA in the developer security tag, so you need to install it once.
+The nRF9151 DK does not ship with the nRF Cloud CoAP root CA in the developer security tag, so you must install it once.
 
 1. Save the nRF Cloud CoAP root CA certificate to a file named `coap_ca.pem`.
    The certificate is maintained in the [`ca_certs.py`](https://github.com/nRFCloud/utils/blob/main/src/nrfcloud_utils/ca_certs.py) file in the nRF Cloud utils repository.
    Copy the value of the `nrf_cloud_coap_ca` variable, including the `BEGIN CERTIFICATE` and `END CERTIFICATE` lines.
 
-    > [!NOTE]
-    > Only the CoAP root CA is needed. The AWS root CA in the same file is used for MQTT, REST, and HTTP file downloads, none of which the template uses.
+    **Note:** You only need the CoAP root CA. The AWS root CA in the same file is used for MQTT, REST, and HTTP file downloads, none of which the template uses.
 
 1. Install [nrfcredstore](https://github.com/NordicSemiconductor/nrfcredstore):
 
@@ -733,7 +749,7 @@ The nRF9151 DK does not ship with the nRF Cloud CoAP root CA in the developer se
     pip3 install -r nrf/scripts/requirements-extra.txt
     ```
 
-1. Disconnect from the network before writing credentials. Credential storage only succeeds when the modem is offline. In the device shell, run:
+1. Disconnect from the network before writing the credentials. Credential storage only succeeds when the modem is offline. In the device shell, run the following command:
 
     ```bash
     uart:~$ att_network disconnect
@@ -757,16 +773,16 @@ The nRF9151 DK does not ship with the nRF Cloud CoAP root CA in the developer se
     2147483667   ROOT_CA_CERT       XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     ```
 
-    A `ROOT_CA_CERT` entry for security tag `2147483667` means the root CA is stored and the DTLS handshake can be verified against it.
+    A `ROOT_CA_CERT` entry for security tag `2147483667` means that the root CA is stored and that the modem can verify the DTLS handshake against it.
 
 ### Dumping modem traces over UART after capture
 
-You can configure the device to continuously capture modem traces to external flash memory. After capture, you can use a shell command to dump the stored traces over UART using the [Cellular Monitor app](https://docs.nordicsemi.com/bundle/nrf-connect-cellularmonitor/page/index.html) for storage and analysis.
+You can configure the device to capture modem traces continuously to external flash memory. After the capture, you can use a shell command to dump the stored traces over UART with the [Cellular Monitor app](https://docs.nordicsemi.com/bundle/nrf-connect-cellularmonitor/page/index.html) for storage and analysis.
 
-> [!IMPORTANT]
-> The flash trace backend needs two things from devicetree on top of the Kconfig options below: the modem trace shared-memory region (see the [UART Tracing](#uart-tracing) note) and a dedicated `modem_trace` flash partition. Both are already declared by `app/overlay-upload-modem-traces-to-memfault.overlay`, which you can use directly or copy as a starting point. Pass it on the build command line with `-DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay"`.
+> [!NOTE]
+> On top of the following Kconfig options, the flash trace backend needs two things from devicetree: the modem trace shared-memory region, which the note in [UART tracing](#uart-tracing) describes, and a dedicated `modem_trace` flash partition. The `app/overlay-upload-modem-traces-to-memfault.overlay` file already declares both, and you can use it directly or copy it as a starting point. Pass it on the build command line with `-DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay"`.
 
-Add to `prj.conf`:
+Add the following configuration to the `prj.conf` file:
 
 ```bash
 CONFIG_FCB=y
@@ -781,28 +797,22 @@ CONFIG_NRF_MODEM_LIB_TRACE_BACKEND_FLASH_PARTITION_SIZE=0xFF000
 CONFIG_NRF_MODEM_LIB_SHELL_TRACE=y
 ```
 
-> [!IMPORTANT]
-> **Flash Partition Configuration:**
->
-> The flash partition size configuration allocates 255 sectors of 4 kB each (approximately 1 MB) for trace storage.
+> [!NOTE]
+> The flash partition size configuration allocates 255 sectors of 4 kB each, which is approximately 1 MB, for trace storage.
 > Adjust the `CONFIG_NRF_MODEM_LIB_TRACE_FLASH_SECTORS` and `CONFIG_NRF_MODEM_LIB_TRACE_BACKEND_FLASH_PARTITION_SIZE` Kconfig options according to your available flash memory.
 >
-> **Trace Buffer Limitations:**
+> Depending on the trace level and the network and IP activity, the trace buffer might get full. Because of a current limitation in Zephyr, the maximum size of the buffer is approximately 1 MB.
 >
-> Depending on the trace level, network, and IP activity, the trace buffer might get full. Due to a current limitation in Zephyr, the maximum size of the buffer is approximately 1 MB.
+> To mitigate buffer overflow issues, adjust the trace level through the `CONFIG_NRF_MODEM_LIB_TRACE_LEVEL` choice symbol:
 >
-> **Trace Level Configuration:**
+> - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_OFF`**: Disables the output.
+> - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_COREDUMP_ONLY`**: Coredump only.
+> - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_IP_ONLY`**: IP only.
+> - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_LTE_AND_IP`**: LTE and IP, which Nordic Semiconductor recommends for most use cases.
+> - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_FULL`**: LTE, IP, GNSS, and coredump, which has the highest data volume.
 >
-> To mitigate buffer overflow issues, the trace level can be adjusted through the `CONFIG_NRF_MODEM_LIB_TRACE_LEVEL` choice symbol:
->
-> - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_OFF`**: Disable output
-> - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_COREDUMP_ONLY`**: Coredump only
-> - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_IP_ONLY`**: IP only
-> - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_LTE_AND_IP`**: LTE and IP (recommended for most use cases)
-> - **`CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_FULL`**: LTE, IP, GNSS, and coredump (highest data volume)
->
-> Adjusting the trace level will set how often the trace buffer is filled up. When the trace buffer gets full, the oldest entry will be overwritten.
-> To disable this, disable `CONFIG_NRF_MODEM_TRACE_FLASH_NOSPACE_ERASE_OLDEST`.
+> The trace level sets how often the trace buffer fills up. When the trace buffer gets full, the backend overwrites the oldest entry.
+> To prevent the overwrite, disable `CONFIG_NRF_MODEM_TRACE_FLASH_NOSPACE_ERASE_OLDEST`.
 
 The following `modem_trace` shell commands are available:
 
@@ -819,10 +829,10 @@ Subcommands:
   dump_uart  : Dump stored traces to UART.
 ```
 
-Complete the following to capture traces:
+To capture the traces, complete the following steps:
 
 1. Connect to the device using a serial terminal.
-1. Start capturing traces using the [Cellular Monitor app](https://docs.nordicsemi.com/bundle/nrf-connect-cellularmonitor/page/index.html) on UART 1 or call the following nRF Util command:
+1. Start capturing the traces with the [Cellular Monitor app](https://docs.nordicsemi.com/bundle/nrf-connect-cellularmonitor/page/index.html) on UART 1, or run the following nRF Util command:
 
     ```bash
     nrfutil trace lte --input-serialport /dev/tty.usbmodemxxxxxx --output-raw raw-file.bin
@@ -835,13 +845,11 @@ Complete the following to capture traces:
     uart:~$ modem_trace dump_uart
     ```
 
-1. When the traces have been captured, they can be converted to PCAP in the Cellular Monitor app for analysis.
+1. Once the capture completes, convert the traces to PCAP in the Cellular Monitor app for analysis.
 
-### Application logs and modem traces over RTT - Parallel capture
+### Parallel capture of application logs and modem traces over RTT
 
-For simultaneous modem traces and application logs over RTT:
-
-Add to `prj.conf`:
+To capture modem traces and application logs over RTT simultaneously, add the following configuration to the `prj.conf` file:
 
 ```bash
 CONFIG_USE_SEGGER_RTT=y
@@ -850,7 +858,7 @@ CONFIG_SHELL_BACKEND_RTT=y
 CONFIG_SHELL_BACKEND_RTT_BUFFER=1
 ```
 
-Capture in separate terminals on different RTT channels:
+Capture the logs and the traces in separate terminals on different RTT channels:
 
 ```bash
 # Terminal 1 - Modem traces
@@ -861,15 +869,15 @@ JLinkRTTLogger -Device NRF9160_XXAA -If SWD -Speed 50000 -RTTChannel 0 terminal.
 ```
 
 > [!NOTE]
-> You may need to adjust the RTT channel numbers depending on your configuration.
-> The following is the default channel mapping:
+> You might have to adjust the RTT channel numbers depending on your configuration.
+> The default channel mapping is the following:
 >
-> * Terminal: 0
-> * Shell: 1
-> * Modem trace: 2
+> - Terminal: 0
+> - Shell: 1
+> - Modem trace: 2
 
-For more information, see [nRF Connect SDK Modem Tracing](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrfxlib/nrf_modem/doc/modem_trace.html).
+For more information, see [Modem trace module](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrfxlib/nrf_modem/doc/modem_trace.html) in the nRF Connect SDK documentation.
 
-## Common Issues and Solutions
+## Common issues and solutions
 
-If you are not able to resolve the issue with the tools and instructions given in this documentation, it is recommended to create an issue in the [template repository](https://github.com/nrfconnect/Asset-Tracker-Template/issues) or register a support ticket in [Nordic's support portal](https://devzone.nordicsemi.com/).
+If you cannot resolve the issue with the tools and instructions in this documentation, create an issue in the [Asset Tracker Template repository](https://github.com/nrfconnect/Asset-Tracker-Template/issues) or register a support ticket on [DevZone](https://devzone.nordicsemi.com).

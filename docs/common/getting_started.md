@@ -1,24 +1,24 @@
 # Getting started
 
-This guide walks you through getting the Asset Tracker Template running end-to-end on supported hardware. It covers:
+This guide walks you through getting the Asset Tracker Template running end-to-end on supported hardware. It covers the following tasks:
 
-* Setting up the development environment
-* Building the application
-* Flashing the application to the device
-* Connecting the device to [nRF Cloud](https://nrfcloud.com)
+- Setting up the development environment.
+- Building the application.
+- Flashing the application to the device.
+- Connecting the device to [nRF Cloud](https://nrfcloud.com).
 
-There are two options for setting up the project, depending on your preferred development environment:
+You have two options for setting up the project, depending on your preferred development environment:
 
-* **Option 1**: Using Visual Studio Code and the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) extension (recommended).
-* **Option 2**: Using the command line and nRF Util.
+- **Option 1** (recommended): Using Visual Studio Code and the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) extension.
+- **Option 2**: Using the command line and nRF Util.
 
-For pre-built binaries that do not require a build environment, refer to the latest tag and the [release artifacts](release.md) documentation.
+For pre-built binaries that do not need a build environment, see the latest tag and the [Release artifacts](release.md) documentation.
 
 ## Option 1: nRF Connect for VS Code (recommended)
 
 1. Open the **nRF Connect** extension panel from the VS Code activity bar.
 
-1. Under the **Welcome** section of the extension panel, click **Create a new application**:
+1. Under the **Welcome** section of the extension panel, select **Create a new application**:
 
     ![nRF Connect extension panel with Create a new application](../images/create_new_app.png)
 
@@ -26,37 +26,37 @@ For pre-built binaries that do not require a build environment, refer to the lat
 
     ![Asset Tracker Template add-on](../images/addon_att.png)
 
-1. After the project is created, it is listed under **Applications** in the extension panel. Click **Add build configuration** under the **app** entry (or use the **Add build configuration** button under **Build**) to open the build configuration dialog.
+1. After the project is created, it is listed under **Applications** in the extension panel. To open the build configuration dialog, select **Add build configuration** under the **app** entry, or use the **Add build configuration** button under **Build**.
 
-1. In the **Add build configuration (app)** dialog, set the **Board target**. With the **Compatible** filter selected (the default), only the supported build targets are listed:
+1. In the **Add build configuration (app)** dialog, set the **Board target**. With the **Compatible** filter selected, which is the default, only the supported build targets are listed:
 
     | Board        | Board target            |
     | ------------ | ----------------------- |
     | Thingy:91 X  | `thingy91x/nrf9151/ns`  |
     | nRF9151 DK   | `nrf9151dk/nrf9151/ns`  |
 
-    Keep the other fields at their defaults and click **Generate and build** to build the application.
+    Keep the other fields at their defaults and select **Generate and build** to build the application.
 
-1. Flash the device
+1. Flash the device.
 
     Expand the section that matches your hardware setup.
 
     <details markdown="1">
     <summary><strong>Thingy:91 X (with debugger) or nRF9151 DK</strong></summary>
 
-    With an external J-Link debugger attached to the Thingy:91 X, click the **Erase and flash to board** icon next to **Flash** in the **Actions** panel.
+    With an external J-Link debugger attached to the Thingy:91 X, select the **Erase and flash to board** icon next to **Flash** in the **Actions** panel.
 
-    Do not use the simple **Flash** action. It will fail with a UICR-related error.
+    Do not use the simple **Flash** action. It fails with a UICR-related error.
 
-    If prompted for which device to flash, select the ID of the debugger or nRF9151 DK. Do not select the `THINGY91X_(serial number)` device, as it is not used with an external debugger.
+    If prompted for which device to flash, select the ID of the debugger or the nRF9151 DK. Do not select the `THINGY91X_(serial number)` device, because it is not used with an external debugger.
     </details>
 
     <details markdown="1">
     <summary><strong>Thingy:91 X (no debugger)</strong></summary>
 
-    Thingy:91 X does not have an on-board debugger, so the default **Flash** action in the **Actions** panel will not work. Flash over the serial bootloader from a toolchain terminal instead.
+    The Thingy:91 X does not have an on-board debugger, so the default **Flash** action in the **Actions** panel does not work. Flash over the serial bootloader from a toolchain terminal instead.
 
-    To open a toolchain terminal, right-click the **app** entry under **Applications** and select **Start new terminal**. This opens a shell with all the nRF Connect SDK tools available. Then run:
+    To open a toolchain terminal, open the context menu for the **app** entry under **Applications** and select **Start new terminal**. This opens a shell with all the nRF Connect SDK tools available. Then run the following command:
 
     ```shell
     west thingy91x-dfu
@@ -64,13 +64,15 @@ For pre-built binaries that do not require a build environment, refer to the lat
 
     </details>
 
-1. After flashing, open a serial terminal at 115200 baud to view the device logs. The [Serial Terminal app](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) (part of nRF Connect for Desktop) is recommended; PuTTY, Tera Term, and minicom also work.
+1. After flashing, open a serial terminal at 115200 baud to view the device logs. Nordic Semiconductor recommends the [Serial Terminal app](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop), which is part of nRF Connect for Desktop. PuTTY, Tera Term, and minicom also work.
 
 1. Follow the instructions in [Connecting](connecting.md) to connect the device to nRF Cloud.
 
-For more details on how to use nRF Connect for VS Code, refer to the [nRF Connect for VS Code documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html).
+For more information about how to use nRF Connect for VS Code, see the [nRF Connect for VS Code documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html).
 
 ## Option 2: Command line
+
+The following sections describe how to install the prerequisites, initialize the workspace, build the application, and flash the device from the command line.
 
 ### Install prerequisites
 
@@ -102,11 +104,11 @@ You can also run a single command within a specific nRF Connect SDK toolchain. F
 nrfutil sdk-manager toolchain launch --ncs-version v3.4.0 -- <your command>
 ```
 
-This form is useful for running, for instance, a single `west` command with a specific toolchain. You can create an alias or shell function for this command to avoid typing it in full every time.
+This form is useful for running a single `west` command with a specific toolchain, for example. You can create an alias or a shell function for this command to avoid typing it in full every time.
 
-In this document, the `nrfutil sdk-manager toolchain launch --shell` variant is used to launch the toolchain environment in the shell.
+This guide uses the `nrfutil sdk-manager toolchain launch --shell` variant to launch the toolchain environment in the shell.
 
-To initialize the workspace folder (`asset-tracker-template`) where the firmware project and all nRF Connect SDK modules will be cloned, run the following commands:
+To initialize the `asset-tracker-template` workspace folder, which is where west clones the firmware project and all nRF Connect SDK modules, run the following commands:
 
 ```shell
 # Initialize asset-tracker-template workspace
@@ -146,15 +148,15 @@ Expand the section that matches your hardware setup.
 <details markdown="1">
 <summary><strong>Thingy:91 X (with debugger) or nRF9151 DK</strong></summary>
 
-With an external J-Link debugger attached to the Thingy:91 X, flash with:
+With an external J-Link debugger attached to the Thingy:91 X, flash with the following command:
 
 ```shell
 west flash --erase
 ```
 
-The `--erase` option performs a full chip erase (including UICR) before programming. Without it, `west flash` fails with a UICR-related error when the new firmware writes different UICR contents.
+The `--erase` option performs a full chip erase, including UICR, before programming. Without it, `west flash` fails with a UICR-related error when the new firmware writes different UICR contents.
 
-By default, `west flash` after a sysbuild programs each bootloader and application image separately. That is equivalent to programming `build/merged.hex`, which combines the same images into one file. To generate the merged image and flash it in a single step (for example after changing partition layout), use:
+By default, `west flash` after a sysbuild programs each bootloader and application image separately. That is equivalent to programming `build/merged.hex`, which combines the same images into one file. To generate the merged image and flash it in a single step, for example after changing the partition layout, use the following commands:
 
 ```shell
 west ncs-mergehex --no-rebuild
@@ -163,22 +165,22 @@ west flash --erase --skip-rebuild --hex-file build/merged.hex
 
 `west ncs-mergehex` combines the per-board-target `build/merged_*.hex` files from the sysbuild into `build/merged.hex`, as listed in `app/mergehex.yaml`.
 
-Release builds publish the same merged image as `asset-tracker-template-{VERSION}-<board>-nrf91.hex` (see [release artifacts](release.md)).
+Release builds publish the same merged image as `asset-tracker-template-{VERSION}-<board>-nrf91.hex`, as described in [Release artifacts](release.md).
 
 </details>
 
 <details markdown="1">
 <summary><strong>Thingy:91 X (no debugger)</strong></summary>
 
-Thingy:91 X does not have an on-board debugger. Flash over the serial bootloader using one of the following alternatives.
+The Thingy:91 X does not have an on-board debugger. Flash over the serial bootloader using one of the following alternatives.
 
-**Alternative 1 (recommended) — `west thingy91x-dfu`:** auto-discovers the device and flashes `build/dfu_application.zip`.
+The first alternative, which Nordic Semiconductor recommends, is `west thingy91x-dfu`. It auto-discovers the device and flashes `build/dfu_application.zip`:
 
 ```shell
 west thingy91x-dfu
 ```
 
-**Alternative 2 — `nrfutil device program`:** requires the Thingy:91 X serial number. Find it with `nrfutil device list` by locating the entry with **Product: `Thingy:91 X UART`** and the **`mcuBoot`** trait:
+The second alternative is `nrfutil device program`, which needs the Thingy:91 X serial number. To find the serial number, run `nrfutil device list` and locate the entry with **Product: `Thingy:91 X UART`** and the **`mcuBoot`** trait:
 
 ```shell
 nrfutil device list
@@ -204,7 +206,7 @@ nrfutil device program --firmware build/dfu_application.zip \
     --x-family nrf91 --core Application
 ```
 
-To reset the Thingy:91 X from the terminal without re-flashing (equivalent to pressing the reset button), run:
+To reset the Thingy:91 X from the terminal without re-flashing, which is equivalent to pressing the reset button, run the following command:
 
 ```shell
 west thingy91x-reset
@@ -212,36 +214,36 @@ west thingy91x-reset
 
 </details>
 
-The application is now built and flashed to the device. Open a serial terminal at 115200 baud to view the logs. The [Serial Terminal app](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) (part of nRF Connect for Desktop) is recommended; PuTTY, Tera Term, and minicom also work.
+The application is now built and flashed to the device. Open a serial terminal at 115200 baud to view the logs. Nordic Semiconductor recommends the [Serial Terminal app](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop), which is part of nRF Connect for Desktop. PuTTY, Tera Term, and minicom also work.
 
-**Next step:** Continue to [Connecting](connecting.md) to onboard and provision the device on nRF Cloud.
+As the next step, continue to [Connecting](connecting.md) to onboard and provision the device on nRF Cloud.
 
 ## Testing
 
-To test that everything is working as expected, complete the following steps:
+To test that everything works as expected, complete the following steps:
 
 > [!NOTE]
-> nRF Cloud is transitioning to a Memfault-integrated experience. The steps below use the **legacy nRF Cloud portal**. After logging in at [nrfcloud.com](https://nrfcloud.com), open the legacy app using the link in the **bottom left corner** of the new UI.
+> nRF Cloud is transitioning to a Memfault-integrated experience. The following steps use the legacy nRF Cloud portal. After logging in at [nRF Cloud](https://nrfcloud.com), open the legacy app using the link in the bottom left corner of the new UI.
 
-1. In a web browser, navigate to [nRF Cloud](https://nrfcloud.com) and log in to your account. Navigate to the **Device management** menu and select **Devices**. You should now see your device listed in the device overview. Click on the device ID to see the device page.
+1. In a web browser, go to [nRF Cloud](https://nrfcloud.com) and log in to your account. Go to the **Device management** menu and select **Devices**. Your device is now listed in the device overview. Select the device ID to open the device page.
 
     ![nRF Cloud device management menu](../images/nrfcloud_devices.png)
 
-1. After provisioning, the device should already be connected and sending data. In the web browser, you will see the device page update with the latest information from the device, including the location, battery level, and other sensor data.
+1. After provisioning, the device is already connected and sending data. In the web browser, the device page updates with the latest information from the device, including the location, the battery level, and other sensor data.
 
     ![nRF Cloud example data](../images/nrf_cloud_example_data.png)
 
-1. Press and hold **Button 1** on the device to trigger an immediate cloud sync, including sending buffered data, polling for FOTA updates, and fetching configuration changes. On **Thingy:91 X**, pressing on the top of the case pushes Button 1.
+1. Press and hold **Button 1** on the device to trigger an immediate cloud sync, which sends buffered data, polls for FOTA updates, and fetches configuration changes. On the Thingy:91 X, pressing on the top of the case pushes Button 1.
 
-    > **Note:** The device samples and sends data at configurable intervals. Between intervals, the device is in a low-power state. Pressing and holding the button forces an immediate cloud update cycle.
+    **Note:** The device samples and sends data at configurable intervals. Between intervals, the device is in a low-power state. Pressing and holding the button forces an immediate cloud update cycle.
 
-1. Optionally, you can reset the device to observe the full boot and connection sequence. Connect to the device using the serial terminal and reset the device using the following shell command:
+1. Optionally, reset the device to observe the full boot and connection sequence. Connect to the device using the serial terminal and reset the device using the following shell command:
 
     ```shell
     kernel reboot
     ```
 
-1. In the serial terminal, you will see the device booting up, connecting to the network, and establishing a connection to nRF Cloud using the provisioned credentials.
+1. In the serial terminal, the device boots up, connects to the network, and establishes a connection to nRF Cloud using the provisioned credentials.
 
     <details>
 
@@ -440,18 +442,18 @@ To test that everything is working as expected, complete the following steps:
 
     </details>
 
-If you experience issues, check the logs in the serial terminal for any error messages. You can find troubleshooting tips in the [Troubleshooting](tooling_troubleshooting.md) section of the documentation.
+If you experience issues, check the logs in the serial terminal for any error messages. You can find troubleshooting tips in [Tooling and troubleshooting](tooling_troubleshooting.md).
 You can also open a support ticket on [DevZone](https://devzone.nordicsemi.com) for further assistance.
 
 ## Next steps
 
 Now that you have the application running, you can explore the following areas:
 
-* **Explore the architecture** - Understand how the modular, event-driven system works in the [Architecture](architecture.md) guide. This is a good starting point if you want to understand the design decisions and how modules interact.
-* **Configure the application** - Adjust sampling intervals, cloud sync frequency, location method priorities, and other runtime behavior using the [Configuration](configuration.md) guide. You can change the configuration both locally and remotely through the device shadow on nRF Cloud.
-* **Modify the template** - Add new sensors, create custom modules, add new zbus events, or enable MQTT support following the [Modifying the template](modifying.md) guide.
-* **Perform firmware updates** - Deploy new firmware versions over-the-air using the [Firmware Updates (FOTA)](fota.md) guide. FOTA supports both application and modem firmware updates through nRF Cloud.
-* **Optimize power consumption** - Learn about the power-saving features and how to achieve the lowest power consumption for your use case in the [Low Power](low_power.md) guide.
-* **Set up location services** - Configure GNSS, Wi-Fi, and cellular positioning methods and their fallback priorities in the [Location Services](location_services.md) guide.
-* **Set up testing and CI** - Run tests on real hardware or emulated targets, and integrate with CI pipelines as described in the [Testing and CI Setup](test_and_ci_setup.md) guide.
-* **Troubleshoot issues** - Use shell commands, debugging tools, Memfault integration, and modem tracing as described in the [Tooling and Troubleshooting](tooling_troubleshooting.md) guide.
+- **Explore the architecture**: Understand how the modular, event-driven system works in [Architecture](architecture.md). This is a good starting point if you want to understand the design decisions and how the modules interact.
+- **Configure the application**: Adjust the sampling intervals, the cloud sync frequency, the location method priorities, and other runtime behavior, as described in [Configuration](configuration.md). You can change the configuration both locally and remotely through the device shadow on nRF Cloud.
+- **Modify the template**: Add new sensors, create custom modules, add new zbus events, or enable MQTT support, as described in [Modifying the template](modifying.md).
+- **Perform firmware updates**: Deploy new firmware versions over the air, as described in [Firmware updates (FOTA)](fota.md). FOTA supports both application and modem firmware updates through nRF Cloud.
+- **Optimize power consumption**: Learn about the power-saving features and how to achieve the lowest power consumption for your use case in [Achieving low power](low_power.md).
+- **Set up location services**: Configure the GNSS, Wi-Fi, and cellular positioning methods and their fallback priorities, as described in [Location services](location_services.md).
+- **Set up testing and CI**: Run tests on real hardware or emulated targets, and integrate with CI pipelines, as described in [Testing and CI setup](test_and_ci_setup.md).
+- **Troubleshoot issues**: Use the shell commands, the debugging tools, the Memfault integration, and modem tracing, as described in [Tooling and troubleshooting](tooling_troubleshooting.md).

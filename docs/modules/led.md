@@ -1,6 +1,6 @@
 # LED module
 
-The LED module controls the LEDs on the device using PWM (Pulse Width Modulation) and timers to create blinking patterns. For devices with RGB LEDs, the module can set specific colors. For devices without RGB LEDs, the colors will map to regular LEDs instead.
+The LED module controls the LEDs on the device using pulse width modulation (PWM) and timers to create blinking patterns. For devices with RGB LEDs, the module can set specific colors. For devices without RGB LEDs, the colors map to regular LEDs instead.
 
 ## Messages
 
@@ -8,17 +8,17 @@ The LED module uses the zbus channel `led_chan` to receive control commands. Oth
 
 The module accepts messages with the following parameters:
 
-- **Color Values**
+- **Color values**:
 
-    - `red`: Red component (0-255)
-    - `green`: Green component (0-255)
-    - `blue`: Blue component (0-255)
+    - `red`: Red component, from 0 to 255.
+    - `green`: Green component, from 0 to 255.
+    - `blue`: Blue component, from 0 to 255.
 
-- **Timing Parameters**
+- **Timing parameters**:
 
     - `duration_on_msec`: How long the LED stays on in milliseconds.
     - `duration_off_msec`: How long the LED stays off in milliseconds.
-    - `repetitions`: Number of blink cycles (-1 for infinite blinking).
+    - `repetitions`: Number of blink cycles, where `-1` means infinite blinking.
 
 The message structure is defined in `led.h`:
 
@@ -44,39 +44,36 @@ struct led_msg {
 
 Instead of using a state machine, the LED module operates as follows:
 
-1. When a message is received on the `led_chan` channel:
+1. When the module receives a message on the `led_chan` channel, it performs the following steps:
 
-    - Any existing blink pattern is canceled.
-    - The new LED state (colors and timing) is saved.
-    - The LED is turned on with the specified color.
+    - Cancels any existing blink pattern.
+    - Saves the new LED state, which is the colors and the timing.
+    - Turns the LED on with the specified color.
 
-1. If a blinking pattern is specified (repetitions != 0):
+1. When the message specifies a blinking pattern, which means that `repetitions` is not `0`, the module performs the following steps:
 
-    - A timer is started with `duration_on_msec`.
-    - When the timer expires, the LED toggles between on and off states.
-    - The timer alternates between `duration_on_msec` and `duration_off_msec`.
-    - This continues until the specified number of repetitions is reached.
-    - If repetitions is -1, the blinking continues indefinitely or until a new message is received.
+    - Starts a timer with `duration_on_msec`.
+    - Toggles the LED between the on and off states when the timer expires.
+    - Alternates the timer between `duration_on_msec` and `duration_off_msec`.
+    - Continues until the LED has blinked the specified number of repetitions.
 
+When `repetitions` is `-1`, the blinking continues indefinitely, or until the module receives a new message.
 The module handles error cases gracefully and reports issues through logging.
 
 ## Configuration
 
 The LED module uses the following configuration options:
 
-- **CONFIG_APP_LED_LOG_LEVEL:**
-  Controls logging level for the LED module.
+- **CONFIG_APP_LED_LOG_LEVEL**: Controls the logging level for the LED module.
+- **Devicetree configuration**: The module needs three PWM LED aliases in the devicetree:
 
-- **Devicetree Configuration:**
-  The module requires three PWM LED aliases in the devicetree:
+    - `pwm-led0`: The red channel.
+    - `pwm-led1`: The green channel.
+    - `pwm-led2`: The blue channel.
 
-    - `pwm-led0`: Red channel
-    - `pwm-led1`: Green channel
-    - `pwm-led2`: Blue channel
+## Setting LED colors
 
-## Example: Setting LED colors
-
-You can control the LED colors through the LED module using zbus messages. The following is an example of how to set different LED patterns:
+You can control the LED colors through the LED module using zbus messages. See the following example, which sets a yellow blinking pattern:
 
 ```c
 /* Set yellow blinking pattern */
