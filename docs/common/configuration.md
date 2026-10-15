@@ -1,32 +1,33 @@
 # Configuration
 
-This section describes the available compile-time and runtime configuration options for customizing the template's behavior.
+This page describes the compile-time and runtime configuration options that you can use to customize the template's behavior.
 
 ## Runtime configurations
 
-The device supports runtime configurations that allow you to modify the template's behavior without firmware updates.
+The device supports runtime configurations that you can use to modify the template's behavior without firmware updates.
 
-The template uses runtime parameters to control data sampling and cloud update
-behavior. Cloud updates are triggered when the number of stored samples reaches a configurable threshold. These updates include sending data, checking for FOTA jobs, and retrieving configuration/command updates. For implementation details, see [Configuration Flow](#configuration-flow).
+The template uses runtime parameters to control data sampling and cloud update behavior. The device triggers a cloud update when the number of stored samples reaches a configurable threshold. An update sends data, checks for firmware over-the-air (FOTA) jobs, and retrieves configuration and command updates. For implementation details, see [Configuration flow](#configuration-flow).
+
+### Parameters
 
 | Parameter | Description | Unit | Valid range | Static configuration |
 |-----------|-------------|------|-------------|----------------------|
-| **`sample_interval`** | Sample interval | Seconds | 1 to 4294967295 | `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` (default: 600) |
-| **`storage_threshold`** | Number of records to store before triggering a cloud update | Records | 1 to `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` | `CONFIG_APP_STORAGE_INITIAL_THRESHOLD` (default: 1) |
+| `sample_interval` | Sample interval | Seconds | 1 to 4294967295 | `CONFIG_APP_SAMPLING_INTERVAL_SECONDS` (default: 600) |
+| `storage_threshold` | Number of records to store before triggering a cloud update | Records | 1 to `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE` | `CONFIG_APP_STORAGE_INITIAL_THRESHOLD` (default: 1) |
 
-You can set the runtime configurations through the cloud device shadow and they will override the compile-time Kconfig defaults shown in the Static Configuration column.
+You can set the runtime configurations through the cloud device shadow, where they override the compile-time Kconfig defaults listed in the Static configuration column.
 
-The complete device shadow structure is defined in the [CDDL](https://datatracker.ietf.org/doc/html/rfc8610) schema at `Asset-Tracker-Template/app/src/cbor/device_shadow.cddl`. This schema specifies all supported configuration parameters, commands, and their valid value ranges.
+The complete device shadow structure is defined in the [Concise Data Definition Language (CDDL)](https://datatracker.ietf.org/doc/html/rfc8610) schema in the `app/src/cbor/device_shadow.cddl` file. The schema specifies all supported configuration parameters, commands, and their valid value ranges.
 
 ### Behavior
 
-- Samples sensors and location at `sample_interval`.
-- Buffers data locally.
-- Sends buffered data when `storage_threshold` is reached.
-- Polls shadow and checks FOTA when a send cycle is triggered.
+- The device samples sensors and location at `sample_interval`.
+- The device buffers the data locally.
+- The device sends the buffered data when the number of buffered records reaches `storage_threshold`.
+- The device polls the shadow and checks for FOTA jobs when a send cycle starts.
 
 > [!NOTE]
-> Setting `storage_threshold` to `1` means data will be sent immediately after each sample.
+> Setting `storage_threshold` to `1` means that the device sends data immediately after each sample.
 
 <!-- Caution -->
 
@@ -35,91 +36,85 @@ The complete device shadow structure is defined in the [CDDL](https://datatracke
 
 ## Remote configuration from cloud
 
-The Asset Tracker can be configured remotely through nRF Cloud's device shadow mechanism.
+You can configure the Asset Tracker Template remotely through the device shadow in nRF Cloud.
 
 ### Configuration through nRF Cloud UI
 
 > [!NOTE]
-> nRF Cloud is transitioning to a Memfault-integrated experience. The steps below use the **legacy nRF Cloud portal**. After logging in at [nrfcloud.com](https://nrfcloud.com), open the legacy app using the link in the **bottom left corner** of the new UI.
+> nRF Cloud is transitioning to a Memfault-integrated experience. The following steps use the legacy nRF Cloud portal. After you log in, open the legacy app using the link in the bottom left corner of the new UI.
 
-> [!IMPORTANT]
-> The order of the configuration JSON structure matters.
-
-1. Log in to [nRF Cloud](https://nrfcloud.com/).
-1. Navigate to **Devices** and select your device.
-1. Click on **View Config** on the top bar.
+1. Log in to [nRF Cloud](https://nrfcloud.com).
+1. Go to **Devices** and select your device.
+1. Select **View Config** on the top bar.
 1. Select **Edit Configuration**.
-1. Enter the desired configuration:
+1. Enter the configuration, as shown in the following examples. The order of the keys in the JSON object matters.
 
-    **Example 1: 5 minutes sampling, send data immediately after each sample**
-
-    ```json
-    {
-    "sample_interval": 300,
-    "storage_threshold": 1
-    }
-    ```
-
-    **Example 2: 10 minutes sampling, send data after 6 samples (1 hour)**
+    Example 1 sets a 5-minute sampling interval and sends data immediately after each sample:
 
     ```json
     {
-    "sample_interval": 600,
-    "storage_threshold": 6
+      "sample_interval": 300,
+      "storage_threshold": 1
     }
     ```
 
-    > **Important:** To remove a configuration entry, you must explicitly set the parameter to `null`.
+    Example 2 sets a 10-minute sampling interval and sends data after six samples, which is once per hour:
 
-1. Click **Commit** to apply the changes.
+    ```json
+    {
+      "sample_interval": 600,
+      "storage_threshold": 6
+    }
+    ```
+
+    **Important:** To remove a configuration entry, set the parameter to `null`.
+
+1. Select **Commit** to apply the changes.
 
 The device receives the new configuration through its shadow and adjusts its
 sampling interval and storage mode accordingly.
 
 ### Configuration through REST API
 
-You can update these parameters using
-[nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState).
+You can update the runtime parameters with the [nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState).
 
-Obtain `$API_KEY` from the legacy nRF Cloud portal: open the legacy app (bottom left of the new UI at [nrfcloud.com](https://nrfcloud.com)), select your team, then **burger menu** → **User Account** → **Team Details**. On-target tests use the same key as `NRFCLOUD_API_KEY`. See [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/tokens-and-keys).
+To get `$API_KEY`, open the legacy app from the bottom left corner of the new nRF Cloud UI, and select your team. Then select the menu button, and go to **User Account** > **Team Details**. The on-target tests use the same key, as `NRFCLOUD_API_KEY`. For more information, see [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/tokens-and-keys).
 
-**Example 1:**
-
-```bash
-curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
-    -d '{ "desired": { "config": { "sample_interval": 300, "storage_threshold": 1 } } }'
-```
-
-**Example 2:**
+Example 1 sets a 5-minute sampling interval and sends data immediately after each sample:
 
 ```bash
 curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
-    -d '{ "desired": { "config": { "sample_interval": 600, "storage_threshold": 6 } } }'
+  -d '{ "desired": { "config": { "sample_interval": 300, "storage_threshold": 1 } } }'
 ```
 
-### Sending commands through REST API
+Example 2 sets a 10-minute sampling interval and sends data after six samples, which is once per hour:
+
+```bash
+curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "desired": { "config": { "sample_interval": 600, "storage_threshold": 6 } } }'
+```
+
+### Commands through REST API
 
 Send device commands using the [nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState):
 
 ```bash
 curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
--H "Authorization: Bearer $API_KEY" \
--H "Content-Type: application/json" \
--d '{"desired": {"command": [1, 1]}}'
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"desired": {"command": [1, 1]}}'
 ```
 
-**Command format**: `"command": [type, id]`
+The command format is `"command": [type, id]`, where the two fields have the following meanings:
 
-- **type**: Command type (1=Provision)
-    - **Valid range**: 1 to 1
-- **ID**: Unique identifier (increment for successive commands)
-    - **Valid range**: 1 to 4294967294 (excludes `0` and `UINT32_MAX`)
+- `type`: The command type. The only valid value is `1`, which triggers provisioning.
+- `id`: A unique identifier that you increment for successive commands. The valid range is 1 to 4294967295, which excludes `0` and `UINT32_MAX`.
 
-For shadow structure details, see `Asset-Tracker-Template/app/src/cbor/device_shadow.cddl`.
+For more information about the shadow structure, see `Asset-Tracker-Template/app/src/cbor/device_shadow.cddl`.
 
 ### Configuration flow
 
@@ -130,48 +125,46 @@ it checks for updates to these parameters and applies them at runtime. If a
 parameter is not set in the shadow, the device continues using the existing
 value (either from Kconfig or a previous shadow update).
 
-To trigger an immediate configuration poll, press and hold **Button 1** on
-the device to trigger a cloud poll/send cycle that includes fetching the
-latest shadow delta.
+To poll the configuration immediately, press and hold **Button 1** on the device. This starts a cloud poll and send cycle that fetches the latest shadow delta.
 
 The following diagrams illustrate what happens in the various scenarios where the device polls the shadow:
 
-<details open>
-<summary><b>Shadow Desired Section Poll Flow</b></summary>
+<details>
+<summary><b>Shadow desired section poll flow</b></summary>
 
-<img src="../images/shadow_desired_section_poll_flow.svg" alt="Shadow Desired Section Poll Flow" />
+<img src="../images/shadow_desired_section_poll_flow.svg" alt="Shadow desired section poll flow" />
 
 </details>
 
 <details>
-<summary><b>Shadow Delta Section Poll Flow</b></summary>
+<summary><b>Shadow delta section poll flow</b></summary>
 
-<img src="../images/shadow_delta_section_poll_flow.svg" alt="Shadow Delta Section Poll Flow" />
+<img src="../images/shadow_delta_section_poll_flow.svg" alt="Shadow delta section poll flow" />
 
 </details>
 
 <details>
-<summary><b>Shadow Delta Section Poll Flow - Command Execution</b></summary>
+<summary><b>Shadow delta section poll flow with command execution</b></summary>
 
-<img src="../images/shadow_delta_section_poll_flow_commad_execution.svg" alt="Shadow Delta Section Poll Flow - Command Execution" />
+<img src="../images/shadow_delta_section_poll_flow_commad_execution.svg" alt="Shadow delta section poll flow with command execution" />
 
 </details>
 
-## Set location method priorities
+## Location method priorities
 
-The Asset Tracker supports multiple location methods that can be prioritized based on your needs. Configuration is done through board-specific configuration files.
+The Asset Tracker Template supports multiple location methods, which you can prioritize based on your needs. You set the priorities in board-specific configuration files.
 
-### Available location methods
+### Available methods
 
-The following are the available location methods:
+The template supports the following location methods:
 
-- GNSS (GPS)
+- Global Navigation Satellite System (GNSS), including GPS
 - Wi-Fi® positioning
 - Cellular positioning
 
 ### Configuration examples
 
-- **Thingy91x configuration** (Wi-Fi available):
+- **Thingy:91 X configuration** (Wi-Fi available):
 
     ```kconfig
     CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_FIRST_GNSS=y
@@ -189,54 +182,59 @@ The following are the available location methods:
 
 ## Storage configuration
 
-The storage module buffers collected data locally and sends it to the cloud
-based on the configured sampling interval and threshold. See
-[Storage Module Documentation](../modules/storage.md) for details.
+The Storage module buffers collected data locally and sends it to the cloud based on the configured sampling interval and threshold. For more information, see [Storage module](../modules/storage.md).
 
-### Basic configuration in `prj.conf`
+### Buffer and threshold options
 
-To configure buffer size and records per stored data type:
+To set the buffer size and the number of records per data type, set the following options in `prj.conf`:
 
-```bash
+```kconfig
 CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=8      # Records per data type
 CONFIG_APP_STORAGE_BATCH_BUFFER_SIZE=256       # Batch buffer size
 CONFIG_APP_STORAGE_INITIAL_THRESHOLD=4         # Number of records to trigger cloud update
 ```
 
-The `storage_threshold` runtime parameter controls when buffered data is sent
-to the cloud. Setting it to `1` means data will be sent immediately after each sample, while higher values allow more samples to be buffered before sending.
+The `storage_threshold` runtime parameter controls when the device sends buffered data to the cloud. Setting it to `1` means that the device sends data immediately after each sample. Higher values buffer more samples before sending.
 
-For minimal use, include the `overlay-storage-minimal.conf` overlay.
+For a minimal storage configuration, which keeps a single record per data type and sends a message for every sample, include the `app/overlay-storage-minimal.conf` overlay.
 
-**Runtime control** (shell commands when `CONFIG_APP_STORAGE_SHELL=y`):
+### Shell commands
+
+When `CONFIG_APP_STORAGE_SHELL` is enabled, you can control the module at runtime with the following shell commands:
 
 ```bash
 att_storage flush              # Flush stored data
 att_storage clear              # Clear all data
-att_storage stats              # Show statistics (if enabled)
+att_storage stats              # Show statistics (requires CONFIG_APP_STORAGE_SHELL_STATS)
 ```
 
-See [Storage Module Configurations](../modules/storage.md#configurations) for all options.
+For all options, see [Configuration](../modules/storage.md#configuration).
 
 ## Network configuration
 
-### NB-IoT vs. LTE-M
+The template provides Kconfig options for the cellular network modes, the power saving mode, and the access point name.
 
-The Asset Tracker supports both LTE Cat NB1 (NB-IoT) and LTE Cat M1 (LTE-M) cellular connectivity:
+### Network modes
 
-- **NB-IoT**: Optimized for:
+The modem can use two cellular technologies, and you select which of them to enable and which one to prefer.
+
+#### NB-IoT and LTE-M
+
+The Asset Tracker Template supports both LTE Cat NB1 (NB-IoT) and LTE Cat M1 (LTE-M) cellular connectivity:
+
+- **NB-IoT** is optimized for the following cases:
 
     - Low data rate applications.
     - Better coverage.
     - Stationary or low-mobility devices.
 
-- **LTE-M**: Better suited for:
+- **LTE-M** is better suited for the following cases:
 
     - Higher data rates.
     - Mobile applications.
     - Lower latency requirements.
 
-#### Network mode selection
+#### Mode selection
 
 The following network modes are available (`LTE_NETWORK_MODE`):
 
@@ -248,17 +246,17 @@ The following network modes are available (`LTE_NETWORK_MODE`):
 - **LTE-M and NB-IoT**: Both LTE-M and NB-IoT enabled.
 - **LTE-M, NB-IoT and GPS**: Both LTE modes with GPS.
 
-#### Network mode preference
+#### Mode preference
 
-When multiple network modes are enabled (LTE-M and NB-IoT), you can set preferences (`LTE_MODE_PREFERENCE`):
+When multiple network modes are enabled (LTE-M and NB-IoT), you can set a mode preference (`LTE_MODE_PREFERENCE`):
 
-- **No preference**: Automatically selected by the modem.
-- **LTE-M**: Prioritize LTE-M over PLMN selection.
+- **No preference**: The modem selects the mode automatically.
+- **LTE-M**: Prioritize LTE-M over public land mobile network (PLMN) selection.
 - **NB-IoT**: Prioritize NB-IoT over PLMN selection.
 - **LTE-M, PLMN prioritized**: Prefer LTE-M but prioritize staying on home network.
 - **NB-IoT, PLMN prioritized**: Prefer NB-IoT but prioritize staying on home network.
 
-Example configuration in `prj.conf`:
+The following example shows the configuration in `prj.conf`:
 
 ```kconfig
 # Enable both LTE-M and NB-IoT with GPS
@@ -268,58 +266,50 @@ CONFIG_LTE_NETWORK_MODE_LTE_M_NBIOT_GPS=y
 CONFIG_LTE_MODE_PREFERENCE_LTE_M_PLMN_PRIO=y
 ```
 
-### Power Saving Mode (PSM)
+### Power saving mode (PSM)
 
-PSM allows the device to enter deep sleep while maintaining network registration. Configuration is done through Kconfig options:
+PSM lets the device enter deep sleep while it maintains its network registration. You configure PSM with the following Kconfig options:
 
-#### PSM parameters
-
-- **Periodic TAU (Tracking Area Update)**
-
-    - Controls how often the device updates its location with the network
-    - Configuration options:
+- **Periodic tracking area update (TAU)**: Controls how often the device updates its location with the network. Set the interval in seconds with the following option:
 
     ```kconfig
     # Configure TAU in seconds
     CONFIG_LTE_PSM_REQ_RPTAU_SECONDS=7200  # 2 hours (default in prj.conf)
     ```
 
-- **Active Time (RAT)**
-
-    - Defines how long the device stays active after a wake-up
-    - Configuration options:
+- **Requested active time (RAT)**: Defines how long the device stays active after a wake-up. Set the duration in seconds with the following option:
 
     ```kconfig
     # Configure RAT in seconds
     CONFIG_LTE_PSM_REQ_RAT_SECONDS=6  # 6 seconds (default in prj.conf)
     ```
 
-Key aspects:
+When PSM is enabled, the following applies:
 
-- Device negotiates PSM parameters with the network.
-- Helps achieve longer battery life.
-- Device remains registered but unreachable during sleep.
-- Wakes up periodically based on TAU setting.
-- Stays active for the duration specified by RAT.
+- The device negotiates the PSM parameters with the network.
+- PSM helps achieve longer battery life.
+- The device remains registered but unreachable during sleep.
+- The device wakes up periodically, based on the TAU setting.
+- The device stays active for the duration specified by RAT.
 
-For more information on power configuration, see the [Application power configuration](low_power.md#application-power-configuration) section in the **Achieving Low Power** guide.
+For more information on power configuration, see [Application power configuration](low_power.md#application-power-configuration).
 
-### Access Point Name (APN)
+### Access point name (APN)
 
-The Access Point Name (APN) is a network identifier used by the device to connect to the cellular network's packet data network. Configuration options:
+The access point name (APN) is a network identifier that the device uses to connect to the packet data network of the cellular network. You have the following options:
 
 - **Default APN**: Most carriers automatically configure the correct APN.
-- **Manual Configuration**: If needed, APN can be configured through Kconfig:
+- **Manual configuration**: If needed, you can configure the APN through Kconfig:
 
     ```kconfig
     CONFIG_PDN_DEFAULT_APN="Access point name"
     ```
 
-Common scenarios for APN configuration:
+You typically configure the APN in the following scenarios:
 
-- Using a custom/private APN.
+- Using a custom or private APN.
 - Connecting to specific network services.
-- Working with MVNOs (Mobile Virtual Network Operators).
+- Working with mobile virtual network operators (MVNOs).
 
 > [!NOTE]
 > In most cases, the default APN provided by the carrier should work without additional configuration.
