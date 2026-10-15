@@ -70,6 +70,10 @@ flash_ext: &gd25le255e {
 };
 
 / {
+	chosen {
+		nordic,fmfu-storage-partition = &fmfu_storage_partition;
+	};
+
 	fstab {
 		compatible = "zephyr,fstab";
 		lfs1: lfs1 {
