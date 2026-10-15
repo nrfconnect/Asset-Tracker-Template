@@ -628,6 +628,33 @@ static int connect_to_cloud(void)
 	return 0;
 }
 
+static void send_location(const struct ntn_state_object *state)
+{
+	int err;
+	bool confirmable = IS_ENABLED(CONFIG_APP_NTN_CLOUD_CONFIRMABLE_MESSAGES);
+	struct nrf_cloud_gnss_data gnss_data = {
+		.type = NRF_CLOUD_GNSS_TYPE_PVT,
+		.ts_ms = NRF_CLOUD_NO_TIMESTAMP,
+		.pvt = {
+			.lat = state->last_pvt.latitude,
+			.lon = state->last_pvt.longitude,
+			.accuracy = state->last_pvt.accuracy,
+		}
+	};
+
+	LOG_DBG("Sending to nrfcloud GNSS location data: lat: %f, lon: %f, acc: %f",
+		(double)state->last_pvt.latitude,
+		(double)state->last_pvt.longitude,
+		(double)state->last_pvt.accuracy);
+
+	err = nrf_cloud_coap_location_send(&gnss_data, confirmable);
+	if (err) {
+		LOG_ERR("nrf_cloud_coap_location_send, error: %d", err);
+	} else {
+		LOG_INF("GNSS location data sent to nRF Cloud successfully");
+	}
+}
+
 /* State handlers */
 
 static void state_running_entry(void *obj)
@@ -862,6 +889,12 @@ static enum smf_state_result state_tn_run(void *obj)
 
 			LOG_INF("Cloud connection established via TN network");
 
+			if (location_is_valid(state)) {
+				send_location(state);
+			} else {
+				LOG_DBG("No valid location, nothing to send on TN");
+			}
+
 			/* Pause the CoAP connection to save the DTLS CID and resume it
 			 * when transitioning to NTN mode.
 			 */
@@ -1068,18 +1101,6 @@ static enum smf_state_result state_ntn_run(void *obj)
 
 		return SMF_EVENT_HANDLED;
 	} else if (msg->type == NETWORK_CONNECTED) {
-		int64_t timestamp_ms = NRF_CLOUD_NO_TIMESTAMP;
-		bool confirmable = IS_ENABLED(CONFIG_APP_NTN_CLOUD_CONFIRMABLE_MESSAGES);
-		struct nrf_cloud_gnss_data gnss_data = {
-			.type = NRF_CLOUD_GNSS_TYPE_PVT,
-			.ts_ms = timestamp_ms,
-			.pvt = {
-				.lat = state->last_pvt.latitude,
-				.lon = state->last_pvt.longitude,
-				.accuracy = state->last_pvt.accuracy,
-			}
-		};
-
 		err = connect_to_cloud();
 		if (err) {
 			LOG_WRN("Failed to connect to nRF Cloud CoAP on NTN");
@@ -1091,18 +1112,7 @@ static enum smf_state_result state_ntn_run(void *obj)
 
 		LOG_INF("Cloud connection established via NTN network");
 
-		LOG_DBG("Sending to nrfcloud GNSS location data: lat: %f, lon: %f, acc: %f",
-			(double)state->last_pvt.latitude,
-			(double)state->last_pvt.longitude,
-			(double)state->last_pvt.accuracy);
-
-		/* Send GNSS location data to nRF Cloud */
-		err = nrf_cloud_coap_location_send(&gnss_data, confirmable);
-		if (err) {
-			LOG_ERR("nrf_cloud_coap_location_send, error: %d", err);
-		} else {
-			LOG_INF("GNSS location data sent to nRF Cloud successfully");
-		}
+		send_location(state);
 
 		err = nrf_cloud_coap_pause();
 		if ((err < 0) && (err != -EBADF)) {
