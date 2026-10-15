@@ -9,12 +9,10 @@ This guide explains how to modify the Asset Tracker Template to fit your use cas
 
 ## Add a new zbus event
 
-This section demonstrates how to add a new event to a module and handle it in another. In this example, you add events to the UART Power Control module to notify the system when VBUS is connected or disconnected on the Thingy:91 X. The main module subscribes to these events and requests specific LED patterns from the LED module in response:
+This section demonstrates how to add a new event to a module and handle it in another. In this example, you add events to the UART Power Control module to notify the system when VBUS is connected or disconnected on the Thingy:91 X. The Main module subscribes to these events and requests specific LED patterns from the LED module in response:
 
 - When VBUS is connected, the LED blinks white rapidly.
 - When VBUS is disconnected, the LED blinks purple slowly.
-
-### Instructions
 
 To add a new zbus event, complete the following procedure:
 
@@ -168,13 +166,11 @@ To add a new zbus event, complete the following procedure:
 
 ## Add a new environmental sensor
 
-This section demonstrates how to add support for a new sensor to the environmental module. The environmental module is updated to sample data from the sensor through the [Zephyr Sensor API](https://docs.zephyrproject.org/latest/hardware/peripherals/sensor/index.html), and the data is forwarded to nRF Cloud together with the existing environmental data.
+This section demonstrates how to add support for a new sensor to the Environmental module. You update the Environmental module to sample data from the sensor through the [Zephyr Sensor API](https://docs.zephyrproject.org/latest/hardware/peripherals/sensor/index.html), and the module forwards the data to nRF Cloud together with the existing environmental data.
 
-In this example, support for the Bosch BMM350 magnetometer is added. A similar procedure applies to any sensor that supports the Zephyr Sensor API.
+In this example, you add support for the Bosch BMM350 magnetometer. A similar procedure applies to any sensor that supports the Zephyr Sensor API.
 
-The Thingy:91 X is used as the example board, as it is a supported board in the template with board files defined in the nRF Connect SDK.
-
-### Instructions
+The example uses the Thingy:91 X, because it is a supported board in the template with board files defined in the nRF Connect SDK.
 
 Before adding a new sensor, make sure the sensor's driver is available in Zephyr RTOS and uses the Zephyr Sensor API. Zephyr includes such a driver for the Bosch BMM350 magnetometer.
 
@@ -193,7 +189,7 @@ Before adding a new sensor, make sure the sensor's driver is available in Zephyr
     };
     ```
 
-1. Update the environmental module's state structure in the `app/src/modules/environmental/environmental.c` file to include the magnetometer device reference and data fields:
+1. Update the Environmental module's state structure in the `app/src/modules/environmental/environmental.c` file to include the magnetometer device reference and data fields:
 
     ```c
     struct environmental_state_object {
@@ -318,18 +314,17 @@ Before adding a new sensor, make sure the sensor's driver is available in Zephyr
 
 1. Build and run the modified application.
 
-> [!NOTE]
-> nRF Cloud is transitioning to a Memfault-integrated experience. The step below uses the **legacy nRF Cloud portal**. After logging in at [nrfcloud.com](https://nrfcloud.com), open the legacy app using the link in the **bottom left corner** of the new UI.
+    **Note:** nRF Cloud is transitioning to a Memfault-integrated experience. The following step uses the legacy nRF Cloud portal. After logging in at [nRF Cloud](https://nrfcloud.com), open the legacy app using the link in the bottom left corner of the new UI.
 
-1. Confirm that the custom messages appear in the Terminal card in [nRF Cloud](https://nrfcloud.com), as shown below:
+1. Confirm that the custom messages appear in the Terminal card in [nRF Cloud](https://nrfcloud.com), as shown in the following image:
 
-    ![nRF Cloud magnetometer messages](../images/nrf_cloud_magnetometer.png)
+    ![Terminal card in the nRF Cloud portal showing magnetometer messages from the device](../images/nrf_cloud_magnetometer.png)
 
 ## Add your own module
 
-This section walks through creating a minimal "dummy" module. The dummy module illustrates the template's module architecture and can be used as a starting point for your own modules.
+This section walks you through creating a minimal dummy module. The dummy module illustrates the template's module architecture, and you can use it as a starting point for your own modules.
 
-### Instructions
+### Create the module
 
 To add your own module, complete the following steps:
 
@@ -627,13 +622,13 @@ For an interactive way to drive the module during development, add a shell comma
 
 ### Add shell support
 
-A shell command provides an easy way to publish requests and inspect responses without rebuilding or reflashing. The template uses this pattern in several modules (for example `power_shell.c`, `network_shell.c`, `cloud_shell.c`) and you can reuse it for your own modules.
+A shell command provides an easy way to publish requests and inspect responses without rebuilding or reflashing. The template uses this pattern in several modules, for example in `power_shell.c`, `network_shell.c`, and `cloud_shell.c`, and you can reuse it for your own modules.
 
-The recipe has three parts:
+The recipe has the following three parts:
 
 - A `<module>_shell.c` file that registers a `SHELL_CMD_REGISTER` root command and a zbus listener that prints responses.
-- A Kconfig option (`CONFIG_APP_<MODULE>_SHELL`, default `y if SHELL`) that gates the shell file so it is compiled only when the shell subsystem is enabled.
-- A `target_sources_ifdef()` line in the module's `CMakeLists.txt` so the shell file is built only when the option is set.
+- A `CONFIG_APP_<MODULE>_SHELL` Kconfig option, with the default `y if SHELL`, that gates the shell file so the build only compiles it when the shell subsystem is enabled.
+- A `target_sources_ifdef()` line in the module's `CMakeLists.txt`, so the build only compiles the shell file when the option is set.
 
 Apply the recipe to the dummy module as follows:
 
@@ -746,22 +741,22 @@ You can extend this dummy module by adding new message types, state variables, a
 
 ## Enable support for MQTT
 
-To connect to a generic MQTT server using the Asset Tracker Template, you can use the example cloud module provided under `examples/modules/cloud`. This module replaces the default nRF Cloud CoAP cloud integration with a flexible MQTT client implementation.
+To connect to a generic MQTT server using the Asset Tracker Template, you can use the example Cloud module provided under `examples/modules/cloud`. This module replaces the default nRF Cloud CoAP cloud integration with a flexible MQTT client implementation.
 
-- **MQTT module default configuration:**
+The MQTT module has the following default configuration:
 
-    - **Broker hostname:** [mqtt.nordicsemi.academy](https://mqtt.nordicsemi.academy/)
-    - **Device/Client ID:** IMEI (International Mobile Equipment Identity)
-    - **Port:** 8883
-    - **TLS:** Yes
-    - **Authentication:** Server only
-    - **CA certificate:** `examples/modules/cloud/creds/mqtt.nordicsemi.academy.pem`
-    - **Publish topic:** `<IMEI>/att-pub-topic`
-    - **Subscribe topic:** `<IMEI>/att-sub-topic`
+- **Broker hostname**: [mqtt.nordicsemi.academy](https://mqtt.nordicsemi.academy)
+- **Device and client ID**: The International Mobile Equipment Identity (IMEI)
+- **Port**: 8883
+- **TLS**: Yes
+- **Authentication**: Server only
+- **CA certificate**: `examples/modules/cloud/creds/mqtt.nordicsemi.academy.pem`
+- **Publish topic**: `<IMEI>/att-pub-topic`
+- **Subscribe topic**: `<IMEI>/att-sub-topic`
 
 ### Configuration
 
-Configuration for the MQTT stack is set through the `examples/modules/cloud/overlay-mqtt.conf` file and the Kconfig options defined in `examples/modules/cloud/Kconfig.cloud_mqtt`. The following are the main options for controlling the MQTT module:
+You set the configuration for the MQTT stack through the `examples/modules/cloud/overlay-mqtt.conf` file and the Kconfig options defined in `examples/modules/cloud/Kconfig.cloud_mqtt`. The following options are the main ones for controlling the MQTT module:
 
 - `CONFIG_APP_CLOUD_MQTT`
 - `CONFIG_APP_CLOUD_MQTT_PROVISION_CREDENTIALS`
@@ -785,11 +780,13 @@ Configuration for the MQTT stack is set through the `examples/modules/cloud/over
 - `CONFIG_APP_CLOUD_MQTT_WATCHDOG_TIMEOUT_SECONDS`
 - `CONFIG_APP_CLOUD_MQTT_MSG_PROCESSING_TIMEOUT_SECONDS`
 
-### How to use the MQTT cloud example
+### Use the MQTT cloud example
+
+To try out the MQTT cloud example, complete the following steps:
 
 1. Build and flash the application with the MQTT overlay.
 
-    In the template's `app` folder, run:
+    In the template's `app` folder, run the following command:
 
     ```sh
     west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="$(pwd)/../examples/modules/cloud/overlay-mqtt.conf" && west flash --erase --skip-rebuild
@@ -797,7 +794,7 @@ Configuration for the MQTT stack is set through the `examples/modules/cloud/over
 
 1. Observe that the device connects to the broker.
 
-1. Test using shell commands:
+1. Test the connection using the following shell command:
 
     ```bash
     uart:~$ att_cloud_publish_mqtt test-payload
@@ -822,21 +819,16 @@ Configuration for the MQTT stack is set through the `examples/modules/cloud/over
 
 ### Module state machine
 
-The cloud MQTT module implements an internal state machine to manage the connection and reconnection logic.
+The MQTT Cloud module implements an internal state machine to manage the connection and reconnection logic, with the following states and transitions:
 
-![Cloud MQTT state diagram](../images/cloud_mqtt_module_state_diagram.svg "Cloud MQTT state diagram")
+![Cloud MQTT module state diagram](../images/cloud_mqtt_module_state_diagram.svg)
 
 ### Limitations
 
-The MQTT cloud module is intended as a demonstration of how to replace the template's default nRF Cloud CoAP cloud module with an MQTT-based implementation. It is not a fully featured solution and has the following limitations:
+The MQTT Cloud module demonstrates how to replace the template's default nRF Cloud CoAP Cloud module with an MQTT-based implementation. It is not a fully featured solution and has the following limitations:
 
-- **Sensor and location support:**
-  The MQTT module does not encode or send sensor or location data to the broker. You can send test payloads using the `att_cloud_publish_mqtt` shell command.
+- **Sensor and location support**: The MQTT module does not encode or send sensor or location data to the broker. You can send test payloads using the `att_cloud_publish_mqtt` shell command.
+- **FOTA support**: The MQTT module does not support firmware over-the-air (FOTA) updates, because these rely on nRF Cloud CoAP functionality, which is a dependency of the FOTA module.
+- **Stub channel for FOTA**: To prevent build errors, the MQTT module includes a placeholder channel declaration for FOTA. If your application needs FOTA, implement a custom module tailored to your chosen cloud and FOTA service.
 
-- **FOTA support:**
-  The MQTT module does not support firmware over-the-air (FOTA) updates, as these rely on nRF Cloud CoAP functionality, which is a dependency of the FOTA module.
-
-- **Stub channel for FOTA:**
-  To prevent build errors, the MQTT module includes a placeholder (stub) channel declaration for FOTA. If your application needs FOTA, implement a custom module tailored to your chosen cloud and FOTA service.
-
-For production use, we recommend the default nRF Cloud CoAP cloud module, which provides comprehensive support for FOTA and other advanced features.
+For production use, Nordic Semiconductor recommends the default nRF Cloud CoAP Cloud module, which provides comprehensive support for FOTA and other advanced features.

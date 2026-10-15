@@ -1,6 +1,6 @@
 # Firmware updates (FOTA)
 
-This guide covers how to perform Firmware Over The Air (FOTA) updates using the [nRF Cloud REST API](https://api.nrfcloud.com/).
+This guide covers how to perform firmware over-the-air (FOTA) updates using the [nRF Cloud REST API](https://api.nrfcloud.com).
 
 ## Firmware versioning
 
@@ -8,15 +8,15 @@ The following sections cover the principles and practices used to define, manage
 
 ### Version components
 
-Firmware versions are defined in the `app/VERSION` file:
+The `app/VERSION` file defines the firmware version with the following components:
 
-- **VERSION_MAJOR**: Major version
-- **VERSION_MINOR**: Minor version
-- **PATCHLEVEL**: Patch level
-- **VERSION_TWEAK**: Additional component (typically 0)
-- **EXTRAVERSION**: Extra string (for example, "dev", "rc1")
+- **VERSION_MAJOR**: Major version.
+- **VERSION_MINOR**: Minor version.
+- **PATCHLEVEL**: Patch level.
+- **VERSION_TWEAK**: Additional component, which is usually `0`.
+- **EXTRAVERSION**: Extra string, for example `dev` or `rc1`.
 
-Example resulting in version `1.2.3-dev`:
+The following example results in version `1.2.3-dev`:
 
 ```plaintext
 VERSION_MAJOR = 1
@@ -28,70 +28,76 @@ EXTRAVERSION = dev
 
 ### Preparing firmware
 
-Complete the following steps when preparing **application** or **bootloader** firmware. For **modem** updates, pre-provisioned modem bundles are already available in nRF Cloud. Use a modem bundle ID from the REST API when creating the FOTA job (see [Complete update workflow](#complete-update-workflow) below).
+Complete the following steps when preparing application or bootloader firmware. For modem updates, pre-provisioned modem bundles are already available in nRF Cloud. Use a modem bundle ID from the REST API when creating the FOTA job, as described in [Complete update workflow](#complete-update-workflow).
 
 1. Update the `app/VERSION` file. Increment the appropriate version component.
 1. Build the firmware.
 
-    Using the command line:
+    From the command line, run the following command:
 
     ```bash
     west build -p -b thingy91x/nrf9151/ns # Build for the appropriate board
     ```
 
-    Or use the nRF Connect for VS Code. See the [Getting Started](getting_started.md) guide for details on building with the extension.
+    You can also use nRF Connect for VS Code. For information about building with the extension, see [Getting started](getting_started.md).
 
-1. Locate update bundles in the output directory (`app/build/`):
+1. Locate the update bundles in the `app/build/` output directory:
 
-    - `build/dfu_application.zip` - Application firmware update
-    - `build/dfu_mcuboot.zip` - Bootloader update
+    - `build/dfu_application.zip`: The application firmware update.
+    - `build/dfu_mcuboot.zip`: The bootloader update.
 
 ### Version verification
 
-To verify a successful update:
+To verify that an update succeeded, use one of the following methods:
 
-- **Application updates**: Confirm the FOTA job status is `SUCCEEDED` via `GET /fota-jobs/{jobId}`, then check that the device `appVersion` field matches the new version via `GET /devices/{deviceId}`.
+- **Application updates**: Confirm the FOTA job status is `SUCCEEDED` through `GET /fota-jobs/{jobId}`, then check that the device `appVersion` field matches the new version through `GET /devices/{deviceId}`.
 - **Modem updates**: Confirm the FOTA job status is `SUCCEEDED`, then check that the device `modemFirmware` field shows the new version.
 - **Bootloader updates**: Confirm the FOTA job status is `SUCCEEDED`, then check that the device `bootloaderVersion` field shows the new version.
 
 ## Performing FOTA updates
 
-FOTA updates are managed through the nRF Cloud REST API.
+You manage FOTA updates through the nRF Cloud REST API.
 
-After creating and applying a FOTA job in nRF Cloud, the device checks for updates automatically on a configured interval and when triggered by user input (for example, a button press). To trigger a check manually during development, connect to the device shell and run:
+After you create and apply a FOTA job in nRF Cloud, the device checks for updates automatically at a configured interval and when the user triggers a check, for example with a button press. To trigger a check manually during development, connect to the device shell and run the following command:
 
 ```bash
 att_fota poll
 ```
 
-The device must be connected to the network and cloud. If a pending update is found, the FOTA module starts the download automatically.
+The device must be connected to the network and the cloud. If the device finds a pending update, the FOTA module starts the download automatically.
 
-To trigger an immediate FOTA poll from the device, press and hold **Button 1**. On **Thingy:91 X**, pressing on the top of the case pushes Button 1.
+To trigger an immediate FOTA poll from the device, press and hold **Button 1**. On the Thingy:91 X, pressing on the top of the case pushes Button 1.
 
 ### REST API
 
+The following sections describe how to set up the REST API access, run the complete update workflow, and use the individual API endpoints.
+
 #### Setup
+
+Set the following environment variables:
 
 ```bash
 export API_KEY=<your-nrf-cloud-api-key>
 export DEVICE_ID=<your-device-id>
 ```
 
-On-target tests use the same key as `NRFCLOUD_API_KEY`; see [tests/on_target/README.md](../../tests/on_target/README.md).
+On-target tests use the same key as `NRFCLOUD_API_KEY`. For more information, see [tests/on_target/README.md](../../tests/on_target/README.md).
 
-To obtain your API key:
+To get your API key, complete the following steps:
 
-1. Log in at [nrfcloud.com](https://nrfcloud.com) and open the **legacy app** using the link in the **bottom left corner** of the new UI.
-1. Select the correct **team** in the upper right corner.
-1. Open the **burger menu** (upper right) → **User Account**.
+1. Log in at [nRF Cloud](https://nrfcloud.com) and open the legacy app using the link in the bottom left corner of the new UI.
+1. Select the correct team in the upper right corner.
+1. Go to the burger menu in the upper right corner and select **User Account**.
 1. Copy the API key from **Team Details**.
-1. Use it as `Authorization: Bearer $API_KEY` in the curl examples below.
+1. Use the key as `Authorization: Bearer $API_KEY` in the following curl examples.
 
-See [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/tokens-and-keys) and the [nRF Cloud REST API](https://api.nrfcloud.com/) reference for details.
+For more information, see [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/tokens-and-keys) and the [nRF Cloud REST API](https://api.nrfcloud.com) reference.
 
 #### Complete update workflow
 
-1. Create manifest and upload bundle:
+To deploy a firmware update, complete the following steps:
+
+1. Create the manifest and upload the bundle:
 
     ```bash
     # Set path to your application binary
@@ -128,7 +134,7 @@ See [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/to
     export BUNDLE_ID=$(echo $UPLOAD_RESPONSE | jq -r '.uris[0]' | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
     ```
 
-1. Create and apply FOTA job:
+1. Create and apply the FOTA job:
 
     ```bash
     # Create job
@@ -144,7 +150,7 @@ See [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/to
       -H "Authorization: Bearer ${API_KEY}"
     ```
 
-1. Monitor job status:
+1. Monitor the job status:
 
     ```bash
     curl -X GET "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}" \
@@ -152,9 +158,9 @@ See [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/to
       -H "Accept: application/json"
     ```
 
-    Job status values: `QUEUED`, `IN_PROGRESS`, `DOWNLOADING`, `SUCCEEDED`, `FAILED`, `TIMED_OUT`, `CANCELLED`, `REJECTED`
+    The job status is `QUEUED`, `IN_PROGRESS`, `DOWNLOADING`, `SUCCEEDED`, `FAILED`, `TIMED_OUT`, `CANCELLED`, or `REJECTED`.
 
-1. Verify the update by querying device information:
+1. Verify the update by querying the device information:
 
     ```bash
     curl -X GET "https://api.nrfcloud.com/v1/devices/${DEVICE_ID}" \
@@ -162,32 +168,32 @@ See [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/to
       -H "Accept: application/json"
     ```
 
-    Check the `appVersion` (application updates), `modemFirmware` (modem updates), or `bootloaderVersion` (bootloader updates) field in the response.
+    In the response, check the `appVersion` field for application updates, the `modemFirmware` field for modem updates, or the `bootloaderVersion` field for bootloader updates.
 
 #### API reference
 
-**List FOTA jobs**:
+To list the FOTA jobs, run the following command:
 
 ```bash
 curl -X GET "https://api.nrfcloud.com/v1/fota-jobs" \
   -H "Authorization: Bearer ${API_KEY}"
 ```
 
-**Cancel FOTA job**:
+To cancel a FOTA job, run the following command:
 
 ```bash
 curl -X PUT "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}/cancel" \
   -H "Authorization: Bearer ${API_KEY}"
 ```
 
-**Delete FOTA job**:
+To delete a FOTA job, run the following command:
 
 ```bash
 curl -X DELETE "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}" \
   -H "Authorization: Bearer ${API_KEY}"
 ```
 
-**Delete firmware bundle**:
+To delete a firmware bundle, run the following command:
 
 ```bash
 curl -X DELETE "https://api.nrfcloud.com/v1/firmwares/${BUNDLE_ID}" \

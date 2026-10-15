@@ -81,11 +81,12 @@ nav:
   - Connecting: common/connecting.md
   - Location services: common/location_services.md
   - Achieving low power: common/low_power.md
-  - Firmware Updates (FOTA): common/fota.md
+  - Firmware updates (FOTA): common/fota.md
   - Testing and CI setup: common/test_and_ci_setup.md
-  - Tooling and Troubleshooting: common/tooling_troubleshooting.md
-  - Known Issues: common/known_issues.md
+  - Tooling and troubleshooting: common/tooling_troubleshooting.md
+  - Known issues: common/known_issues.md
   - Modules:
+    - modules/overview_modules.md
     - Main: modules/main.md
     - Button: modules/button.md
     - Cloud: modules/cloud.md
