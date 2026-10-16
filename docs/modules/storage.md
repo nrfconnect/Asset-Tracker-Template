@@ -161,7 +161,7 @@ where the `+3` accounts for LittleFS metadata and the CoW block.
 \text{flash size} = \text{required blocks} \times \text{block size}
 ```
 
-Choose a partition size that meets or exceeds `flash_size`. The LittleFS partition size is set by the `littlefs_storage` node in [`app/boards/att_flash_partitions.dtsi`](../../app/boards/att_flash_partitions.dtsi), which both board overlays include:
+Choose a partition size that meets or exceeds `flash_size`. The LittleFS partition size is set by the `littlefs_storage` node in [`app/boards/att_flash_partitions.dtsi`](../../app/boards/att_flash_partitions.dtsi), which the Thingy:91 X and nRF9151 DK overlays include, or in [`app/boards/nrf9251dk_nrf9251_cpuapp.overlay`](../../app/boards/nrf9251dk_nrf9251_cpuapp.overlay) on the nRF9251 DK:
 
 ```devicetree
 littlefs_storage: partition@4d2000 {
@@ -183,10 +183,10 @@ Block size comes from the mounted filesystem (`fs_statvfs()`), which on ATT targ
 
 | **Target** | **Block size** | **Example blocks needed** | **Example minimal partition** |
 | - | - | - | - |
-| nrf9151 DK / Thingy:91 X (external SPI-NOR) | 0x1000 (4096 B) | 8 + 3 metadata | 0x2c000 (~176 KiB) |
+| nrf9151 DK / Thingy:91 X / nRF9251 DK (external SPI-NOR) | 0x1000 (4096 B) | 8 + 3 metadata | 0x2c000 (~176 KiB) |
 | Internal flash (not recommended) | 0x1000 | 8 + 3 metadata | 0x2c000 |
 
-The default **1 MiB** (`0x00100000`) partition on both boards leaves ample margin for all enabled data types at `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=256`.
+The default **1 MiB** (`0x00100000`) partition on all boards leaves ample margin for all enabled data types at `CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=256`.
 
 #### LittleFS built-in wear leveling
 
@@ -243,7 +243,7 @@ CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE=16
 CONFIG_APP_STORAGE_THREAD_STACK_SIZE=4000
 ```
 
-The partition size is configured in devicetree (see *Minimum partition size* above). The default `littlefs_storage` partition is 1 MiB on both the Thingy:91 X and the nRF9151 DK.
+The partition size is configured in devicetree (see *Minimum partition size* above). The default `littlefs_storage` partition is 1 MiB on the Thingy:91 X, the nRF9151 DK and the nRF9251 DK.
 
 ##### Optimized for data persistence with minimal flash wear
 
@@ -360,7 +360,7 @@ The following includes the key configuration categories:
 
 ### Flash configuration (LittleFS backend)
 
-The `littlefs_storage` partition (size and host flash chip) is defined in devicetree. [`app/boards/att_flash_partitions.dtsi`](../../app/boards/att_flash_partitions.dtsi) declares the partition on external SPI-NOR and the `lfs1` `zephyr,fstab,littlefs` entry (mount point `/att_storage`, automount). Board overlays [`thingy91x_nrf9151_ns.overlay`](../../app/boards/thingy91x_nrf9151_ns.overlay) and [`nrf9151dk_nrf9151_ns.overlay`](../../app/boards/nrf9151dk_nrf9151_ns.overlay) include that file.
+The `littlefs_storage` partition (size and host flash chip) is defined in devicetree. [`app/boards/att_flash_partitions.dtsi`](../../app/boards/att_flash_partitions.dtsi) declares the partition on external SPI-NOR and the `lfs1` `zephyr,fstab,littlefs` entry (mount point `/att_storage`, automount). Board overlays [`thingy91x_nrf9151_ns.overlay`](../../app/boards/thingy91x_nrf9151_ns.overlay) and [`nrf9151dk_nrf9151_ns.overlay`](../../app/boards/nrf9151dk_nrf9151_ns.overlay) include that file. On the nRF9251 DK, [`nrf9251dk_nrf9251_cpuapp.overlay`](../../app/boards/nrf9251dk_nrf9251_cpuapp.overlay) declares the partition and the `lfs1` entry on the board's external SPI-NOR.
 
 To resize the partition, edit the second `reg` cell of `littlefs_storage` in `att_flash_partitions.dtsi` (and shrink `external_flash_partition` by the same amount). To move it to internal flash, declare a `littlefs_storage` node under `&flash0`'s `partitions` instead, note that the nRF9151's 1 MiB internal flash is already heavily utilized by `slot0_partition`, so external flash is strongly recommended for any non-trivial storage size.
 

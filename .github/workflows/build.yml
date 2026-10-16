@@ -42,6 +42,11 @@ on:
         type: boolean
         required: false
         default: false
+      build_nrf9251dk_base:
+        description: Build the base nrf9251dk firmware
+        type: boolean
+        required: false
+        default: false
       build_thingy91x_debug:
         description: Build the thingy91x debug (memfault) firmware
         type: boolean
@@ -292,6 +297,16 @@ jobs:
         with:
           board: nrf9151dk/nrf9151/ns
           short_board: nrf9151dk
+          version: ${{ env.VERSION }}
+          path: asset-tracker-template/app
+
+      - name: Build nrf9251dk firmware
+        if: ${{ inputs.build_nrf9251dk_base || env.build_type == 'all' }}
+        uses: ./asset-tracker-template/.github/actions/build-step
+        with:
+          board: nrf9251dk/nrf9251/cpuapp
+          short_board: nrf9251dk
+          soc_family: nrf92
           version: ${{ env.VERSION }}
           path: asset-tracker-template/app
 
