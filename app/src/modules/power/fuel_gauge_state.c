@@ -41,6 +41,13 @@ static bool fuel_gauge_state_is_valid(void)
 		return false;
 	}
 
+	if (nrf_fuel_gauge_state_compatible_check(fuel_gauge_noinit.state,
+						  fuel_gauge_noinit.size) != 0) {
+		LOG_WRN("Saved fuel gauge state is incompatible with the library, discarding");
+		fuel_gauge_noinit.magic = 0;
+		return false;
+	}
+
 	return true;
 }
 
@@ -53,6 +60,11 @@ int fuel_gauge_state_save(void)
 		LOG_ERR("Fuel gauge state size too large: %zu", state_size);
 		return -ENOMEM;
 	}
+
+	/* Invalidate the saved state while the payload is being rewritten, so a reset
+	 * in the middle cannot leave a valid magic over a partial blob.
+	 */
+	fuel_gauge_noinit.magic = 0;
 
 	err = nrf_fuel_gauge_state_get(fuel_gauge_noinit.state, state_size);
 	if (err) {

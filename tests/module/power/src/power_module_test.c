@@ -16,6 +16,7 @@
 
 #include "app_common.h"
 #include "power.h"
+#include "fuel_gauge_state.h"
 
 DEFINE_FFF_GLOBALS;
 
@@ -30,6 +31,7 @@ FAKE_VALUE_FUNC(int, nrf_fuel_gauge_ext_state_update,
 		enum nrf_fuel_gauge_ext_state_info_type,
 		union nrf_fuel_gauge_ext_state_info_data *);
 FAKE_VALUE_FUNC(int, nrf_fuel_gauge_idle_set, float, float, float);
+FAKE_VALUE_FUNC(int, nrf_fuel_gauge_state_compatible_check, const void *, size_t);
 FAKE_VOID_FUNC(lte_lc_register_handler, lte_lc_evt_handler_t);
 
 /* Define nrf_fuel_gauge_state_size for tests (normally provided by the library) */
@@ -60,6 +62,7 @@ void setUp(void)
 	RESET_FAKE(nrf_fuel_gauge_process);
 	RESET_FAKE(nrf_fuel_gauge_ext_state_update);
 	RESET_FAKE(nrf_fuel_gauge_idle_set);
+	RESET_FAKE(nrf_fuel_gauge_state_compatible_check);
 	/* NOTE: lte_lc_register_handler is intentionally NOT reset here.
 	 * The handler is registered once in state_running_entry() on the first
 	 * modem init. Since the power module thread never re-enters STATE_RUNNING,
@@ -282,6 +285,44 @@ void test_idle_state_ignores_additional_sleep_entry(void)
 
 	/* Then - idle_set should NOT be called again */
 	TEST_ASSERT_EQUAL(0, nrf_fuel_gauge_idle_set_fake.call_count);
+}
+
+void test_fuel_gauge_saved_state_accepted_when_compatible(void)
+{
+	send_modem_sleep_exit();
+	k_sleep(K_MSEC(1100));
+	TEST_ASSERT_GREATER_OR_EQUAL(1, nrf_fuel_gauge_state_get_fake.call_count);
+	nrf_fuel_gauge_state_compatible_check_fake.return_val = 0;
+
+	const void *state = fuel_gauge_state_get();
+
+	TEST_ASSERT_NOT_NULL(state);
+	TEST_ASSERT_EQUAL(1, nrf_fuel_gauge_state_compatible_check_fake.call_count);
+	TEST_ASSERT_EQUAL_PTR(state, nrf_fuel_gauge_state_compatible_check_fake.arg0_val);
+	TEST_ASSERT_EQUAL(nrf_fuel_gauge_state_size,
+			  nrf_fuel_gauge_state_compatible_check_fake.arg1_val);
+	TEST_ASSERT_EQUAL(nrf_fuel_gauge_state_size, fuel_gauge_state_size_get());
+}
+
+void test_fuel_gauge_saved_state_discarded_when_incompatible(void)
+{
+	send_modem_sleep_exit();
+	k_sleep(K_MSEC(1100));
+	TEST_ASSERT_GREATER_OR_EQUAL(1, nrf_fuel_gauge_state_get_fake.call_count);
+	nrf_fuel_gauge_state_compatible_check_fake.return_val = -EBADF;
+
+	const void *state = fuel_gauge_state_get();
+
+	TEST_ASSERT_NULL(state);
+	TEST_ASSERT_EQUAL(1, nrf_fuel_gauge_state_compatible_check_fake.call_count);
+
+	TEST_ASSERT_EQUAL(0, fuel_gauge_state_size_get());
+	TEST_ASSERT_NULL(fuel_gauge_state_get());
+	TEST_ASSERT_EQUAL(1, nrf_fuel_gauge_state_compatible_check_fake.call_count);
+
+	nrf_fuel_gauge_state_compatible_check_fake.return_val = 0;
+	k_sleep(K_MSEC(1100));
+	TEST_ASSERT_NOT_NULL(fuel_gauge_state_get());
 }
 
 /* This is required to be added to each test. That is because unity's
