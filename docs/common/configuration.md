@@ -67,8 +67,7 @@ You can configure the Asset Tracker Template remotely through the device shadow 
     }
     ```
 
-    > [!NOTE]
-    > To remove a configuration entry, set the parameter to `null`.
+    **Important:** To remove a configuration entry, set the parameter to `null`.
 
 1. Select **Commit** to apply the changes.
 

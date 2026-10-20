@@ -741,8 +741,7 @@ The nRF9151 DK does not ship with the nRF Cloud CoAP root CA in the developer se
    The certificate is maintained in the [`ca_certs.py`](https://github.com/nRFCloud/utils/blob/main/src/nrfcloud_utils/ca_certs.py) file in the nRF Cloud utils repository.
    Copy the value of the `nrf_cloud_coap_ca` variable, including the `BEGIN CERTIFICATE` and `END CERTIFICATE` lines.
 
-    > [!NOTE]
-    > You only need the CoAP root CA. The AWS root CA in the same file is used for MQTT, REST, and HTTP file downloads, none of which the template uses.
+    **Note:** You only need the CoAP root CA. The AWS root CA in the same file is used for MQTT, REST, and HTTP file downloads, none of which the template uses.
 
 1. Install [nrfcredstore](https://github.com/NordicSemiconductor/nrfcredstore):
 
