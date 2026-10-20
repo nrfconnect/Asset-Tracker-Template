@@ -1,6 +1,6 @@
 # Cloud module
 
-The Cloud module connects and manages communication with [nRF Cloud](https://www.nrfcloud.com) over the Constrained Application Protocol (CoAP), using the [nRF Cloud CoAP](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/networking/nrf_cloud_coap.html) library in the nRF Connect SDK. It controls the cloud connection, sends data to nRF Cloud, and processes incoming data such as the device shadow document. The Cloud module uses Zephyr's [State Machine Framework](https://docs.zephyrproject.org/latest/services/smf/index.html) (SMF) and zbus for messaging with other modules.
+The Cloud module connects and manages communication with [nRF Cloud](https://www.nrfcloud.com) over the Constrained Application Protocol (CoAP), using the [nRF Cloud CoAP](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/networking/nrf_cloud_coap.html) library in the nRF Connect SDK. It controls the cloud connection, sends data to nRF Cloud, and processes incoming data such as the device shadow document. The Cloud module uses Zephyr's [State Machine Framework](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html) (SMF) and zbus for messaging with other modules.
 
 The module performs the following tasks:
 

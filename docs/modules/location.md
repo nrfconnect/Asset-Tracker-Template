@@ -1,6 +1,6 @@
 # Location module
 
-The Location module manages location services using the [Location](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/modem/location.html) library in the nRF Connect SDK. It handles Global Navigation Satellite System (GNSS) initialization and location requests, and it processes location events. The module uses Zephyr's [State Machine Framework](https://docs.zephyrproject.org/latest/services/smf/index.html) (SMF) and zbus for messaging with other modules.
+The Location module manages location services using the [Location](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/modem/location.html) library in the nRF Connect SDK. It handles Global Navigation Satellite System (GNSS) initialization and location requests, and it processes location events. The module uses Zephyr's [State Machine Framework](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html) (SMF) and zbus for messaging with other modules.
 
 The module performs the following tasks:
 

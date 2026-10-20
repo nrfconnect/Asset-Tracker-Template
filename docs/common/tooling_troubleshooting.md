@@ -273,7 +273,7 @@ For more information, see [Thread analyzer](https://docs.zephyrproject.org/lates
 
 When a hardfault occurs, check the [LR and PC](https://stackoverflow.com/questions/8236959/what-are-sp-stack-and-lr-in-arm) registers to find the offending instruction.
 In the following fault frame, the PC is `0x00002681`, the thread is `main`, and the error type is a stack overflow.
-In this case, you do not need to look up the PC or the LR to understand the issue, because you must increase the main stack size.
+In this case, you do not need to look up the PC or the LR, because the fault frame already identifies the issue. To fix it, increase the main stack size.
 
 For more information about how to debug hardfaults, see [How to debug a HardFault on an ARM Cortex-M MCU](https://interrupt.memfault.com/blog/cortex-m-hardfault-debug).
 
@@ -651,7 +651,7 @@ Two Kconfig options control which security tags the Cloud module uses:
 - `CONFIG_NRF_CLOUD_COAP_SEC_TAG`: Holds the CA certificate used to verify the nRF Cloud CoAP server during the DTLS handshake. Point this option at the developer tag.
 - `CONFIG_NRF_CLOUD_COAP_JWT_SEC_TAG`: Holds the private key used to sign the JWT that authenticates the device to nRF Cloud. Keep this option at `16842753`, which is the security tag where the nRF Provisioning Service stores the cloud access key.
 
-> [!NOTE]
+> [!CAUTION]
 > `CONFIG_NRF_CLOUD_COAP_JWT_SEC_TAG` defaults to the value of `CONFIG_NRF_CLOUD_COAP_SEC_TAG`, so you must set it explicitly.
 > If you only override the CoAP security tag, the device signs its JWT with a key that nRF Cloud does not recognize, and the authentication fails even though the DTLS handshake succeeds.
 
@@ -741,7 +741,8 @@ The nRF9151 DK does not ship with the nRF Cloud CoAP root CA in the developer se
    The certificate is maintained in the [`ca_certs.py`](https://github.com/nRFCloud/utils/blob/main/src/nrfcloud_utils/ca_certs.py) file in the nRF Cloud utils repository.
    Copy the value of the `nrf_cloud_coap_ca` variable, including the `BEGIN CERTIFICATE` and `END CERTIFICATE` lines.
 
-    **Note:** You only need the CoAP root CA. The AWS root CA in the same file is used for MQTT, REST, and HTTP file downloads, none of which the template uses.
+    > [!NOTE]
+    > You only need the CoAP root CA. The AWS root CA in the same file is used for MQTT, REST, and HTTP file downloads, none of which the template uses.
 
 1. Install [nrfcredstore](https://github.com/NordicSemiconductor/nrfcredstore):
 

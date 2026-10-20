@@ -235,7 +235,8 @@ To test that everything works as expected, complete the following steps:
 
 1. Press and hold **Button 1** on the device to trigger an immediate cloud sync, which sends buffered data, polls for FOTA updates, and fetches configuration changes. On the Thingy:91 X, pressing on the top of the case pushes Button 1.
 
-    **Note:** The device samples and sends data at configurable intervals. Between intervals, the device is in a low-power state. Pressing and holding the button forces an immediate cloud update cycle.
+    > [!NOTE]
+    > The device samples and sends data at configurable intervals. Between intervals, the device is in a low-power state. Pressing and holding the button forces an immediate cloud update cycle.
 
 1. Optionally, reset the device to observe the full boot and connection sequence. Connect to the device using the serial terminal and reset the device using the following shell command:
 

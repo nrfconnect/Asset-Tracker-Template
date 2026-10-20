@@ -35,7 +35,7 @@ The following steps show the simplified flow of a typical operation:
 
 1. The Main module schedules periodic triggers or responds to a short button press reported on the `button_chan` channel.
 1. When triggered by timeout or button press, the Main module requests sampling in parallel from the Power, Environmental, and Location modules. It publishes the requests on `power_chan`, `environmental_chan`, and `location_chan`.
-1. The Storage module stores the sampled data and sends it to the cloud when the number of buffered records reaches `storage_threshold`. You can configure the threshold at build time with `CONFIG_APP_STORAGE_INITIAL_THRESHOLD` or at runtime through the device shadow. See [Configuration](configuration.md#runtime-configurations).
+1. The Storage module buffers the sampled data. When the number of buffered records reaches `storage_threshold`, the Main module requests the buffered data from the Storage module, and the Cloud module sends it to nRF Cloud. You can configure the threshold at build time with `CONFIG_APP_STORAGE_INITIAL_THRESHOLD` or at runtime through the device shadow. See [Configuration](configuration.md#runtime-configurations).
 1. Throughout the operation, the Main module controls the LED module over the `led_chan` channel to provide visual feedback about the system state.
 
 ## Module design
@@ -46,10 +46,8 @@ Each module follows a similar design:
 - **Message types**: Each module exposes a set of input and output message types. These can be considered events in the state machine sense and might have associated data.
 - **State machine**: Most modules implement a state machine using SMF to manage their internal state and behavior.
 - **Thread**: Most modules have dedicated threads.
-- **Watchdog**: A task watchdog monitors each module thread.
+- **Watchdog**: A task watchdog monitors each module thread. Each thread periodically calls `task_wdt_feed()` to feed its watchdog. If a thread fails to feed its watchdog within its configured timeout, the system resets.
 - **Initialization**: Modules are initialized at system startup, either through `SYS_INIT()` or in their dedicated thread through `K_THREAD_DEFINE()`.
-
-Each thread periodically calls `task_wdt_feed()` to feed its watchdog. If a thread fails to feed its watchdog within its configured timeout, the system resets.
 
 ### Module interfaces
 
@@ -314,7 +312,7 @@ The state machines in the Asset Tracker Template follow a run-to-completion mode
 
 This model ensures predictable behavior and proper state cleanup during transitions. Nothing outside the state machine can interrupt or change its execution.
 
-This section covers how SMF is used in the modules in the Asset Tracker Template to implement state machines. For an introduction to SMF, see the SMF documentation linked in the introduction to this page.
+This section covers how SMF is used in the modules in the Asset Tracker Template to implement state machines. For an introduction to SMF, see the [SMF documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html).
 
 ### Definition
 
@@ -415,7 +413,7 @@ The run function for each state handles incoming messages and follows a similar 
     - `smf_set_state()` followed directly by `return SMF_EVENT_HANDLED;` to end the message handling and trigger a state transition.
     - `return SMF_EVENT_PROPAGATE;` to signal that the message was not handled in the current state.
 
-> [!IMPORTANT]
+> [!NOTE]
 > In SMF, the run function of the current state is executed first, and then the run function of the parent state is executed, unless the child state returns `SMF_EVENT_HANDLED` to indicate that the event has been handled. Run functions return `SMF_EVENT_PROPAGATE` to allow the event to propagate to parent states, or `SMF_EVENT_HANDLED` to stop propagation.
 
 ### Transitions
