@@ -47,9 +47,9 @@ The module accepts the following input messages:
 The module publishes the following output messages:
 
 - **FOTA_MODULE_READY**: Indicates that the FOTA module has finished initialization and is ready to accept requests.
-- **FOTA_STARTING**: A FOTA download has started. The application moves into its FOTA-handling state.
-- **FOTA_NETWORK_DISCONNECT_NEEDED**: The module needs the network to be disconnected before it can continue. The application disconnects the network and replies with `FOTA_NETWORK_DISCONNECTED`.
-- **FOTA_REQUEST_REBOOT**: The FOTA sequence completed successfully, and the update is staged and ready to be applied on reboot. The application triggers the reboot.
+- **FOTA_STARTING**: A FOTA download has started. The application must move into its FOTA-handling state.
+- **FOTA_NETWORK_DISCONNECT_NEEDED**: The module needs the network to be disconnected before it can continue. The application must disconnect the network and reply with `FOTA_NETWORK_DISCONNECTED`.
+- **FOTA_REQUEST_REBOOT**: The FOTA sequence completed successfully, and the update is staged and ready to be applied on reboot. The application is responsible for triggering the reboot.
 - **FOTA_ABORTED**: The FOTA sequence was aborted. This message covers all terminations that are not a success, which means that the download failed, timed out, was canceled, or was rejected, or that no update was available.
 
 ## Configuration

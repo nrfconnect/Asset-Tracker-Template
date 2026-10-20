@@ -2,7 +2,7 @@
 
 The Storage module forwards or stores data from enabled modules.
 
-The module is implemented as a small state machine with a parent `RUNNING` state, using Zephyr's [State Machine Framework](https://docs.zephyrproject.org/latest/services/smf/index.html) (SMF).
+The module is implemented as a small state machine with a parent `RUNNING` state, using Zephyr's [State Machine Framework](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html) (SMF).
 It discovers data types automatically through iterable sections.
 For implementation details, see the `storage.c`, `storage.h`, and `Kconfig.storage` source files.
 

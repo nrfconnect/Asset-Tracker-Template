@@ -58,6 +58,7 @@ Instead of using a state machine, the LED module operates as follows:
     - Continues until the LED has blinked the specified number of repetitions.
 
 When `repetitions` is `-1`, the blinking continues indefinitely, or until the module receives a new message.
+
 The module handles error cases gracefully and reports issues through logging.
 
 ## Configuration

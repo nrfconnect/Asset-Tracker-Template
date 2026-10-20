@@ -67,7 +67,8 @@ You can configure the Asset Tracker Template remotely through the device shadow 
     }
     ```
 
-    **Important:** To remove a configuration entry, set the parameter to `null`.
+    > [!NOTE]
+    > To remove a configuration entry, set the parameter to `null`.
 
 1. Select **Commit** to apply the changes.
 
@@ -112,7 +113,7 @@ curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
 The command format is `"command": [type, id]`, where the two fields have the following meanings:
 
 - `type`: The command type. The only valid value is `1`, which triggers provisioning.
-- `id`: A unique identifier that you increment for successive commands. The valid range is 1 to 4294967295, which excludes `0` and `UINT32_MAX`.
+- `id`: A unique identifier that you increment for successive commands. The valid range is 1 to 4294967295, which excludes `0`.
 
 For more information about the shadow structure, see `Asset-Tracker-Template/app/src/cbor/device_shadow.cddl`.
 
@@ -129,7 +130,7 @@ To poll the configuration immediately, press and hold **Button 1** on the device
 
 The following diagrams illustrate what happens in the various scenarios where the device polls the shadow:
 
-<details>
+<details open>
 <summary><b>Shadow desired section poll flow</b></summary>
 
 <img src="../images/shadow_desired_section_poll_flow.svg" alt="Shadow desired section poll flow" />
