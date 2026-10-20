@@ -94,6 +94,8 @@ FAKE_VALUE_FUNC(int, nrf_cloud_client_id_get, char *, size_t);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_init);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_connect, const char * const);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_disconnect);
+FAKE_VALUE_FUNC(int, nrf_cloud_coap_pause);
+FAKE_VALUE_FUNC(int, nrf_cloud_coap_resume);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_configured_info_update, const char * const);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_network_info_update);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_device_status_update,
@@ -448,6 +450,8 @@ void setUp(void)
 	RESET_FAKE(nrf_cloud_coap_init);
 	RESET_FAKE(nrf_cloud_coap_connect);
 	RESET_FAKE(nrf_cloud_coap_disconnect);
+	RESET_FAKE(nrf_cloud_coap_pause);
+	RESET_FAKE(nrf_cloud_coap_resume);
 	RESET_FAKE(nrf_cloud_coap_shadow_network_info_update);
 	RESET_FAKE(nrf_cloud_coap_shadow_device_status_update);
 	RESET_FAKE(nrf_cloud_coap_json_message_send);
@@ -1869,6 +1873,85 @@ void test_batch_network_error_aborts_loop(void)
 	TEST_ASSERT_EQUAL_MEMORY(&expected_pct,
 				 &nrf_cloud_coap_sensor_send_fake.arg1_history[0],
 				 sizeof(double));
+}
+
+void test_network_suspend_should_pause_and_resume_coap(void)
+{
+	struct network_msg msg = {
+		.type = NETWORK_CONNECTED
+	};
+
+	publish_and_assert(&network_chan, &msg);
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
+
+	RESET_FAKE(nrf_cloud_coap_pause);
+	RESET_FAKE(nrf_cloud_coap_resume);
+
+	msg.type = NETWORK_SUSPEND;
+
+	publish_and_assert(&network_chan, &msg);
+	wait_for_cloud_disconnected(K_SECONDS(WAIT_TIMEOUT));
+
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_pause_fake.call_count);
+
+	msg.type = NETWORK_CONNECTED;
+
+	publish_and_assert(&network_chan, &msg);
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
+
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_resume_fake.call_count);
+}
+
+void test_coap_resume_failure_should_reconnect(void)
+{
+	struct network_msg msg = {
+		.type = NETWORK_CONNECTED
+	};
+
+	publish_and_assert(&network_chan, &msg);
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
+
+	msg.type = NETWORK_DISCONNECTED;
+
+	publish_and_assert(&network_chan, &msg);
+	wait_for_cloud_disconnected(K_SECONDS(WAIT_TIMEOUT));
+
+	RESET_FAKE(nrf_cloud_coap_connect);
+	RESET_FAKE(nrf_cloud_coap_resume);
+	nrf_cloud_coap_resume_fake.return_val = -EAGAIN;
+
+	msg.type = NETWORK_CONNECTED;
+
+	publish_and_assert(&network_chan, &msg);
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
+
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_resume_fake.call_count);
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_connect_fake.call_count);
+}
+
+void test_coap_pause_failure_should_not_resume(void)
+{
+	struct network_msg msg = {
+		.type = NETWORK_CONNECTED
+	};
+
+	publish_and_assert(&network_chan, &msg);
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
+
+	nrf_cloud_coap_pause_fake.return_val = -EACCES;
+	RESET_FAKE(nrf_cloud_coap_resume);
+
+	msg.type = NETWORK_DISCONNECTED;
+
+	publish_and_assert(&network_chan, &msg);
+	wait_for_cloud_disconnected(K_SECONDS(WAIT_TIMEOUT));
+
+	msg.type = NETWORK_CONNECTED;
+
+	publish_and_assert(&network_chan, &msg);
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
+
+	TEST_ASSERT_EQUAL(0, nrf_cloud_coap_resume_fake.call_count);
 }
 
 /* This is required to be added to each test. That is because unity's

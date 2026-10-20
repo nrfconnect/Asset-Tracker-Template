@@ -148,6 +148,9 @@ struct cloud_state_object {
 	/* Provisioning ongoing flag */
 	bool provisioning_ongoing;
 
+	/* nRF Cloud CoAP session is paused and can be resumed */
+	bool coap_paused;
+
 	/* Connection attempt counter. Reset when entering STATE_CONNECTING */
 	uint32_t connection_attempts;
 
@@ -1094,13 +1097,14 @@ static void state_connected_entry(void *obj)
 static void state_connected_exit(void *obj)
 {
 	int err;
+	struct cloud_state_object *state_object = obj;
 	struct cloud_msg cloud_msg = {
 		.type = CLOUD_DISCONNECTED,
 	};
 
-	ARG_UNUSED(obj);
-
 	LOG_DBG("%s", __func__);
+
+	state_object->coap_paused = false;
 
 	err = nrf_cloud_coap_disconnect();
 	if (err && (err != -ENOTCONN && err != -EPERM)) {
@@ -1154,6 +1158,7 @@ static enum smf_state_result state_connected_ready_run(void *obj)
 		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
 		switch (msg->type) {
+		case NETWORK_SUSPEND:
 		case NETWORK_DISCONNECTED:
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_PAUSED]);
 
@@ -1328,13 +1333,19 @@ static void state_connected_sending_data_exit(void *obj)
 static void state_connected_paused_entry(void *obj)
 {
 	int err;
+	struct cloud_state_object *state_object = obj;
 	struct cloud_msg cloud_msg = {
 		.type = CLOUD_DISCONNECTED,
 	};
 
-	ARG_UNUSED(obj);
-
 	LOG_DBG("%s", __func__);
+
+	err = nrf_cloud_coap_pause();
+	if (err) {
+		LOG_WRN("nrf_cloud_coap_pause, error: %d", err);
+	}
+
+	state_object->coap_paused = (err == 0);
 
 	err = zbus_chan_pub(&cloud_chan, &cloud_msg, PUB_TIMEOUT);
 	if (err) {
@@ -1347,12 +1358,27 @@ static void state_connected_paused_entry(void *obj)
 
 static enum smf_state_result state_connected_paused_run(void *obj)
 {
-	struct cloud_state_object const *state_object = obj;
+	struct cloud_state_object *state_object = obj;
 
 	if (state_object->chan == &network_chan) {
 		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
 
 		if (msg->type == NETWORK_CONNECTED) {
+			int err = 0;
+
+			if (state_object->coap_paused) {
+				state_object->coap_paused = false;
+
+				err = nrf_cloud_coap_resume();
+			}
+
+			if (err) {
+				LOG_WRN("nrf_cloud_coap_resume, error: %d, reconnecting", err);
+				smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTING]);
+
+				return SMF_EVENT_HANDLED;
+			}
+
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_READY]);
 
 			return SMF_EVENT_HANDLED;
