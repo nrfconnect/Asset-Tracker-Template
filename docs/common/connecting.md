@@ -128,7 +128,7 @@ To reprovision a device manually, complete the following steps:
     - **Shell**: Run `att_cloud provision`.
     - **Cloud**: Update the device shadow with `{"desired": {"command": [1, 1]}}`.
 
-For information about sending commands to devices through the REST API, including the command structure and the available command types, see [Commands through REST API](configuration.md#commands-through-rest-api) in the configuration documentation.
+For information about sending commands to devices through the REST API, including the command structure and the available command types, see [Sending commands through REST API](configuration.md#sending-commands-through-rest-api) in the configuration documentation.
 
 ## Removing a device
 

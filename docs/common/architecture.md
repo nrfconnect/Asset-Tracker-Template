@@ -144,7 +144,7 @@ In the Asset Tracker Template, the fields of the `ZBUS_CHAN_DEFINE` macro are po
 > [!NOTE]
 > In zbus, "message type" can refer to the data type or structure that holds the message data for a channel, in this case `struct network_msg`. In the Asset Tracker Template, "message type" means the enumerated value that distinguishes the kinds of messages sent on one channel, in this case the `type` field of `struct network_msg`.
 
-### Message types and structure
+### Message types and the message structure
 
 Each module exposes a set of message types through an enumeration. The message types can be considered events in the state machine sense. The subscriber typically evaluates the message type in a switch-case statement. The statement determines what actions to take and whether to trigger a state transition.
 
@@ -218,7 +218,7 @@ struct network_msg {
 
 In this structure, a module receiving a `NETWORK_SYSTEM_MODE_RESPONSE` message can read the current system mode from the `system_mode` field.
 
-### Message sending
+### Sending messages
 
 Messages are sent on a channel using `zbus_chan_pub()`. The following example sends a message on the `network_chan` channel:
 
@@ -232,7 +232,7 @@ Messages are sent on a channel using `zbus_chan_pub()`. The following example se
 
 The zbus library copies the message, so the original message struct is no longer needed after calling `zbus_chan_pub()`.
 
-### Message receiving
+### Receiving messages
 
 In zbus, structures called _observers_ receive messages on one or more zbus channels. The zbus library provides multiple types of observers, but the Asset Tracker Template uses only two: message subscribers and listeners.
 
@@ -314,7 +314,7 @@ This model ensures predictable behavior and proper state cleanup during transiti
 
 This section covers how SMF is used in the modules in the Asset Tracker Template to implement state machines. For an introduction to SMF, see the [SMF documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/zephyr/services/smf/index.html).
 
-### Definition
+### State machine definition
 
 SMF supports defining a hierarchy of states. For example, the Network module's states can be graphically described as follows:
 
@@ -391,7 +391,7 @@ struct network_state_object {
 
 The structure is allocated in the module's thread as `network_state` and passed to all SMF functions.
 
-### Initialization
+### State machine initialization
 
 State machines are initialized to an initial state using `smf_set_initial()`:
 
@@ -416,7 +416,7 @@ The run function for each state handles incoming messages and follows a similar 
 > [!NOTE]
 > In SMF, the run function of the current state is executed first, and then the run function of the parent state is executed, unless the child state returns `SMF_EVENT_HANDLED` to indicate that the event has been handled. Run functions return `SMF_EVENT_PROPAGATE` to allow the event to propagate to parent states, or `SMF_EVENT_HANDLED` to stop propagation.
 
-### Transitions
+### State transitions
 
 Transitions between states are handled using `smf_set_state()`:
 
@@ -427,7 +427,7 @@ smf_set_state(SMF_CTX(state_object), &states[NEW_STATE]);
 A transition to another state must come last in a state handler, so that the parent state handlers execute in the correct order.
 SMF automatically handles the execution of exit and entry functions for all states along the path to the new state.
 
-### Execution
+### State machine execution
 
 The state machine is run using `smf_run_state()`. SMF executes the run function defined for the current state, and then applies the following rules:
 

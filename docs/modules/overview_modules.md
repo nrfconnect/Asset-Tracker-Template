@@ -16,7 +16,7 @@ The template provides the following core modules:
 | [Button](button.md) | Reports button press events for user input. |
 | [FOTA](fota_module.md) | Manages firmware over-the-air updates. |
 
-## Thingy:91 X modules
+## Thingy:91 X specific modules
 
 The following modules are specific to the Thingy:91 X:
 
