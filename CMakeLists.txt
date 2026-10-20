@@ -5,3 +5,4 @@
 #
 
 add_subdirectory_ifdef(CONFIG_APP_CLOUD_MQTT examples/modules/cloud/)
+add_subdirectory_ifdef(CONFIG_APP_NTN examples/modules/ntn/)

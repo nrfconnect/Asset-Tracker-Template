@@ -5,3 +5,4 @@
 #
 
 rsource "examples/modules/cloud/Kconfig.cloud_mqtt"
+rsource "examples/modules/ntn/Kconfig.ntn"
