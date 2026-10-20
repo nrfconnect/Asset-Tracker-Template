@@ -99,7 +99,7 @@ curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
   -d '{ "desired": { "config": { "sample_interval": 600, "storage_threshold": 6 } } }'
 ```
 
-### Commands through REST API
+### Sending commands through REST API
 
 Send device commands using the [nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState):
 
@@ -155,7 +155,7 @@ The following diagrams illustrate what happens in the various scenarios where th
 
 The Asset Tracker Template supports multiple location methods, which you can prioritize based on your needs. You set the priorities in board-specific configuration files.
 
-### Available methods
+### Available location methods
 
 The template supports the following location methods:
 
@@ -235,7 +235,7 @@ The Asset Tracker Template supports both LTE Cat NB1 (NB-IoT) and LTE Cat M1 (LT
     - Mobile applications.
     - Lower latency requirements.
 
-#### Mode selection
+#### Network mode selection
 
 The following network modes are available (`LTE_NETWORK_MODE`):
 
@@ -247,7 +247,7 @@ The following network modes are available (`LTE_NETWORK_MODE`):
 - **LTE-M and NB-IoT**: Both LTE-M and NB-IoT enabled.
 - **LTE-M, NB-IoT and GPS**: Both LTE modes with GPS.
 
-#### Mode preference
+#### Network mode preference
 
 When multiple network modes are enabled (LTE-M and NB-IoT), you can set a mode preference (`LTE_MODE_PREFERENCE`):
 
