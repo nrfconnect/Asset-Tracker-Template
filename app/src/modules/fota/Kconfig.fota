@@ -41,6 +41,8 @@ config APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS
 	  The value must be smaller than CONFIG_APP_FOTA_WATCHDOG_TIMEOUT_SECONDS.
 	  FOTA job polling uses blocking CoAP requests against nRF Cloud and can take as long
 	  as a cloud connect when the link is slow.
+	  It must also cover waiting for a request or reconnect by the cloud module or Memfault,
+	  which share the nRF Cloud CoAP client.
 
 module = APP_FOTA
 module-str = FOTA
