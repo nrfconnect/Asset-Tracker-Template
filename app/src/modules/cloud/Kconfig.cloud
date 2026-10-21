@@ -143,6 +143,8 @@ config APP_CLOUD_MSG_PROCESSING_TIMEOUT_SECONDS
 	  the modem's DTLS handshake timeout (TLS_DTLS_HANDSHAKE_TIMEO_123S, 123 seconds),
 	  plus DNS resolution, the CoAP authentication exchange, and socket setup overhead.
 	  Reconnect after CoAP timeouts uses the same blocking connect path.
+	  It must also cover waiting for a request or reconnect by the FOTA module or Memfault,
+	  which share the nRF Cloud CoAP client.
 
 config APP_CLOUD_STORAGE_BATCH_ITEM_READ_TIMEOUT_MS
 	int "Storage batch item read timeout (ms)"
