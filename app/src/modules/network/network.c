@@ -61,6 +61,9 @@ enum network_module_state {
 		 * detachment yet.
 		 */
 		STATE_DISCONNECTING,
+
+		/* The modem is offline while keeping the registration context */
+		STATE_SUSPENDED,
 };
 
 /* State object.
@@ -89,6 +92,11 @@ static void state_disconnecting_entry(void *obj);
 static enum smf_state_result state_disconnecting_run(void *obj);
 static enum smf_state_result state_connected_run(void *obj);
 static void state_connected_entry(void *obj);
+static void state_suspended_entry(void *obj);
+static enum smf_state_result state_suspended_run(void *obj);
+static void state_suspended_exit(void *obj);
+
+static atomic_t network_suspended;
 
 /* State machine definition */
 static const struct smf_state states[] = {
@@ -124,6 +132,10 @@ static const struct smf_state states[] = {
 		SMF_CREATE_STATE(state_disconnecting_entry, state_disconnecting_run, NULL,
 				 &states[STATE_RUNNING],
 				 NULL), /* No initial transition */
+	[STATE_SUSPENDED] =
+		SMF_CREATE_STATE(state_suspended_entry, state_suspended_run, state_suspended_exit,
+				 &states[STATE_RUNNING],
+				 NULL), /* No initial transition */
 };
 
 static void network_status_notify(enum network_msg_type status)
@@ -154,6 +166,10 @@ static void network_msg_send(const struct network_msg *msg)
 
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 {
+	if (atomic_get(&network_suspended)) {
+		return;
+	}
+
 	switch (evt->type) {
 	case LTE_LC_EVT_NW_REG_STATUS:
 		if (evt->nw_reg_status == LTE_LC_NW_REG_UICC_FAIL) {
@@ -350,6 +366,10 @@ static enum smf_state_result state_running_run(void *obj)
 			request_system_mode();
 
 			return SMF_EVENT_HANDLED;
+		case NETWORK_SUSPEND:
+			smf_set_state(SMF_CTX(state_object), &states[STATE_SUSPENDED]);
+
+			return SMF_EVENT_HANDLED;
 		default:
 			break;
 		}
@@ -537,6 +557,57 @@ static enum smf_state_result state_disconnecting_run(void *obj)
 	}
 
 	return SMF_EVENT_PROPAGATE;
+}
+
+static void state_suspended_entry(void *obj)
+{
+	int err;
+
+	ARG_UNUSED(obj);
+
+	LOG_DBG("state_suspended_entry");
+
+	atomic_set(&network_suspended, 1);
+
+	err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG);
+	if (err) {
+		LOG_WRN("lte_lc_func_mode_set(OFFLINE_KEEP_REG), error: %d", err);
+	}
+
+	network_status_notify(NETWORK_SUSPENDED);
+
+	/* lte_lc events are ignored while suspended, so publish the disconnect explicitly */
+	network_status_notify(NETWORK_DISCONNECTED);
+}
+
+static enum smf_state_result state_suspended_run(void *obj)
+{
+	struct network_state_object const *state_object = obj;
+
+	if (&network_chan == state_object->chan) {
+		const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
+
+		switch (msg->type) {
+		case NETWORK_RESUME:
+			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_SEARCHING]);
+
+			return SMF_EVENT_HANDLED;
+		default:
+
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
+
+static void state_suspended_exit(void *obj)
+{
+	ARG_UNUSED(obj);
+
+	LOG_DBG("state_suspended_exit");
+
+	atomic_clear(&network_suspended);
 }
 
 static void network_wdt_callback(int channel_id, void *user_data)

@@ -74,6 +74,12 @@ enum network_msg_type {
 	 */
 	NETWORK_SYSTEM_MODE_RESPONSE,
 
+	/* The network module has taken the modem offline and released it as a response to a
+	 * NETWORK_SUSPEND request.
+	 * No further network status messages are sent until a NETWORK_RESUME request is received.
+	 */
+	NETWORK_SUSPENDED,
+
 	/* Input message types */
 
 	/* Request to connect to the network, which includes searching for a suitable network
@@ -112,6 +118,19 @@ enum network_msg_type {
 	 * NETWORK_SYSTEM_MODE_RESPONSE message.
 	 */
 	NETWORK_SYSTEM_MODE_REQUEST,
+
+	/* Request to take the modem offline while keeping the registration context, for example to
+	 * use a different access technology. The network module stops acting on modem events and
+	 * responds with NETWORK_SUSPENDED.
+	 * Requires two configured cellular profiles and modem firmware with support for the
+	 * functional mode (mfw_nrf9151-ntn).
+	 */
+	NETWORK_SUSPEND,
+
+	/* Request to take back the modem after a NETWORK_SUSPEND request and start searching for
+	 * a network.
+	 */
+	NETWORK_RESUME,
 };
 
 struct network_msg {
