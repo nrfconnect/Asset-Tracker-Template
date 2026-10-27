@@ -8,15 +8,16 @@ The firmware over-the-air (FOTA) module manages remote firmware updates for both
 
 The update process begins when the module receives a `FOTA_POLL_REQUEST` message, which the Main module usually triggers. When an update is available, the module initiates the download automatically, without additional commands.
 
-The module supports the following firmware image types:
+With the default configuration, which retrieves updates through the unified nRF Cloud backend (`CONFIG_MEMFAULT_ZEPHYR_FOTA_BACKEND_NRF_CLOUD_OVERRIDE`), the module supports the following firmware image types:
 
 - **Application**: Updates the application firmware.
 - **Delta modem**: Incremental modem firmware updates for minor version changes.
-- **Full modem**: Complete modem firmware replacements.
 
-Once a download has started, the module publishes `FOTA_STARTING` so the application can move into its FOTA state. The module marks application and delta modem images ready after the download completes. Full modem images need an additional apply step that can only run while the modem is offline.
+For information about performing a delta modem update, see [nRF Modem FOTA](https://docs.nrfcloud.com/docs/mcu/nrf-modem-fota).
 
-When the module needs the network to be disconnected, for example to apply a full modem image or to release modem resources before reboot, it publishes `FOTA_NETWORK_DISCONNECT_NEEDED`. The application must then complete the following steps:
+Once a download has started, the module publishes `FOTA_STARTING` so the application can move into its FOTA state. The module marks application and delta modem images ready after the download completes.
+
+When the module needs the network to be disconnected, for example to release modem resources before reboot, it publishes `FOTA_NETWORK_DISCONNECT_NEEDED`. The application must then complete the following steps:
 
 1. Disconnect from the cellular network.
 2. Reply with `FOTA_NETWORK_DISCONNECTED` once the network is down.

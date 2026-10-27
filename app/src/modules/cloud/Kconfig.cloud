@@ -29,6 +29,27 @@ config APP_CLOUD_SHADOW_RESPONSE_BUFFER_MAX_SIZE
 	help
 	  Maximum size of the buffer used to receive shadow responses from the cloud.
 
+config APP_CLOUD_SHADOW_CONTROL
+	bool "Process the nRF Cloud shadow control section"
+	default y if MEMFAULT_FOTA_MODEM_UPDATE
+	help
+	  Pass each shadow poll through the nRF Cloud library's handler for the shadow
+	  "control" section. This applies library-level settings from the shadow and acknowledges
+	  them, such as the Memfault modem project key (control.memfaultModemKey), which lets the
+	  key be provisioned at runtime instead of through CONFIG_MEMFAULT_FOTA_MODEM_PROJECT_KEY.
+
+	  The library handler only accepts JSON, while the application requests its own shadow
+	  configuration in CBOR. Enabling this option therefore adds one JSON shadow request to every
+	  shadow poll.
+
+config APP_CLOUD_SHADOW_CONTROL_BUFFER_MAX_SIZE
+	int "Shadow control buffer maximum size"
+	default 512
+	depends on APP_CLOUD_SHADOW_CONTROL
+	help
+	  Maximum size of the buffer used to receive the JSON shadow document that is processed for
+	  the control section.
+
 config APP_CLOUD_CONFIRMABLE_MESSAGES
 	bool "Use confirmable messages"
 	help

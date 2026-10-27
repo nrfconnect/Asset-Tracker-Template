@@ -8,6 +8,7 @@ The module performs the following tasks:
 - Managing backoff and retries when connecting to the cloud. For information about configuring the backoff behavior, see [Configuration](#configuration).
 - Publishing sensor data (temperature, pressure, battery, location, and so on) to nRF Cloud. Data reaches the Cloud module through the [Storage module](storage.md) batch interface on `storage_chan` and `storage_data_chan`.
 - Requesting and handling shadow updates. The Main module triggers device shadow polling by sending `CLOUD_SHADOW_GET_DESIRED` or `CLOUD_SHADOW_GET_DELTA` messages.
+- Applying the nRF Cloud library settings in the shadow `control` section, such as the Memfault modem project key (`control.memfaultModemKey`), when `CONFIG_APP_CLOUD_SHADOW_CONTROL` is enabled. The library only accepts JSON, so each shadow poll sends an additional JSON request next to the CBOR request used for the application configuration.
 - Handling network events and transitioning between connection states, as described in [State diagram](#state-diagram).
 
 The DTLS connection ID lets the device re-establish a secure connection with the cloud quickly after a network disconnection, without a full DTLS handshake. The module uses the nRF Cloud CoAP library to handle the CoAP communication and the DTLS connection management.
@@ -91,6 +92,8 @@ You can configure the Cloud module with the following Kconfig options from `Kcon
 - **CONFIG_APP_CLOUD_SHELL**: Enables shell support for cloud operations.
 - **CONFIG_APP_CLOUD_PAYLOAD_BUFFER_MAX_SIZE**: Defines the maximum size for JSON payloads sent to the cloud.
 - **CONFIG_APP_CLOUD_SHADOW_RESPONSE_BUFFER_MAX_SIZE**: Sets the maximum buffer size for receiving shadow data.
+- **CONFIG_APP_CLOUD_SHADOW_CONTROL**: Processes the nRF Cloud shadow `control` section on every shadow poll. Enabled by default when `CONFIG_MEMFAULT_FOTA_MODEM_UPDATE` is enabled.
+- **CONFIG_APP_CLOUD_SHADOW_CONTROL_BUFFER_MAX_SIZE**: Sets the maximum buffer size for the JSON shadow document that is processed for the `control` section.
 - **CONFIG_APP_CLOUD_CONFIRMABLE_MESSAGES**: Uses confirmable CoAP messages for reliability.
 - **CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS**: Starting delay in seconds before reconnect attempts.
 - **CONFIG_APP_CLOUD_BACKOFF_TYPE**: Specifies the backoff strategy, which is none, linear, or exponential.

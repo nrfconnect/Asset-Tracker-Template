@@ -1,6 +1,9 @@
 # Firmware updates (FOTA)
 
-This guide covers how to perform firmware over-the-air (FOTA) updates using the [nRF Cloud REST API](https://api.nrfcloud.com).
+This guide covers how to perform Firmware Over The Air (FOTA) updates using
+[nRF Cloud](https://docs.nrfcloud.com). Updates are delivered to the device through
+nRF Cloud's CoAP transport. See the [FOTA module](../modules/fota_module.md) for how the device itself handles an update once it is
+available.
 
 ## Firmware versioning
 
@@ -28,10 +31,9 @@ EXTRAVERSION = dev
 
 ### Preparing firmware
 
-Complete the following steps when preparing application or bootloader firmware. For modem updates, pre-provisioned modem bundles are already available in nRF Cloud. Use a modem bundle ID from the REST API when creating the FOTA job, as described in [Complete update workflow](#complete-update-workflow).
+Complete the following steps when preparing application or modem firmware.
 
-1. Update the `app/VERSION` file. Increment the appropriate version component.
-1. Build the firmware.
+- **Application**: Update the `app/VERSION` file. Increment the appropriate version component. Then build the firmware.
 
     From the command line, run the following command:
 
@@ -39,26 +41,35 @@ Complete the following steps when preparing application or bootloader firmware. 
     west build -p -b thingy91x/nrf9151/ns # Build for the appropriate board
     ```
 
-    You can also use nRF Connect for VS Code. For information about building with the extension, see [Getting started](getting_started.md).
+    You can also use nRF Connect for VS Code. For information about building with the extension, see [Getting started](getting_started.md). The OTA payload is the signed application binary at `build/app/zephyr/zephyr.signed.bin`.
 
-1. Locate the update bundles in the `app/build/` output directory:
+- **Modem**: Nordic publishes delta modem firmware update packages. Download the `mfw_nrf91x1_<version>.zip` release for your target version. It contains pre-built delta binaries named `mfw_nrf91x1_update_from_<from_version>_to_<to_version>.bin` for the supported upgrade paths.
 
-    - `build/dfu_application.zip`: The application firmware update.
-    - `build/dfu_mcuboot.zip`: The bootloader update.
+    Delta modem FOTA requires `CONFIG_MEMFAULT_FOTA_MODEM_UPDATE=y` and the Memfault project key of your modem project. Find the key under **Settings** > **General** in your modem Memfault project. For information about creating the project, see [Create a modem firmware project](https://docs.nrfcloud.com/docs/mcu/nrf-modem-fota#step-1-create-a-modem-firmware-project).
+
+    Provide the key to the device in one of the following ways:
+
+    - Compile it into the firmware with `CONFIG_MEMFAULT_FOTA_MODEM_PROJECT_KEY`.
+    - Set it at runtime in the device shadow. Add `control.memfaultModemKey` to the desired state of the device, for example `{"desired": {"control": {"memfaultModemKey": "<key>"}}}` through `PATCH /v1/devices/{deviceId}/state`. The key can have at most 32 characters. The device applies it when it polls the shadow, which requires `CONFIG_APP_CLOUD_SHADOW_CONTROL` and is enabled by default. The key is not stored, so the device applies it again after every reboot.
+
+- **Bootloader**: Not currently supported through this OTA flow.
 
 ### Version verification
 
-To verify that an update succeeded, use one of the following methods:
+The device continues to report its firmware versions to the nRF Cloud device shadow, regardless of how the update was delivered. To verify that an update succeeded, query the device shadow:
 
-- **Application updates**: Confirm the FOTA job status is `SUCCEEDED` through `GET /fota-jobs/{jobId}`, then check that the device `appVersion` field matches the new version through `GET /devices/{deviceId}`.
-- **Modem updates**: Confirm the FOTA job status is `SUCCEEDED`, then check that the device `modemFirmware` field shows the new version.
-- **Bootloader updates**: Confirm the FOTA job status is `SUCCEEDED`, then check that the device `bootloaderVersion` field shows the new version.
+```bash
+curl -X GET "https://api.nrfcloud.com/v1/devices/${DEVICE_ID}" \
+  -H "Authorization: Bearer ${API_KEY}" \
+  -H "Accept: application/json"
+```
+
+- **Application updates**: Check that the `appVersion` field matches the new version.
+- **Modem updates**: Check that the `modemFirmware` field matches the new version.
 
 ## Performing FOTA updates
 
-You manage FOTA updates through the nRF Cloud REST API.
-
-After you create and apply a FOTA job in nRF Cloud, the device checks for updates automatically at a configured interval and when the user triggers a check, for example with a button press. To trigger a check manually during development, connect to the device shell and run the following command:
+After you deploy a release to a cohort, the device checks for updates automatically at a configured interval and when the user triggers a check, for example with a button press. To trigger a check manually during development, connect to the device shell and run the following command:
 
 ```bash
 att_fota poll
@@ -68,134 +79,86 @@ The device must be connected to the network and the cloud. If the device finds a
 
 To trigger an immediate FOTA poll from the device, press and hold **Button 1**. On the Thingy:91 X, pressing on the top of the case pushes Button 1.
 
-### REST API
+### Setup
 
-The following sections describe how to set up the REST API access, run the complete update workflow, and use the individual API endpoints.
-
-#### Setup
+You manage updates with the [`memfault` CLI](https://mflt.io/memfault-cli), which you can install with `pip install memfault-cli`. You need an organization token, an organization slug, and a project slug.
 
 Set the following environment variables:
 
 ```bash
-export API_KEY=<your-nrf-cloud-api-key>
-export DEVICE_ID=<your-device-id>
+export ORG_TOKEN=<your-memfault-org-token>   # https://app.memfault.com/organizations/-/settings/auth-tokens
+export ORG_SLUG=<your-org-slug>              # https://app.memfault.com/organizations/-/projects/-/settings
+export PROJECT_SLUG=<your-app-project-slug>
 ```
 
-On-target tests use the same key as `NRFCLOUD_API_KEY`. For more information, see [tests/on_target/README.md](../../tests/on_target/README.md).
-
-To get your API key, complete the following steps:
-
-1. Log in at [nRF Cloud](https://nrfcloud.com) and open the legacy app using the link in the bottom left corner of the new UI.
-1. Select the correct team in the upper right corner.
-1. Go to the burger menu in the upper right corner and select **User Account**.
-1. Copy the API key from **Team Details**.
-1. Use the key as `Authorization: Bearer $API_KEY` in the following curl examples.
-
-For more information, see [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/tokens-and-keys) and the [nRF Cloud REST API](https://api.nrfcloud.com) reference.
-
-#### Complete update workflow
-
-To deploy a firmware update, complete the following steps:
-
-1. Create the manifest and upload the bundle:
-
-    ```bash
-    # Set path to your application binary
-    export BIN_FILE="build/app/zephyr/zephyr.signed.bin"
-    export FW_VERSION="1.2.3"
-
-    # Create manifest.json with firmware details
-    cat > manifest.json << EOF
-    {
-        "name": "My Firmware",
-        "description": "Firmware description",
-        "fwversion": "${FW_VERSION}",
-        "format-version": 1,
-        "files": [
-            {
-                "file": "$(basename ${BIN_FILE})",
-                "type": "application",
-                "size": $(stat -c%s ${BIN_FILE} 2>/dev/null || stat -f%z ${BIN_FILE})
-            }
-        ]
-    }
-    EOF
-
-    # Create zip containing firmware and manifest
-    zip -j firmware.zip ${BIN_FILE} manifest.json
-
-    # Upload to nRF Cloud and extract bundle ID
-    UPLOAD_RESPONSE=$(curl -X POST "https://api.nrfcloud.com/v1/firmwares" \
-      -H "Authorization: Bearer ${API_KEY}" \
-      -H "Content-Type: application/zip" \
-      --data-binary @firmware.zip)
-
-    # Extract the bundle ID from the response (UUID from the URI path)
-    export BUNDLE_ID=$(echo $UPLOAD_RESPONSE | jq -r '.uris[0]' | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
-    ```
-
-1. Create and apply the FOTA job:
-
-    ```bash
-    # Create job
-    JOB_RESPONSE=$(curl -X POST "https://api.nrfcloud.com/v1/fota-jobs" \
-      -H "Authorization: Bearer ${API_KEY}" \
-      -H "Content-Type: application/json" \
-      -d "{\"deviceIds\": [\"${DEVICE_ID}\"], \"bundleId\": \"${BUNDLE_ID}\"}")
-
-    export JOB_ID=$(echo $JOB_RESPONSE | jq -r '.jobId')
-
-    # Apply job
-    curl -X POST "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}/apply" \
-      -H "Authorization: Bearer ${API_KEY}"
-    ```
-
-1. Monitor the job status:
-
-    ```bash
-    curl -X GET "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}" \
-      -H "Authorization: Bearer ${API_KEY}" \
-      -H "Accept: application/json"
-    ```
-
-    The job status is `QUEUED`, `IN_PROGRESS`, `DOWNLOADING`, `SUCCEEDED`, `FAILED`, `TIMED_OUT`, `CANCELLED`, or `REJECTED`.
-
-1. Verify the update by querying the device information:
-
-    ```bash
-    curl -X GET "https://api.nrfcloud.com/v1/devices/${DEVICE_ID}" \
-      -H "Authorization: Bearer ${API_KEY}" \
-      -H "Accept: application/json"
-    ```
-
-    In the response, check the `appVersion` field for application updates, the `modemFirmware` field for modem updates, or the `bootloaderVersion` field for bootloader updates.
-
-#### API reference
-
-To list the FOTA jobs, run the following command:
+Modem firmware is managed under a separate Memfault project, which is the same one whose project key the device uses for modem updates:
 
 ```bash
-curl -X GET "https://api.nrfcloud.com/v1/fota-jobs" \
-  -H "Authorization: Bearer ${API_KEY}"
+export MODEM_ORG_TOKEN=<your-modem-org-token>
+export MODEM_ORG_SLUG=<your-modem-org-slug>
+export MODEM_PROJECT_SLUG=<your-modem-project-slug>
 ```
 
-To cancel a FOTA job, run the following command:
+The on-target test suite uses the same setup. For more information, see [tests/on_target/README.md](../../tests/on_target/README.md). For the CLI wrapper that these examples are based on, see [tests/on_target/utils/nrfcloud.py](../../tests/on_target/utils/nrfcloud.py).
+
+### Application update (full release)
 
 ```bash
-curl -X PUT "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}/cancel" \
-  -H "Authorization: Bearer ${API_KEY}"
+export HW_VERSION=<hardware_version>   # e.g. thingy91x, nrf9151dk
+export NEW_VERSION=1.2.3
+
+memfault --org-token $ORG_TOKEN --org $ORG_SLUG --project $PROJECT_SLUG \
+  upload-ota-payload \
+  --hardware-version $HW_VERSION \
+  --software-type app \
+  --software-version $NEW_VERSION \
+  build/app/zephyr/zephyr.signed.bin
+
+memfault --org-token $ORG_TOKEN --org $ORG_SLUG --project $PROJECT_SLUG \
+  deploy-release --release-version $NEW_VERSION --cohort default
 ```
 
-To delete a FOTA job, run the following command:
+### Modem update (delta release)
+
+Delta modem releases are declared with `--delta-from` and `--delta-to` instead of `--software-version`. The values match the `from` and `to` versions in the delta binary filename:
 
 ```bash
-curl -X DELETE "https://api.nrfcloud.com/v1/fota-jobs/${JOB_ID}" \
-  -H "Authorization: Bearer ${API_KEY}"
+export FROM_VERSION=mfw_nrf91x1_2.0.3
+export TO_VERSION=mfw_nrf91x1_2.0.4
+
+memfault --org-token $MODEM_ORG_TOKEN --org $MODEM_ORG_SLUG --project $MODEM_PROJECT_SLUG \
+  upload-ota-payload \
+  --hardware-version $HW_VERSION \
+  --software-type mfw \
+  --delta-from $FROM_VERSION \
+  --delta-to $TO_VERSION \
+  mfw_nrf91x1_update_from_2.0.3_to_2.0.4.bin
+
+memfault --org-token $MODEM_ORG_TOKEN --org $MODEM_ORG_SLUG --project $MODEM_PROJECT_SLUG \
+  deploy-release --delta-from $FROM_VERSION --delta-to $TO_VERSION --cohort default
 ```
 
-To delete a firmware bundle, run the following command:
+> [!NOTE]
+> Memfault applies [SemVer precedence](https://semver.org/#spec-item-11) when deciding whether a delta represents an upgrade. A version with a pre-release suffix, for example `2.0.4-FOTA-TEST`, has lower precedence than the plain version (`2.0.4`). A device already at `2.0.4` is therefore never offered a delta to `2.0.4-FOTA-TEST`, unless the target cohort has the **Bypass version checks** setting enabled in the Memfault dashboard. This only matters for pre-release-style test versions. A normal version bump, for example `2.0.3` to `2.0.4`, is an unambiguous upgrade and needs no special handling.
+
+### Deactivating a release
+
+To deactivate a full release, run the following command:
 
 ```bash
-curl -X DELETE "https://api.nrfcloud.com/v1/firmwares/${BUNDLE_ID}" \
-  -H "Authorization: Bearer ${API_KEY}"
+memfault --org-token $ORG_TOKEN --org $ORG_SLUG --project $PROJECT_SLUG \
+  deploy-release --release-version $NEW_VERSION --cohort default --deactivate
 ```
+
+To deactivate a delta release, such as the modem update from [Modem update (delta release)](#modem-update-delta-release), identify it with `--delta-from` and `--delta-to`:
+
+```bash
+memfault --org-token $MODEM_ORG_TOKEN --org $MODEM_ORG_SLUG --project $MODEM_PROJECT_SLUG \
+  deploy-release --delta-from $FROM_VERSION --delta-to $TO_VERSION --cohort default --deactivate
+```
+
+### Reference
+
+See `memfault --help`, `memfault upload-ota-payload --help`, and `memfault deploy-release --help`
+for the full set of options (hardware versions, rollout percentage, must-pass-through releases,
+and more).

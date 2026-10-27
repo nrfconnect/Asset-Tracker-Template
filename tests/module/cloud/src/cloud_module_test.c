@@ -102,6 +102,12 @@ FAKE_VALUE_FUNC(int, nrf_cloud_coap_bytes_send, uint8_t *, size_t, bool);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_sensor_send, const char *, double, int64_t, bool);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_json_message_send, const char *, bool, bool);
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_get, char *, size_t *, bool, enum coap_content_format);
+FAKE_VALUE_FUNC(int, nrf_cloud_coap_shadow_delta_process, const struct nrf_cloud_data *,
+		struct nrf_cloud_obj *);
+FAKE_VALUE_FUNC(int, nrf_cloud_obj_free, struct nrf_cloud_obj *);
+
+/* With the shadow control section enabled, every shadow poll also fetches the shadow as JSON. */
+#define EXPECTED_SHADOW_GET_CALLS (IS_ENABLED(CONFIG_APP_CLOUD_SHADOW_CONTROL) ? 2 : 1)
 FAKE_VALUE_FUNC(int, nrf_cloud_coap_patch, const char *, const char *,
 		const uint8_t *, size_t,
 		enum coap_content_format, bool,
@@ -453,6 +459,8 @@ void setUp(void)
 	RESET_FAKE(nrf_cloud_coap_json_message_send);
 	RESET_FAKE(nrf_cloud_coap_location_send);
 	RESET_FAKE(nrf_cloud_coap_shadow_get);
+	RESET_FAKE(nrf_cloud_coap_shadow_delta_process);
+	RESET_FAKE(nrf_cloud_obj_free);
 	RESET_FAKE(nrf_cloud_coap_patch);
 	RESET_FAKE(date_time_now);
 	RESET_FAKE(date_time_uptime_to_unix_time_ms);
@@ -976,7 +984,7 @@ void test_shadow_get_desired_should_return_empty(void)
 	wait_for_cloud_message(CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED, K_SECONDS(5));
 
 	/* Verify that nrf_cloud_coap_shadow_get was called */
-	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_get_fake.call_count);
+	TEST_ASSERT_EQUAL(EXPECTED_SHADOW_GET_CALLS, nrf_cloud_coap_shadow_get_fake.call_count);
 }
 
 void test_shadow_get_delta_should_return_empty(void)
@@ -1004,7 +1012,7 @@ void test_shadow_get_delta_should_return_empty(void)
 	wait_for_cloud_message(CLOUD_SHADOW_RESPONSE_EMPTY_DELTA, K_SECONDS(5));
 
 	/* Verify that nrf_cloud_coap_shadow_get was called */
-	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_get_fake.call_count);
+	TEST_ASSERT_EQUAL(EXPECTED_SHADOW_GET_CALLS, nrf_cloud_coap_shadow_get_fake.call_count);
 }
 
 void test_shadow_get_desired_should_return_response(void)
@@ -1032,7 +1040,7 @@ void test_shadow_get_desired_should_return_response(void)
 	wait_for_cloud_message(CLOUD_SHADOW_RESPONSE_DESIRED, K_SECONDS(5));
 
 	/* Verify that nrf_cloud_coap_shadow_get was called */
-	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_get_fake.call_count);
+	TEST_ASSERT_EQUAL(EXPECTED_SHADOW_GET_CALLS, nrf_cloud_coap_shadow_get_fake.call_count);
 }
 
 void test_shadow_get_delta_should_return_response(void)
@@ -1060,7 +1068,96 @@ void test_shadow_get_delta_should_return_response(void)
 	wait_for_cloud_message(CLOUD_SHADOW_RESPONSE_DELTA, K_SECONDS(5));
 
 	/* Verify that nrf_cloud_coap_shadow_get was called */
-	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_get_fake.call_count);
+	TEST_ASSERT_EQUAL(EXPECTED_SHADOW_GET_CALLS, nrf_cloud_coap_shadow_get_fake.call_count);
+}
+
+void test_shadow_get_delta_should_process_control_section(void)
+{
+#if defined(CONFIG_APP_CLOUD_SHADOW_CONTROL)
+	struct cloud_msg request_msg = {
+		.type = CLOUD_SHADOW_GET_DELTA
+	};
+
+	nrf_cloud_coap_shadow_get_fake.custom_fake = nrf_cloud_coap_shadow_get_response_fake;
+	/* The library reports application specific data that must be freed */
+	nrf_cloud_coap_shadow_delta_process_fake.return_val = 1;
+
+	test_should_transition_from_disconnected_to_connected_ready();
+
+	publish_and_assert(&cloud_chan, &request_msg);
+	wait_for_cloud_message(CLOUD_SHADOW_GET_DELTA, K_MSEC(100));
+	wait_for_processing();
+
+	/* The CBOR response for the application is still published */
+	wait_for_cloud_message(CLOUD_SHADOW_RESPONSE_DELTA, K_SECONDS(5));
+
+	/* JSON request for the library first, then the CBOR request for the application */
+	TEST_ASSERT_EQUAL(2, nrf_cloud_coap_shadow_get_fake.call_count);
+	TEST_ASSERT_EQUAL(COAP_CONTENT_FORMAT_APP_JSON, nrf_cloud_coap_shadow_get_fake.arg3_history[0]);
+	TEST_ASSERT_EQUAL(COAP_CONTENT_FORMAT_APP_CBOR, nrf_cloud_coap_shadow_get_fake.arg3_history[1]);
+	TEST_ASSERT_TRUE(nrf_cloud_coap_shadow_get_fake.arg2_history[0]);
+	TEST_ASSERT_TRUE(nrf_cloud_coap_shadow_get_fake.arg2_history[1]);
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_delta_process_fake.call_count);
+	TEST_ASSERT_EQUAL(1, nrf_cloud_obj_free_fake.call_count);
+#else
+	TEST_IGNORE_MESSAGE("CONFIG_APP_CLOUD_SHADOW_CONTROL is not enabled");
+#endif
+}
+
+void test_shadow_get_desired_should_process_control_section(void)
+{
+#if defined(CONFIG_APP_CLOUD_SHADOW_CONTROL)
+	struct cloud_msg request_msg = {
+		.type = CLOUD_SHADOW_GET_DESIRED
+	};
+
+	nrf_cloud_coap_shadow_get_fake.custom_fake = nrf_cloud_coap_shadow_get_response_fake;
+
+	test_should_transition_from_disconnected_to_connected_ready();
+
+	publish_and_assert(&cloud_chan, &request_msg);
+	wait_for_cloud_message(CLOUD_SHADOW_GET_DESIRED, K_MSEC(100));
+	wait_for_processing();
+
+	wait_for_cloud_message(CLOUD_SHADOW_RESPONSE_DESIRED, K_SECONDS(5));
+
+	TEST_ASSERT_EQUAL(2, nrf_cloud_coap_shadow_get_fake.call_count);
+	TEST_ASSERT_EQUAL(COAP_CONTENT_FORMAT_APP_JSON, nrf_cloud_coap_shadow_get_fake.arg3_history[0]);
+	TEST_ASSERT_EQUAL(COAP_CONTENT_FORMAT_APP_CBOR, nrf_cloud_coap_shadow_get_fake.arg3_history[1]);
+	/* The full desired section is requested, not only the delta */
+	TEST_ASSERT_FALSE(nrf_cloud_coap_shadow_get_fake.arg2_history[0]);
+	TEST_ASSERT_FALSE(nrf_cloud_coap_shadow_get_fake.arg2_history[1]);
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_delta_process_fake.call_count);
+	/* No application specific data was reported, so there is nothing to free */
+	TEST_ASSERT_EQUAL(0, nrf_cloud_obj_free_fake.call_count);
+#else
+	TEST_IGNORE_MESSAGE("CONFIG_APP_CLOUD_SHADOW_CONTROL is not enabled");
+#endif
+}
+
+void test_shadow_control_failure_should_not_block_shadow_response(void)
+{
+#if defined(CONFIG_APP_CLOUD_SHADOW_CONTROL)
+	struct cloud_msg request_msg = {
+		.type = CLOUD_SHADOW_GET_DELTA
+	};
+
+	nrf_cloud_coap_shadow_get_fake.custom_fake = nrf_cloud_coap_shadow_get_response_fake;
+	nrf_cloud_coap_shadow_delta_process_fake.return_val = -ENOMSG;
+
+	test_should_transition_from_disconnected_to_connected_ready();
+
+	publish_and_assert(&cloud_chan, &request_msg);
+	wait_for_cloud_message(CLOUD_SHADOW_GET_DELTA, K_MSEC(100));
+	wait_for_processing();
+
+	wait_for_cloud_message(CLOUD_SHADOW_RESPONSE_DELTA, K_SECONDS(5));
+
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_shadow_delta_process_fake.call_count);
+	TEST_ASSERT_EQUAL(0, nrf_cloud_obj_free_fake.call_count);
+#else
+	TEST_IGNORE_MESSAGE("CONFIG_APP_CLOUD_SHADOW_CONTROL is not enabled");
+#endif
 }
 
 void test_shadow_update_reported_device_should_call_update(void)
