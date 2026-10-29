@@ -8,6 +8,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
 #include <modem/nrf_modem_lib.h>
+#include <nrf_modem_at.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <date_time.h>
 #include <zephyr/smf.h>
@@ -326,6 +327,16 @@ static void state_running_entry(void *obj)
 
 		return;
 	}
+
+	/* Set data profile to ultra-low power */
+	err = nrf_modem_at_printf("AT%%XDATAPRFL=0");
+	if (err) {
+		LOG_ERR("Failed to set data profile to ultra-low power, error: %d", err);
+
+		return;
+	}
+
+	LOG_DBG("Data profile set to ultra-low power");
 
 	LOG_DBG("Network module started");
 }

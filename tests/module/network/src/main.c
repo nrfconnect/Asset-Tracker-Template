@@ -10,6 +10,7 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/logging/log.h>
 #include <modem/nrf_modem_lib.h>
+#include <nrf_modem_at.h>
 #include <modem/lte_lc.h>
 #include <modem/modem_info.h>
 
@@ -31,6 +32,7 @@ void assert_post_action(const char *file, unsigned int line)
 DEFINE_FFF_GLOBALS;
 
 FAKE_VALUE_FUNC(int, nrf_modem_lib_init);
+FAKE_VALUE_FUNC_VARARG(int, nrf_modem_at_printf, const char *, ...);
 FAKE_VALUE_FUNC(int, date_time_now, int64_t *);
 FAKE_VALUE_FUNC(int, task_wdt_feed, int);
 FAKE_VALUE_FUNC(int, task_wdt_add, uint32_t, task_wdt_callback_t, void *);
@@ -291,6 +293,7 @@ void setUp(void)
 	RESET_FAKE(lte_lc_system_mode_set);
 	RESET_FAKE(lte_lc_register_handler);
 	RESET_FAKE(nrf_modem_lib_init);
+	RESET_FAKE(nrf_modem_at_printf);
 	RESET_FAKE(__wrap_k_work_submit);
 	RESET_FAKE(nrf_modem_lib_trace_processing_done_wait);
 	RESET_FAKE(nrf_modem_lib_fault_strerror);
