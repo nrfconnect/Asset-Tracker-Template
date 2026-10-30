@@ -505,7 +505,7 @@ To set up remote debugging with Memfault, complete the following steps:
 1. Open the Memfault dashboard.
 
     1. Log in at [nRF Cloud](https://nrfcloud.com). You land in the new Memfault-integrated nRF Cloud experience, which is the Memfault dashboard for your linked project.
-    1. Onboard the device in the new UI, under **Fleet** > **Devices** > **Add devices**, as described in [Connecting](connecting.md). The other device-management UI steps in these guides, such as the shadow configuration, still use the legacy nRF Cloud portal. Open it using the link in the bottom left corner of the new UI.
+    1. Onboard the device in the new UI, under **Fleet** > **Devices** > **Add devices**, as described in [Connecting](connecting.md).
 
 1. Upload the firmware symbol file.
 

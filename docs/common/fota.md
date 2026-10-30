@@ -83,15 +83,14 @@ export DEVICE_ID=<your-device-id>
 
 On-target tests use the same key as `NRFCLOUD_API_KEY`. For more information, see [tests/on_target/README.md](../../tests/on_target/README.md).
 
-To get your API key, complete the following steps:
+The FOTA endpoints use the legacy nRF Cloud API key. To get your API key, complete the following steps:
 
-1. Log in at [nRF Cloud](https://nrfcloud.com) and open the legacy app using the link in the bottom left corner of the new UI.
-1. Select the correct team in the upper right corner.
-1. Go to the burger menu in the upper right corner and select **User Account**.
-1. Copy the API key from **Team Details**.
+1. Log in at [nRF Cloud](https://nrfcloud.com).
+1. Go to `https://app.memfault.com/organizations/<org_slug>/nrfcloud-api-key`, where `<org_slug>` is your organization slug. You find the slug under **Project Settings** > **General**.
+1. Copy the API key.
 1. Use the key as `Authorization: Bearer $API_KEY` in the following curl examples.
 
-For more information, see [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/tokens-and-keys) and the [nRF Cloud REST API](https://api.nrfcloud.com) reference.
+For more information, see the [nRF Cloud REST API](https://api.nrfcloud.com) reference.
 
 #### Complete update workflow
 

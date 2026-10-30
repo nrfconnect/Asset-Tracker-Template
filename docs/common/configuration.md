@@ -40,51 +40,46 @@ You can configure the Asset Tracker Template remotely through the device shadow 
 
 ### Configuration through nRF Cloud UI
 
-> [!NOTE]
-> nRF Cloud is transitioning to a Memfault-integrated experience. The following steps use the legacy nRF Cloud portal. After you log in, open the legacy app using the link in the bottom left corner of the new UI.
-
 1. Log in to [nRF Cloud](https://nrfcloud.com).
-1. Go to **Devices** and select your device.
-1. Select **View Config** on the top bar.
-1. Select **Edit Configuration**.
-1. Enter the configuration, as shown in the following examples. The order of the keys in the JSON object matters.
+1. Go to **Fleet** > **Devices** and select your device.
+1. Select the **Device Shadow** tab.
 
-    Example 1 sets a 5-minute sampling interval and sends data immediately after each sample:
+    The **Device Config** table lists each setting with the value the device reports, the desired value, and the sync status.
 
-    ```json
-    {
-      "sample_interval": 300,
-      "storage_threshold": 1
-    }
-    ```
+    ![nRF Cloud device shadow](../images/nrfcloud_device_shadow.png)
 
-    Example 2 sets a 10-minute sampling interval and sends data after six samples, which is once per hour:
+1. Enter the new value in the **Desired** column for the setting you want to change. For example, set `config.sample_interval` to `300` and `config.storage_threshold` to `1` to sample every 5 minutes and send data immediately after each sample.
 
-    ```json
-    {
-      "sample_interval": 600,
-      "storage_threshold": 6
-    }
-    ```
+    To remove a desired value, select the delete icon next to it.
 
-    **Important:** To remove a configuration entry, set the parameter to `null`.
+1. Select **Save Changes** to apply the changes, or **Cancel** to discard them.
 
-1. Select **Commit** to apply the changes.
-
-The device receives the new configuration through its shadow and adjusts its
-sampling interval and storage mode accordingly.
+The device receives the new configuration through its shadow on the next cloud sync and adjusts its sampling interval and storage mode accordingly. The **Sync status** column shows `pending` until the device reports the new value.
 
 ### Configuration through REST API
 
-You can update the runtime parameters with the [nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState).
+You can update the runtime parameters with the [Update the State of an nRF9x Device](https://docs.nrfcloud.com/api/update-long-range-device-state) endpoint of the nRF Cloud API. The request body is merged into the existing device shadow, and a key set to `null` is deleted.
 
-To get `$API_KEY`, open the legacy app from the bottom left corner of the new nRF Cloud UI, and select your team. Then select the menu button, and go to **User Account** > **Team Details**. The on-target tests use the same key, as `NRFCLOUD_API_KEY`. For more information, see [Managing tokens and keys](https://docs.memfault.com/docs/legacy-nrfcloud/tokens-and-keys).
+The requests need the following values:
+
+- An [organization auth token](https://docs.nrfcloud.com/docs/platform/organization-auth-tokens) (OAT) with the `device:write` permission. Organization admins create tokens under **Admin** > **Organization Auth Tokens** > **Create Token**.
+- The organization slug and project slug, which you find under **Project Settings** > **General**.
+
+Set them as environment variables, together with the device ID:
+
+```bash
+export NRFCLOUD_OAT=<your-organization-auth-token>
+export NRFCLOUD_ORG=<your-organization-slug>
+export NRFCLOUD_PROJECT=<your-project-slug>
+export DEVICE_ID=<your-device-id>
+export BASE="https://api.nrfcloud.com/v1/organizations/$NRFCLOUD_ORG/projects/$NRFCLOUD_PROJECT"
+```
 
 Example 1 sets a 5-minute sampling interval and sends data immediately after each sample:
 
 ```bash
-curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
-  -H "Authorization: Bearer $API_KEY" \
+curl -X PATCH "$BASE/long-range/devices/$DEVICE_ID/state" \
+  -H "Authorization: Bearer $NRFCLOUD_OAT" \
   -H "Content-Type: application/json" \
   -d '{ "desired": { "config": { "sample_interval": 300, "storage_threshold": 1 } } }'
 ```
@@ -92,19 +87,28 @@ curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
 Example 2 sets a 10-minute sampling interval and sends data after six samples, which is once per hour:
 
 ```bash
-curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
-  -H "Authorization: Bearer $API_KEY" \
+curl -X PATCH "$BASE/long-range/devices/$DEVICE_ID/state" \
+  -H "Authorization: Bearer $NRFCLOUD_OAT" \
   -H "Content-Type: application/json" \
   -d '{ "desired": { "config": { "sample_interval": 600, "storage_threshold": 6 } } }'
 ```
 
-### Sending commands through REST API
-
-Send device commands using the [nRF Cloud REST API](https://api.nrfcloud.com/#tag/IP-Devices/operation/UpdateDeviceState):
+To read the current shadow, including the `reported`, `desired`, and `delta` sections, use the [Retrieve the State of an nRF9x Device](https://docs.nrfcloud.com/api/retrieve-long-range-device-state) endpoint:
 
 ```bash
-curl -X PATCH "https://api.nrfcloud.com/v1/devices/$DEVICE_ID/state" \
-  -H "Authorization: Bearer $API_KEY" \
+curl "$BASE/long-range/devices/$DEVICE_ID/state" \
+  -H "Authorization: Bearer $NRFCLOUD_OAT"
+```
+
+For more information, see [Device Shadow](https://docs.nrfcloud.com/docs/nrfcloud/device-shadow) and [Transitioning the REST API](https://docs.nrfcloud.com/docs/nrfcloud/rest-api-transition) in the nRF Cloud documentation.
+
+### Sending commands through REST API
+
+Send device commands by updating the device shadow, using the same endpoint and environment variables as in [Configuration through REST API](#configuration-through-rest-api):
+
+```bash
+curl -X PATCH "$BASE/long-range/devices/$DEVICE_ID/state" \
+  -H "Authorization: Bearer $NRFCLOUD_OAT" \
   -H "Content-Type: application/json" \
   -d '{"desired": {"command": [1, 1]}}'
 ```

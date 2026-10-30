@@ -222,16 +222,11 @@ As the next step, continue to [Connecting](connecting.md) to onboard and provisi
 
 To test that everything works as expected, complete the following steps:
 
-> [!NOTE]
-> nRF Cloud is transitioning to a Memfault-integrated experience. The following steps use the legacy nRF Cloud portal. After logging in at [nRF Cloud](https://nrfcloud.com), open the legacy app using the link in the bottom left corner of the new UI.
+1. In a web browser, go to [nRF Cloud](https://nrfcloud.com) and log in to your account. Go to **Fleet** > **Devices**. Your device is now listed in the device overview. Select the device ID to open the device page.
 
-1. In a web browser, go to [nRF Cloud](https://nrfcloud.com) and log in to your account. Go to the **Device management** menu and select **Devices**. Your device is now listed in the device overview. Select the device ID to open the device page.
+1. After provisioning, the device is already connected and sending data. The **Overview** tab on the device page shows the latest information from the device, including the recent location and the last message received. Select **Inspect recent data** to view the recent device messages, such as the battery level and other sensor data.
 
-    ![nRF Cloud device management menu](../images/nrfcloud_devices.png)
-
-1. After provisioning, the device is already connected and sending data. In the web browser, the device page updates with the latest information from the device, including the location, the battery level, and other sensor data.
-
-    ![nRF Cloud example data](../images/nrf_cloud_example_data.png)
+    ![nRF Cloud device overview](../images/nrfcloud_device_overview.png)
 
 1. Press and hold **Button 1** on the device to trigger an immediate cloud sync, which sends buffered data, polls for FOTA updates, and fetches configuration changes. On the Thingy:91 X, pressing on the top of the case pushes Button 1.
 
@@ -454,6 +449,6 @@ Now that you have the application running, you can explore the following areas:
 - **Modify the template**: Add new sensors, create custom modules, add new zbus events, or enable MQTT support, as described in [Modifying the template](modifying.md).
 - **Perform firmware updates**: Deploy new firmware versions over the air, as described in [Firmware updates (FOTA)](fota.md). FOTA supports both application and modem firmware updates through nRF Cloud.
 - **Optimize power consumption**: Learn about the power-saving features and how to achieve the lowest power consumption for your use case in [Achieving low power](low_power.md).
-- **Set up location services**: Configure the GNSS, Wi-Fi, and cellular positioning methods and their fallback priorities, as described in [Location services](location_services.md).
+- **Set up location services**: Configure the GNSS, Wi-Fi, and cellular positioning methods and their fallback priorities, as described in [Location method priorities](configuration.md#location-method-priorities). For more information about the positioning methods, see [nRF Cloud location services](https://docs.nrfcloud.com/docs/platform/location-services).
 - **Set up testing and CI**: Run tests on real hardware or emulated targets, and integrate with CI pipelines, as described in [Testing and CI setup](test_and_ci_setup.md).
 - **Troubleshoot issues**: Use the shell commands, the debugging tools, the Memfault integration, and modem tracing, as described in [Tooling and troubleshooting](tooling_troubleshooting.md).

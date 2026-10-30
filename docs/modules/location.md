@@ -106,7 +106,7 @@ The nRF9151 DK uses the following order:
 
 For a description of each method's accuracy, latency, and power
 characteristics, see the
-[nRF Cloud Location Services overview](https://docs.nordicsemi.com/bundle/nrf-cloud/page/LocationServices/LSOverview.html).
+[nRF Cloud location services](https://docs.nrfcloud.com/docs/platform/location-services).
 
 ### Wi-Fi and cellular combining
 

@@ -314,11 +314,7 @@ Before adding a new sensor, make sure the sensor's driver is available in Zephyr
 
 1. Build and run the modified application.
 
-    **Note:** nRF Cloud is transitioning to a Memfault-integrated experience. The following step uses the legacy nRF Cloud portal. After logging in at [nRF Cloud](https://nrfcloud.com), open the legacy app using the link in the bottom left corner of the new UI.
-
-1. Confirm that the custom messages appear in the Terminal card in [nRF Cloud](https://nrfcloud.com), as shown in the following image:
-
-    ![Terminal card in the nRF Cloud portal showing magnetometer messages from the device](../images/nrf_cloud_magnetometer.png)
+1. Confirm that the custom messages appear in [nRF Cloud](https://nrfcloud.com). Go to **Fleet** > **Devices**, select your device, and select **Inspect recent data** on the **Overview** tab.
 
 ## Add your own module
 

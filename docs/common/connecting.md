@@ -87,8 +87,8 @@ The device polls the provisioning service, receives its credentials, and connect
 <li><strong>Monitor device data:</strong> View real-time data from your device, including location, temperature, battery percentage, and other sensor readings in the <a href="https://nrfcloud.com">nRF Cloud</a> portal.</li>
 <li><strong>Retrieve data programmatically:</strong>
 <ul>
-<li>Use the <a href="https://docs.nordicsemi.com/bundle/nrf-cloud/page/Devices/MessagesAndAlerts/MessageRoutingService/ReceivingMessages.html">Message Routing Service</a> to automatically forward device messages to your own cloud infrastructure or application endpoints.</li>
-<li>Query historical device messages using the REST API. For complete endpoint details, see the <a href="https://api.nrfcloud.com/">REST API documentation</a> and <a href="https://api.nrfcloud.com/v1/openapi.json">OpenAPI specification</a>.</li>
+<li>Use the <a href="https://docs.nrfcloud.com/docs/nrfcloud/message-routing">Message Routing Service</a> to automatically forward device messages to your own cloud infrastructure or application endpoints.</li>
+<li>Query historical device messages using the <a href="https://docs.nrfcloud.com/api/list-device-messages">List nRF9x Device Messages</a> endpoint of the nRF Cloud API. The request needs an <a href="https://docs.nrfcloud.com/docs/platform/organization-auth-tokens">organization auth token</a> with the <code>device:read</code> permission, and your organization and project slugs, which you find under <strong>Project Settings</strong> &gt; <strong>General</strong>.</li>
 </ul>
 </li>
 </ul>
@@ -97,10 +97,12 @@ The device polls the provisioning service, receives its credentials, and connect
 <summary><strong>Retrieve historical messages</strong></summary>
 
 ```bash
-curl -X GET "https://api.nrfcloud.com/v1/messages?device_id=${DEVICE_ID}&pageLimit=10" \
-  -H "Authorization: Bearer ${API_KEY}" \
+curl "https://api.nrfcloud.com/v1/organizations/${NRFCLOUD_ORG}/projects/${NRFCLOUD_PROJECT}/messages?deviceId=${DEVICE_ID}&pageLimit=10" \
+  -H "Authorization: Bearer ${NRFCLOUD_OAT}" \
   -H "Accept: application/json"
 ```
+
+The response lists the newest messages first. Filter by `appId`, or limit the time range with `start` and `end`. When more messages are available, pass the returned `pageNextToken` in the next request to fetch the next page.
 
 </details>
 
