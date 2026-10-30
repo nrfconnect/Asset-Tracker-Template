@@ -53,7 +53,7 @@ To set up your development environment, build the application, flash it to your 
     <td><a href="docs/common/connecting.md">Connecting</a></td>
   </tr>
   <tr>
-    <td><a href="docs/common/location_services.md">Location Services</a></td>
+    <td><a href="https://docs.nrfcloud.com/docs/platform/location-services">Location Services</a></td>
     <td><a href="docs/common/low_power.md">Achieving Low Power</a></td>
     <td><a href="docs/common/fota.md">Firmware Updates (FOTA)</a></td>
   </tr>
