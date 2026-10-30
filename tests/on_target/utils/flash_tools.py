@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 ##########################################################################################
 
+import re
 import subprocess
 import os
 import sys
@@ -17,6 +18,11 @@ SEGGER = os.getenv('SEGGER')
 
 RECOVER_MAX_ATTEMPTS = 3
 RECOVER_RETRY_DELAY_SECONDS = 5
+
+# tests/on_target/utils -> project/app
+APP_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "app"))
+
+_VERSION_FIELD_RE = re.compile(r"^(VERSION_MAJOR|VERSION_MINOR|PATCHLEVEL)\s*=\s*(\d+)")
 
 # A recover that fails part way through leaves the debug access port closed, which makes every
 # later program attempt fail until the device is recovered again.
@@ -111,3 +117,26 @@ def get_first_artifact_match(pattern):
         return matches[0]
     else:
         return None
+
+def read_app_version(app_dir=APP_DIR):
+    """Parse the app's Zephyr VERSION file, returning (major, minor, patch).
+
+    EXTRAVERSION/VERSION_TWEAK are ignored: they don't factor into whether one
+    release is newer than another for our purposes here.
+    """
+    values = {}
+    with open(os.path.join(app_dir, "VERSION")) as f:
+        for line in f:
+            match = _VERSION_FIELD_RE.match(line.strip())
+            if match:
+                values[match.group(1)] = int(match.group(2))
+
+    missing = {"VERSION_MAJOR", "VERSION_MINOR", "PATCHLEVEL"} - values.keys()
+    if missing:
+        raise RuntimeError(f"VERSION file at {app_dir} is missing fields: {sorted(missing)}")
+    return values["VERSION_MAJOR"], values["VERSION_MINOR"], values["PATCHLEVEL"]
+
+def next_app_version(app_dir=APP_DIR):
+    """Return a semver strictly greater than the app's current VERSION file."""
+    major, minor, patch = read_app_version(app_dir)
+    return f"{major}.{minor}.{patch + 1}"

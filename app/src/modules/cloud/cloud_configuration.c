@@ -20,6 +20,46 @@ LOG_MODULE_DECLARE(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 
 ZBUS_CHAN_DECLARE(cloud_chan);
 
+#if defined(CONFIG_APP_CLOUD_SHADOW_CONTROL)
+static void shadow_control_process(bool delta)
+{
+	static char buf[CONFIG_APP_CLOUD_SHADOW_CONTROL_BUFFER_MAX_SIZE];
+	size_t buf_len = sizeof(buf);
+	struct nrf_cloud_obj delta_obj = {0};
+	int err;
+
+	memset(buf, 0, sizeof(buf));
+
+	err = nrf_cloud_coap_shadow_get(buf, &buf_len, delta, COAP_CONTENT_FORMAT_APP_JSON);
+	if (err) {
+		LOG_ERR("Error getting nrf cloud shadow: %d", err);
+		return;
+	}
+	if (buf_len == 0 || buf[0] == '\0') {
+		/* No data to process */
+		return;
+	}
+
+	struct nrf_cloud_data in_data = {.ptr = buf, .len = buf_len};
+
+	/* Control section updates are processed here, notably the memfaultModemKey. This function
+	 * also will free delta_obj if there is no data left to process.
+	 */
+	err = nrf_cloud_coap_shadow_delta_process(&in_data, &delta_obj);
+	if (err < 0) {
+		LOG_ERR("Error processing shadow delta: %d", err);
+		return;
+	}
+	if (err > 0) {
+		/* There is still application data to be processed. Free the object here
+		 * though since it will be re-requested and processed as CBOR later.
+		 */
+		nrf_cloud_obj_free(&delta_obj);
+		return;
+	}
+}
+#endif /* CONFIG_APP_CLOUD_SHADOW_CONTROL */
+
 int cloud_configuration_poll(enum shadow_poll_type type)
 {
 	int err;
@@ -33,6 +73,13 @@ int cloud_configuration_poll(enum shadow_poll_type type)
 
 	LOG_DBG("Configuration: Requesting device shadow %s from cloud",
 		delta ? "delta" : "desired");
+
+#if defined(CONFIG_APP_CLOUD_SHADOW_CONTROL)
+	/* Apply and acknowledge the control section separately from the application configuration
+	 * since the nrf cloud shadow control section requires processing it as JSON.
+	 */
+	shadow_control_process(delta);
+#endif
 
 	err = nrf_cloud_coap_shadow_get(msg.response.buffer,
 					&msg.response.buffer_data_len,

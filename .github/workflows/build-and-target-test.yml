@@ -34,7 +34,7 @@ on:
         required: false
         default: false
       test_filter:
-        description: 'Pytest -k expression to isolate tests (e.g. "test_app_fota_release_to_nightly").
+        description: 'Pytest -k expression to isolate tests (e.g. "test_app_fota").
                       Leave empty to run all tests for the selected devices.'
         type: string
         required: false
