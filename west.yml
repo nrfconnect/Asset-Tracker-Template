@@ -21,7 +21,7 @@ manifest:
       revision: dd20ce77d1c3bed5aa11064c40830c751517fef7
       path: modules/lib/memfault-firmware-sdk
     - name: nrf
-      remote: ncs
+      remote: trondfc
       repo-path: sdk-nrf
-      revision: 88c19fd3cedde72b21060ba295175f988ecfdc3f
+      revision: 75f421fe0df29110ffdce009eabfa778d92ffb79
       import: true
