@@ -67,6 +67,6 @@ static int bootloader_s1_version_get(char *buf, size_t buf_len)
 }
 
 MEMFAULT_FOTA_COMPONENT_DEFINE(mcuboot_s0, "mcuboot-s0", bootloader_s0_version_get,
-			       NRF_CLOUD_FOTA_BOOTLOADER);
+					   kMemfaultFotaComponentInstall_Bootloader);
 MEMFAULT_FOTA_COMPONENT_DEFINE(mcuboot_s1, "mcuboot-s1", bootloader_s1_version_get,
-			       NRF_CLOUD_FOTA_BOOTLOADER);
+					   kMemfaultFotaComponentInstall_Bootloader);

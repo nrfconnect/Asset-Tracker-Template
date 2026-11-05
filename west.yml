@@ -11,14 +11,16 @@ manifest:
       url-base: https://github.com/nrfconnect
     - name: trondfc
       url-base: https://github.com/Trond-F-Christiansen
+    - name: memfault
+      url-base: https://github.com/memfault
 
   projects:
     # Overrides the Memfault SDK imported from nrf: multi-component OTA PoC
     # (branch poc/keyless-component).
     - name: memfault-firmware-sdk
-      remote: trondfc
+      remote: memfault
       repo-path: memfault-firmware-sdk
-      revision: dd20ce77d1c3bed5aa11064c40830c751517fef7
+      revision: 50b1d3c90d9ed9d9bdfdb602e538b49e5ee358af # gminn/1.47.0-rc
       path: modules/lib/memfault-firmware-sdk
     - name: nrf
       remote: trondfc
