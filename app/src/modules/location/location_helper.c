@@ -7,6 +7,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <string.h>
+#include <modem/lte_lc.h>
 
 #include "location_helper.h"
 
@@ -107,7 +108,7 @@ static int copy_wifi_data(struct location_cloud_request_data *dest,
 int location_cloud_request_data_copy(struct location_cloud_request_data *dest,
 				     const struct location_data_cloud *src)
 {
-	int err = 0;
+	int err __maybe_unused;
 
 	if (dest == NULL || src == NULL) {
 		LOG_ERR("Invalid parameters for cloud request data copy");
