@@ -9,13 +9,13 @@
  * CONFIG_MEMFAULT_FOTA_MODEM_SOFTWARE_TYPE).
  *
  * To add a component: write a function that reports its running version, and register it with
- * MEMFAULT_FOTA_COMPONENT_DEFINE().
+ * MEMFAULT_FOTA_NON_PRIMARY_COMPONENT_DEFINE().
  */
 
 #include <errno.h>
 #include <stdio.h>
 
-#include <memfault/nrfconnect_port/fota_component.h>
+#include <memfault/nrfconnect_port/fota_non_primary_component.h>
 #include <net/fota_download.h>
 #include <nrf_cloud_bootloader_version.h>
 
@@ -66,7 +66,7 @@ static int bootloader_s1_version_get(char *buf, size_t buf_len)
 	return bootloader_version_get(false, buf, buf_len);
 }
 
-MEMFAULT_FOTA_COMPONENT_DEFINE(mcuboot_s0, "mcuboot-s0", bootloader_s0_version_get,
-			       NRF_CLOUD_FOTA_BOOTLOADER);
-MEMFAULT_FOTA_COMPONENT_DEFINE(mcuboot_s1, "mcuboot-s1", bootloader_s1_version_get,
-			       NRF_CLOUD_FOTA_BOOTLOADER);
+MEMFAULT_FOTA_NON_PRIMARY_COMPONENT_DEFINE(mcuboot_s0, "mcuboot-s0", bootloader_s0_version_get,
+					   kMemfaultFotaNonPrimaryComponentInstall_Bootloader);
+MEMFAULT_FOTA_NON_PRIMARY_COMPONENT_DEFINE(mcuboot_s1, "mcuboot-s1", bootloader_s1_version_get,
+					   kMemfaultFotaNonPrimaryComponentInstall_Bootloader);
