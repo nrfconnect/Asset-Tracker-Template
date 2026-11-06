@@ -535,6 +535,8 @@ To set up remote debugging with Memfault, complete the following steps:
         -DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay"
     ```
 
+    On the nRF9251 DK, use the devicetree overlay `overlay-upload-modem-traces-to-memfault-nrf9251.overlay` instead.
+
 > [!NOTE]
 > The modem trace upload feature can send upwards of 1 MB of modem trace data in case of application crashes.
 > Consider this when planning your data usage and costs.
@@ -780,7 +782,7 @@ The nRF9151 DK does not ship with the nRF Cloud CoAP root CA in the developer se
 You can configure the device to capture modem traces continuously to external flash memory. After the capture, you can use a shell command to dump the stored traces over UART with the [Cellular Monitor app](https://docs.nordicsemi.com/bundle/nrf-connect-cellularmonitor/page/index.html) for storage and analysis.
 
 > [!NOTE]
-> On top of the following Kconfig options, the flash trace backend needs two things from devicetree: the modem trace shared-memory region, which the note in [UART tracing](#uart-tracing) describes, and a dedicated `modem_trace` flash partition. The `app/overlay-upload-modem-traces-to-memfault.overlay` file already declares both, and you can use it directly or copy it as a starting point. Pass it on the build command line with `-DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay"`.
+> On top of the following Kconfig options, the flash trace backend needs two things from devicetree: the modem trace shared-memory region, which the note in [UART tracing](#uart-tracing) describes, and a dedicated `modem_trace` flash partition. The `app/overlay-upload-modem-traces-to-memfault.overlay` file already declares both, and you can use it directly or copy it as a starting point. Pass it on the build command line with `-DEXTRA_DTC_OVERLAY_FILE="overlay-upload-modem-traces-to-memfault.overlay"`. On the nRF9251 DK, use `app/overlay-upload-modem-traces-to-memfault-nrf9251.overlay` instead.
 
 Add the following configuration to the `prj.conf` file:
 

@@ -1,0 +1,37 @@
+diff --git a/drivers/gpio/Kconfig.nrfx b/drivers/gpio/Kconfig.nrfx
+index bd77dbd35bd..31631e7dd70 100644
+--- a/drivers/gpio/Kconfig.nrfx
++++ b/drivers/gpio/Kconfig.nrfx
+@@ -17,3 +17,16 @@ config GPIO_NRFX_INTERRUPT
+ 	  The option can be used to disable the GPIO interrupt support to
+ 	  significantly reduce memory footprint in case of application that does
+ 	  not need GPIO interrupts.
++
++menu "Temporary driver patches (zephyr/drivers, not to be committed)"
++
++config SPI_TEST_PATCH_NO_GPIO_RETENTION
++	bool "GPIO driver leaves pin retention off"
++	depends on GPIO_NRFX
++	default y if BOARD_NRF9251DK_NRF9251_CPUAPP
++	help
++	  gpio_nrfx.c clears pin retention before every write as usual, but no longer enables it
++	  again afterwards. Tests whether late CS releases come from retention latching the pad
++	  before the new output value reaches it.
++
++endmenu
+diff --git a/drivers/gpio/gpio_nrfx.c b/drivers/gpio/gpio_nrfx.c
+index aa68975d904..535766df460 100644
+--- a/drivers/gpio/gpio_nrfx.c
++++ b/drivers/gpio/gpio_nrfx.c
+@@ -97,6 +97,11 @@ static bool use_gpiote(const struct gpio_nrfx_cfg *cfg)
+ 
+ static void port_retain_set(const struct gpio_nrfx_cfg *cfg, uint32_t mask)
+ {
++	/* TEMPORARY spi_test patch, do not commit: leave pin retention off. */
++	if (IS_ENABLED(CONFIG_SPI_TEST_PATCH_NO_GPIO_RETENTION)) {
++		return;
++	}
++
+ 	nrf_gpio_port_retain_enable(cfg->port, mask);
+ }
+ 

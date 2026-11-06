@@ -24,6 +24,7 @@ UART_ID = os.getenv('UART_ID', SEGGER)
 DEVICE_UUID = os.getenv('UUID')
 NRFCLOUD_API_KEY = os.getenv('NRFCLOUD_API_KEY')
 DUT_DEVICE_TYPE = os.getenv('DUT_DEVICE_TYPE')
+SOC_FAMILY = 'nrf92' if (DUT_DEVICE_TYPE or '').startswith('nrf92') else 'nrf91'
 GITHUB_REPOSITORY = os.getenv('GITHUB_REPOSITORY', 'nrfconnect/Asset-Tracker-Template')
 
 def get_uarts():
@@ -163,7 +164,7 @@ def dut_traces(dut_board):
 def hex_file():
     # Search for the firmware hex file in the artifacts folder
     artifacts_dir = "artifacts/"
-    hex_pattern = f"asset-tracker-template-{r"[0-9a-z\.]+"}-{DUT_DEVICE_TYPE}-nrf91.hex"
+    hex_pattern = f"asset-tracker-template-{r"[0-9a-z\.]+"}-{DUT_DEVICE_TYPE}-{SOC_FAMILY}.hex"
 
     for file in os.listdir(artifacts_dir):
         if re.match(hex_pattern, file):
@@ -179,7 +180,7 @@ def debug_hex_file():
 
     # Search for the debug firmware hex file in the artifacts folder
     artifacts_dir = "artifacts/"
-    hex_pattern = f"asset-tracker-template-{r'[0-9a-z\.]+'}-debug-{DUT_DEVICE_TYPE}-nrf91.hex"
+    hex_pattern = f"asset-tracker-template-{r'[0-9a-z\.]+'}-debug-{DUT_DEVICE_TYPE}-{SOC_FAMILY}.hex"
 
     for file in os.listdir(artifacts_dir):
         if re.match(hex_pattern, file):
@@ -191,7 +192,7 @@ def debug_hex_file():
 def bin_file():
     # Search for the firmware bin file in the artifacts folder
     artifacts_dir = "artifacts"
-    hex_pattern = f"asset-tracker-template-{r"[0-9a-z\.]+"}-{DUT_DEVICE_TYPE}-nrf91-update-signed.hex"
+    hex_pattern = f"asset-tracker-template-{r"[0-9a-z\.]+"}-{DUT_DEVICE_TYPE}-{SOC_FAMILY}-update-signed.hex"
 
     for file in os.listdir(artifacts_dir):
         if re.match(hex_pattern, file):
@@ -203,7 +204,7 @@ def bin_file():
 def dfu_zip_file():
     # Search for the zephyr-built DFU zip in the artifacts folder
     artifacts_dir = "artifacts"
-    zip_pattern = f"asset-tracker-template-{r'[0-9a-z\.]+'}-{DUT_DEVICE_TYPE}-nrf91-dfu.zip"
+    zip_pattern = f"asset-tracker-template-{r'[0-9a-z\.]+'}-{DUT_DEVICE_TYPE}-{SOC_FAMILY}-dfu.zip"
 
     for file in os.listdir(artifacts_dir):
         if re.match(zip_pattern, file):
@@ -217,7 +218,7 @@ def dfu_zip_fota_target_file():
     artifacts_dir = "artifacts"
     zip_pattern = (
         f"asset-tracker-template-{r'[0-9a-z\.\-]+'}-fota-target-"
-        f"{DUT_DEVICE_TYPE}-nrf91-dfu.zip"
+        f"{DUT_DEVICE_TYPE}-{SOC_FAMILY}-dfu.zip"
     )
 
     for file in os.listdir(artifacts_dir):
@@ -248,7 +249,7 @@ def release_hex_file():
 
     release = response.json()
     tag = release["tag_name"]
-    asset_name = f"asset-tracker-template-{tag}-{DUT_DEVICE_TYPE}-nrf91.hex"
+    asset_name = f"asset-tracker-template-{tag}-{DUT_DEVICE_TYPE}-{SOC_FAMILY}.hex"
     asset = next((a for a in release["assets"] if a["name"] == asset_name), None)
     if asset is None:
         pytest.fail(f"Release {tag} has no asset named {asset_name}")
@@ -277,7 +278,7 @@ def hex_file_patched():
 
     # Search for the firmware hex file in the artifacts folder
     artifacts_dir = "artifacts/"
-    hex_pattern = f"asset-tracker-template-{r"[0-9a-z\.]+"}-patched-{DUT_DEVICE_TYPE}-nrf91.hex"
+    hex_pattern = f"asset-tracker-template-{r"[0-9a-z\.]+"}-patched-{DUT_DEVICE_TYPE}-{SOC_FAMILY}.hex"
 
     for file in os.listdir(artifacts_dir):
         if re.match(hex_pattern, file):
@@ -293,7 +294,7 @@ def hex_file_mqtt():
 
     # Search for the firmware hex file in the artifacts folder
     artifacts_dir = "artifacts/"
-    hex_pattern = f"asset-tracker-template-{r"[0-9a-z\.]+"}-mqtt-{DUT_DEVICE_TYPE}-nrf91.hex"
+    hex_pattern = f"asset-tracker-template-{r"[0-9a-z\.]+"}-mqtt-{DUT_DEVICE_TYPE}-{SOC_FAMILY}.hex"
 
     for file in os.listdir(artifacts_dir):
         if re.match(hex_pattern, file):
@@ -309,7 +310,7 @@ def hex_file_ext_gnss():
 
     # Search for the firmware hex file in the artifacts folder
     artifacts_dir = "artifacts/"
-    hex_pattern = f"asset-tracker-template-{r'[0-9a-z\.]+'}-ext-gnss-{DUT_DEVICE_TYPE}-nrf91.hex"
+    hex_pattern = f"asset-tracker-template-{r'[0-9a-z\.]+'}-ext-gnss-{DUT_DEVICE_TYPE}-{SOC_FAMILY}.hex"
 
     for file in os.listdir(artifacts_dir):
         if re.match(hex_pattern, file):
@@ -325,7 +326,7 @@ def hex_file_buffer_ram():
 
     # Search for the firmware hex file in the artifacts folder
     artifacts_dir = "artifacts/"
-    hex_pattern = f"asset-tracker-template-{r'[0-9a-z\.]+'}-buffer-ram-{DUT_DEVICE_TYPE}-nrf91.hex"
+    hex_pattern = f"asset-tracker-template-{r'[0-9a-z\.]+'}-buffer-ram-{DUT_DEVICE_TYPE}-{SOC_FAMILY}.hex"
 
     for file in os.listdir(artifacts_dir):
         if re.match(hex_pattern, file):
@@ -341,7 +342,7 @@ def hex_file_buffer_flash():
 
     # Search for the firmware hex file in the artifacts folder
     artifacts_dir = "artifacts/"
-    hex_pattern = f"asset-tracker-template-{r'[0-9a-z\.]+'}-buffer-flash-{DUT_DEVICE_TYPE}-nrf91.hex"
+    hex_pattern = f"asset-tracker-template-{r'[0-9a-z\.]+'}-buffer-flash-{DUT_DEVICE_TYPE}-{SOC_FAMILY}.hex"
 
     for file in os.listdir(artifacts_dir):
         if re.match(hex_pattern, file):
