@@ -10,6 +10,7 @@ The template provides the following core modules:
 |--------|-------------|
 | [Main](main.md) | Implements the business logic and controls the overall application behavior. |
 | [Storage](storage.md) | Stores data from enabled modules. |
+| [NTN](ntn.md) | Optional Iridium non-terrestrial network fallback. Sends the location over satellite when no terrestrial network is available. |
 | [Network](network.md) | Manages LTE connectivity and tracks network status. |
 | [Cloud](cloud.md) | Handles communication with nRF Cloud using the Constrained Application Protocol (CoAP). |
 | [Location](location.md) | Provides location services using Global Navigation Satellite System (GNSS), Wi-Fi, and cellular positioning. |

@@ -1,0 +1,139 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menuconfig APP_NTN
+	bool "NTN fallback module"
+	depends on APP_CLOUD && APP_LOCATION
+	select NTN
+	select LTE_LC_CELLULAR_PROFILE_MODULE
+	select LTE_LC_PERIODIC_SEARCH_MODULE
+	help
+	  Use the Iridium non-terrestrial network (NTN) when no terrestrial network is available.
+	  The module suspends the network module, sends GNSS locations to nRF Cloud over NTN by
+	  resuming the paused CoAP session, and periodically hands the modem back to the network
+	  module to search for a terrestrial network.
+	  Requires modem firmware with Iridium NTN support.
+
+if APP_NTN
+
+config APP_NTN_TN_FALLBACK_TIMEOUT_SECONDS
+	int "Terrestrial network timeout"
+	default 600
+	help
+	  Time in seconds without a terrestrial network connection before falling back to NTN.
+	  The timer starts at boot and every time the terrestrial network connection is lost.
+
+config APP_NTN_FALLBACK_ON_SEARCH_DONE
+	bool "Fall back to NTN when a network search completes without result"
+	default y
+	help
+	  Fall back to NTN as soon as the modem reports that a complete terrestrial network search
+	  found no suitable cell, without waiting for CONFIG_APP_NTN_TN_FALLBACK_TIMEOUT_SECONDS.
+
+config APP_NTN_TN_RETRY_INTERVAL_MINUTES
+	int "Terrestrial network retry interval"
+	default 60
+	help
+	  Interval in minutes for handing the modem back to the network module to search for a
+	  terrestrial network while using NTN.
+
+config APP_NTN_UPLINK_INTERVAL_SECONDS
+	int "Minimum NTN uplink interval"
+	default 900
+	help
+	  Minimum time in seconds between two location uplinks over NTN. GNSS locations are
+	  obtained at the application sampling interval, and locations obtained more often than
+	  this interval are not sent over NTN.
+
+config APP_NTN_LOCATION_VALIDITY_SECONDS
+	int "Location validity"
+	default 1800
+	help
+	  Time in seconds a GNSS location is considered valid for NTN cell search and timing
+	  advance computation. 0 means infinite validity. Use a long validity for stationary
+	  devices and a short validity for moving devices.
+
+config APP_NTN_CONNECTION_TIMEOUT_SECONDS
+	int "NTN connection timeout"
+	default 240
+	help
+	  Maximum time in seconds to find an NTN cell and register before giving up on an uplink.
+
+config APP_NTN_REGISTERED_TIMEOUT_SECONDS
+	int "NTN registered timeout"
+	default 180
+	help
+	  Time in seconds the connection timeout is extended with once the modem is registered to
+	  the NTN network, to allow RRC and PDN setup to complete after registration.
+
+config APP_NTN_SERVICE_REQUEST_ADDR
+	string "UDP service request destination address"
+	default "8.8.8.8"
+	help
+	  IPv4 address for the service-request UDP packet sent on PDN resume/activate to trigger
+	  an RRC connection before the CoAP uplink.
+
+config APP_NTN_SERVICE_REQUEST_PORT
+	int "UDP service request destination port"
+	default 53
+	help
+	  UDP port for the service-request trigger on PDN resume/activate.
+
+config APP_NTN_BANDLOCK
+	int "NTN band"
+	default 249
+	help
+	  Band locked in NTN mode. The band lock is removed when returning to the terrestrial
+	  network.
+
+config APP_NTN_CHANNEL_SELECT
+	int "NTN channel (EARFCN)"
+	default 196702
+	help
+	  Channel used in NTN mode. The channel selection is removed when returning to the
+	  terrestrial network.
+
+config APP_NTN_CLOUD_FULL_CONNECT
+	bool "Allow full nRF Cloud connection over NTN"
+	help
+	  Connect to nRF Cloud with a full DTLS handshake over NTN when there is no paused CoAP
+	  session to resume, for example when the device has not been connected to a terrestrial
+	  network since boot. The handshake uses considerably more data and time than resuming.
+
+config APP_NTN_SHELL
+	bool "NTN module shell commands"
+	default y if SHELL
+
+config APP_NTN_THREAD_STACK_SIZE
+	int "Thread stack size"
+	default 8192
+
+config APP_NTN_WATCHDOG_TIMEOUT_SECONDS
+	int "Watchdog timeout"
+	default 1200
+	help
+	  Timeout in seconds for the NTN module watchdog.
+	  The timeout given in this option covers both:
+	    * Waiting for an incoming message in zbus_sub_wait_msg().
+	    * Time spent processing the message, defined by
+	      CONFIG_APP_NTN_MSG_PROCESSING_TIMEOUT_SECONDS.
+	  Ensure that this value exceeds CONFIG_APP_NTN_MSG_PROCESSING_TIMEOUT_SECONDS.
+
+config APP_NTN_MSG_PROCESSING_TIMEOUT_SECONDS
+	int "Maximum message processing time"
+	default 1170
+	help
+	  Maximum time allowed for processing a single message in the module's state machine.
+	  This must cover the confirmable shadow update and location send over NTN, including
+	  CoAP retransmissions, and a full nRF Cloud connection if
+	  CONFIG_APP_NTN_CLOUD_FULL_CONNECT is enabled.
+	  The value must be smaller than CONFIG_APP_NTN_WATCHDOG_TIMEOUT_SECONDS.
+
+module = APP_NTN
+module-str = NTN
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # APP_NTN

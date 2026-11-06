@@ -42,6 +42,7 @@ FAKE_VALUE_FUNC(int, lte_lc_system_mode_get, enum lte_lc_system_mode *,
 FAKE_VALUE_FUNC(int, lte_lc_system_mode_set, enum lte_lc_system_mode,
 		enum lte_lc_system_mode_preference);
 FAKE_VALUE_FUNC(int, lte_lc_offline);
+FAKE_VALUE_FUNC(int, lte_lc_func_mode_set, enum lte_lc_func_mode);
 FAKE_VALUE_FUNC(int, lte_lc_connect_async, lte_lc_evt_handler_t);
 FAKE_VALUE_FUNC(int, lte_lc_pdn_default_ctx_events_enable);
 FAKE_VALUE_FUNC(int, __wrap_k_work_submit, struct k_work *);
@@ -284,6 +285,7 @@ void setUp(void)
 	RESET_FAKE(date_time_now);
 	RESET_FAKE(lte_lc_conn_eval_params_get);
 	RESET_FAKE(lte_lc_offline);
+	RESET_FAKE(lte_lc_func_mode_set);
 	RESET_FAKE(lte_lc_connect_async);
 	RESET_FAKE(lte_lc_pdn_default_ctx_events_enable);
 	RESET_FAKE(lte_lc_modem_events_enable);
@@ -589,6 +591,58 @@ void test_connect_from_idle(void)
 	/* Verify we eventually connect */
 	wait_for_and_check_msg(&msg_rx, NETWORK_CONNECTED);
 	TEST_ASSERT_EQUAL(NETWORK_CONNECTED, msg_rx.type);
+}
+
+static void network_suspend_resume_test(int func_mode_set_err)
+{
+	int err;
+	const struct zbus_channel *chan;
+	struct network_msg msg = {
+		.type = NETWORK_SUSPEND,
+	};
+
+	lte_lc_func_mode_set_fake.return_val = func_mode_set_err;
+
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	wait_for_and_check_msg(&msg, NETWORK_SUSPENDED);
+	wait_for_and_check_msg(&msg, NETWORK_DISCONNECTED);
+
+	TEST_ASSERT_EQUAL(1, lte_lc_func_mode_set_fake.call_count);
+	TEST_ASSERT_EQUAL(LTE_LC_FUNC_MODE_OFFLINE_KEEP_REG, lte_lc_func_mode_set_fake.arg0_val);
+
+	/* Modem events and network requests are ignored while suspended */
+	send_mdmev_evt(LTE_LC_MODEM_EVT_SEARCH_DONE);
+
+	msg.type = NETWORK_CONNECT;
+
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	while (zbus_sub_wait_msg(&test_subscriber, &chan, &msg, K_MSEC(200)) == 0) {
+		TEST_ASSERT_NOT_EQUAL(NETWORK_SEARCH_DONE, msg.type);
+	}
+
+	TEST_ASSERT_EQUAL(0, lte_lc_connect_async_fake.call_count);
+
+	msg.type = NETWORK_RESUME;
+
+	err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
+	TEST_ASSERT_EQUAL(0, err);
+
+	wait_for_and_check_msg(&msg, NETWORK_CONNECTED);
+	TEST_ASSERT_EQUAL(1, lte_lc_connect_async_fake.call_count);
+}
+
+void test_network_suspend_resume(void)
+{
+	network_suspend_resume_test(0);
+}
+
+void test_network_suspend_func_mode_set_error(void)
+{
+	network_suspend_resume_test(-EFAULT);
 }
 
 void test_modem_fault_all_fault_reasons(void)
