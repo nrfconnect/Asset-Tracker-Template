@@ -19,6 +19,10 @@ target_sources(app PRIVATE
 	src/common/app_watchdog.c
 )
 
+target_sources_ifdef(CONFIG_APP_NRF9251_HSFLL120_KEEPALIVE app PRIVATE
+	src/common/nrf9251_hsfll120_keepalive.c
+)
+
 # Module source folders
 add_subdirectory(src/modules/network)
 add_subdirectory(src/cbor)

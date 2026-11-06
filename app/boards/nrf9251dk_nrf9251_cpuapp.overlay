@@ -48,6 +48,13 @@
 	status = "okay";
 };
 
+/* Kept running to hold HSFLL120 out of all-idle, see
+ * src/common/nrf9251_hsfll120_keepalive.c.
+ */
+&timer120 {
+	status = "okay";
+};
+
 /* External flash (32 MiB). fmfu_storage_partition is reserved for full modem FOTA. */
 flash_ext: &gd25le255e {
 	status = "okay";
