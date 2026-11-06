@@ -49,13 +49,29 @@ applies to the `zephyr` repository (sdk-zephyr, based on `32649ffd62d`):
 - When this option is set, `port_retain_set()` returns without enabling retention. Retention is
   still cleared before each write.
 
-Apply from the workspace root:
+The build applies it for you. [`cmake/apply_sdk_patches.cmake`](../cmake/apply_sdk_patches.cmake)
+holds the patch list and runs from [`app/sysbuild.cmake`](../app/sysbuild.cmake), before sysbuild
+configures any image, and from [`app/CMakeLists.txt`](../app/CMakeLists.txt) for builds without
+sysbuild. A patch that is already in the tree is skipped, so reconfiguring a build directory is
+safe, and `west update` resets the SDK checkout, after which the next build applies the patch
+again. Watch for this line in the build output:
 
 ```
-git -C zephyr apply ../project/patches/0001-zephyr-gpio-nrfx-disable-pin-retention-nrf9251-workaround.patch
+-- Applied SDK patch in zephyr: 0001-zephyr-gpio-nrfx-disable-pin-retention-nrf9251-workaround.patch
 ```
 
-To turn it off without removing the patch, set `CONFIG_SPI_TEST_PATCH_NO_GPIO_RETENTION=n`.
+To apply it by hand instead, run this from the workspace root:
+
+```
+git -C zephyr apply ../Asset-Tracker-Template/patches/0001-zephyr-gpio-nrfx-disable-pin-retention-nrf9251-workaround.patch
+```
+
+To turn the workaround off without removing the patch, set
+`CONFIG_SPI_TEST_PATCH_NO_GPIO_RETENTION=n`.
+
+To add another patch, put the file in this directory and add a
+`"<file>:<west project directory>"` entry to `att_sdk_patches` in
+`cmake/apply_sdk_patches.cmake`.
 
 ## Caveats
 

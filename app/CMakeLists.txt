@@ -6,6 +6,10 @@
 
 cmake_minimum_required(VERSION 3.20.0)
 
+# Must run before find_package(Zephyr), which reads the Kconfig tree the patches change.
+# sysbuild builds apply them earlier, from sysbuild.cmake.
+include(${CMAKE_CURRENT_LIST_DIR}/../cmake/apply_sdk_patches.cmake)
+
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project("Asset Tracker Template")
 
