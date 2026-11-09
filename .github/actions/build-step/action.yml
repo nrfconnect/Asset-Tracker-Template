@@ -72,7 +72,7 @@ runs:
           fi
         fi
         if [[ "${{ inputs.mqtt }}" == "true" ]]; then
-          params+=("-DEXTRA_CONF_FILE=$(pwd)/../examples/modules/cloud/overlay-mqtt.conf")
+          params+=("-DEXTRA_CONF_FILE=$(pwd)/../extras/modules/cloud_mqtt/overlay-mqtt.conf")
         fi
         if [[ "${{ inputs.modem_trace }}" == "true" ]]; then
           params+=("-DEXTRA_CONF_FILE=overlay-modem-trace-over-uart.conf")

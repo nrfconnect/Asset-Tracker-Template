@@ -4,4 +4,4 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-add_subdirectory_ifdef(CONFIG_APP_CLOUD_MQTT examples/modules/cloud/)
+add_subdirectory_ifdef(CONFIG_APP_CLOUD_MQTT extras/modules/cloud_mqtt)

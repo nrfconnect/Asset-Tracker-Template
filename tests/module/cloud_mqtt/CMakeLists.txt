@@ -14,10 +14,10 @@ test_runner_generate(src/cloud_mqtt_test.c)
 target_sources(app
   PRIVATE
   src/cloud_mqtt_test.c
-  ../../../examples/modules/cloud/cloud_mqtt.c
+  ../../../extras/modules/cloud_mqtt/cloud_mqtt.c
 )
 
-target_include_directories(app PRIVATE ../../../examples/modules/cloud/include)
+target_include_directories(app PRIVATE ../../../extras/modules/cloud_mqtt/include)
 target_include_directories(app PRIVATE ../../../app/src/modules/fota)
 target_include_directories(app PRIVATE ../../../app/src/modules/location)
 target_include_directories(app PRIVATE ../../../app/src/common)

@@ -4,4 +4,4 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-rsource "examples/modules/cloud/Kconfig.cloud_mqtt"
+rsource "extras/modules/cloud_mqtt/Kconfig.cloud_mqtt"

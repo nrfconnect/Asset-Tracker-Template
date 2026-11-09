@@ -737,7 +737,7 @@ You can extend this dummy module by adding new message types, state variables, a
 
 ## Enable support for MQTT
 
-To connect to a generic MQTT server using the Asset Tracker Template, you can use the example Cloud module provided under `examples/modules/cloud`. This module replaces the default nRF Cloud CoAP cloud integration with a flexible MQTT client implementation.
+To connect to a generic MQTT server using the Asset Tracker Template, you can use the MQTT Cloud module provided under `extras/modules/cloud_mqtt/`. This module replaces the default nRF Cloud CoAP cloud integration with a flexible MQTT client implementation.
 
 The MQTT module has the following default configuration:
 
@@ -746,13 +746,13 @@ The MQTT module has the following default configuration:
 - **Port**: 8883
 - **TLS**: Yes
 - **Authentication**: Server only
-- **CA certificate**: `examples/modules/cloud/creds/mqtt.nordicsemi.academy.pem`
+- **CA certificate**: `extras/modules/cloud_mqtt/creds/mqtt.nordicsemi.academy.pem`
 - **Publish topic**: `<IMEI>/att-pub-topic`
 - **Subscribe topic**: `<IMEI>/att-sub-topic`
 
 ### Configuration
 
-You set the configuration for the MQTT stack through the `examples/modules/cloud/overlay-mqtt.conf` file and the Kconfig options defined in `examples/modules/cloud/Kconfig.cloud_mqtt`. The following options are the main ones for controlling the MQTT module:
+You set the configuration for the MQTT stack through the `extras/modules/cloud_mqtt/overlay-mqtt.conf` file and the Kconfig options defined in `extras/modules/cloud_mqtt/Kconfig.cloud_mqtt`. The following options are the main ones for controlling the MQTT module:
 
 - `CONFIG_APP_CLOUD_MQTT`
 - `CONFIG_APP_CLOUD_MQTT_PROVISION_CREDENTIALS`
@@ -776,16 +776,16 @@ You set the configuration for the MQTT stack through the `examples/modules/cloud
 - `CONFIG_APP_CLOUD_MQTT_WATCHDOG_TIMEOUT_SECONDS`
 - `CONFIG_APP_CLOUD_MQTT_MSG_PROCESSING_TIMEOUT_SECONDS`
 
-### Use the MQTT cloud example
+### Use the MQTT Cloud module
 
-To try out the MQTT cloud example, complete the following steps:
+To try out the MQTT Cloud module, complete the following steps:
 
 1. Build and flash the application with the MQTT overlay.
 
     In the template's `app` folder, run the following command:
 
     ```sh
-    west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="$(pwd)/../examples/modules/cloud/overlay-mqtt.conf" && west flash --erase --skip-rebuild
+    west build -p -b thingy91x/nrf9151/ns -- -DEXTRA_CONF_FILE="$(pwd)/../extras/modules/cloud_mqtt/overlay-mqtt.conf" && west flash --erase --skip-rebuild
     ```
 
 1. Observe that the device connects to the broker.
