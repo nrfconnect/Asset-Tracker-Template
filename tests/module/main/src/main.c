@@ -431,6 +431,79 @@ void test_threshold_reached_disconnected(void)
 	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
 }
 
+void test_threshold_reached_during_connected_sampling(void)
+{
+	connect_to_cloud();
+
+	send_button_press_short();
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+	send_storage_threshold_reached();
+	expect_storage_event(STORAGE_THRESHOLD_REACHED);
+	expect_no_events(1);
+
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_storage_event(STORAGE_BATCH_REQUEST);
+
+	send_storage_batch_close();
+	expect_storage_event(STORAGE_BATCH_CLOSE);
+	expect_fota_event(FOTA_POLL_REQUEST);
+	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
+
+	restart_sample_timer();
+	expect_no_events(500);
+}
+
+void test_threshold_reached_during_disconnected_sampling(void)
+{
+	send_button_press_short();
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	send_storage_threshold_reached();
+	expect_storage_event(STORAGE_THRESHOLD_REACHED);
+
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+	expect_no_events(500);
+
+	connect_to_cloud();
+	expect_storage_event(STORAGE_BATCH_REQUEST);
+
+	send_storage_batch_close();
+	expect_storage_event(STORAGE_BATCH_CLOSE);
+	expect_fota_event(FOTA_POLL_REQUEST);
+	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
+}
+
+void test_threshold_during_sampling_cleared_by_long_press(void)
+{
+	connect_to_cloud();
+
+	send_button_press_short();
+	expect_location_event(LOCATION_SEARCH_TRIGGER);
+
+	send_storage_threshold_reached();
+	expect_storage_event(STORAGE_THRESHOLD_REACHED);
+
+	send_button_press_long();
+	expect_storage_event(STORAGE_BATCH_REQUEST);
+
+	send_location_search_done();
+	expect_location_event(LOCATION_SEARCH_DONE);
+	expect_power_event(POWER_BATTERY_PERCENTAGE_SAMPLE_REQUEST);
+
+	send_storage_batch_close();
+	expect_storage_event(STORAGE_BATCH_CLOSE);
+	expect_fota_event(FOTA_POLL_REQUEST);
+	expect_cloud_event(CLOUD_SHADOW_GET_DELTA);
+
+	restart_sample_timer();
+	expect_no_events(500);
+}
+
 void test_fota_state_ignores_events_until_aborted(void)
 {
 	connect_to_cloud();
