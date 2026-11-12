@@ -26,7 +26,6 @@ DEFAULT_RETRY_DELAY_SECONDS = 2
 RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
 
 NRFCLOUD_API_URL = "https://api.nrfcloud.com/v1"
-NRFCLOUD_PROVISIONING_API_URL = "https://api.provisioning.nrfcloud.com/v1"
 
 class FWType(Enum):
     app = 'application'
@@ -43,9 +42,9 @@ class NRFCloud():
     """
     nRF Cloud REST client for on-target tests.
 
-    Device, state and message calls use the project-scoped API with an Organization Auth
-    Token (OAT). FOTA and provisioning commands have no OAT replacement yet and still use
-    the legacy team API key.
+    Device, state, message and provisioning calls use the project-scoped API with an
+    Organization Auth Token (OAT). FOTA has no OAT replacement yet and still uses the
+    legacy team API key.
     """
 
     def __init__(
@@ -62,7 +61,7 @@ class NRFCloud():
         :param org_token: Organization Auth Token for the nRF Cloud project
         :param org_slug: Organization slug of the nRF Cloud project
         :param project_slug: Project slug of the nRF Cloud project
-        :param api_key: Legacy nRF Cloud API key, needed only for FOTA and provisioning commands
+        :param api_key: Legacy nRF Cloud API key, needed only for FOTA
         :param timeout: Per-request timeout in seconds
         """
         # Time format used by nrfcloud.com (API may omit fractional seconds)
@@ -147,13 +146,16 @@ class NRFCloud():
         method = getattr(self.project_session, method_name)
         return self._request_with_retry(method, self.project_url + path, **kwargs)
 
-    def _legacy_request(self, method_name: str, path: str, base_url: str=NRFCLOUD_API_URL, **kwargs):
+    def _legacy_request(self, method_name: str, path: str, **kwargs):
         self._require_legacy_api()
         method = getattr(self.legacy_session, method_name)
-        return self._request_with_retry(method, base_url + path, **kwargs)
+        return self._request_with_retry(method, NRFCLOUD_API_URL + path, **kwargs)
 
     def _project_get(self, path: str, **kwargs) -> dict:
         return self._project_request("get", path, return_json=True, **kwargs)
+
+    def _project_post(self, path: str, **kwargs):
+        return self._project_request("post", path, **kwargs)
 
     def _project_patch(self, path: str, **kwargs):
         return self._project_request("patch", path, **kwargs)
@@ -222,22 +224,22 @@ class NRFCloud():
         response = self._project_delete(path=f"/long-range/devices/{device_id}")
         return response.status_code
 
-    def add_provisioning_command(self, device_id: str, command: str) -> None:
+    def reset_provisioning(self, device_id: str) -> int:
         """
-        Add a provisioning command to a claimed device
+        Return a claimed device to the freshly claimed provisioning state
 
-        Uses the legacy provisioning service, which has no OAT replacement yet.
+        On its next check-in the device is handed the onboarding commands again, which
+        install the root CA and generate a new cloud access key. nRF Cloud answers
+        204 No Content on success.
 
         :param device_id: Device ID
-        :param command: Command as a JSON string
-        :raises NRFCloudConfigError: If api_key is not set
-        :raises HTTPError: On a non-2xx response
+        :return: HTTP status code from the reset call
+        :raises NRFCloudConfigError: If the project API is not configured
+        :raises HTTPError: On a non-2xx response, for example 404 if the device is not
+                           claimed in this project or 409 if it is deactivated
         """
-        self._legacy_post(
-            path=f"/claimed-devices/{device_id}/provisioning",
-            base_url=NRFCLOUD_PROVISIONING_API_URL,
-            data=command,
-        )
+        response = self._project_post(path=f"/claimed-devices/{device_id}/reset-provisioning")
+        return response.status_code
 
     def get_device_state(self, device_id: str) -> dict:
         """

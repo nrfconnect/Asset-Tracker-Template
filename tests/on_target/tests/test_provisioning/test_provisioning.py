@@ -1,6 +1,5 @@
 import os
 import sys
-import json
 import time
 import pytest
 import requests.exceptions  # Used for handling HTTP errors from nRF Cloud API
@@ -181,30 +180,21 @@ def _verify_device_config_reported_to_cloud(dut_cloud, timeout: int = 180):
     )
 
 
-def _trigger_device_reprovisioning_with_new_credentials(dut_cloud, sec_tag: int):
+def _trigger_device_reprovisioning_with_new_credentials(dut_cloud):
     """
     Initiates the reprovisioning process on the device by:
-    1. Adding a reprovisioning command (new credentials) to nRF Cloud.
-    2. Updating the device shadow to signal the new command.
+    1. Resetting provisioning in nRF Cloud, which queues the onboarding commands again,
+       including a new cloud access key.
+    2. Updating the device shadow to signal the new commands.
     3. Simulating a button press on the device to trigger command processing.
     """
     logger.info("Starting reprovisioning process with new credentials...")
 
-    # Prepare the reprovisioning command for nRF Cloud
-    command_json = json.dumps(
-        {
-            "description": "Reprovisioning with new cloud credentials",
-            "request": {"cloudAccessKeyGeneration": {"secTag": sec_tag}},
-        }
-    )
+    logger.info(f"Resetting provisioning for device {dut_cloud.device_id} in nRF Cloud")
 
-    logger.info(f"Adding reprovisioning command to nRF Cloud: {command_json}")
+    status_code = dut_cloud.cloud.reset_provisioning(device_id=dut_cloud.device_id)
+    logger.info(f"Reset provisioning status_code: {status_code}")
 
-    dut_cloud.cloud.add_provisioning_command(
-        device_id=dut_cloud.device_id, command=command_json
-    )
-
-    # Update device shadow to indicate a new provisioning command is available
     logger.info("Updating device shadow to trigger reprovisioning command processing.")
 
     dut_cloud.cloud.patch_delete_command_entry_from_shadow(
@@ -269,7 +259,7 @@ def _run_reprovisioning(dut_cloud):
 
     dut_cloud.uart.flush()
 
-    _trigger_device_reprovisioning_with_new_credentials(dut_cloud, SEC_TAG)
+    _trigger_device_reprovisioning_with_new_credentials(dut_cloud)
     # Wait for the device to process the command, reprovision, and reconnect
     _wait_for_provisioning_completion_and_cloud_connection(dut_cloud, timeout=300)
     _verify_device_config_reported_to_cloud(dut_cloud)

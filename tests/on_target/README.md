@@ -67,8 +67,8 @@ The tests talk to nRF Cloud with an Organization Auth Token for the nRF Cloud pr
 one under **Admin** > **Organization Auth Tokens**, and find both slugs under **Project
 Settings** > **General**. Onboarding uses the `nrfcloud` CLI from `memfault-cli`.
 
-`NRFCLOUD_API_KEY` is only needed for the FOTA tests and the reprovisioning command in the
-provisioning test, which have no Organization Auth Token API yet.
+`NRFCLOUD_API_KEY` is only needed for the FOTA tests, which have no Organization Auth Token
+API yet.
 
 On macOS also set `UART_ID`: port names (`/dev/tty.usbmodem*`) don't contain the SEGGER
 serial that `UART_ID` defaults to, so set it to a substring shared by your DUT's two ports
