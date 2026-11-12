@@ -121,7 +121,9 @@ def _connect_to_network_and_wait_for_claiming_prompt(dut_cloud):
 def _claim_device_on_nrf_cloud(dut_cloud, attestation_token: str):
     logger.info("Claiming device on nRF Cloud...")
 
-    dut_cloud.cloud.claim_device(attestation_token=attestation_token)
+    dut_cloud.cloud.claim_device(
+        device_id=dut_cloud.device_id, attestation_token=attestation_token
+    )
 
     logger.info("Device claimed successfully.")
 
@@ -156,8 +158,7 @@ def _verify_device_config_reported_to_cloud(dut_cloud, timeout: int = 180):
     while time.time() - start < timeout:
         time.sleep(5)
         try:
-            device = dut_cloud.cloud.get_device(dut_cloud.device_id)
-            device_state = device["state"]
+            device_state = dut_cloud.cloud.get_device_state(dut_cloud.device_id)
             sample_interval = device_state["reported"]["config"]["sample_interval"]
             storage_threshold = device_state["reported"]["config"]["storage_threshold"]
 

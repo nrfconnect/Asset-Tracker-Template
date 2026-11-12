@@ -9,8 +9,11 @@ import re
 import json
 import time
 import random
+import subprocess
+import tempfile
 import requests
 from enum import Enum
+from pathlib import Path
 from typing import Union, Callable
 from datetime import datetime, timedelta, timezone
 from utils.logger import get_logger
@@ -22,6 +25,9 @@ DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_DELAY_SECONDS = 2
 RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
 
+NRFCLOUD_API_URL = "https://api.nrfcloud.com/v1"
+NRFCLOUD_PROVISIONING_API_URL = "https://api.provisioning.nrfcloud.com/v1"
+
 class FWType(Enum):
     app = 'application'
     bootloader = 'mcuboot'
@@ -30,33 +36,79 @@ class FWType(Enum):
 class NRFCloudFOTAError(Exception):
     pass
 
+class NRFCloudConfigError(Exception):
+    pass
+
 class NRFCloud():
-    def __init__(self, api_key: str, url: str="https://api.nrfcloud.com/v1", timeout: int=10) -> None:
-        """ Initalizes the class """
-        self.url = url
+    """
+    nRF Cloud REST client for on-target tests.
+
+    Device, state and message calls use the project-scoped API with an Organization Auth
+    Token (OAT). FOTA and provisioning commands have no OAT replacement yet and still use
+    the legacy team API key.
+    """
+
+    def __init__(
+        self,
+        org_token: str=None,
+        org_slug: str=None,
+        project_slug: str=None,
+        api_key: str=None,
+        timeout: int=10,
+    ) -> None:
+        """
+        Initalizes the class
+
+        :param org_token: Organization Auth Token for the nRF Cloud project
+        :param org_slug: Organization slug of the nRF Cloud project
+        :param project_slug: Project slug of the nRF Cloud project
+        :param api_key: Legacy nRF Cloud API key, needed only for FOTA and provisioning commands
+        :param timeout: Per-request timeout in seconds
+        """
         # Time format used by nrfcloud.com (API may omit fractional seconds)
         self.time_fmt = '%Y-%m-%dT%H:%M:%S.%fZ'
         self.time_fmt_no_frac = '%Y-%m-%dT%H:%M:%SZ'
-        self.default_headers = {
-            'Authorization': "Bearer " + api_key,
-            'Accept':'application/json',
-            "Content-Type": "application/json"
-        }
-        self.session = requests.Session()
-        self.session.headers.update(self.default_headers)
         self.timeout = timeout
 
-    def _request_with_retry(self, method: Callable, path: str, return_json: bool = False, **kwargs):
+        self.org_token = org_token
+        self.org_slug = org_slug
+        self.project_slug = project_slug
+        self.project_url = None
+        self.project_session = None
+        if org_token and org_slug and project_slug:
+            self.project_url = (
+                f"{NRFCLOUD_API_URL}/organizations/{org_slug}/projects/{project_slug}"
+            )
+            self.project_session = self._create_session(org_token)
+
+        self.legacy_session = self._create_session(api_key) if api_key else None
+
+    @staticmethod
+    def _create_session(token: str) -> requests.Session:
+        session = requests.Session()
+        session.headers.update({
+            'Authorization': "Bearer " + token,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+        })
+        return session
+
+    def _request_with_retry(self, method: Callable, url: str, return_json: bool = False, **kwargs):
         """
         Execute an HTTP request with retry logic.
 
         Retries on 5xx server errors and connection/timeout issues with exponential backoff.
+
+        :param method: Bound session method, for example session.get
+        :param url: Full request URL
+        :param return_json: Return the decoded JSON body instead of the response
+        :raises HTTPError: On a non-2xx response after the retries
         """
         for attempt in range(DEFAULT_MAX_RETRIES):
             try:
-                r = method(url=self.url + path, **kwargs, timeout=self.timeout)
+                r = method(url=url, **kwargs, timeout=self.timeout)
                 if r.status_code in RETRYABLE_STATUS_CODES:
-                    logger.warning(f"Retryable status {r.status_code} on attempt {attempt + 1}/{DEFAULT_MAX_RETRIES} for {path}")
+                    logger.warning(f"Retryable status {r.status_code} on attempt {attempt + 1}/{DEFAULT_MAX_RETRIES} for {url}")
                     if attempt < DEFAULT_MAX_RETRIES - 1:
                         delay = DEFAULT_RETRY_DELAY_SECONDS * (2 ** attempt) + random.uniform(0, 1)
                         time.sleep(delay)
@@ -64,14 +116,13 @@ class NRFCloud():
                 r.raise_for_status()
                 return r.json() if return_json else r
             except (ConnectionError, Timeout) as e:
-                logger.warning(f"Connection error on attempt {attempt + 1}/{DEFAULT_MAX_RETRIES} for {path}: {e}")
+                logger.warning(f"Connection error on attempt {attempt + 1}/{DEFAULT_MAX_RETRIES} for {url}: {e}")
                 if attempt < DEFAULT_MAX_RETRIES - 1:
                     delay = DEFAULT_RETRY_DELAY_SECONDS * (2 ** attempt) + random.uniform(0, 1)
                     time.sleep(delay)
                     continue
                 raise
-        # If we exit the loop due to retryable status codes, raise the last response's status
-        r.raise_for_status()
+        raise RuntimeError(f"No request attempts were made for {url}")
 
     def _parse_timestamp(self, timestamp_str: str) -> datetime:
         for fmt in (self.time_fmt, self.time_fmt_no_frac):
@@ -81,91 +132,139 @@ class NRFCloud():
                 continue
         raise ValueError(f"Unsupported timestamp format: {timestamp_str}")
 
-    def _get(self, path: str, **kwargs) -> dict:
-        return self._request_with_retry(self.session.get, path, return_json=True, **kwargs)
+    def _require_project_api(self) -> None:
+        if self.project_session is None:
+            raise NRFCloudConfigError(
+                "nRF Cloud project API needs org_token, org_slug and project_slug"
+            )
 
-    def _post(self, path: str, **kwargs):
-        return self._request_with_retry(self.session.post, path, **kwargs)
+    def _require_legacy_api(self) -> None:
+        if self.legacy_session is None:
+            raise NRFCloudConfigError("Legacy nRF Cloud API needs api_key")
 
-    def _put(self, path: str, **kwargs):
-        return self._request_with_retry(self.session.put, path, **kwargs)
+    def _project_request(self, method_name: str, path: str, **kwargs):
+        self._require_project_api()
+        method = getattr(self.project_session, method_name)
+        return self._request_with_retry(method, self.project_url + path, **kwargs)
 
-    def _delete(self, path: str, **kwargs):
-        return self._request_with_retry(self.session.delete, path, **kwargs)
+    def _legacy_request(self, method_name: str, path: str, base_url: str=NRFCLOUD_API_URL, **kwargs):
+        self._require_legacy_api()
+        method = getattr(self.legacy_session, method_name)
+        return self._request_with_retry(method, base_url + path, **kwargs)
 
-    def _patch(self, path: str, **kwargs):
-        return self._request_with_retry(self.session.patch, path, **kwargs)
+    def _project_get(self, path: str, **kwargs) -> dict:
+        return self._project_request("get", path, return_json=True, **kwargs)
 
-    # TODO: migrate to the new onboarding API
-    # (POST /v1/organizations/{ORG}/projects/{PROJECT}/long-range/devices/bulk, needs an
-    # Organization Auth Token) once nRF Cloud also exposes delete and provisioning-command
-    # endpoints. Legacy /claimed-devices still works during the transition.
-    def claim_device(self, attestation_token: str) -> None:
+    def _project_patch(self, path: str, **kwargs):
+        return self._project_request("patch", path, **kwargs)
+
+    def _project_delete(self, path: str, **kwargs):
+        return self._project_request("delete", path, **kwargs)
+
+    def _legacy_get(self, path: str, **kwargs) -> dict:
+        return self._legacy_request("get", path, return_json=True, **kwargs)
+
+    def _legacy_post(self, path: str, **kwargs):
+        return self._legacy_request("post", path, **kwargs)
+
+    def _legacy_put(self, path: str, **kwargs):
+        return self._legacy_request("put", path, **kwargs)
+
+    def _legacy_delete(self, path: str, **kwargs):
+        return self._legacy_request("delete", path, **kwargs)
+
+    def _legacy_patch(self, path: str, **kwargs):
+        return self._legacy_request("patch", path, **kwargs)
+
+    def claim_device(self, device_id: str, attestation_token: str) -> None:
         """
-        Add (claim) a provisioned device to nrfcloud.com
+        Onboard (claim) a device in the nRF Cloud project with its attestation token
 
-        :param attestation_token: Attestation token for device
-        :return: None
+        Runs `nrfcloud device create` from memfault-cli, which waits for the result.
+
+        :param device_id: Device ID, the modem UUID
+        :param attestation_token: Attestation token read from the modem
+        :raises NRFCloudConfigError: If the project API is not configured
+        :raises subprocess.CalledProcessError: If the CLI reports a failure
         """
-        data = json.dumps({
-            "claimToken": attestation_token,
-            "tags": ["nrf-cloud-onboarding"]
-        })
+        self._require_project_api()
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = Path(tmp) / "devices.csv"
+            csv_path.write_text(f"deviceId,attestationToken\n{device_id},{attestation_token}\n")
+            command = [
+                "nrfcloud",
+                "--org-token", self.org_token,
+                "--org", self.org_slug,
+                "--project", self.project_slug,
+                "device", "create", "--csv", str(csv_path),
+            ]
+            result = subprocess.run(command, capture_output=True, text=True)
 
-        # Use the provisioning API endpoint for unclaiming
-        original_url = self.url
-        self.url = "https://api.provisioning.nrfcloud.com/v1"
-        try:
-            self._post(path=f"/claimed-devices", data=data)
-        finally:
-            self.url = original_url
+        output = "\n".join(part.strip() for part in (result.stdout, result.stderr) if part.strip())
+        if output:
+            logger.info(f"nrfcloud CLI output:\n{output}")
+        if result.returncode != 0:
+            raise subprocess.CalledProcessError(
+                result.returncode, command[:1] + command[7:], output=result.stdout, stderr=result.stderr
+            )
 
     def unclaim_device(self, device_id: str) -> int:
         """
-        Unclaim (delete) a claimed device from nrfcloud.com
+        Delete a device from the nRF Cloud project, which also releases its claim
+
+        nRF Cloud answers 202 Accepted whether or not the device exists.
 
         :param device_id: Device ID
         :return: HTTP status code from the delete call
+        :raises NRFCloudConfigError: If the project API is not configured
+        :raises HTTPError: On a non-2xx response
         """
-        # Use the provisioning API endpoint for unclaiming
-        original_url = self.url
-        self.url = "https://api.provisioning.nrfcloud.com/v1"
-        try:
-            response = self._delete(path=f"/claimed-devices/{device_id}")
-            return response.status_code
-        finally:
-            self.url = original_url
+        response = self._project_delete(path=f"/long-range/devices/{device_id}")
+        return response.status_code
 
     def add_provisioning_command(self, device_id: str, command: str) -> None:
         """
-        Add a provisioning command to a claimed device.
+        Add a provisioning command to a claimed device
+
+        Uses the legacy provisioning service, which has no OAT replacement yet.
 
         :param device_id: Device ID
         :param command: Command as a JSON string
-        :return: None
+        :raises NRFCloudConfigError: If api_key is not set
+        :raises HTTPError: On a non-2xx response
         """
+        self._legacy_post(
+            path=f"/claimed-devices/{device_id}/provisioning",
+            base_url=NRFCLOUD_PROVISIONING_API_URL,
+            data=command,
+        )
 
-        data = command  # command is already a JSON string containing all needed data
-
-        # Use the provisioning API endpoint for unclaiming
-        original_url = self.url
-        self.url = "https://api.provisioning.nrfcloud.com/v1"
-        try:
-            self._post(path=f"/claimed-devices/{device_id}/provisioning", data=data)
-        finally:
-            self.url = original_url
-
-    def get_devices(self, path: str="", params=None) -> dict:
-        return self._get(path=f"/devices{path}", params=params)
-
-    def get_device(self, device_id: str, params=None) -> dict:
+    def get_device_state(self, device_id: str) -> dict:
         """
-        Get all information about particular device on nrfcloud.com
+        Get the shadow state of a long-range (nRF9x) device
 
         :param device_id: Device ID
-        :return: Json structure of result from nrfcloud.com
+        :return: State object with top-level 'reported', 'desired', 'delta', 'metadata'
+                 and 'version' keys
+        :raises NRFCloudConfigError: If the project API is not configured
+        :raises HTTPError: On a non-2xx response, for example 404 if the device is unknown
         """
-        return self.get_devices(path=f"/{device_id}", params=params)
+        return self._project_get(path=f"/long-range/devices/{device_id}/state")
+
+    def patch_device_state(self, device_id: str, data: str):
+        """
+        Merge a patch into the shadow state of a long-range (nRF9x) device
+
+        Keys set to null are deleted. nRF Cloud answers 202 Accepted on success.
+
+        :param device_id: Device ID
+        :param data: JSON string with 'desired', 'reported' or both
+        :return: HTTP response
+        :raises NRFCloudConfigError: If the project API is not configured
+        :raises HTTPError: On a non-2xx response, for example 422 if a read-only or
+                           typed path is violated
+        """
+        return self._project_patch(path=f"/long-range/devices/{device_id}/state", data=data)
 
     def get_messages(self, device: str=None, appname: str="donald", max_records: int=50, max_age_hrs: int=24) -> list:
         """
@@ -191,7 +290,7 @@ class NRFCloud():
         if appname:
             params['appId'] = appname
 
-        messages = self._get(path="/messages", params=params)
+        messages = self._project_get(path="/messages", params=params)
 
         return [(self._parse_timestamp(x['receivedAt']), x['message'])
             for x in messages['items']]
@@ -225,7 +324,7 @@ class NRFCloud():
                 }
             }
         })
-        return self._patch(f"/devices/{device_id}/state", data=data)
+        return self.patch_device_state(device_id, data)
 
     def patch_add_provisioning_command_to_shadow(self, device_id: str, command: int) -> None:
         """
@@ -239,7 +338,7 @@ class NRFCloud():
                 "command": [command, random.randint(1, 100)]
             }
         })
-        return self._patch(f"/devices/{device_id}/state", data=data)
+        return self.patch_device_state(device_id, data)
 
     def patch_delete_command_entry_from_shadow(self, device_id: str) -> None:
         """
@@ -256,7 +355,7 @@ class NRFCloud():
                 "command": None,
             }
         })
-        return self._patch(f"/devices/{device_id}/state", data=data)
+        return self.patch_device_state(device_id, data)
 
     def patch_reset_config_and_command(self, device_id: str) -> None:
         """
@@ -276,7 +375,7 @@ class NRFCloud():
                 "command": None,
             }
         })
-        return self._patch(f"/devices/{device_id}/state", data=data)
+        return self.patch_device_state(device_id, data)
 
 class NRFCloudFOTA(NRFCloud):
     def upload_firmware(
@@ -327,7 +426,7 @@ class NRFCloudFOTA(NRFCloud):
         headers = {
             "Content-Type": "application/zip"
         }
-        r = self._post("/firmwares", headers=headers, data=fd.read())
+        r = self._legacy_post("/firmwares", headers=headers, data=fd.read())
         uris = r.json()["uris"]
         if fw_type == FWType.app:
             m = re.match(r"https://(firmware|bundles)(?:\.dev|\.beta)?\.nrfcloud\.com/([a-f0-9-]+)/(APP[^/]*)?", uris[0])
@@ -370,7 +469,7 @@ class NRFCloudFOTA(NRFCloud):
             "Content-Type": "application/zip"
         }
         try:
-            r = self._post("/firmwares", headers=headers, data=fd.read())
+            r = self._legacy_post("/firmwares", headers=headers, data=fd.read())
         except HTTPError as e:
             detail = ""
             if e.response is not None and e.response.text:
@@ -393,20 +492,20 @@ class NRFCloudFOTA(NRFCloud):
         params = {"pageLimit": pageLimit}
         if pageNextToken:
             params["pageNextToken"] = pageNextToken
-        return self._get("/fota-jobs", params=params)
+        return self._legacy_get("/fota-jobs", params=params)
 
     def delete_fota_job(self, job_id: str):
-        return self._delete(f"/fota-jobs/{job_id}")
+        return self._legacy_delete(f"/fota-jobs/{job_id}")
 
     def cancel_fota_job(self, job_id: str):
         """
         Cancels the FOTA job specified by 'job_id'
         """
-        return self._put(f"/fota-jobs/{job_id}/cancel")
+        return self._legacy_put(f"/fota-jobs/{job_id}/cancel")
 
     def delete_bundle(self, bundle_id: str):
         try:
-            self._delete(f"/firmwares/{bundle_id}")
+            self._legacy_delete(f"/firmwares/{bundle_id}")
         except HTTPError:
             logger.warning(f"Failed to delete bundle: {bundle_id}")
             return False
@@ -422,7 +521,7 @@ class NRFCloudFOTA(NRFCloud):
         :return: nRFCloud jobId parameter"
         """
         data = json.dumps({"deviceIds": [device_id], "bundleId": bundle_id})
-        return self._post("/fota-jobs", data=data).json()["jobId"]
+        return self._legacy_post("/fota-jobs", data=data).json()["jobId"]
 
     def get_fota_status(self, job_id: str) -> str:
         """Get status of a FOTA job
@@ -430,15 +529,15 @@ class NRFCloudFOTA(NRFCloud):
         :param job_id: Nrfcloud FOTA jobID
         :return: FOTA status string
         """
-        return self._get(f"/fota-jobs/{job_id}")["status"]
+        return self._legacy_get(f"/fota-jobs/{job_id}")["status"]
 
     def get_fota_completed_executions(self, job_id: str) -> int:
         """Returns the number of completed executions for a FOTA job"""
-        return self._get(f"/fota-jobs/{job_id}")["executionStats"]["completedExecutions"]
+        return self._legacy_get(f"/fota-jobs/{job_id}")["executionStats"]["completedExecutions"]
 
     def get_fota_execution(self, device_id: str, job_id: str) -> dict:
         """Get FOTA execution for a specific device and job"""
-        return self._get(f"/fota-job-executions/{device_id}/{job_id}")
+        return self._legacy_get(f"/fota-job-executions/{device_id}/{job_id}")
 
     def get_fota_execution_status(self, device_id: str, job_id: str) -> str:
         """Get FOTA execution status for a specific device and job"""
@@ -464,7 +563,7 @@ class NRFCloudFOTA(NRFCloud):
             logger.info(f"Successfully posted FOTA job {job_id}")
             try:
                 # Apply job if not automatic (with FOTA v3)
-                self._post(f"/fota-jobs/{job_id}/apply")
+                self._legacy_post(f"/fota-jobs/{job_id}/apply")
             except HTTPError:
                 pass # Do nothing if the above API call failed
             finally:
@@ -492,7 +591,7 @@ class NRFCloudFOTA(NRFCloud):
     def get_current_pending_fota_execution(self, device_id: str) -> Union[dict, None]:
         """Return the current pending FOTA execution for a device, or None if none exists."""
         try:
-            return self._get(f"/fota-job-executions/{device_id}/current")
+            return self._legacy_get(f"/fota-job-executions/{device_id}/current")
         except HTTPError as e:
             if e.response.status_code == 404:
                 return None
@@ -583,4 +682,4 @@ class NRFCloudFOTA(NRFCloud):
         data = json.dumps({
             "status": status
         })
-        return self._patch(f"/fota-job-executions/{uuid}/{job_id}", data=data)
+        return self._legacy_patch(f"/fota-job-executions/{uuid}/{job_id}", data=data)
