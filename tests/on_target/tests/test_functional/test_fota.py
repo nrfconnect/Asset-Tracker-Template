@@ -3,138 +3,115 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 ##########################################################################################
 
-import pytest
-import time
+"""FOTA tests of the firmware with Memfault OTA.
+
+The application, the bootloader and the modem firmware are software types of one Memfault
+project. All the tests share one release, which has the version of the fota-target build (the
+application version that sorts after the baseline build). A test puts its images in the release,
+deploys it to the cohort of the DUT, and lets the DUT update itself. When the test is done the
+release is deactivated and its images are deleted. The versions of the DUT are read from the
+nRF Cloud shadow.
+
+The environment of the Memfault releases is described in utils/memfault_ota.py. The test files:
+ - MCUBOOT_DFU_ZIP (default artifacts/dfu_mcuboot_fw_info_v3.zip): dfu_mcuboot.zip of a build with
+   a higher bootloader (fw_info) version than the baseline build.
+ - artifacts/mfw_fota: the modem FOTA files, see MFW_* below.
+"""
+
+import functools
 import os
 import re
-import functools
-from utils.flash_tools import flash_device, reset_device
-from utils.nrfcloud import NRFCloudFOTAError
 import sys
+import time
+import types
+
+import pytest
+
 sys.path.append(os.getcwd())
+
+from utils.flash_tools import flash_device, reset_device
 from utils.logger import get_logger
+from utils.memfault_ota import OTAPayload, extract_dfu_zip
 
 logger = get_logger()
 
 MFW_FILEPATH = "artifacts/mfw_nrf91x1_2.0.4.zip"
 
-DELTA_MFW_BUNDLEID_20X_TO_FOTA_TEST = "5060efda-fcae-48d1-ab2d-7cfeb7dde8a9"
-DELTA_MFW_BUNDLEID_FOTA_TEST_TO_20X = "c1e5d090-1217-47ef-ac4e-b74339c50a06"
-FULL_MFW_BUNDLEID = "02fd1b8f-5c06-43e7-8c9c-173a50259456"
-MFW_DELTA_VERSION_FOTA_TEST = "mfw_nrf91x1_2.0.4-FOTA-TEST"
-MFW_VERSION = "mfw_nrf91x1_2.0.4"
+# The modem FOTA files: the full image, and the deltas between the modem version of the DUT and
+# a test version of it.
+MFW_FOTA_DIR = "artifacts/mfw_fota"
+MFW_FULL_FILE = "mfw_nrf91x1_2.0.4.cbor"
+MFW_DELTA_TO_TEST_FILE = "mfw_nrf91x1_update_from_2.0.4_to_2.0.4-FOTA-TEST.bin"
+MFW_DELTA_FROM_TEST_FILE = "mfw_nrf91x1_update_from_2.0.4-FOTA-TEST_to_2.0.4.bin"
 
-MCUBOOT_BUNDLEID = os.getenv("MCUBOOT_BUNDLEID")
+# The versions the modem reports, which are the component versions of the modem in Memfault
+MFW_VERSION = "mfw_nrf91x1_2.0.4"
+MFW_DELTA_VERSION_FOTA_TEST = "mfw_nrf91x1_2.0.4-FOTA-TEST"
+# Memfault only offers a component version that sorts after the reported one, and MFW_VERSION
+# sorts before MFW_DELTA_VERSION_FOTA_TEST. The component version of an image is only a label,
+# so the images get a "z" prefix to always sort last.
+MFW_DELTA_VERSION_FOTA_TEST_LABEL = "z" + MFW_DELTA_VERSION_FOTA_TEST
+MFW_VERSION_RESTORE_LABEL = "z" + MFW_VERSION
+
+SOFTWARE_TYPE_APP = "app"
+SOFTWARE_TYPE_MFW = "mfw"
+SOFTWARE_TYPE_MCUBOOT_S0 = "mcuboot-s0"
+SOFTWARE_TYPE_MCUBOOT_S1 = "mcuboot-s1"
+
+MCUBOOT_DFU_ZIP = os.getenv("MCUBOOT_DFU_ZIP") or "artifacts/dfu_mcuboot_fw_info_v3.zip"
 
 BOOTLOADER_VERSION_BASELINE = "2"
 BOOTLOADER_VERSION_UPDATED = "3"
 BOOTLOADER_FIRMWARE_VERSION_LOG = "Firmware version 3"
 
-FOTA_STATUS_DETAIL_SUCCESS = "FOTA update completed successfully"
-
-# fota-target CI build bumps PATCHLEVEL by this delta (see build.yml).
-FOTA_TARGET_PATCHLEVEL_DELTA = 1
-
 DEVICE_MSG_TIMEOUT = 60 * 5
 APP_FOTA_TIMEOUT = 60 * 15
 BOOTLOADER_FOTA_TIMEOUT = 60 * 20
+DELTA_MFW_FOTA_TIMEOUT = 60 * 15
 FULL_MFW_FOTA_TIMEOUT = 60 * 30
+RECONNECT_TIMEOUT = 60 * 5
 
-def await_nrfcloud(func, expected, field, timeout, expected_detail=None):
+
+def await_nrfcloud(func, expected, field, timeout):
     start = time.time()
-    if expected_detail is not None:
-        logger.info(
-            f"Awaiting {field} == {expected} and "
-            f"statusDetail == '{expected_detail}' in nrfcloud..."
-        )
-    else:
-        logger.info(f"Awaiting {field} == {expected} in nrfcloud shadow...")
+    logger.info(f"Awaiting {field} == {expected} in nrfcloud shadow...")
     while True:
         time.sleep(5)
         if time.time() - start > timeout:
-            if expected_detail is not None:
-                try:
-                    data = func()
-                    if isinstance(data, dict):
-                        status = data.get("status", "<missing>")
-                        status_detail = data.get("statusDetail", "<missing>")
-                    else:
-                        status = data
-                        status_detail = "<unexpected response type>"
-                except Exception as e:
-                    status = f"<failed to fetch: {e}>"
-                    status_detail = status
-                raise RuntimeError(
-                    f"Timeout awaiting {field} == {expected} with "
-                    f"statusDetail == '{expected_detail}'. "
-                    f"Got status: {status!r}, statusDetail: {status_detail!r}")
             raise RuntimeError(f"Timeout awaiting {field} update")
         try:
             data = func()
         except Exception as e:
             logger.warning(f"Exception {e} during waiting for {field}")
             continue
-        if expected_detail is not None:
-            if not isinstance(data, dict):
-                logger.warning(
-                    f"Expected dict response when checking statusDetail, got {type(data)}")
-                continue
-            status = data.get("status")
-            status_detail = data.get("statusDetail")
-            logger.debug(
-                f"Reported {field}: status={status!r}, statusDetail={status_detail!r}")
-            if status is not None and expected in status:
-                if status_detail == expected_detail:
-                    break
-                raise RuntimeError(
-                    f"{field} matched {expected!r} but unexpected statusDetail: "
-                    f"{status_detail!r} (expected {expected_detail!r})")
-        else:
-            logger.debug(f"Reported {field}: {data}")
-            if expected in data:
-                break
+        logger.debug(f"Reported {field}: {data}")
+        if expected in data:
+            break
 
-def await_fota_job_succeeded(dut_fota, job_id, timeout):
-    """Wait for FOTA job to complete and the device execution to succeed."""
-    await_nrfcloud(
-        functools.partial(dut_fota.fota.get_fota_status, job_id),
-        "IN_PROGRESS",
-        "FOTA status",
-        timeout
-    )
-    await_nrfcloud(
-        functools.partial(dut_fota.fota.get_fota_status, job_id),
-        "COMPLETED",
-        "FOTA status",
-        timeout
-    )
-    await_nrfcloud(
-        functools.partial(dut_fota.fota.get_fota_execution, dut_fota.device_id, job_id),
-        "SUCCEEDED",
-        "FOTA execution status",
-        timeout,
-        expected_detail=FOTA_STATUS_DETAIL_SUCCESS,
-    )
 
 def get_appversion(dut_fota):
     shadow = dut_fota.fota.get_device(dut_fota.device_id)
     return shadow["state"]["reported"]["device"]["deviceInfo"]["appVersion"]
 
+
 def get_modemversion(dut_fota):
     shadow = dut_fota.fota.get_device(dut_fota.device_id)
     return shadow["state"]["reported"]["device"]["deviceInfo"]["modemFirmware"]
 
+
 def get_bootloaderversion(dut_fota):
     shadow = dut_fota.fota.get_device(dut_fota.device_id)
     return shadow["state"]["reported"]["device"]["deviceInfo"]["bootloaderVersion"]
+
 
 def _app_version_file():
     return os.path.abspath(
         os.path.join(os.path.dirname(__file__), "../../../../app/VERSION")
     )
 
-def parse_app_version(patchlevel_delta=0):
-    """Return appVersion as reported in the nRF Cloud shadow (APP_VERSION_STRING)."""
+
+def parse_app_version():
+    """Return the application version of this checkout, as reported in the nRF Cloud shadow."""
     version = {}
     with open(_app_version_file()) as f:
         for line in f:
@@ -142,16 +119,14 @@ def parse_app_version(patchlevel_delta=0):
             if match:
                 version[match.group(1)] = match.group(2)
 
-    patchlevel = int(version["PATCHLEVEL"]) + patchlevel_delta
     app_version = (
-        f"{version['VERSION_MAJOR']}."
-        f"{version['VERSION_MINOR']}."
-        f"{patchlevel}"
+        f"{version['VERSION_MAJOR']}.{version['VERSION_MINOR']}.{version['PATCHLEVEL']}"
     )
     extra = version.get("EXTRAVERSION")
     if extra:
         app_version += f"-{extra}"
     return app_version
+
 
 def await_bootloader_version(dut_fota, expected, timeout=DEVICE_MSG_TIMEOUT):
     start = time.time()
@@ -173,21 +148,10 @@ def await_bootloader_version(dut_fota, expected, timeout=DEVICE_MSG_TIMEOUT):
         if version == expected:
             return
 
+
 def restore_device_after_modem_fota(dut_fota, hex_file):
     """Return the DUT to a known-good state after modem FOTA tests."""
     logger.info("Restoring device after modem FOTA test")
-
-    job_id = dut_fota.data.get("job_id")
-    if job_id:
-        try:
-            dut_fota.fota.cancel_fota_job(job_id)
-        except Exception as e:
-            logger.warning(f"Failed to cancel active FOTA job {job_id}: {e}")
-
-    try:
-        dut_fota.fota.ensure_no_pending_fota_jobs(dut_fota.device_id)
-    except Exception as e:
-        logger.warning(f"Failed to cancel pending FOTA jobs during restore: {e}")
 
     flash_device(os.path.abspath(MFW_FILEPATH))
     flash_device(os.path.abspath(hex_file))
@@ -200,12 +164,9 @@ def restore_device_after_modem_fota(dut_fota, hex_file):
 
     reset_device()
 
-    try:
-        dut_fota.fota.ensure_no_pending_fota_jobs(dut_fota.device_id)
-    except Exception as e:
-        logger.warning(f"Failed to cancel pending FOTA jobs after restore: {e}")
 
 def trigger_fota_poll(dut_fota, max_attempts=3):
+    """Poll for a FOTA update, until the DUT starts to download one."""
     for _ in range(max_attempts):
         try:
             time.sleep(10)
@@ -215,6 +176,7 @@ def trigger_fota_poll(dut_fota, max_attempts=3):
         except AssertionError:
             continue
     raise AssertionError(f"Fota update not available after {max_attempts} attempts")
+
 
 def perform_disconnect_reconnect(dut_fota, expected_percentage):
     """Helper function to perform a disconnect/reconnect sequence and verify resumption at expected percentage"""
@@ -251,6 +213,7 @@ def perform_disconnect_reconnect(dut_fota, expected_percentage):
             logger.error(f"✗ Failed to verify resumption at expected percentage {expected_percentage}%")
             raise AssertionError(f"Could not verify FOTA resumed at {expected_percentage}%")
 
+
 def run_fota_resumption(dut_fota, fota_type):
     if fota_type == "app":
         timeout_50_percent = APP_FOTA_TIMEOUT/2
@@ -274,131 +237,88 @@ def run_fota_resumption(dut_fota, fota_type):
         logger.info(f"Performing second disconnect/reconnect at 80%")
         perform_disconnect_reconnect(dut_fota, 80)
 
-def run_fota_reschedule(dut_fota, fota_type):
-    dut_fota.uart.wait_for_str("5%", timeout=APP_FOTA_TIMEOUT)
-    logger.debug(f"Cancelling FOTA, type: {fota_type}")
 
-    dut_fota.fota.cancel_fota_job(dut_fota.data['job_id'])
+def prepare_device(dut_fota, hex_path):
+    """Flash the firmware, and have the DUT connected to the cloud from a clean state."""
+    flash_device(os.path.abspath(hex_path))
+    dut_fota.uart.xfactoryreset()
+    dut_fota.uart.flush()
+    reset_device()
 
-    await_nrfcloud(
-        functools.partial(dut_fota.fota.get_fota_status, dut_fota.data['job_id']),
-        "CANCELLED",
-        "FOTA status",
-        APP_FOTA_TIMEOUT
-    )
+    dut_fota.uart.wait_for_str_with_retries(
+        "Connected to Cloud", max_retries=3, timeout=240, reset_func=reset_device)
 
-    patterns_fota_cancel = ["Firmware download canceled", "state_waiting_for_poll_request_entry"]
 
-    dut_fota.uart.wait_for_str(patterns_fota_cancel, timeout=180)
-
-    dut_fota.data['job_id'] = dut_fota.fota.create_fota_job(dut_fota.device_id, dut_fota.data['bundle_id'])
-
-    logger.info(f"Rescheduled FOTA Job (ID: {dut_fota.data['job_id']})")
-
-    # Sleep a bit and trigger fota poll
-    for i in range(3):
+def await_reconnect(dut_fota, start_pos, max_attempts=3):
+    """Wait for the DUT to be back in the cloud after the reboot of an update."""
+    for attempt in range(max_attempts):
         try:
-            time.sleep(30)
-            dut_fota.uart.write("att_fota poll\r\n")
-            dut_fota.uart.wait_for_str("nrf_cloud_fota_poll: Starting FOTA download")
-            break
+            dut_fota.uart.wait_for_str(
+                "Connected to Cloud", timeout=RECONNECT_TIMEOUT, start_pos=start_pos)
+            return
         except AssertionError:
-            continue
-    else:
-        raise AssertionError(f"Fota update not available after {i} attempts")
+            if attempt == max_attempts - 1:
+                raise
+            logger.warning("Not connected to cloud after the update, resetting the device")
+            reset_device()
+            start_pos = dut_fota.uart.get_size()
 
-@pytest.fixture
-def run_fota_fixture(dut_fota, hex_file, reschedule=False):
-    def _run_fota(bundle_id="", fota_type="app", fotatimeout=APP_FOTA_TIMEOUT, new_version=None, reschedule=False, flash_hex=None):
-        if new_version is None:
-            new_version = parse_app_version()
-        flash_device(os.path.abspath(flash_hex or hex_file))
-        dut_fota.uart.xfactoryreset()
-        dut_fota.uart.flush()
-        reset_device()
 
-        dut_fota.uart.wait_for_str_with_retries("Connected to Cloud", max_retries=3, timeout=240, reset_func=reset_device)
+def run_memfault_fota(dut_fota, memfault_ota, payloads, version_getter, field, expected_version,
+                      timeout, resumption=None):
+    """Update the DUT with a Memfault release, and verify the version it reports afterwards.
 
-        dut_fota.fota.ensure_no_pending_fota_jobs(dut_fota.device_id)
-
-        try:
-            dut_fota.data['job_id'] = dut_fota.fota.create_fota_job(dut_fota.device_id, bundle_id)
-            dut_fota.data['bundle_id'] = bundle_id
-        except NRFCloudFOTAError as e:
-            pytest.skip(f"FOTA create_job REST API error: {e}")
-        logger.info(f"Created FOTA Job (ID: {dut_fota.data['job_id']})")
-
+    The release has the given images. The DUT is polled for the update, downloads it, and
+    reboots to install it.
+    """
+    with memfault_ota.release(payloads):
         trigger_fota_poll(dut_fota)
 
-        if reschedule:
-            run_fota_reschedule(dut_fota, fota_type)
+        if resumption:
+            run_fota_resumption(dut_fota, resumption)
 
-        if fota_type == "app":
-            run_fota_resumption(dut_fota, "app")
-        elif fota_type == "full":
-            run_fota_resumption(dut_fota, "full")
-        await_fota_job_succeeded(dut_fota, dut_fota.data['job_id'], fotatimeout)
+        dut_fota.uart.wait_for_str("Download complete", timeout=timeout)
+        post_download_pos = dut_fota.uart.get_size()
+        await_reconnect(dut_fota, post_download_pos)
 
         try:
-            if fota_type == "app":
-                await_nrfcloud(
-                    functools.partial(get_appversion, dut_fota),
-                    new_version,
-                    "appVersion",
-                    DEVICE_MSG_TIMEOUT
-                )
-            else:
-                await_nrfcloud(
-                    functools.partial(get_modemversion, dut_fota),
-                    new_version,
-                    "modemFirmware",
-                    DEVICE_MSG_TIMEOUT
-                )
-        except RuntimeError as e:
-            logger.error(f"Version is not {new_version} after {DEVICE_MSG_TIMEOUT}s")
-            raise e
+            await_nrfcloud(
+                functools.partial(version_getter, dut_fota),
+                expected_version,
+                field,
+                DEVICE_MSG_TIMEOUT
+            )
+        except RuntimeError:
+            logger.error(f"{field} is not {expected_version} after {DEVICE_MSG_TIMEOUT}s")
+            raise
 
-        if fota_type == "delta":
-            # Run a second delta fota back from FOTA-TEST
-            logger.info("Running a second delta fota back from FOTA-TEST")
-            try:
-                dut_fota.data['job_id'] = dut_fota.fota.create_fota_job(dut_fota.device_id, DELTA_MFW_BUNDLEID_FOTA_TEST_TO_20X)
-                dut_fota.data['bundle_id'] = bundle_id
-            except NRFCloudFOTAError as e:
-                pytest.skip(f"FOTA create_job REST API error: {e}")
-            logger.info(f"Created FOTA Job (ID: {dut_fota.data['job_id']})")
 
-            # Sleep a bit and trigger fota poll
-            dut_fota.uart.flush()
-            for i in range(3):
-                try:
-                    time.sleep(10)
-                    dut_fota.uart.write("att_fota poll\r\n")
-                    dut_fota.uart.wait_for_str("nrf_cloud_fota_poll: Starting FOTA download", timeout=30)
-                    break
-                except AssertionError:
-                    continue
-            else:
-                raise AssertionError(f"Fota update not available after {i} attempts")
+@pytest.fixture
+def mfw_fota_files():
+    """The modem FOTA files, skipping the test if they are not provided."""
+    files = types.SimpleNamespace(
+        full=os.path.join(MFW_FOTA_DIR, MFW_FULL_FILE),
+        delta_to_test=os.path.join(MFW_FOTA_DIR, MFW_DELTA_TO_TEST_FILE),
+        delta_from_test=os.path.join(MFW_FOTA_DIR, MFW_DELTA_FROM_TEST_FILE),
+    )
+    missing = [p for p in vars(files).values() if not os.path.isfile(p)]
+    if missing:
+        pytest.skip(f"Modem FOTA files not found: {', '.join(missing)}")
 
-            await_fota_job_succeeded(dut_fota, dut_fota.data['job_id'], fotatimeout)
+    return files
 
-            try:
-                await_nrfcloud(
-                    functools.partial(get_modemversion, dut_fota),
-                    MFW_VERSION,
-                    "modemFirmware",
-                    DEVICE_MSG_TIMEOUT
-                )
-            except RuntimeError as e:
-                logger.error(f"Version is not {new_version} after {DEVICE_MSG_TIMEOUT}s")
-                raise e
 
-    return _run_fota
-
+def update_modem_to_test_version(dut_fota, memfault_ota, mfw_fota_files):
+    """Update the modem from MFW_VERSION to the test version with a delta."""
+    run_memfault_fota(
+        dut_fota, memfault_ota,
+        [OTAPayload(mfw_fota_files.delta_to_test, SOFTWARE_TYPE_MFW,
+                    component_version=MFW_DELTA_VERSION_FOTA_TEST_LABEL,
+                    component_base_version=MFW_VERSION)],
+        get_modemversion, "modemFirmware", MFW_DELTA_VERSION_FOTA_TEST, DELTA_MFW_FOTA_TIMEOUT)
 
 @pytest.mark.slow
-def test_app_fota_release_to_nightly(run_fota_fixture, dut_fota, dfu_zip_file, release_hex_file):
+def test_app_fota_release_to_nightly(dut_fota, memfault_ota, dfu_zip_file, release_hex_file):
     '''
     Test application FOTA upgrading the most recent release to the nightly build.
     '''
@@ -413,38 +333,30 @@ def test_app_fota_release_to_nightly(run_fota_fixture, dut_fota, dfu_zip_file, r
         f"version {release_version}, so the update would not be verified"
     )
 
-    bundle_id = None
-    try:
-        bundle_id = dut_fota.fota.upload_zephyr_zip(
-            dfu_zip_file,
-            version=nightly_version,
-            name=f"ATT nightly FOTA test {nightly_version}",
-        )
-        logger.info(
-            f"Upgrading release {release_version} to nightly {nightly_version} "
-            f"using bundle {bundle_id}"
-        )
-        run_fota_fixture(
-            bundle_id=bundle_id,
-            new_version=nightly_version,
-            flash_hex=release_hex_file.path,
-        )
-    finally:
-        if bundle_id:
-            dut_fota.fota.delete_bundle(bundle_id)
+    prepare_device(dut_fota, release_hex_file.path)
+    app = next(e for e in extract_dfu_zip(dfu_zip_file, "artifacts/memfault_app")
+               if e.get("type") == "application")
+
+    run_memfault_fota(
+        dut_fota, memfault_ota,
+        [OTAPayload(app["path"], SOFTWARE_TYPE_APP)],
+        get_appversion, "appVersion", nightly_version, APP_FOTA_TIMEOUT,
+        resumption="app")
+
 
 @pytest.mark.slow
 def test_app_fota_nightly_to_nightly(
-    run_fota_fixture, dut_fota, dfu_zip_fota_target_file, hex_file
+    dut_fota, memfault_ota, dfu_zip_fota_target_file, hex_file, fota_target_version
 ):
     '''
     Test application FOTA from the baseline nightly build to a second nightly
-    build with PATCHLEVEL+1 (see FOTA_TARGET_PATCHLEVEL_DELTA and build.yml).
+    build with a "fota-test" EXTRAVERSION (see build.yml), which sorts after the baseline.
+
+    The release version is the version of the second build, as it reports it to Memfault. It is
+    the release that all the FOTA tests share.
     '''
     baseline_version = parse_app_version()
-    target_version = parse_app_version(
-        patchlevel_delta=FOTA_TARGET_PATCHLEVEL_DELTA
-    )
+    target_version = fota_target_version
 
     assert baseline_version != target_version, (
         f"Baseline and FOTA target versions must differ "
@@ -455,104 +367,108 @@ def test_app_fota_nightly_to_nightly(
         f"{baseline_version!r} in the shadow appVersion substring check"
     )
 
-    bundle_id = None
-    try:
-        bundle_id = dut_fota.fota.upload_zephyr_zip(
-            dfu_zip_fota_target_file,
-            version=target_version,
-            name=f"ATT nightly-to-nightly FOTA {target_version}",
-        )
-        logger.info(
-            f"Upgrading nightly {baseline_version} to {target_version} "
-            f"using bundle {bundle_id}"
-        )
-        run_fota_fixture(
-            bundle_id=bundle_id,
-            new_version=target_version,
-            flash_hex=hex_file,
-        )
-    finally:
-        if bundle_id:
-            dut_fota.fota.delete_bundle(bundle_id)
+    prepare_device(dut_fota, hex_file)
+    app = next(e for e in extract_dfu_zip(dfu_zip_fota_target_file, "artifacts/memfault_app")
+               if e.get("type") == "application")
+
+    logger.info(f"Upgrading nightly {baseline_version} to {target_version}")
+    run_memfault_fota(
+        dut_fota, memfault_ota,
+        [OTAPayload(app["path"], SOFTWARE_TYPE_APP)],
+        get_appversion, "appVersion", target_version, APP_FOTA_TIMEOUT,
+        resumption="app")
+
 
 @pytest.mark.slow
-def test_bootloader_fota(dut_fota, hex_file):
+def test_bootloader_fota(dut_fota, memfault_ota, hex_file):
     '''
-    Test MCUboot bootloader (B1) FOTA
+    Test MCUboot bootloader (B1) FOTA.
+
+    The images of both bootloader slots are uploaded, as software types of their own, with the
+    bootloader version as the component version. The DUT updates the inactive slot.
     '''
-    if not MCUBOOT_BUNDLEID:
-        pytest.skip("MCUBOOT_BUNDLEID environment variable not set")
+    if not os.path.isfile(MCUBOOT_DFU_ZIP):
+        pytest.skip(f"{MCUBOOT_DFU_ZIP} not found")
+
+    images = extract_dfu_zip(MCUBOOT_DFU_ZIP, "artifacts/memfault_mcuboot")
+    software_types = {"0": SOFTWARE_TYPE_MCUBOOT_S0, "1": SOFTWARE_TYPE_MCUBOOT_S1}
+    versions = {e["version_B0"] for e in images}
+    assert versions == {BOOTLOADER_VERSION_UPDATED}, (
+        f"{MCUBOOT_DFU_ZIP} has bootloader version(s) {versions}, "
+        f"expected {BOOTLOADER_VERSION_UPDATED}")
+    payloads = [
+        OTAPayload(e["path"], software_types[e["slot"]], component_version=e["version_B0"])
+        for e in images
+    ]
 
     try:
-        flash_device(os.path.abspath(hex_file))
-        dut_fota.uart.xfactoryreset()
-        dut_fota.uart.flush()
-        reset_device()
-
-        dut_fota.uart.wait_for_str_with_retries(
-            "Connected to Cloud", max_retries=3, timeout=240, reset_func=reset_device)
+        prepare_device(dut_fota, hex_file)
 
         await_bootloader_version(dut_fota, BOOTLOADER_VERSION_BASELINE)
 
-        dut_fota.fota.ensure_no_pending_fota_jobs(dut_fota.device_id)
+        with memfault_ota.release(payloads):
+            trigger_fota_poll(dut_fota)
 
-        try:
-            dut_fota.data["job_id"] = dut_fota.fota.create_fota_job(
-                dut_fota.device_id, MCUBOOT_BUNDLEID)
-            dut_fota.data["bundle_id"] = MCUBOOT_BUNDLEID
-        except NRFCloudFOTAError as e:
-            pytest.skip(f"FOTA create_job REST API error: {e}")
-        logger.info(f"Created bootloader FOTA job (ID: {dut_fota.data['job_id']})")
+            dut_fota.uart.wait_for_str("Download complete", timeout=BOOTLOADER_FOTA_TIMEOUT)
+            post_download_pos = dut_fota.uart.get_size()
 
-        trigger_fota_poll(dut_fota)
+            dut_fota.uart.wait_for_str(
+                BOOTLOADER_FIRMWARE_VERSION_LOG,
+                timeout=BOOTLOADER_FOTA_TIMEOUT,
+                start_pos=post_download_pos,
+                error_msg="Expected B0 fw_info v3 after download",
+            )
 
-        dut_fota.uart.wait_for_str("fota_download: B1 update, selected", timeout=120)
-        dut_fota.uart.wait_for_str("Download complete", timeout=BOOTLOADER_FOTA_TIMEOUT)
-        post_download_pos = dut_fota.uart.get_size()
+            await_reconnect(dut_fota, post_download_pos)
 
-        dut_fota.uart.wait_for_str(
-            BOOTLOADER_FIRMWARE_VERSION_LOG,
-            timeout=BOOTLOADER_FOTA_TIMEOUT,
-            start_pos=post_download_pos,
-            error_msg="Expected B0 fw_info v3 after download",
-        )
-
-        await_fota_job_succeeded(dut_fota, dut_fota.data["job_id"], BOOTLOADER_FOTA_TIMEOUT)
-
-        dut_fota.uart.wait_for_str_with_retries(
-            "Connected to Cloud", max_retries=5, timeout=300, reset_func=reset_device)
-
-        await_bootloader_version(dut_fota, BOOTLOADER_VERSION_UPDATED,
-                                 timeout=BOOTLOADER_FOTA_TIMEOUT)
+            await_bootloader_version(dut_fota, BOOTLOADER_VERSION_UPDATED,
+                                     timeout=BOOTLOADER_FOTA_TIMEOUT)
     finally:
         flash_device(os.path.abspath(hex_file))
 
-def test_delta_mfw_fota(dut_fota, run_fota_fixture, hex_file):
+
+def test_delta_mfw_fota(dut_fota, memfault_ota, mfw_fota_files, hex_file):
     '''
-    Test delta modem FOTA on nrf9151
+    Test delta modem FOTA on nrf9151: to the test version of the modem, and back.
     '''
     try:
-        run_fota_fixture(
-            bundle_id=DELTA_MFW_BUNDLEID_20X_TO_FOTA_TEST,
-            fota_type="delta",
-            new_version=MFW_DELTA_VERSION_FOTA_TEST
-        )
+        prepare_device(dut_fota, hex_file)
+
+        update_modem_to_test_version(dut_fota, memfault_ota, mfw_fota_files)
+
+        logger.info("Running a second delta fota back from FOTA-TEST")
+        run_memfault_fota(
+            dut_fota, memfault_ota,
+            [OTAPayload(mfw_fota_files.delta_from_test, SOFTWARE_TYPE_MFW,
+                        component_version=MFW_VERSION_RESTORE_LABEL,
+                        component_base_version=MFW_DELTA_VERSION_FOTA_TEST)],
+            get_modemversion, "modemFirmware", MFW_VERSION, DELTA_MFW_FOTA_TIMEOUT)
     finally:
         restore_device_after_modem_fota(dut_fota, hex_file)
 
-@pytest.mark.slow
-def test_full_mfw_fota(dut_fota, run_fota_fixture, hex_file):
-    '''
-    Test full modem FOTA on nrf9151
-    '''
 
+@pytest.mark.slow
+def test_full_mfw_fota(dut_fota, memfault_ota, mfw_fota_files, hex_file):
+    '''
+    Test full modem FOTA on nrf9151, after a delta modem FOTA with the same software type.
+
+    A full and a delta modem image are served as the same software type, and the device finds
+    out the kind of image when it has downloaded it (NRF_CLOUD_FOTA_MODEM_ANY). The modem is
+    first updated with a delta to the test version, as a full update to the version it already
+    has would not be offered.
+    '''
     try:
-        run_fota_fixture(
-            bundle_id=FULL_MFW_BUNDLEID,
-            fota_type="full",
-            new_version=MFW_VERSION,
-            fotatimeout=FULL_MFW_FOTA_TIMEOUT,
-            reschedule=True
-        )
+        prepare_device(dut_fota, hex_file)
+
+        update_modem_to_test_version(dut_fota, memfault_ota, mfw_fota_files)
+
+        logger.info("Running a full modem fota from FOTA-TEST")
+        dut_fota.uart.flush()
+        run_memfault_fota(
+            dut_fota, memfault_ota,
+            [OTAPayload(mfw_fota_files.full, SOFTWARE_TYPE_MFW,
+                        component_version=MFW_VERSION_RESTORE_LABEL)],
+            get_modemversion, "modemFirmware", MFW_VERSION, FULL_MFW_FOTA_TIMEOUT,
+            resumption="full")
     finally:
         restore_device_after_modem_fota(dut_fota, hex_file)

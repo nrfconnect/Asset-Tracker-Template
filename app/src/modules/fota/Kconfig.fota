@@ -16,6 +16,16 @@ config APP_FOTA_SHELL
 	help
 	  Enable shell commands for the FOTA module.
 
+config APP_FOTA_MCUBOOT
+	bool "Bootloader (MCUboot) updates through Memfault"
+	depends on MEMFAULT_ZEPHYR_FOTA_BACKEND_NRF_CLOUD_OVERRIDE
+	depends on NRF_CLOUD_SEND_DEVICE_INFO_BOOTLOADER_VERSION
+	depends on NRF_CLOUD_FOTA_TYPE_BOOT_SUPPORTED
+	default y
+	help
+	  Register the MCUboot (B1) slot images as Memfault OTA components "mcuboot-s0" and
+	  "mcuboot-s1".
+
 config APP_FOTA_THREAD_STACK_SIZE
 	int "Thread stack size"
 	default 2048
