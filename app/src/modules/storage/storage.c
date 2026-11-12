@@ -421,7 +421,7 @@ static void storage_clear(void)
 static void update_threshold(struct storage_state *state_object, uint32_t new_threshold)
 {
 	if (new_threshold > 0 && new_threshold <= CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE) {
-		LOG_DBG("Updating buffer threshold limit: %u", new_threshold);
+		LOG_INF("Updating buffer threshold limit: %u", new_threshold);
 	} else {
 		LOG_ERR("Invalid threshold value: %u. Must be between 1 and %u",
 			new_threshold, CONFIG_APP_STORAGE_MAX_RECORDS_PER_TYPE);
