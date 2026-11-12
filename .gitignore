@@ -19,4 +19,4 @@ venv
 .vscode
 sanity-out*
 twister-out*
-tests/on_target/artifacts/*.hex
+tests/on_target/artifacts/
