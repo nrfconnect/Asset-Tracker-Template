@@ -13,7 +13,9 @@ runs:
     - name: Find NCS revision
       shell: bash
       run: |
-        NCS_REV=$(grep "revision:" asset-tracker-template/west.yml | awk '{print $2}' | xargs)
+        # The revision of the nrf project, as west.yml can have  other projects with a revision too
+        NCS_REV=$(awk '/- name: nrf$/ {found=1} found && /revision:/ {print $2; exit}' \
+          asset-tracker-template/west.yml)
         echo "NCS_REV=${NCS_REV}" >> $GITHUB_ENV
         echo "NCS_REV=${NCS_REV}"
     - uses: actions/checkout@v6
