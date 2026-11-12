@@ -79,14 +79,14 @@ on:
         default: false
       build_thingy91x_fota_target:
         description: |
-          Build thingy91x app firmware with PATCHLEVEL+1 for nightly-to-nightly
+          Build thingy91x app firmware with a "fota-test" EXTRAVERSION for nightly-to-nightly
           application FOTA tests.
         type: boolean
         required: false
         default: false
       build_nrf9151dk_fota_target:
         description: |
-          Build nrf9151dk app firmware with PATCHLEVEL+1 for nightly-to-nightly
+          Build nrf9151dk app firmware with a "fota-test" EXTRAVERSION for nightly-to-nightly
           application FOTA tests.
         type: boolean
         required: false
@@ -248,9 +248,18 @@ jobs:
         shell: bash
         run: |
           cp app/VERSION app/VERSION.bak
-          patchlevel=$(awk '/^PATCHLEVEL/ {print $3}' app/VERSION)
-          sed -i "s/^PATCHLEVEL = .*/PATCHLEVEL = $((patchlevel + 1))/" app/VERSION
+          # The version sorts after the "-dev" baseline, and is the release version of the
+          # Memfault release that the FOTA tests use. The device is in the version, so the boards
+          # that are tested at the same time do not share a release. The tests read it from the
+          # artifacts.
+          extraversion="fota-test-thingy91x-$(date -u +%Y%m%d)"
+          sed -i "s/^EXTRAVERSION = .*/EXTRAVERSION = $extraversion/" app/VERSION
           cat app/VERSION
+          major=$(awk '/^VERSION_MAJOR/ {print $3}' app/VERSION)
+          minor=$(awk '/^VERSION_MINOR/ {print $3}' app/VERSION)
+          patchlevel=$(awk '/^PATCHLEVEL/ {print $3}' app/VERSION)
+          echo "$major.$minor.$patchlevel-$extraversion" \
+            > ../artifacts/fota-target-version-thingy91x.txt
 
       - name: Build thingy91x fota-target firmware (west)
         if: ${{ inputs.build_thingy91x_fota_target }}
@@ -301,9 +310,18 @@ jobs:
         shell: bash
         run: |
           cp app/VERSION app/VERSION.bak
-          patchlevel=$(awk '/^PATCHLEVEL/ {print $3}' app/VERSION)
-          sed -i "s/^PATCHLEVEL = .*/PATCHLEVEL = $((patchlevel + 1))/" app/VERSION
+          # The version sorts after the "-dev" baseline, and is the release version of the
+          # Memfault release that the FOTA tests use. The device is in the version, so the boards
+          # that are tested at the same time do not share a release. The tests read it from the
+          # artifacts.
+          extraversion="fota-test-nrf9151dk-$(date -u +%Y%m%d)"
+          sed -i "s/^EXTRAVERSION = .*/EXTRAVERSION = $extraversion/" app/VERSION
           cat app/VERSION
+          major=$(awk '/^VERSION_MAJOR/ {print $3}' app/VERSION)
+          minor=$(awk '/^VERSION_MINOR/ {print $3}' app/VERSION)
+          patchlevel=$(awk '/^PATCHLEVEL/ {print $3}' app/VERSION)
+          echo "$major.$minor.$patchlevel-$extraversion" \
+            > ../artifacts/fota-target-version-nrf9151dk.txt
 
       - name: Build nrf9151dk fota-target firmware (west)
         if: ${{ inputs.build_nrf9151dk_fota_target }}
