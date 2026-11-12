@@ -117,16 +117,16 @@ def await_fota_job_succeeded(dut_fota, job_id, timeout):
     )
 
 def get_appversion(dut_fota):
-    shadow = dut_fota.fota.get_device(dut_fota.device_id)
-    return shadow["state"]["reported"]["device"]["deviceInfo"]["appVersion"]
+    shadow = dut_fota.fota.get_device_state(dut_fota.device_id)
+    return shadow["reported"]["device"]["deviceInfo"]["appVersion"]
 
 def get_modemversion(dut_fota):
-    shadow = dut_fota.fota.get_device(dut_fota.device_id)
-    return shadow["state"]["reported"]["device"]["deviceInfo"]["modemFirmware"]
+    shadow = dut_fota.fota.get_device_state(dut_fota.device_id)
+    return shadow["reported"]["device"]["deviceInfo"]["modemFirmware"]
 
 def get_bootloaderversion(dut_fota):
-    shadow = dut_fota.fota.get_device(dut_fota.device_id)
-    return shadow["state"]["reported"]["device"]["deviceInfo"]["bootloaderVersion"]
+    shadow = dut_fota.fota.get_device_state(dut_fota.device_id)
+    return shadow["reported"]["device"]["deviceInfo"]["bootloaderVersion"]
 
 def _app_version_file():
     return os.path.abspath(

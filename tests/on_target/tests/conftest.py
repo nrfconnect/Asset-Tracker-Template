@@ -23,8 +23,26 @@ SEGGER = os.getenv('SEGGER')
 UART_ID = os.getenv('UART_ID', SEGGER)
 DEVICE_UUID = os.getenv('UUID')
 NRFCLOUD_API_KEY = os.getenv('NRFCLOUD_API_KEY')
+MEMFAULT_ORGANIZATION_TOKEN = os.getenv('MEMFAULT_ORGANIZATION_TOKEN')
+MEMFAULT_ORGANIZATION_SLUG = os.getenv('MEMFAULT_ORGANIZATION_SLUG')
+MEMFAULT_PROJECT_SLUG = os.getenv('MEMFAULT_PROJECT_SLUG')
 DUT_DEVICE_TYPE = os.getenv('DUT_DEVICE_TYPE')
 GITHUB_REPOSITORY = os.getenv('GITHUB_REPOSITORY', 'nrfconnect/Asset-Tracker-Template')
+
+NRFCLOUD_ORG_CREDENTIALS_MISSING = (
+    "MEMFAULT_ORGANIZATION_TOKEN, MEMFAULT_ORGANIZATION_SLUG or MEMFAULT_PROJECT_SLUG not set"
+)
+
+def nrfcloud_org_credentials_set():
+    return bool(MEMFAULT_ORGANIZATION_TOKEN and MEMFAULT_ORGANIZATION_SLUG and MEMFAULT_PROJECT_SLUG)
+
+def nrfcloud_credentials():
+    return {
+        'org_token': MEMFAULT_ORGANIZATION_TOKEN,
+        'org_slug': MEMFAULT_ORGANIZATION_SLUG,
+        'project_slug': MEMFAULT_PROJECT_SLUG,
+        'api_key': NRFCLOUD_API_KEY,
+    }
 
 def get_uarts():
     # Handle platform-specific serial device paths
@@ -110,12 +128,12 @@ def dut_board():
 
 @pytest.fixture(scope="function")
 def dut_cloud(dut_board):
-    if not NRFCLOUD_API_KEY:
-        pytest.skip("NRFCLOUD_API_KEY environment variable not set")
+    if not nrfcloud_org_credentials_set():
+        pytest.skip(NRFCLOUD_ORG_CREDENTIALS_MISSING)
     if not DEVICE_UUID:
         pytest.skip("UUID environment variable not set")
 
-    cloud = NRFCloud(api_key=NRFCLOUD_API_KEY)
+    cloud = NRFCloud(**nrfcloud_credentials())
     device_id = DEVICE_UUID
 
     yield types.SimpleNamespace(
@@ -128,10 +146,12 @@ def dut_cloud(dut_board):
 def dut_fota(dut_board):
     if not NRFCLOUD_API_KEY:
         pytest.skip("NRFCLOUD_API_KEY environment variable not set")
+    if not nrfcloud_org_credentials_set():
+        pytest.skip(NRFCLOUD_ORG_CREDENTIALS_MISSING)
     if not DEVICE_UUID:
         pytest.skip("UUID environment variable not set")
 
-    fota = NRFCloudFOTA(api_key=NRFCLOUD_API_KEY)
+    fota = NRFCloudFOTA(**nrfcloud_credentials())
     device_id = DEVICE_UUID
     data = {
         'job_id': '',

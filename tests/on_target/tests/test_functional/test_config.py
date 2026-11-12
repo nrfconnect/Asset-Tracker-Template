@@ -28,8 +28,7 @@ def wait_for_config_reported(cloud, device_id, expected_sample, expected_thresho
     while time.time() - start < CLOUD_TIMEOUT:
         time.sleep(5)
         try:
-            device = cloud.get_device(device_id)
-            device_state = device["state"]
+            device_state = cloud.get_device_state(device_id)
             sample_interval = device_state["reported"]["config"]["sample_interval"]
             storage_threshold = device_state["reported"]["config"]["storage_threshold"]
         except (KeyError, TypeError) as e:
