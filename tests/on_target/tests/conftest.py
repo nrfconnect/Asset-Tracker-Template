@@ -5,6 +5,7 @@
 
 import os
 import re
+from datetime import datetime, timezone
 import pytest
 import requests
 import types
@@ -13,7 +14,8 @@ from utils.uart import Uart, UartBinary
 import sys
 sys.path.append(os.getcwd())
 from utils.logger import get_logger
-from utils.nrfcloud import NRFCloud, NRFCloudFOTA
+from utils.memfault_ota import MemfaultOTA, MemfaultOTAConfigError
+from utils.nrfcloud import NRFCloud
 
 logger = get_logger()
 
@@ -22,7 +24,6 @@ UART_TIMEOUT = 60 * 30
 SEGGER = os.getenv('SEGGER')
 UART_ID = os.getenv('UART_ID', SEGGER)
 DEVICE_UUID = os.getenv('UUID')
-NRFCLOUD_API_KEY = os.getenv('NRFCLOUD_API_KEY')
 MEMFAULT_ORGANIZATION_TOKEN = os.getenv('MEMFAULT_ORGANIZATION_TOKEN')
 MEMFAULT_ORGANIZATION_SLUG = os.getenv('MEMFAULT_ORGANIZATION_SLUG')
 MEMFAULT_PROJECT_SLUG = os.getenv('MEMFAULT_PROJECT_SLUG')
@@ -42,7 +43,6 @@ def nrfcloud_credentials():
         'org_token': MEMFAULT_ORGANIZATION_TOKEN,
         'org_slug': MEMFAULT_ORGANIZATION_SLUG,
         'project_slug': MEMFAULT_PROJECT_SLUG,
-        'api_key': NRFCLOUD_API_KEY,
     }
 
 def get_uarts():
@@ -123,27 +123,78 @@ def dut_cloud(dut_board):
 
 @pytest.fixture(scope="function")
 def dut_fota(dut_board):
-    if not NRFCLOUD_API_KEY:
-        pytest.skip("NRFCLOUD_API_KEY environment variable not set")
     if not nrfcloud_org_credentials_set():
         pytest.skip(NRFCLOUD_ORG_CREDENTIALS_MISSING)
     if not DEVICE_UUID:
         pytest.skip("UUID environment variable not set")
 
-    fota = NRFCloudFOTA(**nrfcloud_credentials())
+    fota = NRFCloud(**nrfcloud_credentials())
     device_id = DEVICE_UUID
-    fota.ensure_no_pending_fota_jobs(device_id)
-    data = {
-        'job_id': '',
-    }
 
     yield types.SimpleNamespace(
         **dut_board.__dict__,
         fota=fota,
         device_id=device_id,
-        data=data
     )
-    fota.ensure_no_pending_fota_jobs(device_id)
+
+
+def _default_fota_target_version():
+    """The version a fota-target build of this checkout has, if it is built today."""
+    version = {}
+    path = os.path.join(os.path.dirname(__file__), "../../../app/VERSION")
+    with open(path) as f:
+        for line in f:
+            match = re.match(r"^(\w+)\s*=\s*(\S+)", line.strip())
+            if match:
+                version[match.group(1)] = match.group(2)
+
+    return (f"{version['VERSION_MAJOR']}.{version['VERSION_MINOR']}.{version['PATCHLEVEL']}"
+            f"-fota-test-{DUT_DEVICE_TYPE}-{datetime.now(timezone.utc).strftime('%Y%m%d')}")
+
+
+@pytest.fixture(scope="session")
+def fota_target_build_version():
+    """The application version of the fota-target build, or None if there is no such build.
+
+    It sorts after the version of the baseline build (see .github/workflows/build.yml). The
+    FOTA_TARGET_VERSION environment variable overrides the version file of the build.
+    """
+    version = os.getenv("FOTA_TARGET_VERSION")
+    path = os.path.join("artifacts", f"fota-target-version-{DUT_DEVICE_TYPE}.txt")
+    if not version and os.path.isfile(path):
+        with open(path) as f:
+            version = f.read().strip()
+
+    return version or None
+
+
+@pytest.fixture(scope="session")
+def fota_target_version(fota_target_build_version):
+    """The application version that the app FOTA test updates to. Skips without the build."""
+    if not fota_target_build_version:
+        pytest.skip(
+            f"artifacts/fota-target-version-{DUT_DEVICE_TYPE}.txt not found "
+            "(build with build_*_fota_target enabled, or set FOTA_TARGET_VERSION)")
+
+    return fota_target_build_version
+
+
+@pytest.fixture(scope="session")
+def memfault_ota(fota_target_build_version):
+    """The Memfault release that the FOTA tests share, for firmware with Memfault OTA.
+
+    The release has the version of the fota-target build. The modem and bootloader tests do not
+    use that build, they only need a release version that sorts after the version of the DUT.
+    """
+    version = fota_target_build_version or _default_fota_target_version()
+    ota = None
+    try:
+        ota = MemfaultOTA.from_env(version)
+    except MemfaultOTAConfigError as e:
+        pytest.skip(str(e))
+
+    ota.clean_up_stale_releases()
+    return ota
 
 
 @pytest.fixture(scope="module")
@@ -213,7 +264,7 @@ def dfu_zip_file():
 
 @pytest.fixture(scope="session")
 def dfu_zip_fota_target_file():
-    # Second nightly build with PATCHLEVEL+1 (see .github/workflows/build.yml).
+    # Second nightly build with a fota-test EXTRAVERSION (see .github/workflows/build.yml).
     artifacts_dir = "artifacts"
     zip_pattern = (
         f"asset-tracker-template-{r'[0-9a-z\.\-]+'}-fota-target-"
@@ -234,6 +285,17 @@ def release_hex_file():
     # Firmware from the most recent release, used as the starting point for the
     # app FOTA test. The version is returned alongside the path because the test
     # needs to tell this firmware apart from the nightly build it updates to.
+    # For local runs, RELEASE_HEX_FILE and RELEASE_HEX_VERSION use a hex file of your own
+    # instead of the latest release of GitHub.
+    local_path = os.getenv("RELEASE_HEX_FILE")
+    if local_path:
+        local_version = os.getenv("RELEASE_HEX_VERSION")
+        if not local_version:
+            pytest.fail("RELEASE_HEX_FILE needs RELEASE_HEX_VERSION, the app version of the hex")
+        if not os.path.isfile(local_path):
+            pytest.fail(f"RELEASE_HEX_FILE {local_path} not found")
+        return types.SimpleNamespace(path=local_path, version=local_version)
+
     api_url = f"https://api.github.com/repos/{GITHUB_REPOSITORY}/releases/latest"
     headers = {"Accept": "application/vnd.github+json"}
     token = os.getenv("GITHUB_TOKEN")

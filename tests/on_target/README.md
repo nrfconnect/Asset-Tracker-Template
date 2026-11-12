@@ -2,7 +2,7 @@
 
 ## Run test locally
 
-Precondition: thingy91x with segger fw on 53.
+Precondition: a thingy91x (with Segger firmware on the nRF5340), an nRF9151 DK or an nRF9251 DK, set with `DUT_DEVICE_TYPE`.
 
 ### Setup
 
@@ -60,15 +60,73 @@ export UUID=<your_imei>
 export MEMFAULT_ORGANIZATION_TOKEN=<your_organization_auth_token>
 export MEMFAULT_ORGANIZATION_SLUG=<your_organization_slug>
 export MEMFAULT_PROJECT_SLUG=<your_project_slug>
-export NRFCLOUD_API_KEY=<your_nrfcloud_api_key>
 ```
 
-The tests talk to nRF Cloud with an Organization Auth Token for the nRF Cloud project. Create
+The tests use an Organization Auth Token of the project. Create
 one under **Admin** > **Organization Auth Tokens**, and find both slugs under **Project
 Settings** > **General**. Onboarding uses the `nrfcloud` CLI from `memfault-cli`.
 
-`NRFCLOUD_API_KEY` is only needed for the FOTA tests, which have no Organization Auth Token
-API yet.
+FOTA tests: the application, the bootloader and the modem firmware are updated with Memfault
+OTA releases, see `utils/memfault_ota.py`. The tests use the [Memfault CLI](https://docs.memfault.com/docs/ci/install-memfault-cli)
+(`memfault-cli`, in `requirements.txt`), and are skipped without these envs:
+```shell
+export MEMFAULT_ORGANIZATION_TOKEN=<your_memfault_organization_token>
+export MEMFAULT_ORGANIZATION_SLUG=<your_memfault_organization_slug>
+export MEMFAULT_PROJECT_SLUG=<your_memfault_project_slug>
+# The cohort the DUT is in. Releases are deployed to it, so do not use a cohort of other devices.
+export MEMFAULT_TEST_COHORT=<your_cohort_of_the_dut>
+```
+
+All the FOTA tests share one Memfault release per device type, which has the version of the
+fota-target build (`x.x.x-fota-test-<device>-<date>`). It sorts after the `x.x.x-dev` baseline,
+and each device type has its own release, so boards tested at the same time do not interfere.
+A test uploads its images to the release and deploys it to the cohort, and removes the images and
+deactivates the release when it is done. The CLI cannot delete an image, so the tests also call
+the Memfault REST API (`DELETE .../artifacts/<id>`) with the organization token, which needs the
+same role as `deploy-release` (Manager).
+
+If a run is killed, the next test cleans up what is left. At the start of a test, it deactivates
+all the `*-fota-test-<device>-*` releases of the device type that are at most
+`STALE_RELEASE_DAYS` (3) days old, according to the date in the version, and deletes their images.
+The test logs one line with the number of releases it checked and images it deleted. Releases
+that have no device in their version, such as `x.x.x-fota-test-<date>`, are not matched, and
+neither are older releases. Remove them in Memfault, or raise `STALE_RELEASE_DAYS` in
+`utils/memfault_ota.py` for a one-off clean-up of older releases.
+
+Memfault only offers a version that sorts after the one that the device reports, so the tests
+start from the `x.x.x-dev` build and update to the fota-target build, and the modem component
+versions of the tests sort after the version of the modem. The release-to-nightly test updates
+from a release build to the fota-target build. A pre-release version sorts before the plain
+release, so that test needs the Memfault project to skip the version check.
+
+The version is read from `artifacts/fota-target-version-<device>.txt` of the fota-target build
+(or set `FOTA_TARGET_VERSION`). Use memfault-cli 1.11.0 or later (`--component-version`).
+
+The tests that resume a download disconnect the network at a given percentage, reconnect, and
+trigger a poll with `att_fota poll` to resume the download.
+
+Files of the FOTA tests, which are skipped when they are not provided:
+```shell
+# dfu_mcuboot.zip of a build with bootloader (fw_info) version 3, for the bootloader test.
+# artifacts/dfu_mcuboot_fw_info_v3-<DUT_DEVICE_TYPE>.zip, one per board, which are checked
+# in (the baseline has version 2, see app/sysbuild/mcuboot/prj.conf). To regenerate one, build
+# the board with version 3, for example for nrf9151dk (thingy91x: thingy91x/nrf9151/ns):
+#   west build -b nrf9151dk/nrf9151/ns -d build-bl-v3 -p --sysbuild app -- \
+#       -Dmcuboot_CONFIG_FW_INFO_FIRMWARE_VERSION=3
+# and copy build-bl-v3/dfu_mcuboot.zip to artifacts/dfu_mcuboot_fw_info_v3-nrf9151dk.zip.
+# Use "git add -f", as artifacts/ is ignored.
+# The release hex that test_app_fota_release_to_nightly starts from. By default the latest GitHub
+# release is downloaded. To use a hex file of your own, set both (the version is the app version
+# that the hex reports, for example 1.6.1):
+export RELEASE_HEX_FILE=<path_to_release_hex>
+export RELEASE_HEX_VERSION=<app_version_of_the_hex>
+# The modem FOTA files, for the modem tests, in artifacts/mfw_fota:
+#   mfw_nrf91x1_2.0.4.cbor
+#   mfw_nrf91x1_update_from_2.0.4_to_2.0.4-FOTA-TEST.bin
+#   mfw_nrf91x1_update_from_2.0.4-FOTA-TEST_to_2.0.4.bin
+```
+
+Run the tests of the helpers (they do not need hardware) with `python3 -m pytest utils`.
 
 On macOS also set `UART_ID`: port names (`/dev/tty.usbmodem*`) don't contain the SEGGER
 serial that `UART_ID` defaults to, so set it to a substring shared by your DUT's two ports
