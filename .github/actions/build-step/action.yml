@@ -11,6 +11,10 @@ inputs:
   short_board:
     type: string
     required: true
+  soc_family:
+    type: string
+    required: false
+    default: "nrf91"
   version:
     type: string
     required: false
@@ -124,14 +128,14 @@ runs:
       shell: bash
       run: |
         cp ${{ inputs.path }}/build/merged.hex \
-          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-nrf91.hex
+          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-${{ inputs.soc_family }}.hex
         cp ${{ inputs.path }}/build/app/zephyr/.config \
-          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-nrf91.config
+          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-${{ inputs.soc_family }}.config
         cp ${{ inputs.path }}/build/app/zephyr/zephyr.signed.bin \
-          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-nrf91-update-signed.bin
+          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-${{ inputs.soc_family }}-update-signed.bin
         cp ${{ inputs.path }}/build/app/zephyr/zephyr.signed.hex \
-          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-nrf91-update-signed.hex
+          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-${{ inputs.soc_family }}-update-signed.hex
         cp ${{ inputs.path }}/build/app/zephyr/zephyr.elf \
-          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-nrf91.elf
+          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-${{ inputs.soc_family }}.elf
         cp ${{ inputs.path }}/build/dfu_application.zip \
-          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-nrf91-dfu.zip
+          artifacts/asset-tracker-template-${{ inputs.version }}-${{ inputs.short_board }}-${{ inputs.soc_family }}-dfu.zip

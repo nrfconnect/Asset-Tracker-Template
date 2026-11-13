@@ -32,6 +32,17 @@ config APP_MSG_PROCESSING_TIMEOUT_SECONDS
 	  Maximum time allowed for processing a single message in the module's state machine.
 	  The value must be smaller than CONFIG_APP_WATCHDOG_TIMEOUT_SECONDS.
 
+config APP_NRF9251_HSFLL120_KEEPALIVE
+	bool "Keep HSFLL120 out of all-idle using TIMER120"
+	default y if BOARD_NRF9251DK_NRF9251_CPUAPP
+	select COUNTER
+	help
+	  Start TIMER120 at boot and leave it running. HSFLL120 returns from SystemOnAllIdle at
+	  about 14% below its nominal frequency (NRFX-10395), which breaks SPI120 access to the
+	  external flash. Keeping TIMER120 running holds the domain out of the all-idle state.
+	  Requires timer120 to be enabled in devicetree. Temporary, remove once the clock issue
+	  is fixed.
+
 module = APP
 module-str = APP
 source "subsys/logging/Kconfig.template.log_config"
