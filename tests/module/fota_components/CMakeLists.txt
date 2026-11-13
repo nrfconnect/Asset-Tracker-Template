@@ -36,6 +36,7 @@ target_link_options(app PRIVATE --whole-archive)
 
 # Options that cannot be passed through Kconfig fragments
 target_compile_definitions(app PRIVATE
+	-DCONFIG_APP_FOTA_MCUBOOT=1
 	-DCONFIG_DOWNLOADER_MAX_HOSTNAME_SIZE=128
 	-DCONFIG_DOWNLOADER_MAX_FILENAME_SIZE=256
 	-DCONFIG_DOWNLOADER_TRANSPORT_PARAMS_SIZE=64
