@@ -17,8 +17,14 @@
 
 #include <memfault/nrfconnect_port/fota_component.h>
 #include <net/fota_download.h>
+#if defined(CONFIG_APP_FOTA_MODEM_FULL)
+#include <modem/modem_info.h>
+#endif
+#if defined(CONFIG_APP_FOTA_MCUBOOT)
 #include <nrf_cloud_bootloader_version.h>
+#endif
 
+#if defined(CONFIG_APP_FOTA_MCUBOOT)
 /* The bootloader is updated through the inactive of two B1 slots, and each slot needs its own
  * image variant. Each variant is a separate Memfault software type, and only the one targeting
  * the inactive slot is queried. Upload to both software types, with the same component version:
@@ -68,3 +74,23 @@ MEMFAULT_FOTA_COMPONENT_DEFINE(mcuboot_s0, "mcuboot-s0", bootloader_s0_version_g
 					   kMemfaultFotaComponentInstall_Bootloader);
 MEMFAULT_FOTA_COMPONENT_DEFINE(mcuboot_s1, "mcuboot-s1", bootloader_s1_version_get,
 					   kMemfaultFotaComponentInstall_Bootloader);
+#endif /* CONFIG_APP_FOTA_MCUBOOT */
+
+#if defined(CONFIG_APP_FOTA_MODEM_FULL)
+/* The modem component of the Memfault SDK only installs delta images, so the full modem image is
+ * a component of its own, with its own software type. It sorts after "memfault_modem" in the
+ * registry, so a delta update is checked first. The images are uploaded with the same component
+ * version as the SDK component, which is the modem firmware version the device reports, for
+ * example "mfw_nrf91x1_2.0.4".
+ */
+static int modem_full_version_get(char *buf, size_t buf_len)
+{
+	int err = modem_info_string_get(MODEM_INFO_FW_VERSION, buf, buf_len);
+
+	return (err < 0) ? err : 0;
+}
+
+MEMFAULT_FOTA_COMPONENT_DEFINE(memfault_modem_full, CONFIG_APP_FOTA_MODEM_FULL_SOFTWARE_TYPE,
+			       modem_full_version_get, kMemfaultFotaComponentInstall_ModemFull);
+#endif /* CONFIG_APP_FOTA_MODEM_FULL */
+

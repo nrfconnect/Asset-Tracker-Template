@@ -55,6 +55,8 @@ MFW_VERSION_RESTORE_LABEL = "z" + MFW_VERSION
 
 SOFTWARE_TYPE_APP = "app"
 SOFTWARE_TYPE_MFW = "mfw"
+# The Memfault SDK only installs delta images as "mfw", so full images are a component of their own
+SOFTWARE_TYPE_MFW_FULL = "mfw-full"
 SOFTWARE_TYPE_MCUBOOT_S0 = "mcuboot-s0"
 SOFTWARE_TYPE_MCUBOOT_S1 = "mcuboot-s1"
 
@@ -450,12 +452,11 @@ def test_delta_mfw_fota(dut_fota, memfault_ota, mfw_fota_files, hex_file):
 @pytest.mark.slow
 def test_full_mfw_fota(dut_fota, memfault_ota, mfw_fota_files, hex_file):
     '''
-    Test full modem FOTA on nrf9151, after a delta modem FOTA with the same software type.
+    Test full modem FOTA on nrf9151, after a delta modem FOTA.
 
-    A full and a delta modem image are served as the same software type, and the device finds
-    out the kind of image when it has downloaded it (NRF_CLOUD_FOTA_MODEM_ANY). The modem is
-    first updated with a delta to the test version, as a full update to the version it already
-    has would not be offered.
+    A full modem image is its own software type (SOFTWARE_TYPE_MFW_FULL), checked after the delta
+    component. The modem is first updated with a delta to the test version, as a full update to
+    the version it already has would not be offered.
     '''
     try:
         prepare_device(dut_fota, hex_file)
@@ -466,7 +467,7 @@ def test_full_mfw_fota(dut_fota, memfault_ota, mfw_fota_files, hex_file):
         dut_fota.uart.flush()
         run_memfault_fota(
             dut_fota, memfault_ota,
-            [OTAPayload(mfw_fota_files.full, SOFTWARE_TYPE_MFW,
+            [OTAPayload(mfw_fota_files.full, SOFTWARE_TYPE_MFW_FULL,
                         component_version=MFW_VERSION_RESTORE_LABEL)],
             get_modemversion, "modemFirmware", MFW_VERSION, FULL_MFW_FOTA_TIMEOUT,
             resumption="full")
