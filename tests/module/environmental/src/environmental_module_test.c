@@ -8,9 +8,11 @@
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/drivers/sensor.h>
 
 #include "app_common.h"
 #include "environmental.h"
+#include "redef.h"
 
 DEFINE_FFF_GLOBALS;
 
@@ -29,6 +31,8 @@ void setUp(void)
 	RESET_FAKE(task_wdt_feed);
 	RESET_FAKE(task_wdt_add);
 	RESET_FAKE(date_time_now);
+
+	mock_channel_get_fail_channel = SENSOR_CHAN_ALL;
 }
 
 void check_environmental_event(enum environmental_msg_type expected_environmental_type)
@@ -100,6 +104,23 @@ void test_sensor_sample(void)
 		check_environmental_event(ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE);
 		check_no_environmental_events(3600);
 	}
+}
+
+void test_sensor_sample_gas_resistance_read_failure(void)
+{
+	/* Given */
+	mock_channel_get_fail_channel = SENSOR_CHAN_GAS_RES;
+
+	send_environmental_sample_request();
+
+	/* When */
+	k_sleep(K_SECONDS(1));
+
+	/* Then: the module should still report the rest of the sample even though the
+	 * (supplementary) gas resistance reading failed.
+	 */
+	check_environmental_event(ENVIRONMENTAL_SENSOR_SAMPLE_REQUEST);
+	check_environmental_event(ENVIRONMENTAL_SENSOR_SAMPLE_RESPONSE);
 }
 
 /* This is required to be added to each test. That is because unity's
