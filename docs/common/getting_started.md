@@ -18,6 +18,8 @@ For pre-built binaries that do not need a build environment, see the latest tag 
 
 1. Open the **nRF Connect** extension panel from the VS Code activity bar.
 
+    **Note:** If the **nRF Connect** icon is not visible in the activity bar, the workspace might not be trusted. VS Code disables extensions in untrusted workspaces. To trust the workspace, select **Manage** (gear icon) > **Manage Workspace Trust**, or run the **Workspaces: Manage Workspace Trust** command, and select **Trust**.
+
 1. Under the **Welcome** section of the extension panel, select **Create a new application**:
 
     ![nRF Connect extension panel with Create a new application](../images/create_new_app.png)
