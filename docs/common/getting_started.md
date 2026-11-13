@@ -5,11 +5,11 @@ This guide walks you through getting the Asset Tracker Template running end-to-e
 - Setting up the development environment.
 - Building the application.
 - Flashing the application to the device.
-- Connecting the device to [nRF Cloud](https://nrfcloud.com).
+- Connecting the device to <a href="https://nrfcloud.com" target="_blank" rel="noopener noreferrer">nRF Cloud</a>.
 
 You have two options for setting up the project, depending on your preferred development environment:
 
-- **Option 1** (recommended): Using Visual Studio Code and the [nRF Connect for VS Code](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html) extension.
+- **Option 1** (recommended): Using Visual Studio Code and the <a href="https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html" target="_blank" rel="noopener noreferrer">nRF Connect for VS Code</a> extension.
 - **Option 2**: Using the command line and nRF Util.
 
 For pre-built binaries that do not need a build environment, see the latest tag and the [Release artifacts](release.md) documentation.
@@ -64,11 +64,11 @@ For pre-built binaries that do not need a build environment, see the latest tag 
 
     </details>
 
-1. After flashing, open a serial terminal at 115200 baud to view the device logs. Nordic Semiconductor recommends the [Serial Terminal app](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop), which is part of nRF Connect for Desktop. PuTTY, Tera Term, and minicom also work.
+1. After flashing, open a serial terminal at 115200 baud to view the device logs. Nordic Semiconductor recommends the <a href="https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop" target="_blank" rel="noopener noreferrer">Serial Terminal app</a>, which is part of nRF Connect for Desktop. PuTTY, Tera Term, and minicom also work.
 
 1. Follow the instructions in [Connecting](connecting.md) to connect the device to nRF Cloud.
 
-For more information about how to use nRF Connect for VS Code, see the [nRF Connect for VS Code documentation](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html).
+For more information about how to use nRF Connect for VS Code, see the <a href="https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/index.html" target="_blank" rel="noopener noreferrer">nRF Connect for VS Code documentation</a>.
 
 ## Option 2: Command line
 
@@ -76,7 +76,7 @@ The following sections describe how to install the prerequisites, initialize the
 
 ### Install prerequisites
 
-1. Install nRF Util by following the instructions in the [nRF Util documentation](https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html).
+1. Install nRF Util by following the instructions in the <a href="https://docs.nordicsemi.com/bundle/nrfutil/page/guides/installing.html" target="_blank" rel="noopener noreferrer">nRF Util documentation</a>.
 
 1. Install the SDK manager command:
 
@@ -214,7 +214,7 @@ west thingy91x-reset
 
 </details>
 
-The application is now built and flashed to the device. Open a serial terminal at 115200 baud to view the logs. Nordic Semiconductor recommends the [Serial Terminal app](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop), which is part of nRF Connect for Desktop. PuTTY, Tera Term, and minicom also work.
+The application is now built and flashed to the device. Open a serial terminal at 115200 baud to view the logs. Nordic Semiconductor recommends the <a href="https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop" target="_blank" rel="noopener noreferrer">Serial Terminal app</a>, which is part of nRF Connect for Desktop. PuTTY, Tera Term, and minicom also work.
 
 As the next step, continue to [Connecting](connecting.md) to onboard and provision the device on nRF Cloud.
 
@@ -222,7 +222,7 @@ As the next step, continue to [Connecting](connecting.md) to onboard and provisi
 
 To test that everything works as expected, complete the following steps:
 
-1. In a web browser, go to [nRF Cloud](https://nrfcloud.com) and log in to your account. Go to **Fleet** > **Devices**. Your device is now listed in the device overview. Select the device ID to open the device page.
+1. In a web browser, go to <a href="https://nrfcloud.com" target="_blank" rel="noopener noreferrer">nRF Cloud</a> and log in to your account. Go to **Fleet** > **Devices**. Your device is now listed in the device overview. Select the device ID to open the device page.
 
 1. After provisioning, the device is already connected and sending data. The **Overview** tab on the device page shows the latest information from the device, including the recent location and the last message received. Select **Inspect recent data** to view the recent device messages, such as the battery level and other sensor data.
 
@@ -438,7 +438,7 @@ To test that everything works as expected, complete the following steps:
     </details>
 
 If you experience issues, check the logs in the serial terminal for any error messages. You can find troubleshooting tips in [Tooling and troubleshooting](tooling_troubleshooting.md).
-You can also open a support ticket on [DevZone](https://devzone.nordicsemi.com) for further assistance.
+You can also open a support ticket on <a href="https://devzone.nordicsemi.com" target="_blank" rel="noopener noreferrer">DevZone</a> for further assistance.
 
 ## Next steps
 
@@ -449,6 +449,6 @@ Now that you have the application running, you can explore the following areas:
 - **Modify the template**: Add new sensors, create custom modules, add new zbus events, or enable MQTT support, as described in [Modifying the template](modifying.md).
 - **Perform firmware updates**: Deploy new firmware versions over the air, as described in [Firmware updates (FOTA)](fota.md). FOTA supports both application and modem firmware updates through nRF Cloud.
 - **Optimize power consumption**: Learn about the power-saving features and how to achieve the lowest power consumption for your use case in [Achieving low power](low_power.md).
-- **Set up location services**: Configure the GNSS, Wi-Fi, and cellular positioning methods and their fallback priorities, as described in [Location method priorities](configuration.md#location-method-priorities). For more information about the positioning methods, see [nRF Cloud location services](https://docs.nrfcloud.com/docs/platform/location-services).
+- **Set up location services**: Configure the GNSS, Wi-Fi, and cellular positioning methods and their fallback priorities, as described in [Location method priorities](configuration.md#location-method-priorities). For more information about the positioning methods, see <a href="https://docs.nrfcloud.com/docs/platform/location-services" target="_blank" rel="noopener noreferrer">nRF Cloud location services</a>.
 - **Set up testing and CI**: Run tests on real hardware or emulated targets, and integrate with CI pipelines, as described in [Testing and CI setup](test_and_ci_setup.md).
 - **Troubleshoot issues**: Use the shell commands, the debugging tools, the Memfault integration, and modem tracing, as described in [Tooling and troubleshooting](tooling_troubleshooting.md).
