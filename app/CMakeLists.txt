@@ -6,6 +6,10 @@
 
 cmake_minimum_required(VERSION 3.20.0)
 
+# Must run before find_package(Zephyr), which reads the Kconfig tree the patches change.
+# sysbuild builds apply them earlier, from sysbuild.cmake.
+include(${CMAKE_CURRENT_LIST_DIR}/../cmake/apply_sdk_patches.cmake)
+
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project("Asset Tracker Template")
 
@@ -17,6 +21,10 @@ zephyr_include_directories(memfault/config)
 target_sources(app PRIVATE
 	src/main.c
 	src/common/app_watchdog.c
+)
+
+target_sources_ifdef(CONFIG_APP_NRF9251_HSFLL120_KEEPALIVE app PRIVATE
+	src/common/nrf9251_hsfll120_keepalive.c
 )
 
 # Module source folders
