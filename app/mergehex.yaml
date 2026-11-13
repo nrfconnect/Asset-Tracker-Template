@@ -14,3 +14,5 @@ merged.hex:
   # thingy91x/nrf9151/ns
   - merged_thingy91x_nrf9151.hex
   - merged_thingy91x_nrf9151_ns.hex
+  # nrf9251dk@0.1.0/nrf9251/cpuapp (MCUboot + generated UICR + signed app)
+  - merged_nrf9251dk_0_1_0_nrf9251_cpuapp.hex

@@ -8,9 +8,11 @@ tests:
     integration_platforms:
       - thingy91x/nrf9151/ns
       - nrf9151dk/nrf9151/ns
+      - nrf9251dk/nrf9251/cpuapp
     platform_allow:
       - thingy91x/nrf9151/ns
       - nrf9151dk/nrf9151/ns
+      - nrf9251dk/nrf9251/cpuapp
     tags:
       - ci_build
       - sysbuild
