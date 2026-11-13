@@ -26,6 +26,22 @@ config APP_FOTA_MCUBOOT
 	  Register the MCUboot (B1) slot images as Memfault OTA components "mcuboot-s0" and
 	  "mcuboot-s1".
 
+config APP_FOTA_MODEM_FULL
+	bool "Full modem updates through Memfault"
+	depends on MEMFAULT_ZEPHYR_FOTA_BACKEND_NRF_CLOUD_OVERRIDE
+	depends on MEMFAULT_FOTA_MODEM_UPDATE
+	depends on NRF_CLOUD_FOTA_FULL_MODEM_UPDATE
+	depends on MODEM_INFO
+	default y
+	help
+	  Register the full modem image as a Memfault OTA component. The modem component of the
+	  Memfault SDK only installs delta images.
+
+config APP_FOTA_MODEM_FULL_SOFTWARE_TYPE
+	string "Memfault software type of the full modem image"
+	default "mfw-full"
+	depends on APP_FOTA_MODEM_FULL
+
 config APP_FOTA_THREAD_STACK_SIZE
 	int "Thread stack size"
 	default 2048
