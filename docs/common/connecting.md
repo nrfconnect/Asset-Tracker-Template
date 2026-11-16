@@ -51,7 +51,7 @@ The attestation token uniquely identifies your device and proves its authenticit
     at at%attesttoken
     ```
 
-    The device prints the token as a string starting with `%ATTESTTOKEN:`. Copy the entire token value, without the `%ATTESTTOKEN:` prefix.
+    The device prints the token as a string starting with `%ATTESTTOKEN:`. Copy the entire token value, without the `%ATTESTTOKEN:` prefix and the surrounding quotes.
 
 ### Step 2: Onboard the device in nRF Cloud
 
