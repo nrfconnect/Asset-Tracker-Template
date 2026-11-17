@@ -270,11 +270,60 @@ static void cloud_wdt_callback(int channel_id, void *user_data)
 	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
 }
 
+static int credentials_present_get(bool *const present)
+{
+	int err;
+	struct nrf_cloud_credentials_status status;
+
+	err = nrf_cloud_credentials_check(&status);
+	if (err) {
+		LOG_ERR("nrf_cloud_credentials_check, error: %d", err);
+
+		return err;
+	}
+
+	if (!status.ca) {
+		LOG_WRN("No CA certificate in sec tag %u", status.sec_tag);
+	}
+
+	if (!status.prv_key) {
+		LOG_WRN("No private key in sec tag %u", status.sec_tag);
+	}
+
+	*present = status.ca && status.prv_key;
+
+	return 0;
+}
+
+static enum priv_cloud_msg_type coap_connect(void)
+{
+	int err;
+
+	err = nrf_cloud_coap_connect(APP_VERSION_STRING);
+	if (err == 0) {
+		LOG_DBG("nRF Cloud CoAP connection successful");
+
+		return CLOUD_CONNECTION_SUCCESS;
+	}
+
+	if (err == -EACCES || err == -ENOEXEC || err == -ECONNREFUSED) {
+		LOG_WRN("nrf_cloud_coap_connect, error: %d", err);
+		LOG_WRN("nRF Cloud CoAP connection failed, unauthorized or invalid credentials");
+
+		return CLOUD_NOT_AUTHENTICATED;
+	}
+
+	LOG_WRN("nRF Cloud CoAP connection refused");
+
+	return CLOUD_CONNECTION_FAILED;
+}
+
 static void connect_to_cloud(const struct cloud_state_object *state_object)
 {
 	ARG_UNUSED(state_object);
 
 	int err;
+	bool credentials_present;
 	char buf[NRF_CLOUD_CLIENT_ID_MAX_LEN];
 	struct priv_cloud_msg msg = { .type = CLOUD_CONNECTION_FAILED };
 
@@ -288,20 +337,15 @@ static void connect_to_cloud(const struct cloud_state_object *state_object)
 		return;
 	}
 
-	err = nrf_cloud_coap_connect(APP_VERSION_STRING);
-	if (err == 0) {
-		LOG_DBG("nRF Cloud CoAP connection successful");
-
-		msg.type = CLOUD_CONNECTION_SUCCESS;
-	} else if (err == -EACCES || err == -ENOEXEC || err == -ECONNREFUSED) {
-		LOG_WRN("nrf_cloud_coap_connect, error: %d", err);
-		LOG_WRN("nRF Cloud CoAP connection failed, unauthorized or invalid credentials");
+	err = credentials_present_get(&credentials_present);
+	if (err) {
+		msg.type = CLOUD_CONNECTION_FAILED;
+	} else if (!credentials_present) {
+		LOG_WRN("nRF Cloud credentials missing");
 
 		msg.type = CLOUD_NOT_AUTHENTICATED;
 	} else {
-		LOG_WRN("nRF Cloud CoAP connection refused");
-
-		msg.type = CLOUD_CONNECTION_FAILED;
+		msg.type = coap_connect();
 	}
 
 	err = zbus_chan_pub(&priv_cloud_chan, &msg, PUB_TIMEOUT);

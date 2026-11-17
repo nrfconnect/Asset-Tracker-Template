@@ -16,6 +16,7 @@
 #include <zephyr/net/coap.h>
 #include <zephyr/net/coap_client.h>
 #include <net/nrf_provisioning.h>
+#include <net/nrf_cloud.h>
 #include <net/nrf_cloud_coap.h>
 #include <modem/modem_attest_token.h>
 #include <zephyr/zbus/zbus.h>
@@ -122,6 +123,7 @@ FAKE_VALUE_FUNC(int, location_agnss_data_process, const char *, size_t);
 FAKE_VALUE_FUNC(int, nrf_provisioning_init, nrf_provisioning_event_cb_t);
 FAKE_VALUE_FUNC(int, nrf_provisioning_trigger_manually);
 FAKE_VALUE_FUNC(int, storage_batch_read, struct storage_data_item *, k_timeout_t);
+FAKE_VALUE_FUNC(int, nrf_cloud_credentials_check, struct nrf_cloud_credentials_status *const);
 
 /* Forward declarations */
 static void dummy_cb(const struct zbus_channel *chan);
@@ -273,6 +275,24 @@ static int nrf_cloud_client_id_get_custom_fake(char *buf, size_t len)
 static int nrf_provisioning_init_custom_fake(nrf_provisioning_event_cb_t cb)
 {
 	handler = cb;
+
+	return 0;
+}
+
+static int nrf_cloud_credentials_present_custom_fake(struct nrf_cloud_credentials_status *const cs)
+{
+	memset(cs, 0, sizeof(*cs));
+	cs->ca = 1;
+	cs->ca_coap = 1;
+	cs->client_cert = 1;
+	cs->prv_key = 1;
+
+	return 0;
+}
+
+static int nrf_cloud_credentials_missing_custom_fake(struct nrf_cloud_credentials_status *const cs)
+{
+	memset(cs, 0, sizeof(*cs));
 
 	return 0;
 }
@@ -464,7 +484,9 @@ void setUp(void)
 	RESET_FAKE(nrf_cloud_coap_location_get);
 	RESET_FAKE(nrf_cloud_coap_agnss_data_get);
 	RESET_FAKE(location_agnss_data_process);
+	RESET_FAKE(nrf_cloud_credentials_check);
 
+	nrf_cloud_credentials_check_fake.custom_fake = nrf_cloud_credentials_present_custom_fake;
 	nrf_cloud_client_id_get_fake.custom_fake = nrf_cloud_client_id_get_custom_fake;
 	nrf_provisioning_init_fake.custom_fake = nrf_provisioning_init_custom_fake;
 	date_time_uptime_to_unix_time_ms_fake.custom_fake =
@@ -658,6 +680,81 @@ void test_should_backoff_on_connection_failure(void)
 
 	TEST_ASSERT_GREATER_OR_EQUAL(CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS,
 				     connect_duration_sec);
+}
+
+static void provisioning_request_from_connected_state(void)
+{
+	struct cloud_msg provisioning_msg = {
+		.type = CLOUD_PROVISIONING_REQUEST
+	};
+
+	test_should_transition_from_disconnected_to_connected_ready();
+
+	publish_and_assert(&cloud_chan, &provisioning_msg);
+	wait_for_processing();
+	wait_for_cloud_disconnected(K_SECONDS(WAIT_TIMEOUT));
+
+	TEST_ASSERT_EQUAL(1, nrf_provisioning_trigger_manually_fake.call_count);
+
+	RESET_FAKE(nrf_cloud_credentials_check);
+	RESET_FAKE(nrf_cloud_coap_connect);
+}
+
+void test_should_provision_without_connecting_when_credentials_missing(void)
+{
+	struct nrf_provisioning_callback_data event = {
+		.type = NRF_PROVISIONING_EVENT_DONE
+	};
+
+	provisioning_request_from_connected_state();
+
+	nrf_cloud_credentials_check_fake.custom_fake = nrf_cloud_credentials_missing_custom_fake;
+
+	handler(&event);
+	wait_for_processing();
+
+	TEST_ASSERT_EQUAL(1, nrf_cloud_credentials_check_fake.call_count);
+	TEST_ASSERT_EQUAL(0, nrf_cloud_coap_connect_fake.call_count);
+	TEST_ASSERT_EQUAL(2, nrf_provisioning_trigger_manually_fake.call_count);
+
+	nrf_cloud_credentials_check_fake.custom_fake = nrf_cloud_credentials_present_custom_fake;
+
+	handler(&event);
+
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
+
+	TEST_ASSERT_EQUAL(2, nrf_cloud_credentials_check_fake.call_count);
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_connect_fake.call_count);
+}
+
+void test_should_backoff_when_credentials_check_fails(void)
+{
+	struct nrf_provisioning_callback_data event = {
+		.type = NRF_PROVISIONING_EVENT_DONE
+	};
+
+	provisioning_request_from_connected_state();
+
+	nrf_cloud_credentials_check_fake.return_val = -EIO;
+
+	handler(&event);
+	wait_for_processing();
+
+	TEST_ASSERT_EQUAL(1, nrf_cloud_credentials_check_fake.call_count);
+	TEST_ASSERT_EQUAL(0, nrf_cloud_coap_connect_fake.call_count);
+	TEST_ASSERT_EQUAL(1, nrf_provisioning_trigger_manually_fake.call_count);
+
+	k_sleep(K_SECONDS(CONFIG_APP_CLOUD_BACKOFF_INITIAL_SECONDS + 1));
+
+	TEST_ASSERT_EQUAL(2, nrf_cloud_credentials_check_fake.call_count);
+	TEST_ASSERT_EQUAL(0, nrf_cloud_coap_connect_fake.call_count);
+	TEST_ASSERT_EQUAL(1, nrf_provisioning_trigger_manually_fake.call_count);
+
+	nrf_cloud_credentials_check_fake.custom_fake = nrf_cloud_credentials_present_custom_fake;
+
+	wait_for_cloud_connected(K_SECONDS(CONFIG_APP_CLOUD_BACKOFF_MAX_SECONDS + 1));
+
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_connect_fake.call_count);
 }
 
 void test_should_send_json_payload_to_cloud(void)
