@@ -19,6 +19,7 @@
 #include <net/nrf_cloud.h>
 #include <net/nrf_cloud_coap.h>
 #include <modem/modem_attest_token.h>
+#include <modem/modem_key_mgmt.h>
 #include <zephyr/zbus/zbus.h>
 
 #include "environmental.h"
@@ -40,6 +41,8 @@ DEFINE_FFF_GLOBALS;
 #define SECOND_PROVISIONING_RETRY_SEC	12
 #define FAKE_TOKEN			"fake_token"
 #define FAKE_TOKEN_SIZE			(sizeof(FAKE_TOKEN) - 1)
+#define FAKE_SEC_TAG			16842753
+#define FAKE_DTLS_ONLY_SEC_TAG		2147483667
 
 /* Define the channels for testing */
 ZBUS_CHAN_DEFINE(power_chan,
@@ -124,6 +127,8 @@ FAKE_VALUE_FUNC(int, nrf_provisioning_init, nrf_provisioning_event_cb_t);
 FAKE_VALUE_FUNC(int, nrf_provisioning_trigger_manually);
 FAKE_VALUE_FUNC(int, storage_batch_read, struct storage_data_item *, k_timeout_t);
 FAKE_VALUE_FUNC(int, nrf_cloud_credentials_check, struct nrf_cloud_credentials_status *const);
+FAKE_VALUE_FUNC(sec_tag_t, nrf_cloud_sec_tag_coap_jwt_get);
+FAKE_VALUE_FUNC(int, modem_key_mgmt_exists, nrf_sec_tag_t, enum modem_key_mgmt_cred_type, bool *);
 
 /* Forward declarations */
 static void dummy_cb(const struct zbus_channel *chan);
@@ -282,6 +287,7 @@ static int nrf_provisioning_init_custom_fake(nrf_provisioning_event_cb_t cb)
 static int nrf_cloud_credentials_present_custom_fake(struct nrf_cloud_credentials_status *const cs)
 {
 	memset(cs, 0, sizeof(*cs));
+	cs->sec_tag = FAKE_SEC_TAG;
 	cs->ca = 1;
 	cs->ca_coap = 1;
 	cs->client_cert = 1;
@@ -293,6 +299,41 @@ static int nrf_cloud_credentials_present_custom_fake(struct nrf_cloud_credential
 static int nrf_cloud_credentials_missing_custom_fake(struct nrf_cloud_credentials_status *const cs)
 {
 	memset(cs, 0, sizeof(*cs));
+	cs->sec_tag = FAKE_SEC_TAG;
+
+	return 0;
+}
+
+static int nrf_cloud_credentials_ca_only_custom_fake(struct nrf_cloud_credentials_status *const cs)
+{
+	memset(cs, 0, sizeof(*cs));
+	cs->sec_tag = FAKE_DTLS_ONLY_SEC_TAG;
+	cs->ca = 1;
+	cs->ca_coap = 1;
+
+	return 0;
+}
+
+static int modem_key_mgmt_exists_true_custom_fake(nrf_sec_tag_t sec_tag,
+						  enum modem_key_mgmt_cred_type cred_type,
+						  bool *exists)
+{
+	ARG_UNUSED(sec_tag);
+	ARG_UNUSED(cred_type);
+
+	*exists = true;
+
+	return 0;
+}
+
+static int modem_key_mgmt_exists_false_custom_fake(nrf_sec_tag_t sec_tag,
+						   enum modem_key_mgmt_cred_type cred_type,
+						   bool *exists)
+{
+	ARG_UNUSED(sec_tag);
+	ARG_UNUSED(cred_type);
+
+	*exists = false;
 
 	return 0;
 }
@@ -485,8 +526,11 @@ void setUp(void)
 	RESET_FAKE(nrf_cloud_coap_agnss_data_get);
 	RESET_FAKE(location_agnss_data_process);
 	RESET_FAKE(nrf_cloud_credentials_check);
+	RESET_FAKE(nrf_cloud_sec_tag_coap_jwt_get);
+	RESET_FAKE(modem_key_mgmt_exists);
 
 	nrf_cloud_credentials_check_fake.custom_fake = nrf_cloud_credentials_present_custom_fake;
+	nrf_cloud_sec_tag_coap_jwt_get_fake.return_val = FAKE_SEC_TAG;
 	nrf_cloud_client_id_get_fake.custom_fake = nrf_cloud_client_id_get_custom_fake;
 	nrf_provisioning_init_fake.custom_fake = nrf_provisioning_init_custom_fake;
 	date_time_uptime_to_unix_time_ms_fake.custom_fake =
@@ -724,6 +768,37 @@ void test_should_provision_without_connecting_when_credentials_missing(void)
 	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
 
 	TEST_ASSERT_EQUAL(2, nrf_cloud_credentials_check_fake.call_count);
+	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_connect_fake.call_count);
+	TEST_ASSERT_EQUAL(0, modem_key_mgmt_exists_fake.call_count);
+}
+
+void test_should_check_private_key_in_separate_jwt_sec_tag(void)
+{
+	struct nrf_provisioning_callback_data event = {
+		.type = NRF_PROVISIONING_EVENT_DONE
+	};
+
+	provisioning_request_from_connected_state();
+
+	nrf_cloud_credentials_check_fake.custom_fake = nrf_cloud_credentials_ca_only_custom_fake;
+	modem_key_mgmt_exists_fake.custom_fake = modem_key_mgmt_exists_false_custom_fake;
+
+	handler(&event);
+	wait_for_processing();
+
+	TEST_ASSERT_EQUAL(1, modem_key_mgmt_exists_fake.call_count);
+	TEST_ASSERT_EQUAL_UINT32(FAKE_SEC_TAG, modem_key_mgmt_exists_fake.arg0_val);
+	TEST_ASSERT_EQUAL(MODEM_KEY_MGMT_CRED_TYPE_PRIVATE_CERT, modem_key_mgmt_exists_fake.arg1_val);
+	TEST_ASSERT_EQUAL(0, nrf_cloud_coap_connect_fake.call_count);
+	TEST_ASSERT_EQUAL(2, nrf_provisioning_trigger_manually_fake.call_count);
+
+	modem_key_mgmt_exists_fake.custom_fake = modem_key_mgmt_exists_true_custom_fake;
+
+	handler(&event);
+
+	wait_for_cloud_connected(K_SECONDS(WAIT_TIMEOUT));
+
+	TEST_ASSERT_EQUAL(2, modem_key_mgmt_exists_fake.call_count);
 	TEST_ASSERT_EQUAL(1, nrf_cloud_coap_connect_fake.call_count);
 }
 

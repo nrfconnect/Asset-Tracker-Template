@@ -15,6 +15,7 @@
 #include <zephyr/net/coap.h>
 #include <zephyr/app_version.h>
 #include <date_time.h>
+#include <modem/modem_key_mgmt.h>
 
 #include "app_common.h"
 #include "cloud.h"
@@ -270,10 +271,33 @@ static void cloud_wdt_callback(int channel_id, void *user_data)
 	SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
 }
 
+static int jwt_private_key_present_get(const struct nrf_cloud_credentials_status *const status,
+				       uint32_t jwt_sec_tag, bool *const present)
+{
+	int err;
+
+	if (jwt_sec_tag == status->sec_tag) {
+		*present = status->prv_key;
+
+		return 0;
+	}
+
+	err = modem_key_mgmt_exists(jwt_sec_tag, MODEM_KEY_MGMT_CRED_TYPE_PRIVATE_CERT, present);
+	if (err) {
+		LOG_ERR("modem_key_mgmt_exists, sec tag %u, error: %d", jwt_sec_tag, err);
+
+		return err;
+	}
+
+	return 0;
+}
+
 static int credentials_present_get(bool *const present)
 {
 	int err;
+	bool private_key_present;
 	struct nrf_cloud_credentials_status status;
+	const uint32_t jwt_sec_tag = (uint32_t)nrf_cloud_sec_tag_coap_jwt_get();
 
 	err = nrf_cloud_credentials_check(&status);
 	if (err) {
@@ -282,15 +306,20 @@ static int credentials_present_get(bool *const present)
 		return err;
 	}
 
+	err = jwt_private_key_present_get(&status, jwt_sec_tag, &private_key_present);
+	if (err) {
+		return err;
+	}
+
 	if (!status.ca) {
 		LOG_WRN("No CA certificate in sec tag %u", status.sec_tag);
 	}
 
-	if (!status.prv_key) {
-		LOG_WRN("No private key in sec tag %u", status.sec_tag);
+	if (!private_key_present) {
+		LOG_WRN("No private key in sec tag %u", jwt_sec_tag);
 	}
 
-	*present = status.ca && status.prv_key;
+	*present = status.ca && private_key_present;
 
 	return 0;
 }
