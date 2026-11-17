@@ -301,7 +301,7 @@ jobs:
           path: asset-tracker-template/app
 
       - name: Build nrf9251dk firmware
-        if: ${{ inputs.build_nrf9251dk_base || env.build_type == 'all' }}
+        if: ${{ inputs.build_nrf9251dk_base || env.build_type == 'minimal' || env.build_type == 'release' || env.build_type == 'all' }}
         uses: ./asset-tracker-template/.github/actions/build-step
         with:
           board: nrf9251dk/nrf9251/cpuapp
