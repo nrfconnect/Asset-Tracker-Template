@@ -15,6 +15,7 @@ target_sources(app
   PRIVATE
   src/cloud_module_test.c
   ../../../app/src/modules/cloud/cloud.c
+  ../../../app/src/modules/cloud/cloud_credentials.c
   ../../../app/src/modules/cloud/cloud_provisioning.c
   ../../../app/src/modules/cloud/cloud_location.c
   ../../../app/src/modules/cloud/cloud_environmental.c
