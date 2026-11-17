@@ -93,7 +93,7 @@ jobs:
           push_memory_badges=false
           build_type=""
           if [[ $SCHEDULED == true ]]; then
-            devices="thingy91x nrf9151dk ppk_thingy91x gnss_nrf9151dk prov_thingy91x"
+            devices="thingy91x nrf9151dk ppk_thingy91x gnss_nrf9151dk prov_thingy91x prov_nrf9251dk"
             push_memory_badges=true
             run_nightly_tests=true
             # Nightly historically builds every variant (including the mtrace
