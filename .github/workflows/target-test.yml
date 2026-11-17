@@ -149,7 +149,7 @@ jobs:
         run: |
           nrfutil device program \
             --serial-number ${{ env.RUNNER_SERIAL_NUMBER }} \
-            --firmware artifacts/mfw_nrf91x1_2.0.4.zip
+            --firmware artifacts/mfw_nrf9151-ntn_1.0.2-60.rc.zip
 
       - name: Target Tests
         working-directory: asset-tracker-template/tests/on_target
