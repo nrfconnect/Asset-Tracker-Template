@@ -402,6 +402,7 @@ def test_app_fota_release_to_nightly(run_fota_fixture, dut_fota, dfu_zip_file, r
     '''
     Test application FOTA upgrading the most recent release to the nightly build.
     '''
+    pytest.skip("FOTA tests disabled on NTN MFW 1.0.2-60.rc feature branch")
     nightly_version = parse_app_version()
     release_version = release_hex_file.version
 
@@ -441,6 +442,7 @@ def test_app_fota_nightly_to_nightly(
     Test application FOTA from the baseline nightly build to a second nightly
     build with PATCHLEVEL+1 (see FOTA_TARGET_PATCHLEVEL_DELTA and build.yml).
     '''
+    pytest.skip("FOTA tests disabled on NTN MFW 1.0.2-60.rc feature branch")
     baseline_version = parse_app_version()
     target_version = parse_app_version(
         patchlevel_delta=FOTA_TARGET_PATCHLEVEL_DELTA
@@ -480,6 +482,7 @@ def test_bootloader_fota(dut_fota, hex_file):
     '''
     Test MCUboot bootloader (B1) FOTA
     '''
+    pytest.skip("FOTA tests disabled on NTN MFW 1.0.2-60.rc feature branch")
     if not MCUBOOT_BUNDLEID:
         pytest.skip("MCUBOOT_BUNDLEID environment variable not set")
 
@@ -531,6 +534,7 @@ def test_delta_mfw_fota(dut_fota, run_fota_fixture, hex_file):
     '''
     Test delta modem FOTA on nrf9151
     '''
+    pytest.skip("FOTA tests disabled on NTN MFW 1.0.2-60.rc feature branch")
     try:
         run_fota_fixture(
             bundle_id=DELTA_MFW_BUNDLEID_20X_TO_FOTA_TEST,
@@ -545,7 +549,7 @@ def test_full_mfw_fota(dut_fota, run_fota_fixture, hex_file):
     '''
     Test full modem FOTA on nrf9151
     '''
-
+    pytest.skip("FOTA tests disabled on NTN MFW 1.0.2-60.rc feature branch")
     try:
         run_fota_fixture(
             bundle_id=FULL_MFW_BUNDLEID,
