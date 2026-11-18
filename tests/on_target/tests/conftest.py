@@ -105,6 +105,13 @@ def dut_board():
 
     scan_log_for_assertions(uart_log)
 
+def purge_pending_fota_jobs(device_id):
+    if not NRFCLOUD_API_KEY:
+        logger.info("NRFCLOUD_API_KEY not set, skipping pending FOTA job purge")
+        return
+
+    NRFCloudFOTA(**nrfcloud_credentials()).ensure_no_pending_fota_jobs(device_id)
+
 @pytest.fixture(scope="function")
 def dut_cloud(dut_board):
     if not nrfcloud_org_credentials_set():
@@ -114,6 +121,7 @@ def dut_cloud(dut_board):
 
     cloud = NRFCloud(**nrfcloud_credentials())
     device_id = DEVICE_UUID
+    purge_pending_fota_jobs(device_id)
 
     yield types.SimpleNamespace(
         **dut_board.__dict__,

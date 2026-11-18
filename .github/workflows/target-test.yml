@@ -192,6 +192,15 @@ jobs:
           # FOTA test flashes before updating to the build under test.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Cancel pending FOTA jobs
+        if: always()
+        working-directory: asset-tracker-template/tests/on_target
+        run: python3 scripts/purge_pending_fota_jobs.py
+        env:
+          NRFCLOUD_API_KEY: ${{ secrets.NRF_CLOUD_API_KEY }}
+          UUID: ${{ env.UUID }}
+          LOG_FILENAME: att_fota_purge_log
+
       - name: Generate and Push Power Badge
         if: ${{ always() && matrix.device == 'ppk_thingy91x' }}
         working-directory: asset-tracker-template
