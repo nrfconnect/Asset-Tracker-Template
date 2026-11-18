@@ -15,6 +15,19 @@ def format_size(size_in_bytes):
     else:
         return f"{size_in_bytes} B"
 
+SIZE_UNIT_MULTIPLIERS = {
+    "B": 1,
+    "KB": 1024,
+    "MB": 1024 * 1024,
+    "GB": 1024 * 1024 * 1024,
+}
+
+SIZE_PATTERN = r'(\d+)\s+(B|KB|MB|GB)'
+
+def size_to_bytes(value, unit):
+    """Convert a linker memory usage size and its unit to bytes."""
+    return int(value) * SIZE_UNIT_MULTIPLIERS[unit]
+
 def create_badge_json(label, used, total, percent, output_file):
     """Create a badge JSON file with the given parameters."""
     badge_data = {
@@ -34,8 +47,8 @@ def parse_memory_stats(log_file, output_dir=None):
     # Find memory stats for the main app image (not mcuboot/b0/etc.)
     pattern = (
         r'Memory region\s+Used Size\s+Region Size\s+%age Used\s+'
-        r'FLASH:\s+(\d+)\s+B\s+(\d+)\s+B\s+(\d+\.\d+)%\s+'
-        r'RAM:\s+(\d+)\s+B\s+(\d+)\s+B\s+(\d+\.\d+)%\s+'
+        rf'FLASH:\s+{SIZE_PATTERN}\s+{SIZE_PATTERN}\s+(\d+\.\d+)%\s+'
+        rf'RAM:\s+{SIZE_PATTERN}\s+{SIZE_PATTERN}\s+(\d+\.\d+)%\s+'
         r'IDT_LIST:.*?\s+'
         r'Generating files from .*?/app/build/app/zephyr/zephyr\.elf\s+'
         r'for board: thingy91x/nrf9151/ns'
@@ -46,13 +59,13 @@ def parse_memory_stats(log_file, output_dir=None):
         print("Error: Could not find memory stats in log file")
         sys.exit(1)
 
-    flash_used = int(match.group(1))
-    flash_total = int(match.group(2))
-    flash_percent = float(match.group(3))
+    flash_used = size_to_bytes(match.group(1), match.group(2))
+    flash_total = size_to_bytes(match.group(3), match.group(4))
+    flash_percent = float(match.group(5))
 
-    ram_used = int(match.group(4))
-    ram_total = int(match.group(5))
-    ram_percent = float(match.group(6))
+    ram_used = size_to_bytes(match.group(6), match.group(7))
+    ram_total = size_to_bytes(match.group(8), match.group(9))
+    ram_percent = float(match.group(10))
 
     # Create badge JSON files
     if output_dir is None:
