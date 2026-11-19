@@ -65,30 +65,52 @@ permissions:
   contents: read
 
 jobs:
-  format_devices:
+  plan:
+    # Collect the tests with pytest (no hardware needed) and plan one job per test function.
+    # A collection error fails here, before any hardware runner is used.
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/nrfconnect/asset-tracker-template:test-docker-v1.0.2
     outputs:
-      devices: ${{ steps.format_devices.outputs.devices }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      count: ${{ steps.plan.outputs.count }}
     steps:
-      - name: Format devices
-        id: format_devices
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          path: asset-tracker-template
+
+      - name: Install dependencies
+        working-directory: asset-tracker-template/tests/on_target
+        run: pip install -r requirements.txt --break-system-packages
+
+      - name: Plan target tests
+        id: plan
+        working-directory: asset-tracker-template/tests/on_target
+        env:
+          DEVICES: ${{ inputs.devices }}
+          NIGHTLY: ${{ inputs.run_nightly_tests }}
+          PYTEST_PATH: ${{ inputs.pytest_path }}
+          PYTEST_ARGS: ${{ inputs.pytest_args }}
         run: |
-          DEVICES=$(echo '${{ inputs.devices }}' | jq -Rc 'split(" ")')
-          echo "devices=$DEVICES" >> $GITHUB_OUTPUT
-          echo "devices=$DEVICES"
+          python3 scripts/ci_test_matrix.py \
+            --devices "$DEVICES" \
+            --nightly "$NIGHTLY" \
+            --pytest-path "$PYTEST_PATH" \
+            --pytest-args "$PYTEST_ARGS"
 
   target_test:
-    needs: format_devices
-    # This will create multiple jobs, one for each target defined in the matrix
+    needs: plan
+    if: needs.plan.outputs.count != '0'
+    # One job per device and test function. Jobs for the same device queue on its runner.
     strategy:
       fail-fast: false # Don't fail all jobs if one fails
-      matrix:
-        device: ${{ fromJson(needs.format_devices.outputs.devices) }}
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
 
     # Self-hosted runner is labeled according to the device it is linked with
     runs-on: cia-trd-${{ matrix.device }}
     environment: ${{ matrix.device }}
-    name: Target Test - ${{ matrix.device }}
+    name: ${{ matrix.name }}
     permissions:
       actions: read
       contents: write
@@ -100,12 +122,36 @@ jobs:
         - /dev:/dev:rw
         - /run/udev:/run/udev
 
+    env:
+      DUT_DEVICE_TYPE: ${{ vars.DUT_DEVICE_TYPE }}
+      LOG_FILENAME: att_test_log
+      PYTHONUNBUFFERED: "1"
+      TEST_REPORT_NAME: ATT Firmware Test Report
+      NRFCLOUD_API_KEY: ${{ secrets.NRF_CLOUD_API_KEY }}
+      MEMFAULT_ORGANIZATION_TOKEN: ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }}
+      MEMFAULT_ORGANIZATION_SLUG: ${{ vars.MEMFAULT_ORGANIZATION_SLUG }}
+      MEMFAULT_PROJECT_SLUG: ${{ vars.MEMFAULT_PROJECT_SLUG }}
+      # The FOTA tests create Memfault releases and deploy them to this cohort of the DUT
+      MEMFAULT_TEST_COHORT: ${{ vars.MEMFAULT_TEST_COHORT }}
+      # Used to resolve and download the most recent release, which the app
+      # FOTA test flashes before updating to the build under test.
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # pytest node ID planned by scripts/ci_test_matrix.py
+      TEST_ID: ${{ matrix.test }}
     steps:
       - name: Display Runner Serial Number
         # The serial number is set by a pre-job script in .env file on the local actions-runner directory
         run: |
           echo "Inside Container - Runner Serial Number: $RUNNER_SERIAL_NUMBER"
           echo "Inside Container - Runner Serial Number: ${{ env.RUNNER_SERIAL_NUMBER }}"
+
+      - name: Export runner environment for the test steps
+        # ``env.*`` is only available at step level, not in the job's ``env``.
+        run: |
+          {
+            echo "SEGGER=${{ env.RUNNER_SERIAL_NUMBER }}"
+            echo "UUID=${{ env.UUID }}"
+          } >> "$GITHUB_ENV"
 
       - name: Checkout
         uses: actions/checkout@v6
@@ -132,7 +178,8 @@ jobs:
           nrfutil install trace
 
       - name: Upload symbol file to Memfault (nightly CI account)
-        if: ${{ matrix.device == 'thingy91x' && inputs.run_nightly_tests }}
+        # Only in the job of the test that uses the debug (Memfault) firmware
+        if: ${{ matrix.device == 'thingy91x' && inputs.run_nightly_tests && contains(matrix.test, 'test_memfault.py') }}
         working-directory: asset-tracker-template/tests/on_target/artifacts
         run: |
           memfault \
@@ -151,46 +198,30 @@ jobs:
             --serial-number ${{ env.RUNNER_SERIAL_NUMBER }} \
             --firmware artifacts/mfw_nrf91x1_2.0.4.zip
 
-      - name: Target Tests
+      - name: Target test
         working-directory: asset-tracker-template/tests/on_target
+        shell: bash
         run: |
           mkdir -p results
-          if [[ ${{ inputs.run_nightly_tests }} == true ]]; then
-            pytest_marker=()
-          else
-            pytest_marker=(-m "not slow")
-          fi
-          if [[ '${{ matrix.device }}' == 'ppk_thingy91x' ]]; then
-            PYTEST_PATH=tests/test_ppk
-          elif [[ '${{ matrix.device }}' == 'gnss_nrf9151dk' ]]; then
-            PYTEST_PATH=tests/test_gnss
-          elif [[ '${{ matrix.device }}' == 'prov_thingy91x' || '${{ matrix.device }}' == 'prov_nrf9251dk' ]]; then
-            PYTEST_PATH=tests/test_provisioning
-          else
-            PYTEST_PATH=${{ inputs.pytest_path }}
-          fi
-
-          pytest -v "${pytest_marker[@]}" \
+          pytest -v \
             --junit-xml=results/test-results.xml \
             --html=results/test-results.html --self-contained-html \
-            ${PYTEST_PATH} \
-            ${{ inputs.pytest_args }}
-          
+            "$TEST_ID"
+
+      - name: Show end of test log on failure
+        if: failure()
+        working-directory: asset-tracker-template/tests/on_target
         shell: bash
-        env:
-          SEGGER: ${{ env.RUNNER_SERIAL_NUMBER }}
-          DUT_DEVICE_TYPE: ${{ vars.DUT_DEVICE_TYPE }}
-          UUID: ${{ env.UUID }}
-          NRFCLOUD_API_KEY: ${{ secrets.NRF_CLOUD_API_KEY }}
-          LOG_FILENAME: att_test_log
-          TEST_REPORT_NAME: ATT Firwmare Test Report
-          MEMFAULT_ORGANIZATION_TOKEN: ${{ secrets.MEMFAULT_ORGANIZATION_TOKEN }}
-          MEMFAULT_ORGANIZATION_SLUG: ${{ vars.MEMFAULT_ORGANIZATION_SLUG }}
-          MEMFAULT_PROJECT_SLUG: ${{ vars.MEMFAULT_PROJECT_SLUG }}
-          MCUBOOT_BUNDLEID: ${{ vars.MCUBOOT_BUNDLEID }}
-          # Used to resolve and download the most recent release, which the app
-          # FOTA test flashes before updating to the build under test.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for log in outcomes/logs/*.txt; do
+            echo "::group::tail -n 200 $log"
+            if [[ -s "$log" ]]; then
+              tail -n 200 "$log"
+            else
+              echo "(empty or not captured)"
+            fi
+            echo "::endgroup::"
+          done
 
       - name: Generate and Push Power Badge
         if: ${{ always() && matrix.device == 'ppk_thingy91x' }}
@@ -206,14 +237,14 @@ jobs:
           path: asset-tracker-template/tests/on_target/results/*.xml
           summary: true
           fail-on-empty: true
-          title: ATT FW Test Results - ${{ matrix.device }}
+          title: ATT FW Test Results - ${{ matrix.name }}
 
       - name: Create Report Artifact
         if: always()
         uses: actions/upload-artifact@v6
         id: artifact-report
         with:
-          name: test-report-${{ matrix.device }}
+          name: test-report-${{ matrix.artifact_name }}
           path: |
             asset-tracker-template/tests/on_target/results/*.html
 
@@ -222,6 +253,6 @@ jobs:
         uses: actions/upload-artifact@v6
         id: artifact-upload-test-logs
         with:
-          name: test-logs-${{ matrix.device }}
+          name: test-logs-${{ matrix.artifact_name }}
           path: |
             asset-tracker-template/tests/on_target/outcomes/logs/*.txt
