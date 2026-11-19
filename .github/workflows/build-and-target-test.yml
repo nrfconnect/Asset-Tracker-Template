@@ -60,12 +60,36 @@ on:
       - main
     paths-ignore:
       - "docs/**"
+  # Full nightly-equivalent run on a PR, opt-in via the
+  # ``ci-full-hw-test`` label. Re-runs on every new push while the label
+  # is set.
+  pull_request:
+    types: [labeled, synchronize, reopened]
 
 permissions:
   contents: read
 
+# Cancel a superseded PR run (hardware runners are shared). Runs that are
+# skipped by the label gate, and all non-PR events, get a unique group so they
+# can never cancel a real run (e.g. adding an unrelated label mid-run).
+concurrency:
+  group: ${{ github.event_name == 'pull_request'
+    && contains(github.event.pull_request.labels.*.name, 'ci-full-hw-test')
+    && (github.event.action != 'labeled' || github.event.label.name == 'ci-full-hw-test')
+    && format('build-and-test-pr-{0}', github.event.pull_request.number)
+    || format('build-and-test-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   setup:
+    # PR runs only when the label is set, the PR comes from this repo (no
+    # fork code on the self-hosted hardware runners, and secrets are needed),
+    # and, for ``labeled`` events, only when it is that label that was added.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (contains(github.event.pull_request.labels.*.name, 'ci-full-hw-test') &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       (github.event.action != 'labeled' || github.event.label.name == 'ci-full-hw-test'))
     runs-on: ubuntu-latest
     outputs:
       devices: ${{ steps.setup.outputs.devices }}
@@ -90,6 +114,7 @@ jobs:
         run: |
           SCHEDULED=${{ github.event_name == 'schedule' }}
           PUSH=${{ github.event_name == 'push' }}
+          PR=${{ github.event_name == 'pull_request' }}
           push_memory_badges=false
           build_type=""
           if [[ $SCHEDULED == true ]]; then
@@ -99,6 +124,12 @@ jobs:
             # Nightly historically builds every variant (including the mtrace
             # firmwares which have no test consumer). Keep the legacy
             # ``build_type=all`` so the existing artifact set is preserved.
+            build_type=all
+          elif [[ $PR == true ]]; then
+            # Same scope as nightly (all devices, slow tests, all variants),
+            # but never push memory badges / history to gh-pages from a PR.
+            devices="thingy91x nrf9151dk ppk_thingy91x gnss_nrf9151dk prov_thingy91x prov_nrf9251dk"
+            run_nightly_tests=true
             build_type=all
           elif [[ $PUSH == true ]]; then
             devices="thingy91x"
