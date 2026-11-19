@@ -118,7 +118,9 @@ permissions:
 
 # Cancel any in-progress run for the same PR
 concurrency:
-  group: build-${{ github.event.pull_request.number || github.run_id }}
+  # github.workflow is the caller's name when called via workflow_call, so a
+  # PR run driven by build-and-target-test.yml does not cancel the plain PR build.
+  group: build-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
