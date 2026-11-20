@@ -9,6 +9,8 @@ manifest:
   remotes:
     - name: ncs
       url-base: https://github.com/nrfconnect
+    - name: memfault
+      url-base: https://github.com/memfault
 
   projects:
     - name: nrf
@@ -16,3 +18,9 @@ manifest:
       repo-path: sdk-nrf
       revision: e3a828d4518c9ef7f56ccc0339975841a1a6f53c
       import: true
+    # Overrides the Memfault SDK version with a newer one supporting multi-component OTA.
+    - name: memfault-firmware-sdk
+      remote: memfault
+      repo-path: memfault-firmware-sdk
+      revision: 1.47.0
+      path: modules/lib/memfault-firmware-sdk
