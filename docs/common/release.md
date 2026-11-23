@@ -23,7 +23,7 @@ Each firmware variant includes the following set of artifacts:
 | `-nrf91.elf` | ELF file with debug symbols | Debugging, coredump analysis, `addr2line` |
 | `-nrf91.config` | Build configuration snapshot | Inspecting the Kconfig options used for the build |
 | `-nrf91-update-signed.hex` | Signed application-only hex without a bootloader | Updating only the application slot with a debugger |
-| `-nrf91-update-signed.bin` | Signed application-only binary | FOTA updates using nRF Cloud |
+| `-nrf91-update-signed.bin` | Signed application-only binary | Application FOTA updates through Memfault |
 | `-nrf91-dfu.zip` | DFU package | Serial DFU updates over USB, without a debugger |
 
 #### Standard firmware variants
