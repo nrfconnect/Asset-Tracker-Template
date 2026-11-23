@@ -1,8 +1,8 @@
 # FOTA module
 
-The firmware over-the-air (FOTA) module manages remote firmware updates for both application and modem firmware. It handles all the stages of the update process:
+The firmware over-the-air (FOTA) module manages remote firmware updates for the application, the modem firmware and the bootloader. The updates are Memfault OTA releases. The module handles all the stages of the update process:
 
-- Polling nRF Cloud for available updates.
+- Polling for available updates.
 - Downloading firmware images.
 - Applying updates.
 
@@ -13,6 +13,9 @@ The module supports the following firmware image types:
 - **Application**: Updates the application firmware.
 - **Delta modem**: Incremental modem firmware updates for minor version changes.
 - **Full modem**: Complete modem firmware replacements.
+- **Bootloader**: MCUboot (B1) updates.
+
+The application is the primary component of a Memfault release. The modem and bootloader images are components of the release, and the device reports the current version of each component. The device checks the application first, then the other components. For more information, see [Firmware updates (FOTA)](../common/fota.md).
 
 Once a download has started, the module publishes `FOTA_STARTING` so the application can move into its FOTA state. The module marks application and delta modem images ready after the download completes. Full modem images need an additional apply step that can only run while the modem is offline.
 
@@ -59,6 +62,9 @@ You can customize the FOTA module's behavior with the following Kconfig options:
 - **CONFIG_APP_FOTA_THREAD_STACK_SIZE**: Size of the stack for the FOTA module's thread.
 - **CONFIG_APP_FOTA_MSG_PROCESSING_TIMEOUT_SECONDS**: Maximum time allowed for processing individual FOTA messages.
 - **CONFIG_APP_FOTA_SHELL**: Enables shell support for FOTA operations.
+- **CONFIG_APP_FOTA_MCUBOOT**: Enables bootloader (MCUboot) updates. The module registers the images of the two bootloader slots as the Memfault OTA components `mcuboot-s0` and `mcuboot-s1`.
+- **CONFIG_APP_FOTA_MODEM_FULL**: Enables full modem updates. The module registers the full modem image as a Memfault OTA component, because the modem component of the Memfault SDK installs only delta images.
+- **CONFIG_APP_FOTA_MODEM_FULL_SOFTWARE_TYPE**: Memfault software type of the full modem image. The default is `mfw-full`.
 - **CONFIG_APP_FOTA_WATCHDOG_TIMEOUT_SECONDS**: Watchdog timeout for the FOTA operation to ensure timely completion.
 
 ## Shell commands
@@ -66,7 +72,7 @@ You can customize the FOTA module's behavior with the following Kconfig options:
 When `CONFIG_APP_FOTA_SHELL` is enabled, the following shell command is available:
 
 ```bash
-att_fota poll    # Poll nRF Cloud for pending firmware updates
+att_fota poll    # Poll for pending firmware updates
 ```
 
-The `poll` command publishes a `FOTA_POLL_REQUEST` on `fota_chan`, instructing the FOTA module to check nRF Cloud for available firmware updates. If an update is available, the FOTA module starts the download automatically. For more information, see [Firmware updates (FOTA)](../common/fota.md).
+The `poll` command publishes a `FOTA_POLL_REQUEST` on `fota_chan`, instructing the FOTA module to check for available firmware updates. If an update is available, the FOTA module starts the download automatically. For more information, see [Firmware updates (FOTA)](../common/fota.md).
